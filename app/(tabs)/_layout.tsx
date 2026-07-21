@@ -1,66 +1,99 @@
 import { SymbolView } from 'expo-symbols';
-import { Link, Tabs } from 'expo-router';
-import { Platform, Pressable } from 'react-native';
+import { Tabs } from 'expo-router';
 
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import { GustraTabBar } from '@/components/ui/GustraTabBar';
+import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
+import { ReviewsHeader } from '@/components/ui/ReviewsHeader';
+import { GustraColors } from '@/constants/Colors';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
+      tabBar={(props) => <GustraTabBar {...props} />}
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme].tint,
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
-        headerShown: useClientOnlyValue(false, true),
+        tabBarActiveTintColor: GustraColors.forestGreen,
+        tabBarInactiveTintColor: 'rgba(35, 32, 26, 0.45)',
+        tabBarStyle: {
+          position: 'absolute',
+          backgroundColor: 'transparent',
+          borderTopWidth: 0,
+          elevation: 0,
+        },
+        headerShadowVisible: false,
+        headerShown: true,
+        header: ({ options }) => (
+          <HouseNavHeader title={String(options.title ?? '')} />
+        ),
       }}>
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Tab One',
-          tabBarIcon: ({ color }) => (
+          title: 'Reviews',
+          tabBarLabel: 'Reviews',
+          header: () => <ReviewsHeader />,
+          tabBarIcon: ({ color, size }) => (
             <SymbolView
               name={{
-                ios: 'chevron.left.forwardslash.chevron.right',
-                android: 'code',
-                web: 'code',
+                ios: 'book.closed',
+                android: 'menu_book',
+                web: 'menu_book',
               }}
               tintColor={color}
-              size={28}
+              size={size}
             />
-          ),
-          headerRight: () => (
-            <Link href="/modal" asChild>
-              <Pressable style={{ marginRight: 15 }}>
-                {({ pressed }) => (
-                  <SymbolView
-                    name={{ ios: 'info.circle', android: 'info', web: 'info' }}
-                    size={25}
-                    tintColor={Colors[colorScheme].text}
-                    style={{ opacity: pressed ? 0.5 : 1 }}
-                  />
-                )}
-              </Pressable>
-            </Link>
           ),
         }}
       />
       <Tabs.Screen
-        name="two"
+        name="map"
         options={{
-          title: 'Tab Two',
-          tabBarIcon: ({ color }) => (
+          title: 'My map',
+          tabBarLabel: 'My map',
+          tabBarIcon: ({ color, size }) => (
             <SymbolView
               name={{
-                ios: 'chevron.left.forwardslash.chevron.right',
-                android: 'code',
-                web: 'code',
+                ios: 'map.fill',
+                android: 'map',
+                web: 'map',
               }}
               tintColor={color}
-              size={28}
+              size={size}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="passport"
+        options={{
+          title: 'My Gustra',
+          tabBarLabel: 'My Gustra',
+          tabBarIcon: ({ color, size }) => (
+            <SymbolView
+              name={{
+                ios: 'chart.bar.doc.horizontal',
+                android: 'bar_chart',
+                web: 'bar_chart',
+              }}
+              tintColor={color}
+              size={size}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          tabBarLabel: 'Settings',
+          tabBarIcon: ({ color, size }) => (
+            <SymbolView
+              name={{
+                ios: 'gearshape.fill',
+                android: 'settings',
+                web: 'settings',
+              }}
+              tintColor={color}
+              size={size}
             />
           ),
         }}
