@@ -5,22 +5,42 @@ import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 
 type ReviewsHeaderProps = {
   title?: string;
+  /** Swift: only on My reviews (not Friends'). */
+  showShare?: boolean;
+  canShare?: boolean;
+  sharing?: boolean;
+  onShare?: () => void;
 };
 
 /**
  * Reviews tab bar: share + filter around the shared fixed-height HouseNavHeader.
  */
-export function ReviewsHeader({ title = 'Reviews' }: ReviewsHeaderProps) {
+export function ReviewsHeader({
+  title = 'Reviews',
+  showShare = true,
+  canShare = false,
+  sharing = false,
+  onShare,
+}: ReviewsHeaderProps) {
   return (
     <HouseNavHeader
       title={title}
       left={
-        <HouseToolbarIconButton
-          iosName="square.and.arrow.up"
-          androidName="ios-share"
-          accessibilityLabel="Share"
-          onPress={() => Alert.alert('Share', 'Coming soon in a later pass.')}
-        />
+        showShare ? (
+          <HouseToolbarIconButton
+            iosName="square.and.arrow.up"
+            androidName="ios-share"
+            accessibilityLabel="Share"
+            disabled={!canShare || sharing}
+            onPress={() => {
+              if (onShare) {
+                onShare();
+                return;
+              }
+              Alert.alert('Share', 'Coming soon in a later pass.');
+            }}
+          />
+        ) : null
       }
       right={
         <HouseToolbarIconButton

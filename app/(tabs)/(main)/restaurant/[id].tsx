@@ -1,24 +1,42 @@
 import { FlatList, StyleSheet, View } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ReviewCard } from '@/components/feed/ReviewCard';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
+import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { GustraColors } from '@/constants/Colors';
 import { Theme } from '@/constants/Theme';
-import { getRestaurant, getReviewsForRestaurant } from '@/data/mockReviews';
+import { useReviewsStore } from '@/context/ReviewsStore';
+import type { ReviewOrigin } from '@/data/types';
+
+function parseOrigin(value: string | undefined): ReviewOrigin | undefined {
+  if (value === 'own' || value === 'imported') return value;
+  return undefined;
+}
 
 export default function RestaurantVisitsScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, origin: originParam } = useLocalSearchParams<{
+    id: string;
+    origin?: string;
+  }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { getRestaurant, getReviewsForRestaurant } = useReviewsStore();
+  const origin = parseOrigin(originParam);
   const restaurant = getRestaurant(id);
-  const reviews = getReviewsForRestaurant(id);
+  const reviews = getReviewsForRestaurant(id, origin);
+
+  const bottomPad =
+    Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen
-        options={{
-          title: restaurant?.name ?? 'Visits',
-        }}
+      <HouseNavHeader
+        title={restaurant?.name ?? 'Visits'}
+        titleSize={Theme.navigation.secondaryTitleSize}
+        showBack
+        onBack={() => router.back()}
       />
       {reviews.length === 0 || !restaurant ? (
         <HouseEmptyState
@@ -32,7 +50,7 @@ export default function RestaurantVisitsScreen() {
           data={reviews}
           keyExtractor={(item) => item.id}
           overScrollMode="never"
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: bottomPad }]}
           ItemSeparatorComponent={() => <View style={styles.sep} />}
           renderItem={({ item }) => (
             <ReviewCard
@@ -43,7 +61,6 @@ export default function RestaurantVisitsScreen() {
               photoUrl={restaurant.photoUrl}
               onPress={() => router.push(`/review/${item.id}`)}
             />
-
           )}
         />
       )}
@@ -58,7 +75,7 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingHorizontal: Theme.spacing.listRowHorizontal,
-    paddingVertical: Theme.spacing.listRowVertical + 8,
+    paddingTop: Theme.spacing.listRowVertical + 8,
   },
   sep: {
     height: Theme.spacing.listRowVertical * 2,

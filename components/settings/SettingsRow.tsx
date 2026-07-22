@@ -1,10 +1,16 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { SymbolView } from 'expo-symbols';
 
 import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle, captionTextStyle } from '@/constants/Theme';
-
 
 type SettingsRowProps = {
   title: string;
@@ -16,6 +22,7 @@ type SettingsRowProps = {
   accent?: boolean;
   onPress?: () => void;
   isLast?: boolean;
+  style?: StyleProp<ViewStyle>;
 };
 
 export function SettingsRow({
@@ -27,9 +34,10 @@ export function SettingsRow({
   accent = false,
   onPress,
   isLast = false,
+  style,
 }: SettingsRowProps) {
   const content = (
-    <View style={[styles.row, !isLast && styles.rowBorder]}>
+    <View style={[styles.row, !isLast && styles.rowBorder, style]}>
       <View style={styles.copy}>
         <Text
           style={[

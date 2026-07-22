@@ -1,3 +1,5 @@
+import 'react-native-gesture-handler';
+
 import {
   SourceSerif4_400Regular,
 } from '@expo-google-fonts/source-serif-4/400Regular';
@@ -18,20 +20,16 @@ import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
-import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
+import { SwipeDismissOverlay } from '@/components/feed/SwipeDismissOverlay';
 import { GustraColors } from '@/constants/Colors';
-import { Theme } from '@/constants/Theme';
 import { CriteriaSettingsProvider } from '@/context/CriteriaSettings';
 import { PassportDisplaySettingsProvider } from '@/context/PassportDisplaySettings';
-
-
-
-
-
-
-
+import { ReviewerProfileProvider } from '@/context/ReviewerProfile';
+import { ReviewsStoreProvider } from '@/context/ReviewsStore';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -84,41 +82,32 @@ export default function RootLayout() {
   }
 
   return (
-    <CriteriaSettingsProvider>
-      <PassportDisplaySettingsProvider>
-        <ThemeProvider value={GustraNavigationTheme}>
-          <StatusBar style="light" />
-          <Stack
-            screenOptions={{
-              headerShadowVisible: false,
-              contentStyle: { backgroundColor: GustraColors.cream },
-              header: ({ options, navigation, back }) => (
-                <HouseNavHeader
-                  title={String(options.title ?? '')}
-                  titleSize={Theme.navigation.secondaryTitleSize}
-                  showBack={back != null}
-                  onBack={() => navigation.goBack()}
-                />
-              ),
-            }}>
-
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen
-              name="restaurant/[id]"
-              options={{ title: 'Visits', headerBackTitle: '' }}
-            />
-            <Stack.Screen
-              name="review/[id]"
-              options={{ title: 'Review', headerBackTitle: '' }}
-            />
-            <Stack.Screen
-              name="settings/edit-criteria"
-              options={{ title: 'Edit review criteria', headerBackTitle: '' }}
-            />
-          </Stack>
-        </ThemeProvider>
-      </PassportDisplaySettingsProvider>
-    </CriteriaSettingsProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <CriteriaSettingsProvider>
+        <PassportDisplaySettingsProvider>
+          <ReviewerProfileProvider>
+            <ReviewsStoreProvider>
+              <ThemeProvider value={GustraNavigationTheme}>
+                <View style={styles.root}>
+                  <StatusBar style="light" />
+                  <Stack screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="(tabs)" />
+                  </Stack>
+                  <SwipeDismissOverlay />
+                </View>
+              </ThemeProvider>
+            </ReviewsStoreProvider>
+          </ReviewerProfileProvider>
+        </PassportDisplaySettingsProvider>
+      </CriteriaSettingsProvider>
+    </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+});
+
 

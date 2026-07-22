@@ -1,8 +1,4 @@
-import {
-  getRestaurant,
-  mockReviews,
-} from '@/data/mockReviews';
-import type { Review } from '@/data/types';
+import type { Restaurant, Review } from '@/data/types';
 
 export type BestRestaurantEntry = {
   restaurantId: string;
@@ -66,13 +62,15 @@ function criterionAveragesFromReviews(
     .filter((row): row is CriterionAverage => row !== null);
 }
 
-
-/** Personal passport stats from own mock reviews (Swift CulinaryPassportView). */
+/** Personal passport stats (Swift CulinaryPassportView). */
 export function getPassportStats(
   enabledCriteria: EnabledCriterion[],
+  sourceReviews: Review[],
+  restaurants: Restaurant[],
 ): PassportStats {
   const enabledIds = new Set(enabledCriteria.map((c) => c.id));
-  const reviews = [...mockReviews].sort(
+  const restaurantById = new Map(restaurants.map((r) => [r.id, r]));
+  const reviews = [...sourceReviews].sort(
     (a, b) => +new Date(b.date) - +new Date(a.date),
   );
   const totalReviews = reviews.length;
@@ -114,7 +112,7 @@ export function getPassportStats(
     newestByRestaurant.values(),
   )
     .map((review) => {
-      const restaurant = getRestaurant(review.restaurantId);
+      const restaurant = restaurantById.get(review.restaurantId);
       if (!restaurant) return null;
       return {
         restaurantId: restaurant.id,
@@ -129,7 +127,7 @@ export function getPassportStats(
 
   const cityBuckets = new Map<string, number[]>();
   for (const { review, score } of scored) {
-    const restaurant = getRestaurant(review.restaurantId);
+    const restaurant = restaurantById.get(review.restaurantId);
     const city = restaurant?.city?.trim();
     if (!city) continue;
     const list = cityBuckets.get(city) ?? [];

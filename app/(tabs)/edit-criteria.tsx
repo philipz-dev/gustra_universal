@@ -8,8 +8,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Stack } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GustraSwitch } from '@/components/ui/GustraSwitch';
 import { GustraColors } from '@/constants/Colors';
@@ -20,8 +20,8 @@ import {
   useCriteriaSettings,
 } from '@/context/CriteriaSettings';
 
-
 export default function EditCriteriaScreen() {
+  const insets = useSafeAreaInsets();
   const {
     customCriteria,
     isStandardEnabled,
@@ -38,25 +38,26 @@ export default function EditCriteriaScreen() {
   };
 
   const confirmDelete = (id: string, name: string) => {
-    Alert.alert(
-      'Delete criterion',
-      `Remove “${name}”?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => deleteCustomCriterion(id),
-        },
-      ],
-    );
+    Alert.alert('Delete criterion', `Remove “${name}”?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => deleteCustomCriterion(id),
+      },
+    ]);
   };
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen options={{ title: 'Edit review criteria' }} />
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingBottom:
+              Theme.spacing.floatingTabBarClearance + insets.bottom + 24,
+          },
+        ]}
         keyboardShouldPersistTaps="handled"
         overScrollMode="never"
         showsVerticalScrollIndicator={false}>
@@ -66,7 +67,8 @@ export default function EditCriteriaScreen() {
               key={criterion.id}
               style={[
                 styles.row,
-                index < STANDARD_CRITERIA.length - 1 || customCriteria.length > 0
+                index < STANDARD_CRITERIA.length - 1 ||
+                customCriteria.length > 0
                   ? styles.rowBorder
                   : null,
               ]}>
@@ -77,16 +79,16 @@ export default function EditCriteriaScreen() {
                   setStandardEnabled(criterion.id, value)
                 }
               />
-
             </View>
           ))}
 
           {customCriteria.map((criterion) => (
             <View key={criterion.id} style={[styles.row, styles.rowBorder]}>
-              <Text style={[styles.rowTitle, styles.customName]} numberOfLines={1}>
+              <Text
+                style={[styles.rowTitle, styles.customName]}
+                numberOfLines={1}>
                 {criterion.name}
               </Text>
-
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Delete ${criterion.name}`}
@@ -103,7 +105,6 @@ export default function EditCriteriaScreen() {
                 value={criterion.isEnabled}
                 onValueChange={(value) => setCustomEnabled(criterion.id, value)}
               />
-
             </View>
           ))}
 
@@ -124,7 +125,10 @@ export default function EditCriteriaScreen() {
               <Pressable
                 accessibilityRole="button"
                 onPress={addNew}
-                style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}>
+                style={({ pressed }) => [
+                  styles.addButton,
+                  pressed && styles.pressed,
+                ]}>
                 <Text style={styles.addLabel}>Add</Text>
               </Pressable>
             ) : null}
@@ -147,7 +151,6 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: Theme.spacing.listRowHorizontal,
     paddingTop: 16,
-    paddingBottom: 40,
     gap: 12,
   },
   card: {

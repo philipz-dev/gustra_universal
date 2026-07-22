@@ -31,6 +31,11 @@ export const CUSTOM_CRITERION_MAX_NAME_LENGTH = 20;
 const DISABLED_KEY = 'disabledRatingCategories';
 const CUSTOM_KEY = 'customCriteriaDefinitions';
 
+export type CriteriaSettingsSnapshot = {
+  disabledStandardIds: string[];
+  customCriteria: CustomCriterionDefinition[];
+};
+
 type CriteriaSettingsValue = {
   ready: boolean;
   disabledStandardIds: Set<string>;
@@ -42,6 +47,8 @@ type CriteriaSettingsValue = {
   setCustomEnabled: (id: string, enabled: boolean) => void;
   addCustomCriterion: (name: string) => string | null;
   deleteCustomCriterion: (id: string) => void;
+  getBackupSnapshot: () => CriteriaSettingsSnapshot;
+  applyBackupSnapshot: (snapshot: CriteriaSettingsSnapshot) => Promise<void>;
 };
 
 const CriteriaSettingsContext = createContext<CriteriaSettingsValue | null>(null);
@@ -199,6 +206,34 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
     return [...standard, ...custom];
   }, [customCriteria, disabledStandardIds]);
 
+  const getBackupSnapshot = useCallback(
+    (): CriteriaSettingsSnapshot => ({
+      disabledStandardIds: [...disabledStandardIds],
+      customCriteria: customCriteria.map((c) => ({ ...c })),
+    }),
+    [customCriteria, disabledStandardIds],
+  );
+
+  const applyBackupSnapshot = useCallback(
+    async (snapshot: CriteriaSettingsSnapshot) => {
+      const validDisabled = new Set(
+        (snapshot.disabledStandardIds ?? []).filter((id) =>
+          STANDARD_CRITERIA.some((c) => c.id === id),
+        ),
+      );
+      const nextCustom = (snapshot.customCriteria ?? []).map((c) => ({
+        id: String(c.id),
+        name: String(c.name ?? '').slice(0, CUSTOM_CRITERION_MAX_NAME_LENGTH),
+        isEnabled: Boolean(c.isEnabled),
+      }));
+      setDisabledStandardIds(validDisabled);
+      setCustomCriteria(nextCustom);
+      persistDisabled(validDisabled);
+      persistCustom(nextCustom);
+    },
+    [persistCustom, persistDisabled],
+  );
+
   const value = useMemo(
     () => ({
       ready,
@@ -210,6 +245,8 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
       setCustomEnabled,
       addCustomCriterion,
       deleteCustomCriterion,
+      getBackupSnapshot,
+      applyBackupSnapshot,
     }),
     [
       ready,
@@ -221,6 +258,8 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
       setCustomEnabled,
       addCustomCriterion,
       deleteCustomCriterion,
+      getBackupSnapshot,
+      applyBackupSnapshot,
     ],
   );
 

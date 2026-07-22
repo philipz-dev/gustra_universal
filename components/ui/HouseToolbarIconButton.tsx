@@ -44,6 +44,8 @@ export function HouseToolbarIconButton({
       disabled={disabled}
       hitSlop={4}
       onPress={onPress}
+      // Default Android ripple flashes on the green nav bar (reads as a spring).
+      android_ripple={null}
       style={({ pressed }) => [
         styles.hit,
         (pressed || disabled) && styles.pressed,

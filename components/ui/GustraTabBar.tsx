@@ -4,6 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GustraColors } from '@/constants/Colors';
 import { captionTextStyle } from '@/constants/Theme';
 
+/** Visible main tabs only — hidden siblings (e.g. edit-criteria) stay out of the pill. */
+const VISIBLE_TAB_NAMES = new Set(['(main)', 'map', 'passport', 'settings']);
 
 /** Floating cream pill tab bar (visual match for iOS 26 Gustra TabView). */
 export function GustraTabBar(props: Record<string, unknown>) {
@@ -16,6 +18,7 @@ export function GustraTabBar(props: Record<string, unknown>) {
     {
       options: {
         title?: string;
+        href?: string | null;
         tabBarLabel?: unknown;
         tabBarAccessibilityLabel?: string;
         tabBarIcon?: (p: {
@@ -32,15 +35,28 @@ export function GustraTabBar(props: Record<string, unknown>) {
   };
 
   const insets = useSafeAreaInsets();
+  const activeRouteName = state.routes[state.index]?.name;
+  // Keep Settings highlighted while on its hidden sibling screens.
+  const focusedTabName =
+    activeRouteName === 'edit-criteria' ||
+    activeRouteName === 'reviewer-photo' ||
+    activeRouteName === 'backup-restore'
+      ? 'settings'
+      : activeRouteName;
+
 
   return (
     <View
       pointerEvents="box-none"
       style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       <View style={styles.pill}>
-        {state.routes.map((route, index) => {
+        {state.routes.map((route) => {
+          if (!VISIBLE_TAB_NAMES.has(route.name)) return null;
+
           const { options } = descriptors[route.key];
-          const focused = state.index === index;
+          if (options.href === null || !options.tabBarIcon) return null;
+
+          const focused = route.name === focusedTabName;
           const label =
             typeof options.tabBarLabel === 'string'
               ? options.tabBarLabel
@@ -94,6 +110,7 @@ export function GustraTabBar(props: Record<string, unknown>) {
             </Pressable>
           );
         })}
+
       </View>
     </View>
   );

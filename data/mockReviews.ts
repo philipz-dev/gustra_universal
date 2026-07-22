@@ -1,4 +1,10 @@
-import type { Restaurant, RestaurantVisitSummary, Review } from '@/data/types';
+import type {
+  Restaurant,
+  RestaurantVisitSummary,
+  Review,
+  ReviewOrigin,
+} from '@/data/types';
+import { resolveReviewOrigin } from '@/data/types';
 
 /** Curated Unsplash stills — dishes & dining interiors (w=800 for feed/detail). */
 const photos = {
@@ -120,6 +126,7 @@ export const mockReviews: Review[] = [
     photoUrls: [photos.greenhouseDish, photos.greenhouseInterior],
 
     reviewedBy: 'Philip',
+    origin: 'own',
     overallScore: 4.5,
   },
   {
@@ -135,6 +142,7 @@ export const mockReviews: Review[] = [
     ],
     photoUrls: [photos.vegetableCourse],
     reviewedBy: 'Philip',
+    origin: 'own',
     overallScore: 4.3,
   },
   {
@@ -152,6 +160,7 @@ export const mockReviews: Review[] = [
     photoUrls: [photos.fineDiningPlate, photos.fineDiningRoom],
 
     reviewedBy: 'Philip',
+    origin: 'own',
     overallScore: 4.3,
   },
   {
@@ -167,6 +176,7 @@ export const mockReviews: Review[] = [
     ],
     photoUrls: [photos.nordicPlating, photos.nordicInterior, photos.tastingMenu],
     reviewedBy: 'Philip',
+    origin: 'own',
     overallScore: 4.8,
   },
   {
@@ -182,6 +192,7 @@ export const mockReviews: Review[] = [
     ],
     photoUrls: [photos.seafoodPlate],
     reviewedBy: 'Philip',
+    origin: 'own',
     overallScore: 4.5,
   },
   {
@@ -197,6 +208,7 @@ export const mockReviews: Review[] = [
     ],
     photoUrls: [photos.pastaClose, photos.candleRestaurant],
     reviewedBy: 'Philip',
+    origin: 'own',
     overallScore: 4.0,
   },
   {
@@ -211,8 +223,26 @@ export const mockReviews: Review[] = [
       { id: 'valueForMoney', title: 'Value for Money', rating: 3, comment: '' },
     ],
     photoUrls: [photos.asianSpread],
-    reviewedBy: 'Philip',
+    reviewedBy: 'Sara',
+    origin: 'imported',
     overallScore: 3.0,
+  },
+  {
+    id: 'v2b',
+    restaurantId: 'r2',
+    date: '2026-01-14T20:00:00',
+    generalComment: 'Shared dinner — Alex loved the tasting menu.',
+    criteria: [
+      { id: 'food', title: 'Food', rating: 5, comment: 'Every course was a highlight.' },
+      { id: 'drinks', title: 'Drinks', rating: 4, comment: 'Pairing was thoughtful.' },
+      { id: 'service', title: 'Service', rating: 5, comment: 'Impeccable.' },
+      { id: 'setting', title: 'Atmosphere', rating: 5, comment: 'Quiet and beautiful.' },
+      { id: 'valueForMoney', title: 'Value for Money', rating: 3, comment: 'Special night out.' },
+    ],
+    photoUrls: [photos.fineDiningRoom],
+    reviewedBy: 'Alex',
+    origin: 'imported',
+    overallScore: 4.4,
   },
 ];
 
@@ -232,22 +262,33 @@ export function getReview(id: string): Review | undefined {
   return mockReviews.find((r) => r.id === id);
 }
 
-export function getReviewsForRestaurant(restaurantId: string): Review[] {
+export function getReviewsForRestaurant(
+  restaurantId: string,
+  origin?: ReviewOrigin,
+): Review[] {
   return mockReviews
     .filter((r) => r.restaurantId === restaurantId)
+    .filter((r) => (origin ? resolveReviewOrigin(r) === origin : true))
     .sort((a, b) => +new Date(b.date) - +new Date(a.date));
 }
 
-export function getFeedSummaries(): RestaurantVisitSummary[] {
+export function getFeedSummaries(
+  origin: ReviewOrigin = 'own',
+): RestaurantVisitSummary[] {
   const summaries: RestaurantVisitSummary[] = [];
 
   for (const restaurant of mockRestaurants) {
-    const visits = getReviewsForRestaurant(restaurant.id);
+    const visits = getReviewsForRestaurant(restaurant.id, origin);
     if (visits.length === 0) continue;
     const averageScore =
       visits.reduce((sum, v) => sum + v.overallScore, 0) / visits.length;
     // Prefer latest visit photo; fall back to restaurant thumbnail.
     const latestPhoto = visits[0].photoUrls[0] ?? restaurant.photoUrl;
+    const reviewerNames = [
+      ...new Set(
+        visits.map((v) => v.reviewedBy.trim()).filter(Boolean),
+      ),
+    ];
     summaries.push({
       restaurantId: restaurant.id,
       name: restaurant.name,
@@ -255,7 +296,10 @@ export function getFeedSummaries(): RestaurantVisitSummary[] {
       averageScore,
       visitCount: visits.length,
       lastVisitDate: formatAbbreviated(visits[0].date),
-      reviewerName: visits[0].reviewedBy,
+      reviewerName:
+        origin === 'imported' && reviewerNames.length > 0
+          ? reviewerNames.join(', ')
+          : undefined,
       thumbnailColor: restaurant.thumbnailColor,
       photoUrl: latestPhoto,
       isFavorite: restaurant.isFavorite,

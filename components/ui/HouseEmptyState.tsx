@@ -8,8 +8,20 @@ type HouseEmptyStateProps = {
   title: string;
   description: string;
   /** SF Symbol name on iOS */
-  systemImage?: 'fork.knife' | 'book.closed' | 'map' | 'chart.bar.doc.horizontal' | 'gearshape';
-  androidImage?: 'restaurant' | 'menu_book' | 'map' | 'bar_chart' | 'settings';
+  systemImage?:
+    | 'fork.knife'
+    | 'book.closed'
+    | 'map'
+    | 'chart.bar.doc.horizontal'
+    | 'gearshape'
+    | 'person.2';
+  androidImage?:
+    | 'restaurant'
+    | 'menu_book'
+    | 'map'
+    | 'bar_chart'
+    | 'settings'
+    | 'group';
   actionTitle?: string;
   onAction?: () => void;
 };

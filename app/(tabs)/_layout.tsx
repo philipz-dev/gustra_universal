@@ -3,8 +3,8 @@ import { Tabs } from 'expo-router';
 
 import { GustraTabBar } from '@/components/ui/GustraTabBar';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
-import { ReviewsHeader } from '@/components/ui/ReviewsHeader';
 import { GustraColors } from '@/constants/Colors';
+import { Theme } from '@/constants/Theme';
 
 export default function TabLayout() {
   return (
@@ -26,11 +26,11 @@ export default function TabLayout() {
         ),
       }}>
       <Tabs.Screen
-        name="index"
+        name="(main)"
         options={{
           title: 'Reviews',
           tabBarLabel: 'Reviews',
-          header: () => <ReviewsHeader />,
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <SymbolView
               name={{
@@ -96,6 +96,37 @@ export default function TabLayout() {
               size={size}
             />
           ),
+        }}
+      />
+      {/* Hidden siblings so the floating tab bar stays visible. */}
+      <Tabs.Screen
+        name="edit-criteria"
+        options={{
+          href: null,
+          title: 'Edit review criteria',
+          header: ({ navigation }) => (
+            <HouseNavHeader
+              title="Edit review criteria"
+              titleSize={Theme.navigation.secondaryTitleSize}
+              showBack
+              onBack={() => navigation.navigate('settings')}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="reviewer-photo"
+        options={{
+          href: null,
+          title: 'Profile photo',
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
+        name="backup-restore"
+        options={{
+          href: null,
+          title: 'Backup / Restore',
         }}
       />
     </Tabs>

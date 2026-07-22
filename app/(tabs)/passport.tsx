@@ -19,17 +19,29 @@ import { GustraColors } from '@/constants/Colors';
 import { Theme } from '@/constants/Theme';
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { usePassportDisplaySettings } from '@/context/PassportDisplaySettings';
+import { useReviewsStore } from '@/context/ReviewsStore';
 import { getPassportStats } from '@/data/passportStats';
+import { resolveReviewOrigin } from '@/data/types';
 
 export default function CulinaryPassportScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { categoryAveragesStyle } = usePassportDisplaySettings();
   const { enabledCriteria } = useCriteriaSettings();
-  const stats = useMemo(
-    () => getPassportStats(enabledCriteria),
-    [enabledCriteria],
+  const { reviews, restaurants, ready } = useReviewsStore();
+  // My Gustra is personal only — friends' / imported reviews are excluded.
+  const ownReviews = useMemo(
+    () => reviews.filter((r) => resolveReviewOrigin(r) === 'own'),
+    [reviews],
   );
+  const stats = useMemo(
+    () =>
+      ready
+        ? getPassportStats(enabledCriteria, ownReviews, restaurants)
+        : getPassportStats(enabledCriteria, [], []),
+    [enabledCriteria, ownReviews, ready, restaurants],
+  );
+
 
 
 

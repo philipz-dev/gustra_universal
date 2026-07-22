@@ -7,26 +7,33 @@
     "icon": "./assets/images/icon.png",
     "scheme": "gustra",
     "userInterfaceStyle": "light",
+    "backgroundColor": "#F5EEDD",
     "newArchEnabled": true,
     "updates": {
       "enabled": false,
       "checkAutomatically": "NEVER",
       "fallbackToCacheTimeout": 0
     },
-
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "net.gustra.app"
+      "bundleIdentifier": "net.gustra.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Gustra uses the camera to take photos for your profile and restaurant reviews.",
+        "NSPhotoLibraryUsageDescription": "Gustra uses your photo library to import photos for your profile and restaurant reviews."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#F5EEDD",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundImage": "./assets/images/android-icon-background.png"
       },
       "package": "net.gustra.app",
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -43,7 +50,15 @@
           "resizeMode": "contain",
           "backgroundColor": "#F5EEDD"
         }
-      ]
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Gustra uses your photo library to import photos for your profile and restaurant reviews.",
+          "cameraPermission": "Gustra uses the camera to take photos for your profile and restaurant reviews."
+        }
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true

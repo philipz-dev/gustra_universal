@@ -11,7 +11,8 @@ import {
   View,
 } from 'react-native';
 
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CommentChip } from '@/components/detail/CommentChip';
 import { CriterionSection } from '@/components/detail/CriterionSection';
@@ -22,33 +23,44 @@ import {
 } from '@/components/ui/HousePrimaryButton';
 import { FavoriteHeartButton } from '@/components/ui/FavoriteHeartButton';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
+import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
 import { Theme } from '@/constants/Theme';
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
-import {
-  formatReviewDate,
-  getRestaurant,
-  getReview,
-} from '@/data/mockReviews';
-
+import { useReviewsStore } from '@/context/ReviewsStore';
+import { formatReviewDate } from '@/data/mockReviews';
 
 const HERO_H = Theme.size.heroHeight;
 
 export default function ReviewDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { getRestaurant, getReview } = useReviewsStore();
   const review = getReview(id);
   const restaurant = review ? getRestaurant(review.restaurantId) : undefined;
+
   const { enabledCriteria } = useCriteriaSettings();
   const enabledIds = new Set(enabledCriteria.map((c) => c.id));
   const [photoIndex, setPhotoIndex] = useState(0);
   const pageWidth = useRef(Dimensions.get('window').width).current;
+  const bottomPad =
+    Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
 
+  const header = (
+    <HouseNavHeader
+      title="Review"
+      titleSize={Theme.navigation.secondaryTitleSize}
+      showBack
+      onBack={() => router.back()}
+    />
+  );
 
   if (!review || !restaurant) {
     return (
       <View style={styles.screen}>
-        <Stack.Screen options={{ title: 'Review' }} />
+        {header}
         <HouseEmptyState
           title="Review not found"
           description="This memory is not in the mock data set."
@@ -64,8 +76,10 @@ export default function ReviewDetailScreen() {
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen options={{ title: 'Review' }} />
-      <ScrollView contentContainerStyle={styles.scroll} overScrollMode="never">
+      {header}
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]}
+        overScrollMode="never">
         {review.photoUrls.length > 0 ? (
           <View style={styles.heroBlock}>
             <ScrollView
@@ -167,9 +181,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: GustraColors.cream,
   },
-  scroll: {
-    paddingBottom: 40,
-  },
+  scroll: {},
   heroBlock: {
     paddingTop: 12,
     gap: 10,

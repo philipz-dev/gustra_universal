@@ -1,5 +1,8 @@
 export type SatisfactionLevel = 'excellent' | 'neutral' | 'avoid';
 
+/** Matches Swift `ReviewOrigin`. */
+export type ReviewOrigin = 'own' | 'imported';
+
 export type CriterionRating = {
   id: string;
   title: string;
@@ -29,7 +32,19 @@ export type Review = {
   photoUrls: string[];
   reviewedBy: string;
   overallScore: number;
+  /** `own` = app owner; `imported` = friends' shared reviews (Swift). */
+  origin: ReviewOrigin;
 };
+
+/** Legacy backfill: non-empty `reviewedBy` ⇒ imported (Swift migrate). */
+export function resolveReviewOrigin(
+  review: Pick<Review, 'origin' | 'reviewedBy'>,
+): ReviewOrigin {
+  if (review.origin === 'own' || review.origin === 'imported') {
+    return review.origin;
+  }
+  return review.reviewedBy.trim() ? 'imported' : 'own';
+}
 
 export type RestaurantVisitSummary = {
   restaurantId: string;
