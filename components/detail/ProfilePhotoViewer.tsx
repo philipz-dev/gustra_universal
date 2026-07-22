@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Modal, StyleSheet } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
+} from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
   useAnimatedStyle,
@@ -119,35 +123,40 @@ export function ProfilePhotoViewer({
       onRequestClose={close}
       statusBarTranslucent>
       {visible ? <StatusBar style="light" hidden /> : null}
-      <PhotoViewerShell dismissY={dismissY}>
-        <GestureDetector gesture={dismissGesture}>
-          <Animated.View style={[styles.content, contentStyle]}>
-            <ZoomablePhoto
-              uri={uri}
-              isActive={visible}
-              accessibilityLabel="Profile photo"
-              onZoomChange={setZoomed}
-            />
-          </Animated.View>
-        </GestureDetector>
+      <GestureHandlerRootView style={styles.root}>
+        <PhotoViewerShell dismissY={dismissY}>
+          <GestureDetector gesture={dismissGesture}>
+            <Animated.View style={[styles.content, contentStyle]}>
+              <ZoomablePhoto
+                uri={uri}
+                isActive={visible}
+                accessibilityLabel="Profile photo"
+                onZoomChange={setZoomed}
+              />
+            </Animated.View>
+          </GestureDetector>
 
-        <PhotoViewerTopBar
-          onClose={close}
-          onShare={() => void handleShare()}
-          onSave={() => void handleSave()}
-        />
+          <PhotoViewerTopBar
+            onClose={close}
+            onShare={() => void handleShare()}
+            onSave={() => void handleSave()}
+          />
 
-        <PhotoViewerCountPill
-          text="Profile photo"
-          visible={!zoomed}
-          dismissY={dismissY}
-        />
-      </PhotoViewerShell>
+          <PhotoViewerCountPill
+            text="Profile photo"
+            visible={!zoomed}
+            dismissY={dismissY}
+          />
+        </PhotoViewerShell>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
   content: {
     flex: 1,
   },

@@ -8,6 +8,9 @@ type ReviewsHeaderProps = {
   canShare?: boolean;
   sharing?: boolean;
   onShare?: () => void;
+  /** Import `.gustrashare` (shown on Friends' when share is hidden). */
+  showImport?: boolean;
+  onImport?: () => void;
   /** Swift `canUseFilters` — hide when source has no reviews. */
   showFilter?: boolean;
   canFilter?: boolean;
@@ -17,7 +20,7 @@ type ReviewsHeaderProps = {
 };
 
 /**
- * Reviews tab bar: share + filter around the shared fixed-height HouseNavHeader.
+ * Reviews tab bar: share/import + filter around the shared fixed-height HouseNavHeader.
  */
 export function ReviewsHeader({
   title = 'Reviews',
@@ -25,27 +28,38 @@ export function ReviewsHeader({
   canShare = false,
   sharing = false,
   onShare,
+  showImport = false,
+  onImport,
   showFilter = true,
   canFilter = false,
   filterActive = false,
   onFilter,
 }: ReviewsHeaderProps) {
+  const left = showImport ? (
+    <HouseToolbarIconButton
+      iosName="square.and.arrow.down"
+      androidName="download"
+      accessibilityLabel="Import reviews"
+      onPress={() => {
+        onImport?.();
+      }}
+    />
+  ) : showShare ? (
+    <HouseToolbarIconButton
+      iosName="square.and.arrow.up"
+      androidName="share"
+      accessibilityLabel="Share"
+      disabled={!canShare || sharing}
+      onPress={() => {
+        onShare?.();
+      }}
+    />
+  ) : null;
+
   return (
     <HouseNavHeader
       title={title}
-      left={
-        showShare ? (
-          <HouseToolbarIconButton
-            iosName="square.and.arrow.up"
-            androidName="ios-share"
-            accessibilityLabel="Share"
-            disabled={!canShare || sharing}
-            onPress={() => {
-              onShare?.();
-            }}
-          />
-        ) : null
-      }
+      left={left}
       right={
         showFilter ? (
           <HouseToolbarIconButton

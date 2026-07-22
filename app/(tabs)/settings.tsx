@@ -28,6 +28,7 @@ import {
   REVIEWER_MAX_NAME_LENGTH,
   useReviewerProfile,
 } from '@/context/ReviewerProfile';
+import { useShareImportLaunch } from '@/context/ShareImportLaunch';
 import { getPhotosDiskUsage } from '@/services/photos/diskUsage';
 
 export default function SettingsScreen() {
@@ -48,6 +49,7 @@ export default function SettingsScreen() {
     resetAll: resetApiCounters,
   } = useGoogleApiTracker();
   const { name, photoUri, updateName, ready } = useReviewerProfile();
+  const { pickSharePackage } = useShareImportLaunch();
   const [reviewerNameDraft, setReviewerNameDraft] = useState('');
   const [photosSubtitle, setPhotosSubtitle] = useState('0 photos stored locally');
   const [photosBytesLabel, setPhotosBytesLabel] = useState('0 B');
@@ -234,6 +236,14 @@ export default function SettingsScreen() {
       </SettingsSection>
 
       <SettingsSection>
+        <SettingsRow
+          title="Import shared reviews"
+          subtitle="Open a .gustrashare file from a friend"
+          showChevron
+          onPress={() => {
+            void pickSharePackage();
+          }}
+        />
         <SettingsRow
           title="Backup / Restore"
           showChevron

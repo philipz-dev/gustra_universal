@@ -1,10 +1,7 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   Alert,
-  Dimensions,
   Image,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CommentChip } from '@/components/detail/CommentChip';
 import { CriterionSection } from '@/components/detail/CriterionSection';
+import { HeroPhotoPager } from '@/components/detail/HeroPhotoPager';
 import { LocationBlock } from '@/components/detail/LocationBlock';
 import { ProfilePhotoViewer } from '@/components/detail/ProfilePhotoViewer';
 import { RestaurantMapViewer } from '@/components/detail/RestaurantMapViewer';
@@ -45,8 +43,6 @@ import { presentDirectionsOptions } from '@/services/directions/DirectionsLaunch
 import { shareReviewAsEmail } from '@/services/share/ReviewEmailShare';
 import { shareReviewsPackage } from '@/services/share/ReviewShareService';
 
-const HERO_H = Theme.size.heroHeight;
-
 export default function ReviewDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -69,7 +65,6 @@ export default function ReviewDetailScreen() {
     null,
   );
   const [sharing, setSharing] = useState(false);
-  const pageWidth = useRef(Dimensions.get('window').width).current;
   const bottomPad =
     Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
 
@@ -166,51 +161,23 @@ export default function ReviewDetailScreen() {
     );
   }
 
-  const onHeroScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const x = e.nativeEvent.contentOffset.x;
-    setPhotoIndex(Math.round(x / pageWidth));
-  };
-
   return (
     <View style={styles.screen}>
       {header}
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]}
-        overScrollMode="never">
+        overScrollMode="never"
+        nestedScrollEnabled>
         {review.photoUrls.length > 0 ? (
-          <View style={styles.heroBlock}>
-            <ScrollView
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              overScrollMode="never"
-              onScroll={onHeroScroll}
-              scrollEventThrottle={16}
-              style={styles.heroScroll}>
-              {review.photoUrls.map((uri, index) => (
-                <Pressable
-                  key={`${uri}-${index}`}
-                  style={[styles.heroPage, { width: pageWidth }]}
-                  onPress={() => {
-                    setPhotoIndex(index);
-                    setShowPhotoViewer(true);
-                  }}
-                  accessibilityRole="imagebutton"
-                  accessibilityLabel={`Photo ${index + 1} of ${review.photoUrls.length}`}>
-                  <Image
-                    source={{ uri }}
-                    style={styles.heroImage}
-                    resizeMode="cover"
-                  />
-                </Pressable>
-              ))}
-            </ScrollView>
-            {review.photoUrls.length > 1 ? (
-              <Text style={styles.pageIndicator}>
-                {photoIndex + 1} / {review.photoUrls.length}
-              </Text>
-            ) : null}
-          </View>
+          <HeroPhotoPager
+            uris={review.photoUrls}
+            index={photoIndex}
+            onIndexChange={setPhotoIndex}
+            onPressPhoto={(index) => {
+              setPhotoIndex(index);
+              setShowPhotoViewer(true);
+            }}
+          />
         ) : null}
 
         <View style={styles.content}>
@@ -363,34 +330,6 @@ const styles = StyleSheet.create({
     backgroundColor: GustraColors.cream,
   },
   scroll: {},
-  heroBlock: {
-    paddingTop: 12,
-    gap: 10,
-    backgroundColor: GustraColors.cream,
-  },
-  heroScroll: {
-    height: HERO_H,
-  },
-  heroPage: {
-    height: HERO_H,
-    paddingHorizontal: 16,
-    justifyContent: 'center',
-  },
-  heroImage: {
-    flex: 1,
-    borderRadius: Theme.radius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(35, 32, 26, 0.14)',
-    backgroundColor: GustraColors.bubble,
-  },
-
-  pageIndicator: {
-    alignSelf: 'center',
-    fontSize: 14,
-    fontWeight: '500',
-    color: 'rgba(35, 32, 26, 0.55)',
-    fontVariant: ['tabular-nums'],
-  },
   content: {
     padding: Theme.spacing.detailContent,
     gap: Theme.spacing.detailSection,

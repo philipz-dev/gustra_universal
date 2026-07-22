@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { StyleSheet, useWindowDimensions } from 'react-native';
+import { Image, Platform, StyleSheet, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -14,6 +14,11 @@ type ZoomablePhotoProps = {
   isActive?: boolean;
   accessibilityLabel?: string;
   onZoomChange?: (zoomed: boolean) => void;
+  /**
+   * Pager mode: on Android render a plain image (no GestureDetector) so the
+   * horizontal ScrollView always receives one-finger swipes.
+   */
+  pagingFriendly?: boolean;
 };
 
 /**
@@ -24,6 +29,7 @@ export function ZoomablePhoto({
   isActive = true,
   accessibilityLabel = 'Photo',
   onZoomChange,
+  pagingFriendly = false,
 }: ZoomablePhotoProps) {
   const { width, height } = useWindowDimensions();
   const scale = useSharedValue(1);
@@ -33,8 +39,8 @@ export function ZoomablePhoto({
   const savedX = useSharedValue(0);
   const savedY = useSharedValue(0);
 
-  const notifyZoom = (zoomed: boolean) => {
-    onZoomChange?.(zoomed);
+  const notifyZoom = (next: boolean) => {
+    onZoomChange?.(next);
   };
 
   const reset = () => {
@@ -45,7 +51,7 @@ export function ZoomablePhoto({
     translateY.value = withTiming(0, { duration: 180 });
     savedX.value = 0;
     savedY.value = 0;
-    if (onZoomChange) runOnJS(notifyZoom)(false);
+    runOnJS(notifyZoom)(false);
   };
 
   useEffect(() => {
@@ -58,7 +64,29 @@ export function ZoomablePhoto({
       savedY.value = 0;
       onZoomChange?.(false);
     }
-  }, [isActive, onZoomChange, scale, savedScale, translateX, translateY, savedX, savedY]);
+  }, [
+    isActive,
+    onZoomChange,
+    scale,
+    savedScale,
+    translateX,
+    translateY,
+    savedX,
+    savedY,
+  ]);
+
+  // Android pager: never mount a GestureDetector over the page — it wins the
+  // touch arena and kills horizontal swipes even when Pan "fails".
+  if (pagingFriendly && Platform.OS === 'android') {
+    return (
+      <Image
+        source={{ uri }}
+        accessibilityLabel={accessibilityLabel}
+        style={[styles.image, { width, height }]}
+        resizeMode="contain"
+      />
+    );
+  }
 
   const pinch = Gesture.Pinch()
     .onUpdate((e) => {
@@ -70,12 +98,19 @@ export function ZoomablePhoto({
         reset();
       } else {
         savedScale.value = scale.value;
-        if (onZoomChange) runOnJS(notifyZoom)(true);
+        runOnJS(notifyZoom)(true);
       }
     });
 
   const pan = Gesture.Pan()
-    .averageTouches(true)
+    .manualActivation(true)
+    .onTouchesMove((_e, state) => {
+      if (savedScale.value > 1.01) {
+        state.activate();
+      } else {
+        state.fail();
+      }
+    })
     .onUpdate((e) => {
       if (savedScale.value <= 1.01) return;
       translateX.value = savedX.value + e.translationX;
@@ -88,20 +123,20 @@ export function ZoomablePhoto({
 
   const doubleTap = Gesture.Tap()
     .numberOfTaps(2)
+    .maxDuration(250)
     .onEnd(() => {
       if (scale.value > 1.01) {
         reset();
       } else {
         scale.value = withTiming(2, { duration: 180 });
         savedScale.value = 2;
-        if (onZoomChange) runOnJS(notifyZoom)(true);
+        runOnJS(notifyZoom)(true);
       }
     });
 
-  const composed = Gesture.Simultaneous(
-    pinch,
-    Gesture.Simultaneous(pan, doubleTap),
-  );
+  const composed = pagingFriendly
+    ? Gesture.Simultaneous(pinch, pan)
+    : Gesture.Exclusive(doubleTap, Gesture.Simultaneous(pinch, pan));
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -115,7 +150,8 @@ export function ZoomablePhoto({
     <GestureDetector gesture={composed}>
       <Animated.View
         style={[styles.canvas, { width, height }]}
-        accessibilityLabel={accessibilityLabel}>
+        accessibilityLabel={accessibilityLabel}
+        collapsable={false}>
         <Animated.Image
           source={{ uri }}
           style={[styles.image, { width, height }, animatedStyle]}
@@ -132,7 +168,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  image: {
-    // sized via window dimensions
-  },
+  image: {},
 });

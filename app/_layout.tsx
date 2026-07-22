@@ -32,6 +32,7 @@ import { PassportDisplaySettingsProvider } from '@/context/PassportDisplaySettin
 import { PhotoQualitySettingsProvider } from '@/context/PhotoQualitySettings';
 import { ReviewerProfileProvider } from '@/context/ReviewerProfile';
 import { ReviewsStoreProvider } from '@/context/ReviewsStore';
+import { ShareImportLaunchProvider } from '@/context/ShareImportLaunch';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -91,15 +92,24 @@ export default function RootLayout() {
             <GoogleApiTrackerProvider>
               <ReviewerProfileProvider>
                 <ReviewsStoreProvider>
-                  <ThemeProvider value={GustraNavigationTheme}>
-                    <View style={styles.root}>
-                      <StatusBar style="light" />
-                      <Stack screenOptions={{ headerShown: false }}>
-                        <Stack.Screen name="(tabs)" />
-                      </Stack>
-                      <SwipeDismissOverlay />
-                    </View>
-                  </ThemeProvider>
+                  <ShareImportLaunchProvider>
+                    <ThemeProvider value={GustraNavigationTheme}>
+                      <View style={styles.root}>
+                        <StatusBar style="light" />
+                        <Stack screenOptions={{ headerShown: false }}>
+                          <Stack.Screen name="(tabs)" />
+                          <Stack.Screen
+                            name="share-import"
+                            options={{
+                              presentation: 'modal',
+                              animation: 'slide_from_bottom',
+                            }}
+                          />
+                        </Stack>
+                        <SwipeDismissOverlay />
+                      </View>
+                    </ThemeProvider>
+                  </ShareImportLaunchProvider>
                 </ReviewsStoreProvider>
               </ReviewerProfileProvider>
             </GoogleApiTrackerProvider>

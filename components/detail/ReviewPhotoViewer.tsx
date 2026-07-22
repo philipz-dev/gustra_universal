@@ -5,11 +5,17 @@ import {
   Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  ScrollView,
+  Platform,
+  ScrollView as RNScrollView,
   StyleSheet,
   View,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
+  ScrollView as GHScrollView,
+} from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
   useAnimatedStyle,
@@ -38,8 +44,15 @@ type ReviewPhotoViewerProps = {
   onClose: () => void;
 };
 
+/** Swift `ReviewPhotoViewer` HStack spacing between pages. */
+const PAGE_GAP = 16;
+
 /**
  * Full-screen review photo pager (Swift `ReviewPhotoViewer` cinematic chrome).
+ *
+ * Android: native ScrollView + no parent dismiss pan around the pager
+ * (gesture wrappers were stealing horizontal swipes).
+ * iOS: RNGH ScrollView + vertical dismiss pan.
  */
 export function ReviewPhotoViewer({
   visible,
@@ -49,10 +62,13 @@ export function ReviewPhotoViewer({
   onClose,
 }: ReviewPhotoViewerProps) {
   const pageWidth = useRef(Dimensions.get('window').width).current;
-  const scrollRef = useRef<ScrollView>(null);
+  const pageStride = pageWidth + PAGE_GAP;
+  const rnScrollRef = useRef<RNScrollView>(null);
+  const ghScrollRef = useRef<GHScrollView>(null);
   const [zoomed, setZoomed] = useState(false);
   const [busy, setBusy] = useState(false);
   const dismissY = useSharedValue(0);
+  const isAndroid = Platform.OS === 'android';
 
   useEffect(() => {
     if (!visible) {
@@ -60,10 +76,17 @@ export function ReviewPhotoViewer({
       setZoomed(false);
       return;
     }
-    requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({ x: index * pageWidth, animated: false });
+    const x = index * pageStride;
+    const id = requestAnimationFrame(() => {
+      if (Platform.OS === 'android') {
+        rnScrollRef.current?.scrollTo({ x, animated: false });
+      } else {
+        ghScrollRef.current?.scrollTo({ x, animated: false });
+      }
     });
-  }, [visible, index, pageWidth, dismissY]);
+    return () => cancelAnimationFrame(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open sync only
+  }, [visible, pageStride, dismissY]);
 
   const close = useCallback(() => {
     dismissY.value = 0;
@@ -71,7 +94,7 @@ export function ReviewPhotoViewer({
   }, [dismissY, onClose]);
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const next = Math.round(e.nativeEvent.contentOffset.x / pageWidth);
+    const next = Math.round(e.nativeEvent.contentOffset.x / pageStride);
     if (next !== index && next >= 0 && next < uris.length) {
       onIndexChange(next);
       setZoomed(false);
@@ -111,9 +134,9 @@ export function ReviewPhotoViewer({
   }, [busy, index, uris]);
 
   const dismissGesture = Gesture.Pan()
-    .enabled(!zoomed)
+    .enabled(!zoomed && !isAndroid)
     .activeOffsetY([-20, 20])
-    .failOffsetX([-24, 24])
+    .failOffsetX([-10, 10])
     .onUpdate((e) => {
       dismissY.value = e.translationY;
     })
@@ -144,6 +167,70 @@ export function ReviewPhotoViewer({
 
   const currentUri = uris[index];
 
+  const pages = uris.map((uri, i) => (
+    <View
+      key={`${uri}-${i}`}
+      style={[
+        styles.page,
+        {
+          width: pageWidth,
+          marginRight: i === uris.length - 1 ? 0 : PAGE_GAP,
+        },
+      ]}
+      collapsable={false}>
+      <ZoomablePhoto
+        uri={uri}
+        isActive={i === index && visible}
+        accessibilityLabel="Review photo"
+        pagingFriendly
+        onZoomChange={(isZoomed) => {
+          if (i === index) setZoomed(isZoomed);
+        }}
+      />
+    </View>
+  ));
+
+  const pagerProps = {
+    horizontal: true as const,
+    // snapToInterval (not pagingEnabled) so PAGE_GAP shows between photos.
+    pagingEnabled: false,
+    snapToInterval: pageStride,
+    snapToAlignment: 'start' as const,
+    disableIntervalMomentum: true,
+    bounces: false,
+    scrollEnabled: !zoomed,
+    showsHorizontalScrollIndicator: false,
+    onScroll,
+    scrollEventThrottle: 16,
+    style: styles.pager,
+    decelerationRate: 'fast' as const,
+  };
+
+  const pager = isAndroid ? (
+    <RNScrollView
+      ref={rnScrollRef}
+      {...pagerProps}
+      removeClippedSubviews={false}>
+      {pages}
+    </RNScrollView>
+  ) : (
+    <GHScrollView ref={ghScrollRef} {...pagerProps}>
+      {pages}
+    </GHScrollView>
+  );
+
+  const body =
+    uris.length === 1 && currentUri ? (
+      <ZoomablePhoto
+        uri={currentUri}
+        isActive
+        accessibilityLabel="Review photo"
+        onZoomChange={setZoomed}
+      />
+    ) : (
+      pager
+    );
+
   return (
     <Modal
       visible={visible}
@@ -152,65 +239,46 @@ export function ReviewPhotoViewer({
       onRequestClose={close}
       statusBarTranslucent>
       {visible ? <StatusBar style="light" hidden /> : null}
-      <PhotoViewerShell dismissY={dismissY}>
-        <GestureDetector gesture={dismissGesture}>
-          <Animated.View style={[styles.content, contentStyle]}>
-            {uris.length === 1 && currentUri ? (
-              <ZoomablePhoto
-                uri={currentUri}
-                isActive
-                accessibilityLabel="Review photo"
-                onZoomChange={setZoomed}
-              />
-            ) : (
-              <ScrollView
-                ref={scrollRef}
-                horizontal
-                pagingEnabled
-                scrollEnabled={!zoomed}
-                showsHorizontalScrollIndicator={false}
-                onScroll={onScroll}
-                scrollEventThrottle={16}
-                style={styles.pager}
-                contentOffset={{ x: index * pageWidth, y: 0 }}>
-                {uris.map((uri, i) => (
-                  <View key={`${uri}-${i}`} style={{ width: pageWidth }}>
-                    <ZoomablePhoto
-                      uri={uri}
-                      isActive={i === index}
-                      accessibilityLabel="Review photo"
-                      onZoomChange={(isZoomed) => {
-                        if (i === index) setZoomed(isZoomed);
-                      }}
-                    />
-                  </View>
-                ))}
-              </ScrollView>
-            )}
-          </Animated.View>
-        </GestureDetector>
+      <GestureHandlerRootView style={styles.root}>
+        <PhotoViewerShell dismissY={dismissY}>
+          {isAndroid ? (
+            <View style={styles.content}>{body}</View>
+          ) : (
+            <GestureDetector gesture={dismissGesture}>
+              <Animated.View style={[styles.content, contentStyle]}>
+                {body}
+              </Animated.View>
+            </GestureDetector>
+          )}
 
-        <PhotoViewerTopBar
-          onClose={close}
-          onShare={() => void handleShare()}
-          onSave={() => void handleSave()}
-        />
+          <PhotoViewerTopBar
+            onClose={close}
+            onShare={() => void handleShare()}
+            onSave={() => void handleSave()}
+          />
 
-        <PhotoViewerCountPill
-          text={`${index + 1} / ${uris.length}`}
-          visible={uris.length > 1 && !zoomed}
-          dismissY={dismissY}
-        />
-      </PhotoViewerShell>
+          <PhotoViewerCountPill
+            text={`${index + 1} / ${uris.length}`}
+            visible={uris.length > 1 && !zoomed}
+            dismissY={isAndroid ? undefined : dismissY}
+          />
+        </PhotoViewerShell>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
   content: {
     flex: 1,
   },
   pager: {
+    flex: 1,
+  },
+  page: {
     flex: 1,
   },
 });

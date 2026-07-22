@@ -27,6 +27,7 @@ import { Theme } from '@/constants/Theme';
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewerProfile } from '@/context/ReviewerProfile';
 import { useReviewsStore } from '@/context/ReviewsStore';
+import { useShareImportLaunch } from '@/context/ShareImportLaunch';
 import type {
   RestaurantVisitSummary,
   Review,
@@ -49,19 +50,13 @@ export default function ReviewsFeedScreen() {
     getFeedSummaries,
     getReview,
     restaurants,
-    hasFriendReviews,
     ready,
     deleteRestaurantFromFeed,
     setRestaurantFavorite,
   } = useReviewsStore();
   const { hasName, updateName, getBackupSnapshot } = useReviewerProfile();
+  const { pickSharePackage } = useShareImportLaunch();
   const { enabledCriteria } = useCriteriaSettings();
-
-  useEffect(() => {
-    if (!hasFriendReviews && reviewSource !== 'own') {
-      setReviewSource('own');
-    }
-  }, [hasFriendReviews, reviewSource]);
 
   const summaries = useMemo(
     () => (ready ? getFeedSummaries(reviewSource) : []),
@@ -215,14 +210,16 @@ export default function ReviewsFeedScreen() {
         canShare={canShare}
         sharing={sharing}
         onShare={openShare}
+        showImport={isFriends}
+        onImport={() => {
+          void pickSharePackage();
+        }}
         showFilter
         canFilter={canFilter}
         filterActive={filterActive}
         onFilter={() => setFilterModalVisible(true)}
       />
-      {hasFriendReviews ? (
-        <ReviewSourcePicker value={reviewSource} onChange={setReviewSource} />
-      ) : null}
+      <ReviewSourcePicker value={reviewSource} onChange={setReviewSource} />
       <FilterSearchBar value={query} onChangeText={setQuery} />
       <ActiveFilterSummary
         state={filterState}
@@ -250,12 +247,20 @@ export default function ReviewsFeedScreen() {
                 : 'menu_book'
           }
           actionTitle={
-            emptyFromFilters || isFriends ? undefined : 'Add review'
+            emptyFromFilters
+              ? undefined
+              : isFriends
+                ? 'Import reviews'
+                : 'Add review'
           }
           onAction={
-            emptyFromFilters || isFriends
+            emptyFromFilters
               ? undefined
-              : () => router.push('/add-review')
+              : isFriends
+                ? () => {
+                    void pickSharePackage();
+                  }
+                : () => router.push('/add-review')
           }
         />
       ) : (

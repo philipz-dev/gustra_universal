@@ -17,7 +17,8 @@ type HouseEmptyStateProps = {
     | 'person.2'
     | 'line.3.horizontal.decrease'
     | 'mappin.and.ellipse'
-    | 'location.slash';
+    | 'location.slash'
+    | 'square.and.arrow.down';
   androidImage?:
     | 'restaurant'
     | 'menu_book'
@@ -27,7 +28,8 @@ type HouseEmptyStateProps = {
     | 'group'
     | 'filter_list'
     | 'place'
-    | 'location_off';
+    | 'location_off'
+    | 'download';
   actionTitle?: string;
   onAction?: () => void;
 };

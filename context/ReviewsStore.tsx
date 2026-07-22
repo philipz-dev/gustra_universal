@@ -103,6 +103,11 @@ type ReviewsStoreValue = {
     password: string,
     mode: BackupImportMode,
   ) => Promise<void>;
+  /** Merge imported friends reviews from a `.gustrashare` package. */
+  importSharePackage: (result: {
+    restaurants: Restaurant[];
+    reviews: Review[];
+  }) => Promise<void>;
 };
 
 function newEntityId(prefix: string): string {
@@ -601,6 +606,30 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
     ],
   );
 
+  const importSharePackage = useCallback(
+    async (result: { restaurants: Restaurant[]; reviews: Review[] }) => {
+      if (result.reviews.length === 0) return;
+      const nextRestaurants = [...restaurants];
+      const seenRestaurantIds = new Set(restaurants.map((r) => r.id));
+      for (const restaurant of result.restaurants) {
+        if (seenRestaurantIds.has(restaurant.id)) continue;
+        nextRestaurants.push(normalizeRestaurant(restaurant));
+        seenRestaurantIds.add(restaurant.id);
+      }
+      const nextReviews = [
+        ...reviews,
+        ...result.reviews.map((r) => normalizeReview(r)),
+      ];
+      setRestaurants(nextRestaurants);
+      setReviews(nextReviews);
+      await persist({
+        restaurants: nextRestaurants,
+        reviews: nextReviews,
+      });
+    },
+    [restaurants, reviews],
+  );
+
   const value = useMemo(
     () => ({
       ready,
@@ -617,6 +646,7 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       deleteReview,
       createEncryptedBackup,
       importEncryptedBackup,
+      importSharePackage,
     }),
     [
       ready,
@@ -633,6 +663,7 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       deleteReview,
       createEncryptedBackup,
       importEncryptedBackup,
+      importSharePackage,
     ],
   );
 
