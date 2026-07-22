@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   Alert,
   Dimensions,
   Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,6 +18,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CommentChip } from '@/components/detail/CommentChip';
 import { CriterionSection } from '@/components/detail/CriterionSection';
 import { LocationBlock } from '@/components/detail/LocationBlock';
+import { ProfilePhotoViewer } from '@/components/detail/ProfilePhotoViewer';
+import { RestaurantMapViewer } from '@/components/detail/RestaurantMapViewer';
+import { ReviewPhotoViewer } from '@/components/detail/ReviewPhotoViewer';
+import {
+  ShareReviewChooser,
+  type ShareDestination,
+} from '@/components/detail/ShareReviewChooser';
+import { ShareReviewerNameModal } from '@/components/feed/ShareReviewerNameModal';
 import {
   HousePrimaryButton,
   HousePrimaryButtonRow,
@@ -24,12 +33,17 @@ import {
 import { FavoriteHeartButton } from '@/components/ui/FavoriteHeartButton';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
+import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
 import { Theme } from '@/constants/Theme';
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
+import { useReviewerProfile } from '@/context/ReviewerProfile';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import { formatReviewDate } from '@/data/mockReviews';
+import { presentDirectionsOptions } from '@/services/directions/DirectionsLauncher';
+import { shareReviewAsEmail } from '@/services/share/ReviewEmailShare';
+import { shareReviewsPackage } from '@/services/share/ReviewShareService';
 
 const HERO_H = Theme.size.heroHeight;
 
@@ -37,16 +51,88 @@ export default function ReviewDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { getRestaurant, getReview } = useReviewsStore();
+  const { getRestaurant, getReview, setRestaurantFavorite, restaurants } =
+    useReviewsStore();
+  const { hasName, name, photoUri, getBackupSnapshot } = useReviewerProfile();
   const review = getReview(id);
   const restaurant = review ? getRestaurant(review.restaurantId) : undefined;
 
   const { enabledCriteria } = useCriteriaSettings();
   const enabledIds = new Set(enabledCriteria.map((c) => c.id));
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [showPhotoViewer, setShowPhotoViewer] = useState(false);
+  const [showReviewerPhoto, setShowReviewerPhoto] = useState(false);
+  const [showMap, setShowMap] = useState(false);
+  const [showShareChooser, setShowShareChooser] = useState(false);
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [pendingShare, setPendingShare] = useState<ShareDestination | null>(
+    null,
+  );
+  const [sharing, setSharing] = useState(false);
   const pageWidth = useRef(Dimensions.get('window').width).current;
   const bottomPad =
     Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
+
+  const reviewerPhotoUri =
+    review?.reviewedByPhotoUrl?.trim() ||
+    (review?.origin === 'own' && review.reviewedBy.trim() ? photoUri : null) ||
+    null;
+
+  const canShare = Boolean(review && !sharing);
+
+  const runShare = useCallback(
+    async (destination: ShareDestination, sharedByOverride?: string) => {
+      if (!review || !restaurant) return;
+      setSharing(true);
+      try {
+        const profile = await getBackupSnapshot();
+        const sharedBy = (sharedByOverride ?? profile.name).trim();
+        if (!sharedBy) {
+          throw new Error('Your name is included when you share reviews.');
+        }
+        if (destination === 'gustraPackage') {
+          await shareReviewsPackage({
+            reviews: [review],
+            restaurants,
+            sharedBy,
+            sharedByPhotoBase64: profile.photoBase64,
+          });
+        } else {
+          await shareReviewAsEmail({ review, restaurant, sharedBy });
+        }
+      } catch (error) {
+        Alert.alert(
+          'Error',
+          error instanceof Error
+            ? error.message
+            : 'Could not share this review.',
+        );
+      } finally {
+        setSharing(false);
+        setPendingShare(null);
+      }
+    },
+    [getBackupSnapshot, restaurants, restaurant, review],
+  );
+
+  const beginShare = useCallback(
+    (destination: ShareDestination) => {
+      setShowShareChooser(false);
+      if (!hasName) {
+        setPendingShare(destination);
+        setShowNameModal(true);
+        return;
+      }
+      void runShare(destination);
+    },
+    [hasName, runShare],
+  );
+
+  const addressLine = restaurant
+    ? [restaurant.address, restaurant.city, restaurant.country]
+        .filter(Boolean)
+        .join(', ')
+    : '';
 
   const header = (
     <HouseNavHeader
@@ -54,6 +140,17 @@ export default function ReviewDetailScreen() {
       titleSize={Theme.navigation.secondaryTitleSize}
       showBack
       onBack={() => router.back()}
+      right={
+        canShare ? (
+          <HouseToolbarIconButton
+            iosName="square.and.arrow.up"
+            androidName="share"
+            accessibilityLabel="Share"
+            disabled={sharing}
+            onPress={() => setShowShareChooser(true)}
+          />
+        ) : null
+      }
     />
   );
 
@@ -91,11 +188,21 @@ export default function ReviewDetailScreen() {
               scrollEventThrottle={16}
               style={styles.heroScroll}>
               {review.photoUrls.map((uri, index) => (
-                <View
+                <Pressable
                   key={`${uri}-${index}`}
-                  style={[styles.heroPage, { width: pageWidth }]}>
-                  <Image source={{ uri }} style={styles.heroImage} resizeMode="cover" />
-                </View>
+                  style={[styles.heroPage, { width: pageWidth }]}
+                  onPress={() => {
+                    setPhotoIndex(index);
+                    setShowPhotoViewer(true);
+                  }}
+                  accessibilityRole="imagebutton"
+                  accessibilityLabel={`Photo ${index + 1} of ${review.photoUrls.length}`}>
+                  <Image
+                    source={{ uri }}
+                    style={styles.heroImage}
+                    resizeMode="cover"
+                  />
+                </Pressable>
               ))}
             </ScrollView>
             {review.photoUrls.length > 1 ? (
@@ -106,25 +213,30 @@ export default function ReviewDetailScreen() {
           </View>
         ) : null}
 
-
         <View style={styles.content}>
           <View style={styles.header}>
             <View style={styles.headerRow}>
               <SerifText size={20} weight="bold" style={styles.restaurantName}>
                 {restaurant.name}
               </SerifText>
-              <FavoriteHeartButton initialFavorite={restaurant.isFavorite} />
+              <FavoriteHeartButton
+                favorite={restaurant.isFavorite}
+                onToggle={(favorite) => {
+                  void setRestaurantFavorite(restaurant.id, favorite);
+                }}
+              />
             </View>
             <Text style={styles.date}>{formatReviewDate(review.date)}</Text>
             <View style={styles.divider} />
           </View>
 
           {review.criteria
-            .filter((c) => c.rating > 0 && enabledIds.has(c.id))
+            .filter(
+              (c) => c.rating >= 1 && c.rating <= 10 && enabledIds.has(c.id),
+            )
             .map((criterion) => (
               <CriterionSection key={criterion.id} criterion={criterion} />
             ))}
-
 
           {review.generalComment ? (
             <View style={styles.section}>
@@ -138,8 +250,14 @@ export default function ReviewDetailScreen() {
           <LocationBlock
             restaurant={restaurant}
             onDirections={() =>
-              Alert.alert('Get directions', 'Maps integration coming later.')
+              void presentDirectionsOptions({
+                name: restaurant.name,
+                addressLine,
+                latitude: restaurant.latitude,
+                longitude: restaurant.longitude,
+              })
             }
+            onOpenMap={() => setShowMap(true)}
           />
 
           <View style={styles.actions}>
@@ -148,23 +266,45 @@ export default function ReviewDetailScreen() {
               <HousePrimaryButton
                 flex
                 title="New visit"
-                onPress={() => Alert.alert('New visit', 'Coming soon.')}
+                onPress={() =>
+                  router.push({
+                    pathname: '/review-form',
+                    params: { restaurantId: restaurant.id },
+                  })
+                }
               />
               <HousePrimaryButton
                 flex
                 title="Edit"
-                onPress={() => Alert.alert('Edit review', 'Coming soon.')}
+                onPress={() =>
+                  router.push({
+                    pathname: '/review-form',
+                    params: { reviewId: review.id },
+                  })
+                }
               />
             </HousePrimaryButtonRow>
           </View>
 
           {review.reviewedBy ? (
             <View style={styles.reviewedBy}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarLetter}>
-                  {review.reviewedBy.charAt(0).toUpperCase()}
-                </Text>
-              </View>
+              {reviewerPhotoUri ? (
+                <Pressable
+                  onPress={() => setShowReviewerPhoto(true)}
+                  accessibilityRole="imagebutton"
+                  accessibilityLabel="Profile photo">
+                  <Image
+                    source={{ uri: reviewerPhotoUri }}
+                    style={styles.avatarImage}
+                  />
+                </Pressable>
+              ) : (
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarLetter}>
+                    {review.reviewedBy.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
               <Text style={styles.reviewedByLabel}>
                 Reviewed by {review.reviewedBy}
               </Text>
@@ -172,6 +312,47 @@ export default function ReviewDetailScreen() {
           ) : null}
         </View>
       </ScrollView>
+
+      <ReviewPhotoViewer
+        visible={showPhotoViewer}
+        uris={review.photoUrls}
+        index={photoIndex}
+        onIndexChange={setPhotoIndex}
+        onClose={() => setShowPhotoViewer(false)}
+      />
+
+      {reviewerPhotoUri ? (
+        <ProfilePhotoViewer
+          visible={showReviewerPhoto}
+          uri={reviewerPhotoUri}
+          onClose={() => setShowReviewerPhoto(false)}
+        />
+      ) : null}
+
+      <RestaurantMapViewer
+        visible={showMap}
+        restaurant={restaurant}
+        onClose={() => setShowMap(false)}
+      />
+
+      <ShareReviewChooser
+        visible={showShareChooser}
+        onClose={() => setShowShareChooser(false)}
+        onSelect={beginShare}
+      />
+
+      <ShareReviewerNameModal
+        visible={showNameModal}
+        initialName={name}
+        onCancel={() => {
+          setShowNameModal(false);
+          setPendingShare(null);
+        }}
+        onContinue={(sharedBy) => {
+          setShowNameModal(false);
+          if (pendingShare) void runShare(pendingShare, sharedBy);
+        }}
+      />
     </View>
   );
 }
@@ -256,6 +437,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(36, 78, 57, 0.18)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarImage: {
+    width: Theme.size.avatar,
+    height: Theme.size.avatar,
+    borderRadius: Theme.size.avatar / 2,
+    backgroundColor: GustraColors.bubble,
   },
   avatarLetter: {
     color: GustraColors.forestGreen,

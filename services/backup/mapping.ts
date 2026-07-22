@@ -2,6 +2,11 @@ import type { CustomCriterionDefinition } from '@/context/CriteriaSettings';
 import type { Restaurant, Review, ReviewOrigin } from '@/data/types';
 import { resolveReviewOrigin } from '@/data/types';
 import {
+  backupPhotoKey,
+  isRemotePhotoUrl,
+  localPhotoUri,
+} from '@/services/backup/photos';
+import {
   fromAppleRefDate,
   toAppleRefDate,
   type BackupPayload,
@@ -33,26 +38,22 @@ function criterion(
   return { rating: found?.rating ?? 0, comment: found?.comment ?? '' };
 }
 
-function countryFromAddress(address: string, city: string): string {
-  // Mock data has no country field — leave empty for Swift compatibility.
-  void address;
-  void city;
-  return '';
-}
-
 export function restaurantToBackup(restaurant: Restaurant): RestaurantBackup {
+  const primaryType = restaurant.primaryType.trim();
+  const mapId = restaurant.mapItemIdentifier?.trim() || null;
   return {
     id: restaurant.id,
     name: restaurant.name,
     city: restaurant.city,
-    country: countryFromAddress(restaurant.address, restaurant.city),
-    streetAddress: restaurant.address || null,
-    phoneNumber: restaurant.phone ?? null,
-    latitude: 0,
-    longitude: 0,
-    mapItemIdentifier: null,
+    country: restaurant.country.trim(),
+    streetAddress: restaurant.address.trim() || null,
+    phoneNumber: restaurant.phone?.trim() || null,
+    latitude: Number.isFinite(restaurant.latitude) ? restaurant.latitude : 0,
+    longitude: Number.isFinite(restaurant.longitude) ? restaurant.longitude : 0,
+    mapItemIdentifier: mapId,
     isFavorite: restaurant.isFavorite,
-    primaryType: null,
+    // Absent/empty in older backups — omit empty so Swift stays compatible.
+    primaryType: primaryType.length > 0 ? primaryType : null,
   };
 }
 
@@ -78,10 +79,11 @@ export function reviewToBackup(review: Review): ReviewBackup {
     customCriterionScoresJSON = JSON.stringify({ ratings, comments });
   }
 
-  // Remote Unsplash URLs are not local photo filenames — omit from photoPaths.
-  const photoPaths = review.photoUrls.filter(
-    (p) => !p.startsWith('http://') && !p.startsWith('https://'),
-  );
+  // Local files only (Swift). Remote mock URLs are omitted from photoPaths.
+  const photoPaths = review.photoUrls
+    .filter((p) => !isRemotePhotoUrl(p))
+    .map(backupPhotoKey)
+    .filter(Boolean);
 
   const searchable = [
     review.generalComment,
@@ -112,7 +114,9 @@ export function reviewToBackup(review: Review): ReviewBackup {
     photoPaths,
     isNeverAgain: false,
     reviewedBy: review.reviewedBy || null,
-    reviewedByPhotoPath: null,
+    reviewedByPhotoPath: review.reviewedByPhotoUrl
+      ? backupPhotoKey(review.reviewedByPhotoUrl)
+      : null,
     origin: resolveReviewOrigin(review),
   };
 }
@@ -125,8 +129,21 @@ export function backupRestaurantToApp(
     id: item.id,
     name: item.name,
     city: item.city,
+    country: item.country || previous?.country || '',
     address: item.streetAddress ?? previous?.address ?? '',
     phone: item.phoneNumber ?? previous?.phone,
+    latitude:
+      typeof item.latitude === 'number' && Number.isFinite(item.latitude)
+        ? item.latitude
+        : (previous?.latitude ?? 0),
+    longitude:
+      typeof item.longitude === 'number' && Number.isFinite(item.longitude)
+        ? item.longitude
+        : (previous?.longitude ?? 0),
+    mapItemIdentifier:
+      item.mapItemIdentifier ?? previous?.mapItemIdentifier ?? null,
+    primaryType:
+      (item.primaryType ?? previous?.primaryType ?? '').trim(),
     isFavorite: item.isFavorite ?? previous?.isFavorite ?? false,
     thumbnailColor: previous?.thumbnailColor ?? '#3D6B52',
     photoUrl: previous?.photoUrl ?? '',
@@ -199,19 +216,42 @@ export function backupReviewToApp(
     }
   }
 
-  const rated = criteria.filter((c) => c.rating > 0).map((c) => c.rating);
+  const rated = criteria
+    .map((c) => c.rating)
+    .filter((r) => r >= 1 && r <= 10)
+    .map((r) => r / 2);
   const overallScore =
     rated.length > 0
       ? rated.reduce((a, b) => a + b, 0) / rated.length
       : previous?.overallScore ?? 0;
 
-  const localPhotos = item.photoPaths ?? [];
+  const localPhotos = (item.photoPaths ?? [])
+    .map((path) => path.trim())
+    .filter(Boolean);
+  // Restore local Photos/ URIs; keep previous remote mock URLs only when backup has no locals.
   const photoUrls =
     localPhotos.length > 0
-      ? localPhotos
+      ? localPhotos.map((path) =>
+          isRemotePhotoUrl(path) || path.startsWith('file://')
+            ? path
+            : localPhotoUri(backupPhotoKey(path)),
+        )
       : previous?.photoUrls?.length
         ? previous.photoUrls
         : [];
+
+  const reviewerPhotoRaw = (
+    item.reviewedByPhotoPath ??
+    previous?.reviewedByPhotoUrl ??
+    ''
+  ).trim();
+  let reviewedByPhotoUrl: string | undefined;
+  if (reviewerPhotoRaw) {
+    reviewedByPhotoUrl =
+      isRemotePhotoUrl(reviewerPhotoRaw) || reviewerPhotoRaw.startsWith('file://')
+        ? reviewerPhotoRaw
+        : localPhotoUri(backupPhotoKey(reviewerPhotoRaw));
+  }
 
   return {
     id: item.id,
@@ -221,6 +261,7 @@ export function backupReviewToApp(
     criteria,
     photoUrls,
     reviewedBy: item.reviewedBy ?? previous?.reviewedBy ?? '',
+    reviewedByPhotoUrl,
     overallScore,
     origin: originFromBackup(item, previous),
   };

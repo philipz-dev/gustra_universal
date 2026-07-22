@@ -27,7 +27,9 @@ import 'react-native-reanimated';
 import { SwipeDismissOverlay } from '@/components/feed/SwipeDismissOverlay';
 import { GustraColors } from '@/constants/Colors';
 import { CriteriaSettingsProvider } from '@/context/CriteriaSettings';
+import { GoogleApiTrackerProvider } from '@/context/GoogleApiTracker';
 import { PassportDisplaySettingsProvider } from '@/context/PassportDisplaySettings';
+import { PhotoQualitySettingsProvider } from '@/context/PhotoQualitySettings';
 import { ReviewerProfileProvider } from '@/context/ReviewerProfile';
 import { ReviewsStoreProvider } from '@/context/ReviewsStore';
 
@@ -85,19 +87,23 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.root}>
       <CriteriaSettingsProvider>
         <PassportDisplaySettingsProvider>
-          <ReviewerProfileProvider>
-            <ReviewsStoreProvider>
-              <ThemeProvider value={GustraNavigationTheme}>
-                <View style={styles.root}>
-                  <StatusBar style="light" />
-                  <Stack screenOptions={{ headerShown: false }}>
-                    <Stack.Screen name="(tabs)" />
-                  </Stack>
-                  <SwipeDismissOverlay />
-                </View>
-              </ThemeProvider>
-            </ReviewsStoreProvider>
-          </ReviewerProfileProvider>
+          <PhotoQualitySettingsProvider>
+            <GoogleApiTrackerProvider>
+              <ReviewerProfileProvider>
+                <ReviewsStoreProvider>
+                  <ThemeProvider value={GustraNavigationTheme}>
+                    <View style={styles.root}>
+                      <StatusBar style="light" />
+                      <Stack screenOptions={{ headerShown: false }}>
+                        <Stack.Screen name="(tabs)" />
+                      </Stack>
+                      <SwipeDismissOverlay />
+                    </View>
+                  </ThemeProvider>
+                </ReviewsStoreProvider>
+              </ReviewerProfileProvider>
+            </GoogleApiTrackerProvider>
+          </PhotoQualitySettingsProvider>
         </PassportDisplaySettingsProvider>
       </CriteriaSettingsProvider>
     </GestureHandlerRootView>

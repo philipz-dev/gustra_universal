@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
@@ -11,6 +11,9 @@ const HEART_PATH =
   'M12 21s-6.7-4.35-9.33-8.1C.8 10.2.9 6.7 3.4 4.7 5.3 3.2 7.9 3.4 9.6 5.1L12 7.6l2.4-2.5c1.7-1.7 4.3-1.9 6.2-.4 2.5 2 2.6 5.5.73 8.2C18.7 16.65 12 21 12 21z';
 
 type FavoriteHeartButtonProps = {
+  /** Controlled favorite value (preferred). */
+  favorite?: boolean;
+  /** Uncontrolled initial value when `favorite` is omitted. */
   initialFavorite?: boolean;
   onToggle?: (favorite: boolean) => void;
 };
@@ -38,10 +41,18 @@ function HeartIcon({ filled, size = 22 }: { filled: boolean; size?: number }) {
 }
 
 export function FavoriteHeartButton({
+  favorite: favoriteProp,
   initialFavorite = false,
   onToggle,
 }: FavoriteHeartButtonProps) {
-  const [favorite, setFavorite] = useState(initialFavorite);
+  const isControlled = favoriteProp !== undefined;
+  const [favorite, setFavorite] = useState(
+    isControlled ? favoriteProp : initialFavorite,
+  );
+
+  useEffect(() => {
+    if (isControlled) setFavorite(favoriteProp);
+  }, [favoriteProp, isControlled]);
 
   return (
     <Pressable
@@ -50,7 +61,7 @@ export function FavoriteHeartButton({
       hitSlop={8}
       onPress={() => {
         const next = !favorite;
-        setFavorite(next);
+        if (!isControlled) setFavorite(next);
         onToggle?.(next);
       }}
       style={({ pressed }) => [styles.hit, pressed && styles.pressed]}>

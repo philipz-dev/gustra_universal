@@ -3,7 +3,18 @@ import { Alert, FlatList, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ActiveFilterSummary } from '@/components/feed/ActiveFilterSummary';
+import { FilterOptionsModal } from '@/components/feed/FilterOptionsModal';
 import { FilterSearchBar } from '@/components/feed/FilterSearchBar';
+import {
+  applyFeedFilters,
+  availableCitiesFromSummaries,
+  availablePrimaryTypesFromSummaries,
+  DEFAULT_FEED_FILTER_STATE,
+  isFeedFilterActive,
+  type FeedFilterOptions,
+  type FeedFilterState,
+} from '@/components/feed/feedFilters';
 import { dismissOpenSwipeable } from '@/components/feed/openSwipeable';
 import { RestaurantFeedCard } from '@/components/feed/RestaurantFeedCard';
 import { ReviewSourcePicker } from '@/components/feed/ReviewSourcePicker';
@@ -13,9 +24,14 @@ import { HouseFAB } from '@/components/ui/HouseFAB';
 import { ReviewsHeader } from '@/components/ui/ReviewsHeader';
 import { GustraColors } from '@/constants/Colors';
 import { Theme } from '@/constants/Theme';
+import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewerProfile } from '@/context/ReviewerProfile';
 import { useReviewsStore } from '@/context/ReviewsStore';
-import type { Review, ReviewOrigin } from '@/data/types';
+import type {
+  RestaurantVisitSummary,
+  Review,
+  ReviewOrigin,
+} from '@/data/types';
 import { shareReviewsPackage } from '@/services/share/ReviewShareService';
 
 export default function ReviewsFeedScreen() {
@@ -24,6 +40,10 @@ export default function ReviewsFeedScreen() {
   const [query, setQuery] = useState('');
   const [reviewSource, setReviewSource] = useState<ReviewOrigin>('own');
   const [nameModalVisible, setNameModalVisible] = useState(false);
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [filterState, setFilterState] = useState<FeedFilterState>(
+    DEFAULT_FEED_FILTER_STATE,
+  );
   const [sharing, setSharing] = useState(false);
   const {
     getFeedSummaries,
@@ -32,8 +52,10 @@ export default function ReviewsFeedScreen() {
     hasFriendReviews,
     ready,
     deleteRestaurantFromFeed,
+    setRestaurantFavorite,
   } = useReviewsStore();
   const { hasName, updateName, getBackupSnapshot } = useReviewerProfile();
+  const { enabledCriteria } = useCriteriaSettings();
 
   useEffect(() => {
     if (!hasFriendReviews && reviewSource !== 'own') {
@@ -46,14 +68,76 @@ export default function ReviewsFeedScreen() {
     [getFeedSummaries, ready, reviewSource],
   );
 
+  const availableCities = useMemo(
+    () => availableCitiesFromSummaries(summaries),
+    [summaries],
+  );
+
+  const availablePrimaryTypes = useMemo(
+    () => availablePrimaryTypesFromSummaries(summaries),
+    [summaries],
+  );
+
+  /** Food first (when enabled), then remaining criteria A–Z (Swift). */
+  const sortCriteria = useMemo(() => {
+    const food = enabledCriteria.filter((c) => c.id === 'food');
+    const rest = enabledCriteria
+      .filter((c) => c.id !== 'food')
+      .slice()
+      .sort((a, b) =>
+        a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }),
+      );
+    return [...food, ...rest];
+  }, [enabledCriteria]);
+
+  const criterionAverageFor = useCallback(
+    (summary: RestaurantVisitSummary, criterionId: string) => {
+      const values = summary.reviewIds
+        .map((id) => getReview(id))
+        .filter((review): review is Review => Boolean(review))
+        .map(
+          (review) =>
+            review.criteria.find((c) => c.id === criterionId)?.rating ?? 0,
+        )
+        .filter((rating) => rating >= 1 && rating <= 10)
+        .map((rating) => rating / 2);
+      if (values.length === 0) return null;
+      return values.reduce((sum, value) => sum + value, 0) / values.length;
+    },
+    [getReview],
+  );
+
+  const criterionTitleFor = useCallback(
+    (criterionId: string) =>
+      enabledCriteria.find((c) => c.id === criterionId)?.title ?? criterionId,
+    [enabledCriteria],
+  );
+
+  const filterOptions = useMemo<FeedFilterOptions>(
+    () => ({ criterionAverageFor, criterionTitleFor }),
+    [criterionAverageFor, criterionTitleFor],
+  );
+
+  const filterActive = isFeedFilterActive(filterState);
+  const canFilter = summaries.length > 0;
+
+  useEffect(() => {
+    if (!canFilter) setFilterModalVisible(false);
+  }, [canFilter]);
+
   const filtered = useMemo(() => {
+    const afterFilters = applyFeedFilters(
+      summaries,
+      filterState,
+      filterOptions,
+    );
     const q = query.trim().toLowerCase();
-    if (!q) return summaries;
-    return summaries.filter(
+    if (!q) return afterFilters;
+    return afterFilters.filter(
       (s) =>
         s.name.toLowerCase().includes(q) || s.city.toLowerCase().includes(q),
     );
-  }, [query, summaries]);
+  }, [filterOptions, filterState, query, summaries]);
 
   /** Visible feed rows → underlying reviews (Swift `filteredReviews`). */
   const reviewsToShare = useMemo(() => {
@@ -109,13 +193,17 @@ export default function ReviewsFeedScreen() {
     void performShare();
   }, [canShare, hasName, performShare]);
 
-  const emptyTitle = query
+  const emptyFromFilters =
+    summaries.length > 0 && filtered.length === 0 && (filterActive || query);
+  const emptyTitle = emptyFromFilters
     ? 'No matches'
     : isFriends
       ? 'No Friend Reviews'
       : 'No reviews yet';
-  const emptyDescription = query
-    ? 'Try another restaurant or city name.'
+  const emptyDescription = emptyFromFilters
+    ? query
+      ? 'Try another restaurant or city name.'
+      : 'Try clearing filters or choosing different options.'
     : isFriends
       ? "Import shared reviews to see friends' reviews here."
       : 'Start collecting food memories. Your first review will appear here.';
@@ -127,22 +215,47 @@ export default function ReviewsFeedScreen() {
         canShare={canShare}
         sharing={sharing}
         onShare={openShare}
+        showFilter
+        canFilter={canFilter}
+        filterActive={filterActive}
+        onFilter={() => setFilterModalVisible(true)}
       />
       {hasFriendReviews ? (
         <ReviewSourcePicker value={reviewSource} onChange={setReviewSource} />
       ) : null}
       <FilterSearchBar value={query} onChangeText={setQuery} />
+      <ActiveFilterSummary
+        state={filterState}
+        visibleResultCount={filtered.length}
+        totalResultCount={summaries.length}
+        criterionTitleFor={criterionTitleFor}
+        onChange={setFilterState}
+      />
       {filtered.length === 0 ? (
         <HouseEmptyState
           title={emptyTitle}
           description={emptyDescription}
-          systemImage={isFriends ? 'person.2' : 'book.closed'}
-          androidImage={isFriends ? 'group' : 'menu_book'}
-          actionTitle={query || isFriends ? undefined : 'Add review'}
+          systemImage={
+            emptyFromFilters
+              ? 'line.3.horizontal.decrease'
+              : isFriends
+                ? 'person.2'
+                : 'book.closed'
+          }
+          androidImage={
+            emptyFromFilters
+              ? 'filter_list'
+              : isFriends
+                ? 'group'
+                : 'menu_book'
+          }
+          actionTitle={
+            emptyFromFilters || isFriends ? undefined : 'Add review'
+          }
           onAction={
-            query || isFriends
+            emptyFromFilters || isFriends
               ? undefined
-              : () => Alert.alert('Add review', 'Coming soon in a later pass.')
+              : () => router.push('/add-review')
           }
         />
       ) : (
@@ -165,6 +278,9 @@ export default function ReviewsFeedScreen() {
           renderItem={({ item }) => (
             <RestaurantFeedCard
               summary={item}
+              onFavoriteToggle={(favorite) => {
+                void setRestaurantFavorite(item.restaurantId, favorite);
+              }}
               onDelete={() => {
                 Alert.alert(
                   'Delete restaurant?',
@@ -203,9 +319,7 @@ export default function ReviewsFeedScreen() {
               Theme.spacing.floatingTabBarClearance +
               insets.bottom,
           }}
-          onPress={() =>
-            Alert.alert('Add review', 'Coming soon in a later pass.')
-          }
+          onPress={() => router.push('/add-review')}
         />
       ) : null}
       <ShareReviewerNameModal
@@ -214,11 +328,22 @@ export default function ReviewsFeedScreen() {
         onContinue={(name) => {
           updateName(name);
           setNameModalVisible(false);
-          // Wait for the sheet to dismiss before presenting the share UI.
           setTimeout(() => {
             void performShare(name);
           }, 350);
         }}
+      />
+      <FilterOptionsModal
+        visible={filterModalVisible}
+        value={filterState}
+        availableCities={availableCities}
+        availablePrimaryTypes={availablePrimaryTypes}
+        sortCriteria={sortCriteria}
+        sourceSummaries={summaries}
+        filterOptions={filterOptions}
+        onApply={setFilterState}
+        onReset={() => setFilterState(DEFAULT_FEED_FILTER_STATE)}
+        onClose={() => setFilterModalVisible(false)}
       />
     </View>
   );

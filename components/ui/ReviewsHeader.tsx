@@ -1,5 +1,3 @@
-import { Alert } from 'react-native';
-
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 
@@ -10,6 +8,12 @@ type ReviewsHeaderProps = {
   canShare?: boolean;
   sharing?: boolean;
   onShare?: () => void;
+  /** Swift `canUseFilters` — hide when source has no reviews. */
+  showFilter?: boolean;
+  canFilter?: boolean;
+  /** Swift `isFilterActive` — gold icon. */
+  filterActive?: boolean;
+  onFilter?: () => void;
 };
 
 /**
@@ -21,6 +25,10 @@ export function ReviewsHeader({
   canShare = false,
   sharing = false,
   onShare,
+  showFilter = true,
+  canFilter = false,
+  filterActive = false,
+  onFilter,
 }: ReviewsHeaderProps) {
   return (
     <HouseNavHeader
@@ -33,22 +41,24 @@ export function ReviewsHeader({
             accessibilityLabel="Share"
             disabled={!canShare || sharing}
             onPress={() => {
-              if (onShare) {
-                onShare();
-                return;
-              }
-              Alert.alert('Share', 'Coming soon in a later pass.');
+              onShare?.();
             }}
           />
         ) : null
       }
       right={
-        <HouseToolbarIconButton
-          iosName="line.3.horizontal.decrease"
-          androidName="filter-list"
-          accessibilityLabel="Filters"
-          onPress={() => Alert.alert('Filters', 'Coming soon in a later pass.')}
-        />
+        showFilter ? (
+          <HouseToolbarIconButton
+            iosName="line.3.horizontal.decrease"
+            androidName="filter-list"
+            accessibilityLabel="Filters"
+            disabled={!canFilter}
+            emphasized={filterActive}
+            onPress={() => {
+              onFilter?.();
+            }}
+          />
+        ) : null
       }
     />
   );

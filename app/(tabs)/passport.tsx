@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -54,9 +53,7 @@ export default function CulinaryPassportScreen() {
           systemImage="chart.bar.doc.horizontal"
           androidImage="bar_chart"
           actionTitle="Add Review"
-          onAction={() =>
-            Alert.alert('Add review', 'Coming soon in a later pass.')
-          }
+          onAction={() => router.push('/add-review')}
         />
       </View>
     );

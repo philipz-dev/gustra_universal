@@ -15,6 +15,10 @@ import {
   buildPayloadFromApp,
 } from '@/services/backup/mapping';
 import {
+  collectLocalPhotoFiles,
+  writeBackupPhotos,
+} from '@/services/backup/photos';
+import {
   BACKUP_FILE_EXTENSION,
   BACKUP_SCHEMA_VERSION,
   REVIEWER_PHOTO_BACKUP_KEY,
@@ -24,6 +28,15 @@ import {
   type LocalBackupFile,
   type ReviewerProfileBackup,
 } from '@/services/backup/types';
+
+/** Gather local photo refs from reviews (skips remote mock URLs). */
+function localPhotoRefsFromReviews(reviews: Review[]): string[] {
+  const refs: string[] = [];
+  for (const review of reviews) {
+    for (const url of review.photoUrls) refs.push(url);
+  }
+  return refs;
+}
 
 function backupsDirectory(): string {
   const root = FileSystem.documentDirectory;
@@ -94,22 +107,36 @@ export async function readBackupFile(uri: string): Promise<Uint8Array> {
   return base64ToBytes(base64);
 }
 
-export function exportEncryptedBackup(args: {
+/**
+ * Build + encrypt a Swift-compatible `.gustra` backup.
+ * Collects local review photos into `photoFiles` (remote mock URLs skipped).
+ */
+export async function exportEncryptedBackup(args: {
   restaurants: Restaurant[];
   reviews: Review[];
   password: string;
+  /** Extra files (e.g. profile `reviewer.jpg`) merged on top of review photos. */
   photoFiles?: Record<string, string>;
   reviewerProfile?: ReviewerProfileBackup | null;
   criteriaSettings?: CriteriaSettingsBackup | null;
-}): Uint8Array {
+}): Promise<Uint8Array> {
   if (!args.password) throw new Error('Could not encrypt the backup file.');
   const appVersion =
     Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? '1.0.0';
+
+  const reviewPhotos = await collectLocalPhotoFiles(
+    localPhotoRefsFromReviews(args.reviews),
+  );
+  const photoFiles = {
+    ...reviewPhotos,
+    ...(args.photoFiles ?? {}),
+  };
+
   const payload = buildPayloadFromApp({
     restaurants: args.restaurants,
     reviews: args.reviews,
     appVersion,
-    photoFiles: args.photoFiles,
+    photoFiles,
     reviewerProfile: args.reviewerProfile,
     criteriaSettings: args.criteriaSettings,
   });
@@ -154,13 +181,19 @@ export function decryptBackup(
   return payload;
 }
 
-export function applyBackupPayload(args: {
+/**
+ * Apply decrypted payload to app models after photos are written to disk
+ * (Swift merge / overwrite + `writePhotos`).
+ */
+export async function applyBackupPayload(args: {
   payload: BackupPayload;
   mode: BackupImportMode;
   currentRestaurants: Restaurant[];
   currentReviews: Review[];
-}): { restaurants: Restaurant[]; reviews: Review[] } {
+}): Promise<{ restaurants: Restaurant[]; reviews: Review[] }> {
   const { payload, mode } = args;
+
+  await writeBackupPhotos(payload.photoFiles);
 
   if (mode === 'overwrite') {
     const restaurants = payload.restaurants.map((r) =>

@@ -24,12 +24,14 @@ type RestaurantFeedCardProps = {
   onPress: () => void;
   /** When set, trailing swipe shows Delete (Swift feed swipeActions). */
   onDelete?: () => void;
+  onFavoriteToggle?: (favorite: boolean) => void;
 };
 
 export function RestaurantFeedCard({
   summary,
   onPress,
   onDelete,
+  onFavoriteToggle,
 }: RestaurantFeedCardProps) {
   const level = satisfactionFromScore(summary.averageScore);
   const swipeableRef = useRef<Swipeable>(null);
@@ -81,7 +83,10 @@ export function RestaurantFeedCard({
             <SatisfactionDot level={level} />
           </>
         ) : null}
-        <FavoriteHeartButton initialFavorite={summary.isFavorite} />
+        <FavoriteHeartButton
+          favorite={summary.isFavorite}
+          onToggle={onFavoriteToggle}
+        />
       </View>
     </Pressable>
   );

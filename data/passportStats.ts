@@ -1,4 +1,8 @@
 import type { Restaurant, Review } from '@/data/types';
+import {
+  RatingValue,
+  overallScoreFromCriteria,
+} from '@/services/reviews/ratings';
 
 export type BestRestaurantEntry = {
   restaurantId: string;
@@ -34,11 +38,9 @@ function displayLocation(name: string, city: string): string {
 }
 
 function scoreForEnabled(review: Review, enabledIds: Set<string>): number {
-  const values = review.criteria
-    .filter((c) => enabledIds.has(c.id) && c.rating > 0)
-    .map((c) => c.rating);
-  if (values.length === 0) return 0;
-  return values.reduce((a, b) => a + b, 0) / values.length;
+  return overallScoreFromCriteria(
+    review.criteria.filter((c) => enabledIds.has(c.id)),
+  );
 }
 
 function criterionAveragesFromReviews(
@@ -51,7 +53,8 @@ function criterionAveragesFromReviews(
         .map(
           (r) => r.criteria.find((c) => c.id === criterion.id)?.rating ?? 0,
         )
-        .filter((rating) => rating > 0);
+        .filter((rating) => RatingValue.isStarRating(rating))
+        .map((rating) => RatingValue.starValue(rating));
       if (values.length === 0) return null;
       return {
         id: criterion.id,

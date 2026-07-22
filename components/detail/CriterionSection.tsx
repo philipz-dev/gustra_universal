@@ -12,7 +12,7 @@ export function CriterionSection({ criterion }: { criterion: CriterionRating }) 
       <SerifText size={20} weight="bold" style={styles.title}>
         {criterion.title}
       </SerifText>
-      <StaticStarRating rating={criterion.rating} />
+      <StaticStarRating rating={criterion.rating} showLabel />
       {criterion.comment ? <CommentChip text={criterion.comment} /> : null}
     </View>
   );

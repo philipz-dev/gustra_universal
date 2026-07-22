@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { SymbolView } from 'expo-symbols';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SettingsRow } from '@/components/settings/SettingsRow';
@@ -21,27 +21,48 @@ import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
 import { GustraColors } from '@/constants/Colors';
 import { SERIF_FONT, Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
+import { useGoogleApiTracker } from '@/context/GoogleApiTracker';
 import { usePassportDisplaySettings } from '@/context/PassportDisplaySettings';
+import { usePhotoQualitySettings } from '@/context/PhotoQualitySettings';
 import {
   REVIEWER_MAX_NAME_LENGTH,
   useReviewerProfile,
 } from '@/context/ReviewerProfile';
-
-function comingSoon(label: string) {
-  Alert.alert(label, 'Coming soon in a later pass.');
-}
+import { getPhotosDiskUsage } from '@/services/photos/diskUsage';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const nameInputRef = useRef<TextInput>(null);
-  const [dataSavings, setDataSavings] = useState(false);
   const {
     categoryAveragesStyle,
     categoryAveragesToggleTitle,
     toggleCategoryAveragesStyle,
   } = usePassportDisplaySettings();
+  const { isDataSavingsEnabled, setDataSavingsEnabled } =
+    usePhotoQualitySettings();
+  const {
+    mapsToday,
+    mapsTotal,
+    placesToday,
+    placesTotal,
+    resetAll: resetApiCounters,
+  } = useGoogleApiTracker();
   const { name, photoUri, updateName, ready } = useReviewerProfile();
   const [reviewerNameDraft, setReviewerNameDraft] = useState('');
+  const [photosSubtitle, setPhotosSubtitle] = useState('0 photos stored locally');
+  const [photosBytesLabel, setPhotosBytesLabel] = useState('0 B');
+
+  const refreshPhotosUsage = useCallback(async () => {
+    const usage = await getPhotosDiskUsage();
+    setPhotosSubtitle(usage.subtitle);
+    setPhotosBytesLabel(usage.formattedBytes);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshPhotosUsage();
+    }, [refreshPhotosUsage]),
+  );
 
   useEffect(() => {
     if (!ready) return;
@@ -56,7 +77,6 @@ export default function SettingsScreen() {
         ? value.slice(0, REVIEWER_MAX_NAME_LENGTH)
         : value;
     setReviewerNameDraft(next);
-    // Persist trimmed (Swift `ReviewerProfile.updateName`); keep draft as typed.
     updateName(next);
   };
 
@@ -67,6 +87,20 @@ export default function SettingsScreen() {
     Keyboard.dismiss();
   };
 
+  const confirmResetCounters = () => {
+    Alert.alert(
+      'Reset counters?',
+      'Today and all-time Google API usage counters will be cleared on this device.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: () => void resetApiCounters(),
+        },
+      ],
+    );
+  };
 
   return (
     <ScrollView
@@ -147,15 +181,12 @@ export default function SettingsScreen() {
         </View>
       </SettingsSection>
 
-
-
       <SettingsSection title="Review criteria">
         <SettingsRow
           title="Edit review criteria"
           showChevron
           isLast
           onPress={() => router.push('/edit-criteria')}
-
         />
       </SettingsSection>
 
@@ -185,17 +216,20 @@ export default function SettingsScreen() {
           <View style={styles.copy}>
             <Text style={styles.rowTitle}>Data savings for photos</Text>
             <Text style={styles.rowSubtitle}>
-              {dataSavings ? 'Lower resolution' : 'Higher resolution'}
+              {isDataSavingsEnabled ? 'Lower resolution' : 'Higher resolution'}
             </Text>
           </View>
-          <GustraSwitch value={dataSavings} onValueChange={setDataSavings} />
+          <GustraSwitch
+            value={isDataSavingsEnabled}
+            onValueChange={setDataSavingsEnabled}
+          />
         </View>
         <View style={styles.rowPad}>
           <View style={styles.copy}>
             <Text style={styles.rowTitle}>Photos</Text>
-            <Text style={styles.rowSubtitle}>12 photos stored locally</Text>
+            <Text style={styles.rowSubtitle}>{photosSubtitle}</Text>
           </View>
-          <Text style={styles.secondaryValue}>24.6 MB</Text>
+          <Text style={styles.secondaryValue}>{photosBytesLabel}</Text>
         </View>
       </SettingsSection>
 
@@ -208,25 +242,24 @@ export default function SettingsScreen() {
         />
       </SettingsSection>
 
-
       <SettingsSection title="Google API Usage">
         <View style={[styles.apiRow, styles.rowBorder]}>
           <Text style={styles.rowTitle}>Google Maps SDK</Text>
           <SerifText size={15} weight="semibold" style={styles.apiValue}>
-            0 today / 0 all-time
+            {mapsToday} today / {mapsTotal} all-time
           </SerifText>
         </View>
         <View style={[styles.apiRow, styles.rowBorder]}>
           <Text style={styles.rowTitle}>Google Places API</Text>
           <SerifText size={15} weight="semibold" style={styles.apiValue}>
-            0 today / 0 all-time
+            {placesToday} today / {placesTotal} all-time
           </SerifText>
         </View>
         <SettingsRow
           title="Reset counters"
           destructive
           isLast
-          onPress={() => comingSoon('Reset counters')}
+          onPress={confirmResetCounters}
         />
       </SettingsSection>
     </ScrollView>
@@ -263,7 +296,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-
   nameField: {
     flex: 1,
     flexDirection: 'row',
@@ -283,7 +315,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   rowPad: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -323,11 +354,9 @@ const styles = StyleSheet.create({
   apiValue: {
     color: GustraColors.forestGreen,
   },
-  /** Reserve space for the longer “numbers” label so height doesn’t jump. */
   ratingToggleRow: {
     minHeight: 64,
   },
-  /** Matches 5×24pt stars + gaps so trailing width stays stable when toggling. */
   ratingExampleSlot: {
     width: 5 * 24 + 4,
     height: 24,

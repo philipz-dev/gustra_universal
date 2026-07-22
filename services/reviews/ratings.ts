@@ -1,0 +1,86 @@
+import type { CriterionRating } from '@/data/types';
+
+/**
+ * Rating storage in half-star steps (Swift `RatingValue`):
+ * `0` = unrated, `-1` = N/A, `1…10` = half-stars (`2` = 1.0★, `7` = 3.5★, `10` = 5.0★).
+ */
+export const RatingValue = {
+  notApplicable: -1,
+  unrated: 0,
+  maxSteps: 10,
+
+  isNotApplicable(rating: number): boolean {
+    return rating === this.notApplicable;
+  },
+
+  isStarRating(rating: number): boolean {
+    return Number.isFinite(rating) && rating >= 1 && rating <= this.maxSteps;
+  },
+
+  isAnswered(rating: number): boolean {
+    return this.isStarRating(rating) || this.isNotApplicable(rating);
+  },
+
+  /** Star value on a 0.5…5.0 scale. */
+  starValue(rating: number): number {
+    return rating / 2;
+  },
+
+  /** Fill amount (0 / 0.5 / 1) for star index 1…5. */
+  fillForStar(starIndex: number, rating: number): number {
+    if (!this.isStarRating(rating)) return 0;
+    const full = starIndex * 2;
+    const half = starIndex * 2 - 1;
+    if (rating >= full) return 1;
+    if (rating === half) return 0.5;
+    return 0;
+  },
+
+  steps(forStar: number, half: boolean): number {
+    return half ? forStar * 2 - 1 : forStar * 2;
+  },
+} as const;
+
+/** Average of star ratings as 0.5…5.0 (Swift `overallScore`). */
+export function overallScoreFromCriteria(criteria: CriterionRating[]): number {
+  const rated = criteria
+    .map((c) => c.rating)
+    .filter((r) => RatingValue.isStarRating(r))
+    .map((r) => RatingValue.starValue(r));
+  if (rated.length === 0) return 0;
+  return rated.reduce((a, b) => a + b, 0) / rated.length;
+}
+
+export function hasStarRating(criteria: CriterionRating[]): boolean {
+  return criteria.some((c) => RatingValue.isStarRating(c.rating));
+}
+
+/** Labels for half-star steps (Swift `RatingLabels`). */
+export function ratingLabel(rating: number): string {
+  if (RatingValue.isNotApplicable(rating)) return 'N/A';
+  if (!RatingValue.isStarRating(rating)) return 'Not rated';
+  const stars = RatingValue.starValue(rating);
+  if (stars < 2) return 'Poor';
+  if (stars < 3) return 'Okay';
+  if (stars < 4) return 'Good';
+  if (stars < 5) return 'Great';
+  return 'Perfect';
+}
+
+/** Migrate a legacy Expo integer 1–5 rating to half-star steps (`×2`). */
+export function migrateLegacyCriterionRating(rating: number): number {
+  if (RatingValue.isNotApplicable(rating)) return RatingValue.notApplicable;
+  if (!Number.isFinite(rating) || rating <= 0) return RatingValue.unrated;
+  if (rating >= 1 && rating <= 5) return Math.round(rating) * 2;
+  if (rating > 5 && rating <= RatingValue.maxSteps) return Math.round(rating);
+  return RatingValue.unrated;
+}
+
+export function migrateLegacyCriteria(
+  criteria: CriterionRating[],
+): CriterionRating[] {
+  return criteria.map((c) => ({
+    ...c,
+    rating: migrateLegacyCriterionRating(c.rating),
+  }));
+}

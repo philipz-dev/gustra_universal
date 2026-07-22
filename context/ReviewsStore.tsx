@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -13,12 +14,13 @@ import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewerProfile } from '@/context/ReviewerProfile';
 import { mockRestaurants, mockReviews } from '@/data/mockReviews';
 import type {
+  CriterionRating,
   Restaurant,
   RestaurantVisitSummary,
   Review,
   ReviewOrigin,
 } from '@/data/types';
-import { resolveReviewOrigin } from '@/data/types';
+import { normalizeRestaurant, resolveReviewOrigin } from '@/data/types';
 import {
   applyBackupPayload,
   criteriaSettingsFromPayload,
@@ -34,12 +36,39 @@ import {
   REVIEWER_PHOTO_BACKUP_KEY,
   type BackupImportMode,
 } from '@/services/backup/types';
+import { findExistingRestaurant } from '@/services/places/RestaurantMatcher';
+import type { RestaurantDraft } from '@/services/places/types';
+import { deleteReviewPhotoFiles } from '@/services/reviews/photoStorage';
+import {
+  RatingValue,
+  migrateLegacyCriteria,
+  overallScoreFromCriteria,
+} from '@/services/reviews/ratings';
 
-const STORAGE_KEY = 'gustraReviewsStore.v2';
+const STORAGE_KEY = 'gustraReviewsStore.v3';
+/** Pre–half-star store (integer 1–5 criterion ratings). */
+const LEGACY_STORAGE_KEY = 'gustraReviewsStore.v2';
+const THUMB_COLORS = ['#3D6B52', '#5A4634', '#2F4A3C', '#4A5C3A', '#6B5344'];
 
 type StoredShape = {
   restaurants: Restaurant[];
   reviews: Review[];
+};
+
+export type ReviewFormUpsertInput = {
+  /** Existing review to edit; omit for a new visit. */
+  reviewId?: string;
+  draft: RestaurantDraft;
+  visitDateIso: string;
+  isFavorite: boolean;
+  generalComment: string;
+  criteria: CriterionRating[];
+  photoUrls: string[];
+};
+
+export type ReviewFormUpsertResult = {
+  reviewId: string;
+  restaurantId: string;
 };
 
 type ReviewsStoreValue = {
@@ -58,6 +87,16 @@ type ReviewsStoreValue = {
   deleteRestaurantFromFeed: (
     summary: RestaurantVisitSummary,
   ) => Promise<void>;
+  setRestaurantFavorite: (
+    restaurantId: string,
+    isFavorite: boolean,
+  ) => Promise<void>;
+  /** Create or update a review from the review form (Swift `persistReview`). */
+  upsertReviewFromForm: (
+    input: ReviewFormUpsertInput,
+  ) => Promise<ReviewFormUpsertResult | null>;
+  /** Delete one review; drops the restaurant when no visits remain. */
+  deleteReview: (reviewId: string) => Promise<void>;
   createEncryptedBackup: (password: string) => Promise<Uint8Array>;
   importEncryptedBackup: (
     data: Uint8Array,
@@ -65,6 +104,53 @@ type ReviewsStoreValue = {
     mode: BackupImportMode,
   ) => Promise<void>;
 };
+
+function newEntityId(prefix: string): string {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function restaurantFromDraft(
+  draft: RestaurantDraft,
+  isFavorite: boolean,
+): Restaurant {
+  return normalizeRestaurant({
+    id: newEntityId('r'),
+    name: draft.name.trim(),
+    city: draft.city.trim(),
+    country: draft.country.trim(),
+    address: draft.streetAddress.trim(),
+    phone: draft.phoneNumber.trim() || undefined,
+    latitude: draft.latitude,
+    longitude: draft.longitude,
+    mapItemIdentifier: draft.mapItemIdentifier,
+    primaryType: draft.primaryType.trim(),
+    isFavorite,
+    thumbnailColor: THUMB_COLORS[Math.floor(Math.random() * THUMB_COLORS.length)],
+    photoUrl: '',
+  });
+}
+
+function applyDraftToRestaurant(
+  restaurant: Restaurant,
+  draft: RestaurantDraft,
+  isFavorite: boolean,
+): Restaurant {
+  const placeId = draft.mapItemIdentifier?.trim();
+  const draftType = draft.primaryType.trim();
+  return normalizeRestaurant({
+    ...restaurant,
+    name: draft.name.trim() || restaurant.name,
+    city: draft.city.trim() || restaurant.city,
+    country: draft.country.trim() || restaurant.country,
+    address: draft.streetAddress.trim() || restaurant.address,
+    phone: draft.phoneNumber.trim() || restaurant.phone,
+    latitude: draft.latitude || restaurant.latitude,
+    longitude: draft.longitude || restaurant.longitude,
+    mapItemIdentifier: placeId || restaurant.mapItemIdentifier,
+    primaryType: draftType || restaurant.primaryType,
+    isFavorite,
+  });
+}
 
 const ReviewsStoreContext = createContext<ReviewsStoreValue | null>(null);
 
@@ -76,8 +162,26 @@ function formatAbbreviated(iso: string): string {
   });
 }
 
-function normalizeReview(review: Review): Review {
-  return { ...review, origin: resolveReviewOrigin(review) };
+function normalizeReview(review: Review, migrateLegacy = false): Review {
+  const criteria = migrateLegacy
+    ? migrateLegacyCriteria(review.criteria ?? [])
+    : (review.criteria ?? []).map((c) => ({
+        ...c,
+        rating: RatingValue.isNotApplicable(c.rating)
+          ? RatingValue.notApplicable
+          : RatingValue.isStarRating(c.rating)
+            ? Math.round(c.rating)
+            : RatingValue.unrated,
+      }));
+  const overallScore =
+    overallScoreFromCriteria(criteria) || review.overallScore || 0;
+  return {
+    ...review,
+    criteria,
+    overallScore,
+    reviewedByPhotoUrl: review.reviewedByPhotoUrl?.trim() || undefined,
+    origin: resolveReviewOrigin(review),
+  };
 }
 
 function reviewerNamesForVisits(visits: Review[]): string | undefined {
@@ -111,6 +215,7 @@ function buildFeedSummaries(
       restaurantId: restaurant.id,
       name: restaurant.name,
       city: restaurant.city,
+      primaryType: restaurant.primaryType ?? '',
       averageScore,
       visitCount: visits.length,
       lastVisitDate: formatAbbreviated(visits[0].date),
@@ -142,12 +247,22 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [ready, setReady] = useState(false);
+  const restaurantsRef = useRef(restaurants);
+  const reviewsRef = useRef(reviews);
+  restaurantsRef.current = restaurants;
+  reviewsRef.current = reviews;
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const rawV3 = await AsyncStorage.getItem(STORAGE_KEY);
+        const rawLegacy = rawV3
+          ? null
+          : await AsyncStorage.getItem(LEGACY_STORAGE_KEY);
+        const raw = rawV3 ?? rawLegacy;
+        const migrateLegacy = Boolean(!rawV3 && rawLegacy);
+
         if (raw) {
           const parsed = JSON.parse(raw) as StoredShape;
           if (
@@ -155,30 +270,38 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
             Array.isArray(parsed.restaurants) &&
             Array.isArray(parsed.reviews)
           ) {
-            const normalized = parsed.reviews.map((r) =>
-              normalizeReview(r as Review),
+            const normalizedReviews = parsed.reviews.map((r) =>
+              normalizeReview(r as Review, migrateLegacy),
             );
-            setRestaurants(parsed.restaurants);
-            setReviews(normalized);
+            const normalizedRestaurants = parsed.restaurants.map((r) =>
+              normalizeRestaurant(r as Restaurant),
+            );
+            setRestaurants(normalizedRestaurants);
+            setReviews(normalizedReviews);
             await persist({
-              restaurants: parsed.restaurants,
-              reviews: normalized,
+              restaurants: normalizedRestaurants,
+              reviews: normalizedReviews,
             });
+            if (migrateLegacy) {
+              await AsyncStorage.removeItem(LEGACY_STORAGE_KEY);
+            }
             return;
           }
         }
         if (!cancelled) {
-          setRestaurants(mockRestaurants);
-          setReviews(mockReviews);
+          const seedRestaurants = mockRestaurants.map(normalizeRestaurant);
+          const seedReviews = mockReviews.map((r) => normalizeReview(r));
+          setRestaurants(seedRestaurants);
+          setReviews(seedReviews);
           await persist({
-            restaurants: mockRestaurants,
-            reviews: mockReviews,
+            restaurants: seedRestaurants,
+            reviews: seedReviews,
           });
         }
       } catch {
         if (!cancelled) {
-          setRestaurants(mockRestaurants);
-          setReviews(mockReviews);
+          setRestaurants(mockRestaurants.map(normalizeRestaurant));
+          setReviews(mockReviews.map((r) => normalizeReview(r)));
         }
       } finally {
         if (!cancelled) setReady(true);
@@ -241,6 +364,183 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
     [restaurants, reviews],
   );
 
+  const setRestaurantFavorite = useCallback(
+    async (restaurantId: string, isFavorite: boolean) => {
+      const nextRestaurants = restaurants.map((restaurant) =>
+        restaurant.id === restaurantId
+          ? { ...restaurant, isFavorite }
+          : restaurant,
+      );
+      setRestaurants(nextRestaurants);
+      await persist({ restaurants: nextRestaurants, reviews });
+    },
+    [restaurants, reviews],
+  );
+
+  // Swift `PlaceTypeBackfillService.backfillMissingTypesIfNeeded` at launch.
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    (async () => {
+      const { backfillMissingPrimaryTypes } = await import(
+        '@/services/places/PlaceTypeBackfillService'
+      );
+      if (cancelled) return;
+      const updates = await backfillMissingPrimaryTypes(
+        restaurantsRef.current,
+      );
+      if (cancelled || updates.length === 0) return;
+      const byId = new Map(
+        updates.map((u) => [u.restaurantId, u.primaryType] as const),
+      );
+      const nextRestaurants = restaurantsRef.current.map((restaurant) => {
+        const primaryType = byId.get(restaurant.id);
+        return primaryType ? { ...restaurant, primaryType } : restaurant;
+      });
+      restaurantsRef.current = nextRestaurants;
+      setRestaurants(nextRestaurants);
+      await persist({
+        restaurants: nextRestaurants,
+        reviews: reviewsRef.current,
+      });
+    })().catch(() => {
+      // Silent — quota / network failures are tracked as failed place IDs.
+    });
+    return () => {
+      cancelled = true;
+    };
+    // Run once when the store becomes ready (snapshot restaurants at that moment).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
+
+  const upsertReviewFromForm = useCallback(
+    async (input: ReviewFormUpsertInput): Promise<ReviewFormUpsertResult | null> => {
+      const draftName = input.draft.name.trim();
+      if (!draftName) return null;
+
+      let nextRestaurants = [...restaurants];
+      let nextReviews = [...reviews];
+
+      const existingReview = input.reviewId
+        ? nextReviews.find((r) => r.id === input.reviewId)
+        : undefined;
+
+      let restaurant: Restaurant | undefined;
+      if (existingReview) {
+        restaurant = nextRestaurants.find(
+          (r) => r.id === existingReview.restaurantId,
+        );
+      }
+      if (!restaurant) {
+        restaurant = findExistingRestaurant(input.draft, nextRestaurants);
+      }
+
+      if (restaurant) {
+        restaurant = applyDraftToRestaurant(
+          restaurant,
+          input.draft,
+          input.isFavorite,
+        );
+        nextRestaurants = nextRestaurants.map((r) =>
+          r.id === restaurant!.id ? restaurant! : r,
+        );
+      } else {
+        restaurant = restaurantFromDraft(input.draft, input.isFavorite);
+        nextRestaurants = [...nextRestaurants, restaurant];
+      }
+
+      const criteria = input.criteria.map((c) => ({
+        ...c,
+        comment: c.comment.trim(),
+        rating: RatingValue.isNotApplicable(c.rating)
+          ? RatingValue.notApplicable
+          : RatingValue.isStarRating(c.rating)
+            ? Math.round(c.rating)
+            : RatingValue.unrated,
+      }));
+      const photoUrls = input.photoUrls.filter(Boolean);
+      const overallScore = overallScoreFromCriteria(criteria);
+      const coverPhoto = photoUrls[0] ?? restaurant.photoUrl;
+
+      restaurant = {
+        ...restaurant,
+        photoUrl: coverPhoto || restaurant.photoUrl,
+      };
+      nextRestaurants = nextRestaurants.map((r) =>
+        r.id === restaurant!.id ? restaurant! : r,
+      );
+
+      let reviewId = existingReview?.id;
+      if (existingReview) {
+        nextReviews = nextReviews.map((r) =>
+          r.id === existingReview.id
+            ? {
+                ...r,
+                restaurantId: restaurant!.id,
+                date: input.visitDateIso,
+                generalComment: input.generalComment.trim(),
+                criteria,
+                photoUrls,
+                overallScore,
+                origin: resolveReviewOrigin(r),
+              }
+            : r,
+        );
+      } else {
+        reviewId = newEntityId('v');
+        nextReviews = [
+          ...nextReviews,
+          {
+            id: reviewId,
+            restaurantId: restaurant.id,
+            date: input.visitDateIso,
+            generalComment: input.generalComment.trim(),
+            criteria,
+            photoUrls,
+            reviewedBy: '',
+            overallScore,
+            origin: 'own',
+          },
+        ];
+      }
+
+      setRestaurants(nextRestaurants);
+      setReviews(nextReviews);
+      await persist({
+        restaurants: nextRestaurants,
+        reviews: nextReviews,
+      });
+
+      return { reviewId: reviewId!, restaurantId: restaurant.id };
+    },
+    [restaurants, reviews],
+  );
+
+  const deleteReview = useCallback(
+    async (reviewId: string) => {
+      const target = reviews.find((r) => r.id === reviewId);
+      if (!target) return;
+
+      const nextReviews = reviews.filter((r) => r.id !== reviewId);
+      const stillHasReviews = nextReviews.some(
+        (r) => r.restaurantId === target.restaurantId,
+      );
+      const nextRestaurants = stillHasReviews
+        ? restaurants
+        : restaurants.filter((r) => r.id !== target.restaurantId);
+
+      setReviews(nextReviews);
+      setRestaurants(nextRestaurants);
+      await persist({
+        restaurants: nextRestaurants,
+        reviews: nextReviews,
+      });
+
+      void deleteReviewPhotoFiles(target.photoUrls);
+    },
+    [restaurants, reviews],
+  );
+
   const createEncryptedBackup = useCallback(
     async (password: string) => {
       const [profileSnap, criteriaSnap] = await Promise.all([
@@ -251,6 +551,7 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       if (profileSnap.photoBase64) {
         photoFiles[REVIEWER_PHOTO_BACKUP_KEY] = profileSnap.photoBase64;
       }
+      // Local review photos are collected inside exportEncryptedBackup (Swift parity).
       return exportEncryptedBackup({
         restaurants,
         reviews,
@@ -269,7 +570,7 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
   const importEncryptedBackup = useCallback(
     async (data: Uint8Array, password: string, mode: BackupImportMode) => {
       const payload = decryptBackup(data, password);
-      const next = applyBackupPayload({
+      const next = await applyBackupPayload({
         payload,
         mode,
         currentRestaurants: restaurants,
@@ -311,6 +612,9 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       getReviewsForRestaurant,
       getFeedSummaries,
       deleteRestaurantFromFeed,
+      setRestaurantFavorite,
+      upsertReviewFromForm,
+      deleteReview,
       createEncryptedBackup,
       importEncryptedBackup,
     }),
@@ -324,6 +628,9 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       getReviewsForRestaurant,
       getFeedSummaries,
       deleteRestaurantFromFeed,
+      setRestaurantFavorite,
+      upsertReviewFromForm,
+      deleteReview,
       createEncryptedBackup,
       importEncryptedBackup,
     ],

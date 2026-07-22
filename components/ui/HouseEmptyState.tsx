@@ -14,14 +14,20 @@ type HouseEmptyStateProps = {
     | 'map'
     | 'chart.bar.doc.horizontal'
     | 'gearshape'
-    | 'person.2';
+    | 'person.2'
+    | 'line.3.horizontal.decrease'
+    | 'mappin.and.ellipse'
+    | 'location.slash';
   androidImage?:
     | 'restaurant'
     | 'menu_book'
     | 'map'
     | 'bar_chart'
     | 'settings'
-    | 'group';
+    | 'group'
+    | 'filter_list'
+    | 'place'
+    | 'location_off';
   actionTitle?: string;
   onAction?: () => void;
 };

@@ -19,7 +19,17 @@
       "bundleIdentifier": "net.gustra.app",
       "infoPlist": {
         "NSCameraUsageDescription": "Gustra uses the camera to take photos for your profile and restaurant reviews.",
-        "NSPhotoLibraryUsageDescription": "Gustra uses your photo library to import photos for your profile and restaurant reviews."
+        "NSPhotoLibraryUsageDescription": "Gustra uses your photo library to import photos for your profile and restaurant reviews.",
+        "NSPhotoLibraryAddUsageDescription": "Gustra saves review photos to your photo library when you choose Save to Photos.",
+        "NSLocationWhenInUseUsageDescription": "Gustra uses your location to find nearby restaurants.",
+        "LSApplicationQueriesSchemes": [
+          "comgooglemaps",
+          "waze",
+          "tel"
+        ]
+      },
+      "config": {
+        "googleMapsApiKey": "AIzaSyC7hqAvSuoAw3IXFpiqTGZmGKgW-vazlL4"
       }
     },
     "android": {
@@ -32,8 +42,15 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.READ_MEDIA_IMAGES"
-      ]
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyC7hqAvSuoAw3IXFpiqTGZmGKgW-vazlL4"
+        }
+      }
     },
     "web": {
       "bundler": "metro",
@@ -58,8 +75,26 @@
           "cameraPermission": "Gustra uses the camera to take photos for your profile and restaurant reviews."
         }
       ],
-      "expo-sharing"
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Gustra uses your location to find nearby restaurants."
+        }
+      ],
+      [
+        "react-native-maps",
+        {
+          "iosGoogleMapsApiKey": "AIzaSyC7hqAvSuoAw3IXFpiqTGZmGKgW-vazlL4",
+          "androidGoogleMapsApiKey": "AIzaSyC7hqAvSuoAw3IXFpiqTGZmGKgW-vazlL4"
+        }
+      ],
+      "expo-sharing",
+      "@react-native-community/datetimepicker",
+      "expo-mail-composer"
     ],
+    "extra": {
+      "googlePlacesApiKey": "AIzaSyC7hqAvSuoAw3IXFpiqTGZmGKgW-vazlL4"
+    },
     "experiments": {
       "typedRoutes": true
     }
