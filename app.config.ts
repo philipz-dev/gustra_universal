@@ -37,7 +37,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       supportsTablet: true,
       // Must match the existing App Store Connect / Swift app.
       bundleIdentifier: 'com.philip.gustra',
-      buildNumber: '17',
+      buildNumber: '18',
       entitlements: {
         'com.apple.security.application-groups': ['group.com.philip.gustra'],
       },
