@@ -36,6 +36,7 @@ import {
   REVIEWER_PHOTO_BACKUP_KEY,
   type BackupImportMode,
 } from '@/services/backup/types';
+import { importSwiftLegacyData as runSwiftLegacyImport } from '@/services/migration/SwiftDataMigration';
 import { findExistingRestaurant } from '@/services/places/RestaurantMatcher';
 import type { RestaurantDraft } from '@/services/places/types';
 import { deleteReviewPhotoFiles } from '@/services/reviews/photoStorage';
@@ -44,6 +45,7 @@ import {
   migrateLegacyCriteria,
   overallScoreFromCriteria,
 } from '@/services/reviews/ratings';
+import { rebuildSearchableText } from '@/services/reviews/searchableText';
 
 const STORAGE_KEY = 'gustraReviewsStore.v3';
 /** Pre–half-star store (integer 1–5 criterion ratings). */
@@ -64,6 +66,10 @@ export type ReviewFormUpsertInput = {
   generalComment: string;
   criteria: CriterionRating[];
   photoUrls: string[];
+  /** OCR text from review photos (Swift `ocrIndexedText`). */
+  ocrText?: string;
+  /** Custom criterion titles for search indexing. */
+  customCriterionNames?: string[];
 };
 
 export type ReviewFormUpsertResult = {
@@ -103,6 +109,12 @@ type ReviewsStoreValue = {
     password: string,
     mode: BackupImportMode,
   ) => Promise<void>;
+  /** Import leftover Swift SwiftData store + Application Support photos. */
+  importSwiftLegacyData: () => Promise<{
+    restaurantCount: number;
+    reviewCount: number;
+    photosCopied: number;
+  }>;
   /** Merge imported friends reviews from a `.gustrashare` package. */
   importSharePackage: (result: {
     restaurants: Restaurant[];
@@ -180,12 +192,23 @@ function normalizeReview(review: Review, migrateLegacy = false): Review {
       }));
   const overallScore =
     overallScoreFromCriteria(criteria) || review.overallScore || 0;
+  const ocrText = (review.ocrText ?? '').trim();
+  let searchableText = (review.searchableText ?? '').trim();
+  if (!searchableText) {
+    searchableText = rebuildSearchableText({
+      generalComment: review.generalComment ?? '',
+      criteria,
+      ocrText,
+    });
+  }
   return {
     ...review,
     criteria,
     overallScore,
     reviewedByPhotoUrl: review.reviewedByPhotoUrl?.trim() || undefined,
     origin: resolveReviewOrigin(review),
+    searchableText,
+    ocrText,
   };
 }
 
@@ -224,6 +247,7 @@ function buildFeedSummaries(
       averageScore,
       visitCount: visits.length,
       lastVisitDate: formatAbbreviated(visits[0].date),
+      lastVisitAt: +new Date(visits[0].date),
       // Owner name is not shown on My reviews — only friends' authors on Friends' feed.
       reviewerName:
         origin === 'imported' ? reviewerNamesForVisits(visits) : undefined,
@@ -233,7 +257,11 @@ function buildFeedSummaries(
       reviewIds: visits.map((v) => v.id),
     });
   }
-  return summaries.sort((a, b) => b.averageScore - a.averageScore);
+  // Default order: most recent visit first (filters may re-rank).
+  return summaries.sort((a, b) => {
+    if (a.lastVisitAt !== b.lastVisitAt) return b.lastVisitAt - a.lastVisitAt;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  });
 }
 
 async function persist(data: StoredShape) {
@@ -418,6 +446,24 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
+  // Swift `ImageCompressionService.performStartupPhotoMaintenance` at launch.
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    (async () => {
+      const { performStartupPhotoMaintenance } = await import(
+        '@/services/photos/orphanCleanup'
+      );
+      if (cancelled) return;
+      await performStartupPhotoMaintenance(reviewsRef.current);
+    })().catch(() => {
+      // Silent — disk cleanup must never block launch.
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [ready]);
+
   const upsertReviewFromForm = useCallback(
     async (input: ReviewFormUpsertInput): Promise<ReviewFormUpsertResult | null> => {
       const draftName = input.draft.name.trim();
@@ -466,6 +512,14 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       const photoUrls = input.photoUrls.filter(Boolean);
       const overallScore = overallScoreFromCriteria(criteria);
       const coverPhoto = photoUrls[0] ?? restaurant.photoUrl;
+      const ocrText = (input.ocrText ?? existingReview?.ocrText ?? '').trim();
+      const searchableText = rebuildSearchableText({
+        restaurant,
+        generalComment: input.generalComment.trim(),
+        criteria,
+        customCriterionNames: input.customCriterionNames,
+        ocrText,
+      });
 
       restaurant = {
         ...restaurant,
@@ -488,6 +542,8 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
                 photoUrls,
                 overallScore,
                 origin: resolveReviewOrigin(r),
+                searchableText,
+                ocrText,
               }
             : r,
         );
@@ -505,6 +561,8 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
             reviewedBy: '',
             overallScore,
             origin: 'own',
+            searchableText,
+            ocrText,
           },
         ];
       }
@@ -606,6 +664,20 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
     ],
   );
 
+  const importSwiftLegacyData = useCallback(async () => {
+    const result = await runSwiftLegacyImport();
+    const restaurants = result.restaurants.map(normalizeRestaurant);
+    const reviews = result.reviews.map((r) => normalizeReview(r));
+    setRestaurants(restaurants);
+    setReviews(reviews);
+    await persist({ restaurants, reviews });
+    return {
+      restaurantCount: result.restaurantCount,
+      reviewCount: result.reviewCount,
+      photosCopied: result.photosCopied,
+    };
+  }, []);
+
   const importSharePackage = useCallback(
     async (result: { restaurants: Restaurant[]; reviews: Review[] }) => {
       if (result.reviews.length === 0) return;
@@ -646,6 +718,7 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       deleteReview,
       createEncryptedBackup,
       importEncryptedBackup,
+      importSwiftLegacyData,
       importSharePackage,
     }),
     [
@@ -663,6 +736,7 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       deleteReview,
       createEncryptedBackup,
       importEncryptedBackup,
+      importSwiftLegacyData,
       importSharePackage,
     ],
   );

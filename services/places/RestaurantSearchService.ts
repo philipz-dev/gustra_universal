@@ -227,10 +227,12 @@ async function postPlaces(
   body: Record<string, unknown>,
   restrictToFood = false,
 ): Promise<RestaurantSearchResult[]> {
-  const apiKey = GoogleAPIConfig.apiKey;
-  if (!apiKey) {
+  let apiKey: string;
+  try {
+    apiKey = GoogleAPIConfig.requireApiKey();
+  } catch (error) {
     throw new RestaurantSearchError(
-      'Google Places API key is missing. Set expo.extra.googlePlacesApiKey.',
+      error instanceof Error ? error.message : 'Google API key is missing.',
     );
   }
 
@@ -318,10 +320,12 @@ function normalizedPlaceID(placeID: string): string | null {
  * Place Details (New): fetch only `primaryType` (Swift `fetchPrimaryType`).
  */
 export async function fetchPrimaryType(placeID: string): Promise<string | null> {
-  const apiKey = GoogleAPIConfig.apiKey;
-  if (!apiKey) {
+  let apiKey: string;
+  try {
+    apiKey = GoogleAPIConfig.requireApiKey();
+  } catch (error) {
     throw new RestaurantSearchError(
-      'Google Places API key is missing. Set expo.extra.googlePlacesApiKey.',
+      error instanceof Error ? error.message : 'Google API key is missing.',
     );
   }
   const idOnly = normalizedPlaceID(placeID);

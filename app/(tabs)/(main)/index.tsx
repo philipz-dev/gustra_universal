@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, StyleSheet, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { FlatList, StyleSheet, View } from 'react-native';
+
+import { houseAlert } from '@/components/ui/HouseAlert';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ActiveFilterSummary } from '@/components/feed/ActiveFilterSummary';
@@ -27,7 +29,10 @@ import { Theme } from '@/constants/Theme';
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewerProfile } from '@/context/ReviewerProfile';
 import { useReviewsStore } from '@/context/ReviewsStore';
-import { useShareImportLaunch } from '@/context/ShareImportLaunch';
+import {
+  consumePendingFeedReviewSource,
+  useShareImportLaunch,
+} from '@/context/ShareImportLaunch';
 import type {
   RestaurantVisitSummary,
   Review,
@@ -46,17 +51,45 @@ export default function ReviewsFeedScreen() {
     DEFAULT_FEED_FILTER_STATE,
   );
   const [sharing, setSharing] = useState(false);
+  /** One-shot: keep Friends selected until imported reviews appear in the store. */
+  const [awaitingFriendsTab, setAwaitingFriendsTab] = useState(false);
   const {
     getFeedSummaries,
     getReview,
     restaurants,
     ready,
+    hasFriendReviews,
     deleteRestaurantFromFeed,
     setRestaurantFavorite,
   } = useReviewsStore();
   const { hasName, updateName, getBackupSnapshot } = useReviewerProfile();
   const { pickSharePackage } = useShareImportLaunch();
   const { enabledCriteria } = useCriteriaSettings();
+
+  // After share-import: select Friends' reviews when the feed gains focus.
+  useFocusEffect(
+    useCallback(() => {
+      const pending = consumePendingFeedReviewSource();
+      if (!pending) return;
+      setReviewSource(pending);
+      if (pending === 'imported') setAwaitingFriendsTab(true);
+    }, []),
+  );
+
+  useEffect(() => {
+    if (awaitingFriendsTab && hasFriendReviews) {
+      setReviewSource('imported');
+      setAwaitingFriendsTab(false);
+    }
+  }, [awaitingFriendsTab, hasFriendReviews]);
+
+  // Swift: hide Friends segment when there are no imported reviews.
+  useEffect(() => {
+    if (awaitingFriendsTab) return;
+    if (!hasFriendReviews && reviewSource !== 'own') {
+      setReviewSource('own');
+    }
+  }, [awaitingFriendsTab, hasFriendReviews, reviewSource]);
 
   const summaries = useMemo(
     () => (ready ? getFeedSummaries(reviewSource) : []),
@@ -128,11 +161,20 @@ export default function ReviewsFeedScreen() {
     );
     const q = query.trim().toLowerCase();
     if (!q) return afterFilters;
-    return afterFilters.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) || s.city.toLowerCase().includes(q),
-    );
-  }, [filterOptions, filterState, query, summaries]);
+    // Swift: searchableText (comments + OCR) OR restaurant name.
+    return afterFilters.filter((summary) => {
+      if (
+        summary.name.toLowerCase().includes(q) ||
+        summary.city.toLowerCase().includes(q)
+      ) {
+        return true;
+      }
+      return summary.reviewIds.some((id) => {
+        const review = getReview(id);
+        return (review?.searchableText ?? '').toLowerCase().includes(q);
+      });
+    });
+  }, [filterOptions, filterState, getReview, query, summaries]);
 
   /** Visible feed rows → underlying reviews (Swift `filteredReviews`). */
   const reviewsToShare = useMemo(() => {
@@ -166,7 +208,7 @@ export default function ReviewsFeedScreen() {
           sharedByPhotoBase64: profile.photoBase64,
         });
       } catch (error) {
-        Alert.alert(
+        houseAlert(
           'Error',
           error instanceof Error
             ? error.message
@@ -197,7 +239,7 @@ export default function ReviewsFeedScreen() {
       : 'No reviews yet';
   const emptyDescription = emptyFromFilters
     ? query
-      ? 'Try another restaurant or city name.'
+      ? 'Try another restaurant, city, comment, or text from a photo.'
       : 'Try clearing filters or choosing different options.'
     : isFriends
       ? "Import shared reviews to see friends' reviews here."
@@ -219,7 +261,9 @@ export default function ReviewsFeedScreen() {
         filterActive={filterActive}
         onFilter={() => setFilterModalVisible(true)}
       />
-      <ReviewSourcePicker value={reviewSource} onChange={setReviewSource} />
+      {hasFriendReviews ? (
+        <ReviewSourcePicker value={reviewSource} onChange={setReviewSource} />
+      ) : null}
       <FilterSearchBar value={query} onChangeText={setQuery} />
       <ActiveFilterSummary
         state={filterState}
@@ -283,11 +327,16 @@ export default function ReviewsFeedScreen() {
           renderItem={({ item }) => (
             <RestaurantFeedCard
               summary={item}
+              scoreOverride={
+                filterState.sortKind.type === 'criterion'
+                  ? criterionAverageFor(item, filterState.sortKind.criterionId)
+                  : null
+              }
               onFavoriteToggle={(favorite) => {
                 void setRestaurantFavorite(item.restaurantId, favorite);
               }}
               onDelete={() => {
-                Alert.alert(
+                houseAlert(
                   'Delete restaurant?',
                   `“${item.name}” and its reviews will be permanently deleted. This cannot be undone.`,
                   [

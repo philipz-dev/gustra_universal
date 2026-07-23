@@ -1,20 +1,27 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { RestaurantThumb } from '@/components/feed/RestaurantThumb';
 import { SatisfactionDot } from '@/components/ui/SatisfactionDot';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
 import { GustraColors } from '@/constants/Colors';
-import { bodyTextStyle, captionTextStyle, Theme } from '@/constants/Theme';
+import {
+  bodyTextStyle,
+  captionTextStyle,
+  listPressedStyle,
+  Surface,
+  Theme,
+  Type,
+} from '@/constants/Theme';
 
 import { formatReviewDate } from '@/data/mockReviews';
 import { satisfactionFromScore, type Review } from '@/data/types';
+import { Haptics } from '@/services/haptics';
 
 type ReviewCardProps = {
   review: Review;
   restaurantName: string;
   city: string;
-  thumbnailColor: string;
   photoUrl?: string;
   onPress: () => void;
 };
@@ -23,7 +30,6 @@ export function ReviewCard({
   review,
   restaurantName,
   city,
-  thumbnailColor,
   photoUrl,
   onPress,
 }: ReviewCardProps) {
@@ -33,9 +39,20 @@ export function ReviewCard({
   return (
     <Pressable
       accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
-      <RestaurantThumb uri={uri} fallbackColor={thumbnailColor} />
+      onPress={() => {
+        Haptics.light();
+        onPress();
+      }}
+      android_ripple={
+        Platform.OS === 'android'
+          ? { color: Theme.list.androidRipple, borderless: false }
+          : undefined
+      }
+      style={({ pressed }) => [
+        styles.card,
+        Platform.OS === 'ios' && pressed ? listPressedStyle : null,
+      ]}>
+      <RestaurantThumb uri={uri} />
       <View style={styles.main}>
         <SerifText size={17} weight="semibold" style={styles.name} numberOfLines={2}>
           {restaurantName}
@@ -60,33 +77,34 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 12,
     padding: Theme.spacing.cardPadding,
-    backgroundColor: 'rgba(236, 227, 207, 0.6)',
+    minHeight: Theme.size.hitTarget + Theme.spacing.cardPadding,
+    backgroundColor: Theme.list.cardBackground,
     borderRadius: Theme.radius.xl,
-  },
-  pressed: {
-    opacity: 0.92,
+    ...Surface.raised,
   },
   main: {
     flex: 1,
     gap: 4,
+    minHeight: Theme.size.hitTarget,
+    justifyContent: 'center',
   },
   name: {
     color: GustraColors.ink,
   },
   city: {
     ...bodyTextStyle,
-    fontSize: 14,
+    fontSize: Type.bodySmall,
     color: 'rgba(35, 32, 26, 0.6)',
   },
   meta: {
     ...captionTextStyle,
-    fontSize: 12,
+    fontSize: Type.caption,
     color: 'rgba(35, 32, 26, 0.5)',
   },
-
   trailing: {
     alignItems: 'flex-end',
     gap: 6,
+    minWidth: Theme.size.hitTarget,
   },
   score: {
     color: GustraColors.forestGreen,

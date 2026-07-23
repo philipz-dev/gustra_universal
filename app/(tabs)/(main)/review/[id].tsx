@@ -1,13 +1,7 @@
 import { useCallback, useState } from 'react';
-import {
-  Alert,
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+
+import { houseAlert } from '@/components/ui/HouseAlert';
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +18,8 @@ import {
   type ShareDestination,
 } from '@/components/detail/ShareReviewChooser';
 import { ShareReviewerNameModal } from '@/components/feed/ShareReviewerNameModal';
+import { EmailPersonalMessageModal } from '@/components/share/EmailPersonalMessageModal';
+import { PreparingRecommendationOverlay } from '@/components/share/PreparingRecommendationOverlay';
 import {
   HousePrimaryButton,
   HousePrimaryButtonRow,
@@ -61,10 +57,13 @@ export default function ReviewDetailScreen() {
   const [showMap, setShowMap] = useState(false);
   const [showShareChooser, setShowShareChooser] = useState(false);
   const [showNameModal, setShowNameModal] = useState(false);
+  const [showMessageModal, setShowMessageModal] = useState(false);
   const [pendingShare, setPendingShare] = useState<ShareDestination | null>(
     null,
   );
+  const [pendingSharedBy, setPendingSharedBy] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [preparingEmail, setPreparingEmail] = useState(false);
   const bottomPad =
     Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
 
@@ -76,9 +75,14 @@ export default function ReviewDetailScreen() {
   const canShare = Boolean(review && !sharing);
 
   const runShare = useCallback(
-    async (destination: ShareDestination, sharedByOverride?: string) => {
+    async (
+      destination: ShareDestination,
+      sharedByOverride?: string,
+      personalMessage?: string,
+    ) => {
       if (!review || !restaurant) return;
       setSharing(true);
+      if (destination === 'email') setPreparingEmail(true);
       try {
         const profile = await getBackupSnapshot();
         const sharedBy = (sharedByOverride ?? profile.name).trim();
@@ -93,32 +97,53 @@ export default function ReviewDetailScreen() {
             sharedByPhotoBase64: profile.photoBase64,
           });
         } else {
-          await shareReviewAsEmail({ review, restaurant, sharedBy });
+          await shareReviewAsEmail({
+            review,
+            restaurant,
+            sharedBy,
+            enabledCriteria,
+            personalMessage,
+            onSnapshotReady: () => setPreparingEmail(false),
+          });
         }
       } catch (error) {
-        Alert.alert(
+        houseAlert(
           'Error',
           error instanceof Error
             ? error.message
             : 'Could not share this review.',
         );
       } finally {
+        setPreparingEmail(false);
         setSharing(false);
         setPendingShare(null);
+        setPendingSharedBy(null);
       }
     },
-    [getBackupSnapshot, restaurants, restaurant, review],
+    [
+      enabledCriteria,
+      getBackupSnapshot,
+      restaurants,
+      restaurant,
+      review,
+    ],
   );
 
   const beginShare = useCallback(
-    (destination: ShareDestination) => {
+    (destination: ShareDestination, sharedByOverride?: string) => {
       setShowShareChooser(false);
-      if (!hasName) {
+      if (!hasName && !sharedByOverride?.trim()) {
         setPendingShare(destination);
         setShowNameModal(true);
         return;
       }
-      void runShare(destination);
+      if (destination === 'email') {
+        setPendingShare('email');
+        setPendingSharedBy(sharedByOverride?.trim() || null);
+        setShowMessageModal(true);
+        return;
+      }
+      void runShare(destination, sharedByOverride);
     },
     [hasName, runShare],
   );
@@ -317,9 +342,24 @@ export default function ReviewDetailScreen() {
         }}
         onContinue={(sharedBy) => {
           setShowNameModal(false);
-          if (pendingShare) void runShare(pendingShare, sharedBy);
+          if (pendingShare) beginShare(pendingShare, sharedBy);
         }}
       />
+
+      <EmailPersonalMessageModal
+        visible={showMessageModal}
+        onCancel={() => {
+          setShowMessageModal(false);
+          setPendingShare(null);
+          setPendingSharedBy(null);
+        }}
+        onContinue={(message) => {
+          setShowMessageModal(false);
+          void runShare('email', pendingSharedBy ?? undefined, message);
+        }}
+      />
+
+      <PreparingRecommendationOverlay visible={preparingEmail} />
     </View>
   );
 }

@@ -1,13 +1,6 @@
 import type { ReactNode } from 'react';
-import {
-  ActionSheetIOS,
-  Alert,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SymbolView } from 'expo-symbols';
@@ -20,37 +13,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GustraColors } from '@/constants/Colors';
 import { PhotoViewerStyle } from '@/constants/PhotoViewerStyle';
 
-function presentPhotoOptions(args: {
-  onShare: () => void;
-  onSave: () => void;
-}): void {
-  if (Platform.OS === 'ios') {
-    ActionSheetIOS.showActionSheetWithOptions(
-      {
-        options: ['Save to Photos', 'Share photo', 'Cancel'],
-        cancelButtonIndex: 2,
-      },
-      (buttonIndex) => {
-        if (buttonIndex === 0) args.onSave();
-        if (buttonIndex === 1) args.onShare();
-      },
-    );
-    return;
-  }
-
-  // Android Alert stacks buttons bottom→top relative to this array.
-  Alert.alert('Photo options', undefined, [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Share photo', onPress: args.onShare },
-    { text: 'Save to Photos', onPress: args.onSave },
-  ]);
-}
-
 type ChromeButtonProps = {
   iosName: string;
   androidName: keyof typeof MaterialIcons.glyphMap;
   accessibilityLabel: string;
   onPress: () => void;
+  /** Glyph point size (default 17 iOS / 20 Android). */
+  iconSize?: number;
 };
 
 /** Frosted circular chrome control (Swift `PhotoViewerChromeButton`). */
@@ -59,8 +28,11 @@ export function PhotoViewerChromeButton({
   androidName,
   accessibilityLabel,
   onPress,
+  iconSize,
 }: ChromeButtonProps) {
   const color = PhotoViewerStyle.chromeForeground;
+  const iosSize = iconSize ?? 17;
+  const androidSize = iconSize ?? 20;
   return (
     <Pressable
       onPress={onPress}
@@ -79,11 +51,11 @@ export function PhotoViewerChromeButton({
           <SymbolView
             name={iosName as never}
             tintColor={color}
-            size={17}
-            weight="semibold"
+            size={iosSize}
+            weight="bold"
           />
         ) : (
-          <MaterialIcons name={androidName} size={20} color={color} />
+          <MaterialIcons name={androidName} size={androidSize} color={color} />
         )}
       </View>
     </Pressable>
@@ -92,17 +64,16 @@ export function PhotoViewerChromeButton({
 
 type TopBarProps = {
   onClose: () => void;
+  /** Opens the system share sheet directly (no intermediate options menu). */
   onShare: () => void;
-  onSave: () => void;
   title?: string;
   showTitle?: boolean;
 };
 
-/** Top gradient + close / options (Swift `PhotoViewerTopBar`). */
+/** Top gradient + close / share (Expo: share icon → system sheet). */
 export function PhotoViewerTopBar({
   onClose,
   onShare,
-  onSave,
   title,
   showTitle = false,
 }: TopBarProps) {
@@ -141,15 +112,12 @@ export function PhotoViewerTopBar({
         </View>
 
         <PhotoViewerChromeButton
-          iosName="ellipsis"
-          androidName="more-horiz"
-          accessibilityLabel="Photo options"
-          onPress={() =>
-            presentPhotoOptions({
-              onShare,
-              onSave,
-            })
-          }
+          // iOS share glyph; Android `share` is the 3-dot network icon — use ios_share.
+          iosName="square.and.arrow.up"
+          androidName="ios-share"
+          accessibilityLabel="Share photo"
+          iconSize={22}
+          onPress={onShare}
         />
       </View>
     </View>

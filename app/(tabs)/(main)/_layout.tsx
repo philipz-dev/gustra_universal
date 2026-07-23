@@ -59,6 +59,10 @@ export default function ReviewsStackLayout() {
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: GustraColors.cream },
+        animation: 'default',
+        gestureEnabled: true,
+        fullScreenGestureEnabled: true,
+        animationDuration: 350,
       }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="add-review" />

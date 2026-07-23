@@ -1,10 +1,11 @@
-import { Platform, type TextStyle } from 'react-native';
+import { Platform, StyleSheet, type TextStyle } from 'react-native';
 
 import { GustraColors } from '@/constants/Colors';
 
 /**
  * Source Serif 4 family names (loaded in app/_layout.tsx).
  * Android paints the same file thinner — use one step heavier there.
+ * Use only for display/nav titles and restaurant name/score (Swift `Theme.serif`).
  */
 export const SERIF_FONT_REGULAR = 'SourceSerif4_400Regular';
 export const SERIF_FONT_MEDIUM = 'SourceSerif4_500Medium';
@@ -23,16 +24,75 @@ export const systemSerifFamily = Platform.select({
   default: 'Georgia',
 }) as string;
 
-/** Sans body copy — medium weight on Android so Roboto isn’t too thin. */
+/**
+ * Body copy — system sans (SF on iOS, Roboto on Android).
+ * Never pair with Source Serif; that stays for titles via `SerifText` / `serifStyle`.
+ */
 export const bodyTextStyle: TextStyle =
   Platform.OS === 'android'
-    ? { fontWeight: '500', includeFontPadding: false }
-    : { fontWeight: '400' };
+    ? {
+        fontFamily: 'sans-serif',
+        fontWeight: '400',
+        includeFontPadding: false,
+        letterSpacing: 0.1,
+      }
+    : {
+        // Default SF; omit fontFamily so UIFont.systemFont resolves correctly.
+        fontWeight: '400',
+        letterSpacing: -0.24,
+      };
 
+/** Secondary / meta labels. */
 export const captionTextStyle: TextStyle =
   Platform.OS === 'android'
-    ? { fontWeight: '500', includeFontPadding: false }
-    : { fontWeight: '400' };
+    ? {
+        fontFamily: 'sans-serif-medium',
+        fontWeight: '500',
+        includeFontPadding: false,
+        letterSpacing: 0.15,
+      }
+    : {
+        fontWeight: '400',
+        letterSpacing: -0.08,
+      };
+
+/** Soft press wash (lists / settings) — prefer over dimming the whole row. */
+export const listPressedStyle: TextStyle = {
+  backgroundColor: 'rgba(35, 32, 26, 0.06)',
+};
+
+/**
+ * Android Material-ish type ramp (sp).
+ * Use these instead of one-off fontSizes for a calmer, premium density.
+ */
+export const Type = {
+  display: Platform.OS === 'android' ? 32 : 34,
+  title: Platform.OS === 'android' ? 28 : 30,
+  titleSmall: 20,
+  body: Platform.OS === 'android' ? 16 : 17,
+  bodySmall: Platform.OS === 'android' ? 14 : 15,
+  label: 13,
+  caption: Platform.OS === 'android' ? 12 : 13,
+} as const;
+
+/** Surface elevation tokens — keep 0–2 only for a tonal cream UI. */
+export const Surface = {
+  flat: {} as TextStyle,
+  raised: (Platform.OS === 'android'
+    ? {
+        elevation: 1,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: 'rgba(35, 32, 26, 0.06)',
+      }
+    : {}) as TextStyle,
+  floating: (Platform.OS === 'android'
+    ? {
+        elevation: 2,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: 'rgba(35, 32, 26, 0.08)',
+      }
+    : {}) as TextStyle,
+} as const;
 
 export const Theme = {
   colors: GustraColors,
@@ -67,14 +127,29 @@ export const Theme = {
     mapThumb: 56,
     avatar: 36,
     starEdit: 30,
+    /** Minimum tappable control — 44 iOS HIG / 48 Material. */
+    hitTarget: Platform.OS === 'android' ? 48 : 44,
   },
 
   navigation: {
-    titleSize: 34,
-    secondaryTitleSize: 30,
-    largeTitleSize: 37,
+    titleSize: Platform.OS === 'android' ? Type.display : 34,
+    secondaryTitleSize: Platform.OS === 'android' ? Type.title : 30,
+    largeTitleSize: Platform.OS === 'android' ? 34 : 37,
     /** Extra breathing room under the title (matches iOS Theme.navigationBarExtraHeight). */
     barExtraHeight: 9,
+  },
+
+  /** Inset-grouped settings / form cards. */
+  list: {
+    sectionGap: 22,
+    sectionHeaderSize: 13,
+    rowMinHeight: Platform.OS === 'android' ? 48 : 44,
+    separator: 'rgba(35, 32, 26, 0.1)',
+    cardBackground:
+      Platform.OS === 'android'
+        ? 'rgba(236, 227, 207, 0.72)'
+        : 'rgba(236, 227, 207, 0.55)',
+    androidRipple: 'rgba(36, 78, 57, 0.12)',
   },
 
   fabShadow: {
@@ -114,8 +189,7 @@ export function serifStyle(
   return {
     fontFamily,
     fontSize: size,
-    ...(Platform.OS === 'android'
-      ? { includeFontPadding: false }
-      : null),
+    letterSpacing: Platform.OS === 'ios' ? -0.4 : 0,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
   };
 }

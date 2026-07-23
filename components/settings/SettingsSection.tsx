@@ -1,15 +1,18 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+
+import { captionTextStyle, Surface, Theme } from '@/constants/Theme';
 
 type SettingsSectionProps = {
   title?: string;
   children: ReactNode;
 };
 
+/** Inset-grouped settings block (Swift `List` / Form section). */
 export function SettingsSection({ title, children }: SettingsSectionProps) {
   return (
     <View style={styles.section}>
-      {title ? <Text style={styles.title}>{title}</Text> : null}
+      {title ? <Text style={styles.title}>{title.toUpperCase()}</Text> : null}
       <View style={styles.card}>{children}</View>
     </View>
   );
@@ -20,14 +23,17 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   title: {
-    fontSize: 13,
+    ...captionTextStyle,
+    fontSize: Theme.list.sectionHeaderSize,
     fontWeight: '600',
-    color: 'rgba(35, 32, 26, 0.55)',
-    paddingHorizontal: 4,
+    color: 'rgba(35, 32, 26, 0.5)',
+    paddingHorizontal: 16,
+    letterSpacing: Platform.OS === 'ios' ? 0.4 : 0.6,
   },
   card: {
-    backgroundColor: 'rgba(236, 227, 207, 0.55)',
-    borderRadius: 14,
+    backgroundColor: Theme.list.cardBackground,
+    borderRadius: Theme.radius.lg,
     overflow: 'hidden',
+    ...Surface.raised,
   },
 });

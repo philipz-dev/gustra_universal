@@ -16,6 +16,7 @@ import {
   type ReviewerProfileBackup,
   REVIEWER_PHOTO_BACKUP_KEY,
 } from '@/services/backup/types';
+import { rebuildSearchableText } from '@/services/reviews/searchableText';
 
 function originFromBackup(
   item: ReviewBackup,
@@ -85,12 +86,15 @@ export function reviewToBackup(review: Review): ReviewBackup {
     .map(backupPhotoKey)
     .filter(Boolean);
 
-  const searchable = [
-    review.generalComment,
-    ...review.criteria.map((c) => c.comment),
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const searchable =
+    review.searchableText?.trim() ||
+    [
+      review.generalComment,
+      ...review.criteria.map((c) => c.comment),
+      review.ocrText ?? '',
+    ]
+      .filter(Boolean)
+      .join(' ');
 
   return {
     id: review.id,
@@ -253,17 +257,30 @@ export function backupReviewToApp(
         : localPhotoUri(backupPhotoKey(reviewerPhotoRaw));
   }
 
+  const generalComment = item.generalComment ?? '';
+  const searchableFromBackup = (item.searchableText ?? '').trim();
+  const ocrText = (previous?.ocrText ?? '').trim();
+  const searchableText =
+    searchableFromBackup ||
+    rebuildSearchableText({
+      generalComment,
+      criteria,
+      ocrText,
+    });
+
   return {
     id: item.id,
     restaurantId: item.restaurantID ?? previous?.restaurantId ?? '',
     date: fromAppleRefDate(item.date),
-    generalComment: item.generalComment ?? '',
+    generalComment,
     criteria,
     photoUrls,
     reviewedBy: item.reviewedBy ?? previous?.reviewedBy ?? '',
     reviewedByPhotoUrl,
     overallScore,
     origin: originFromBackup(item, previous),
+    searchableText,
+    ocrText,
   };
 }
 

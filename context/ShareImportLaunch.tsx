@@ -11,9 +11,16 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
-import { Alert, AppState } from 'react-native';
+import { AppState } from 'react-native';
 
+import { houseAlert } from '@/components/ui/HouseAlert';
+
+import type { ReviewOrigin } from '@/data/types';
 import type { SharePackage } from '@/services/share/ReviewShareService';
+import {
+  consumeExpoShareHandoffFile,
+  isExpoSharingHandoffURL,
+} from '@/services/share/ExpoShareHandoff';
 import { ShareInbox } from '@/services/share/ShareInbox';
 import {
   loadSharePackage,
@@ -34,6 +41,11 @@ const pendingPackageHolder: { current: SharePackage | null } = {
   current: null,
 };
 
+/** After a successful import, feed should select Friends' reviews. */
+const pendingFeedReviewSourceHolder: { current: ReviewOrigin | null } = {
+  current: null,
+};
+
 /** Read the package handed off for the selection screen. */
 export function takePendingSharePackage(): SharePackage | null {
   return pendingPackageHolder.current;
@@ -41,6 +53,18 @@ export function takePendingSharePackage(): SharePackage | null {
 
 export function clearPendingSharePackage(): void {
   pendingPackageHolder.current = null;
+}
+
+/** Ask the Reviews feed to select this source on next focus (post-import). */
+export function requestFeedReviewSource(source: ReviewOrigin): void {
+  pendingFeedReviewSourceHolder.current = source;
+}
+
+/** Consume a one-shot feed source request (or null). */
+export function consumePendingFeedReviewSource(): ReviewOrigin | null {
+  const next = pendingFeedReviewSourceHolder.current;
+  pendingFeedReviewSourceHolder.current = null;
+  return next;
 }
 
 export function ShareImportLaunchProvider({
@@ -71,7 +95,7 @@ export function ShareImportLaunchProvider({
             : error instanceof Error
               ? error.message
               : 'Could not read the shared reviews file.';
-        Alert.alert('Error', message);
+        houseAlert('Error', message);
       } finally {
         if (stagedUri) {
           await FileSystem.deleteAsync(stagedUri, { idempotent: true }).catch(
@@ -85,7 +109,27 @@ export function ShareImportLaunchProvider({
     [openLoadedPackage],
   );
 
+  /** iOS Share Extension → App Group payloads (`expo-sharing`). */
+  const consumeExpoShareHandoffIfNeeded = useCallback(async () => {
+    if (handlingRef.current) return;
+    try {
+      const handoff = await consumeExpoShareHandoffFile();
+      if (!handoff) return;
+      await openSharePackageUri(handoff.uri, handoff.filename);
+    } catch (error) {
+      houseAlert(
+        'Error',
+        error instanceof Error
+          ? error.message
+          : 'Could not read the shared reviews file.',
+      );
+    }
+  }, [openSharePackageUri]);
+
   const consumePendingIfNeeded = useCallback(async () => {
+    if (handlingRef.current) return;
+    // Prefer App Group handoff from the Share Extension when present.
+    await consumeExpoShareHandoffIfNeeded();
     if (handlingRef.current) return;
     try {
       const pending = await ShareInbox.consumePendingShareFile();
@@ -102,19 +146,19 @@ export function ShareImportLaunchProvider({
       }
     } catch (error) {
       handlingRef.current = false;
-      Alert.alert(
+      houseAlert(
         'Error',
         error instanceof Error
           ? error.message
           : 'Could not read the shared reviews file.',
       );
     }
-  }, [openLoadedPackage]);
+  }, [consumeExpoShareHandoffIfNeeded, openLoadedPackage]);
 
   const handleIncomingURL = useCallback(
     async (url: string | null) => {
       if (!url) return;
-      if (ShareInbox.isShareImportURL(url)) {
+      if (isExpoSharingHandoffURL(url) || ShareInbox.isShareImportURL(url)) {
         await consumePendingIfNeeded();
         return;
       }
@@ -139,12 +183,12 @@ export function ShareImportLaunchProvider({
         name &&
         !name.toLowerCase().endsWith(`.${ShareInbox.fileExtension}`)
       ) {
-        Alert.alert('Error', 'This is not a Gustra share file.');
+        houseAlert('Error', 'This is not a Gustra share file.');
         return;
       }
       await openSharePackageUri(asset.uri, name || null);
     } catch (error) {
-      Alert.alert(
+      houseAlert(
         'Error',
         error instanceof Error
           ? error.message

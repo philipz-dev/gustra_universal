@@ -106,6 +106,17 @@ export function placeTypeSelectionSummary(
   return selectionSummary(selected, allItems, placeTypeDisplayName);
 }
 
+function rankByLastVisit(
+  summaries: RestaurantVisitSummary[],
+): RestaurantVisitSummary[] {
+  return [...summaries].sort((a, b) => {
+    if (a.lastVisitAt !== b.lastVisitAt) {
+      return b.lastVisitAt - a.lastVisitAt;
+    }
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  });
+}
+
 function rankByAverageScore(
   summaries: RestaurantVisitSummary[],
 ): RestaurantVisitSummary[] {
@@ -183,6 +194,9 @@ export function applyFeedFilters(
       state.sortKind.criterionId,
       options.criterionAverageFor,
     );
+  } else if (state.filters.length === 0) {
+    // Filters off → most recent visit first (default feed order).
+    next = rankByLastVisit(next);
   } else {
     next = rankByAverageScore(next);
   }

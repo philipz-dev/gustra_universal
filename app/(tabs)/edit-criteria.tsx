@@ -1,13 +1,7 @@
 import { useState } from 'react';
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import { houseAlert } from '@/components/ui/HouseAlert';
 import { SymbolView } from 'expo-symbols';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -38,7 +32,7 @@ export default function EditCriteriaScreen() {
   };
 
   const confirmDelete = (id: string, name: string) => {
-    Alert.alert('Delete criterion', `Remove “${name}”?`, [
+    houseAlert('Delete criterion', `Remove “${name}”?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',

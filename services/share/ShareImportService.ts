@@ -14,6 +14,7 @@ import {
 } from '@/services/share/ReviewShareService';
 import { SHARE_FILE_EXTENSION } from '@/services/share/types';
 import { overallScoreFromCriteria } from '@/services/reviews/ratings';
+import { rebuildSearchableText } from '@/services/reviews/searchableText';
 
 /** Matches Swift `ReviewerProfile.maxNameLength`. */
 const REVIEWER_MAX_NAME_LENGTH = 20;
@@ -294,11 +295,13 @@ export async function importSelectedShareReviews(args: {
       restaurant.photoUrl = firstPhoto;
     }
 
+    const generalComment = backup.generalComment ?? '';
+    const searchableFromPackage = (backup.searchableText ?? '').trim();
     reviews.push({
       id: Crypto.randomUUID(),
       restaurantId: restaurant?.id ?? '',
       date: shareDateToApp(backup.date),
-      generalComment: backup.generalComment ?? '',
+      generalComment,
       criteria,
       photoUrls,
       reviewedBy,
@@ -307,6 +310,14 @@ export async function importSelectedShareReviews(args: {
         : undefined,
       overallScore: overallScoreFromCriteria(criteria),
       origin: 'imported',
+      searchableText:
+        searchableFromPackage ||
+        rebuildSearchableText({
+          restaurant,
+          generalComment,
+          criteria,
+        }),
+      ocrText: '',
     });
   }
 

@@ -10,8 +10,9 @@ const PENDING_KEY = 'gustra.share.pendingShareImport';
 const FILENAME_KEY = 'gustra.share.pendingShareFilename';
 
 /**
- * Local share-file staging (Swift `ShareInbox` — App Group omitted on Expo;
- * files live under Documents/ShareInbox/).
+ * Local share-file staging for picker / document open (Documents/ShareInbox/).
+ * iOS Share Extension → App Group handoff is handled by `expo-sharing`
+ * (`services/share/ExpoShareHandoff.ts`).
  */
 export const ShareInbox = {
   fileExtension: SHARE_FILE_EXTENSION,

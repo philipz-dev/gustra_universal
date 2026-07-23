@@ -1,30 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Linking,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { NestableScrollContainer } from 'react-native-draggable-flatlist';
+
+import { houseAlert } from '@/components/ui/HouseAlert';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { SymbolView } from 'expo-symbols';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { InteractiveStarRating } from '@/components/review/InteractiveStarRating';
+import { ReorderablePhotoStrip } from '@/components/review/ReorderablePhotoStrip';
 import { FavoriteHeartButton } from '@/components/ui/FavoriteHeartButton';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
+import { PhotoSourceChooserModal } from '@/components/ui/PhotoSourceChooser';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
 import { GustraColors } from '@/constants/Colors';
@@ -37,6 +29,7 @@ import {
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import type { CriterionRating } from '@/data/types';
+import { extractTextFromImages } from '@/services/ocr/OCRService';
 import {
   draftAddressLine,
   findExistingRestaurant,
@@ -51,7 +44,7 @@ import {
 import { RatingValue, hasStarRating } from '@/services/reviews/ratings';
 
 function openSettingsAlert(message: string) {
-  Alert.alert('Permission needed', message, [
+  houseAlert('Permission needed', message, [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Open Settings', onPress: () => void Linking.openSettings() },
   ]);
@@ -93,7 +86,7 @@ function criterionIcon(id: string): {
 } {
   switch (id) {
     case 'food':
-      return { ios: 'fork.knife', android: 'restaurant' };
+      return { ios: 'fork.knife', android: 'local-dining' };
     case 'drinks':
       return { ios: 'wineglass', android: 'local-bar' };
     case 'service':
@@ -119,7 +112,7 @@ export default function ReviewFormScreen() {
   }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { enabledCriteria } = useCriteriaSettings();
+  const { enabledCriteria, customCriteria } = useCriteriaSettings();
   const {
     ready,
     restaurants,
@@ -156,12 +149,14 @@ export default function ReviewFormScreen() {
     Record<string, { rating: number; comment: string }>
   >({});
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
-  const [selectedForRemoval, setSelectedForRemoval] = useState<Set<string>>(
-    () => new Set(),
-  );
   const [activeReviewId, setActiveReviewId] = useState<string | undefined>();
   const [isSaving, setIsSaving] = useState(false);
   const [isImportingPhotos, setIsImportingPhotos] = useState(false);
+  const [showPhotoSourceChooser, setShowPhotoSourceChooser] = useState(false);
+  const [isIndexingPhotos, setIsIndexingPhotos] = useState(false);
+  const [ocrIndexedText, setOcrIndexedText] = useState(
+    () => existingReview?.ocrText ?? '',
+  );
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [datePickerMode, setDatePickerMode] = useState<'date' | 'time'>('date');
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
@@ -171,12 +166,16 @@ export default function ReviewFormScreen() {
   const didHydrate = useRef(false);
   const photoUrlsRef = useRef(photoUrls);
   photoUrlsRef.current = photoUrls;
+  const ocrIndexedTextRef = useRef(ocrIndexedText);
+  ocrIndexedTextRef.current = ocrIndexedText;
+  const ocrIndexGeneration = useRef(0);
   const persistedRef = useRef(Boolean(existingReview));
   const didDeleteRef = useRef(false);
   const initialLoadCompleteRef = useRef(false);
   const persistNowRef = useRef<(markBusy?: boolean) => Promise<boolean>>(
     async () => false,
   );
+  const schedulePersistRef = useRef<() => void>(() => undefined);
 
   // Hydrate once store + route params are ready.
   useEffect(() => {
@@ -190,6 +189,8 @@ export default function ReviewFormScreen() {
       setVisitDate(new Date(existingReview.date));
       setGeneralComment(existingReview.generalComment);
       setPhotoUrls([...existingReview.photoUrls]);
+      setOcrIndexedText(existingReview.ocrText ?? '');
+      ocrIndexedTextRef.current = existingReview.ocrText ?? '';
       const map: Record<string, { rating: number; comment: string }> = {};
       for (const c of existingReview.criteria) {
         map[c.id] = { rating: c.rating, comment: c.comment };
@@ -252,6 +253,11 @@ export default function ReviewFormScreen() {
 
   const showsDone = hasStarRating(criteriaList);
 
+  const customCriterionNames = useMemo(
+    () => customCriteria.map((c) => c.name.trim()).filter(Boolean),
+    [customCriteria],
+  );
+
   const buildInput = useCallback(() => {
     if (!draft) return null;
     return {
@@ -262,13 +268,17 @@ export default function ReviewFormScreen() {
       generalComment,
       criteria: criteriaList,
       photoUrls,
+      ocrText: ocrIndexedText,
+      customCriterionNames,
     };
   }, [
     activeReviewId,
     criteriaList,
+    customCriterionNames,
     draft,
     generalComment,
     isFavorite,
+    ocrIndexedText,
     photoUrls,
     visitDate,
   ]);
@@ -323,6 +333,42 @@ export default function ReviewFormScreen() {
   }, [initialLoadComplete, isSaving, persistNow]);
 
   persistNowRef.current = persistNow;
+  schedulePersistRef.current = schedulePersist;
+
+  // OCR index review photos into searchable text (Swift `indexPhotos`).
+  useEffect(() => {
+    if (!initialLoadComplete) return;
+    const generation = ++ocrIndexGeneration.current;
+    let cancelled = false;
+
+    const run = async () => {
+      if (photoUrls.length === 0) {
+        if (ocrIndexedTextRef.current) {
+          setOcrIndexedText('');
+          ocrIndexedTextRef.current = '';
+          schedulePersistRef.current();
+        }
+        setIsIndexingPhotos(false);
+        return;
+      }
+
+      setIsIndexingPhotos(true);
+      const text = await extractTextFromImages(photoUrls);
+      if (cancelled || generation !== ocrIndexGeneration.current) return;
+      const next = text.trim();
+      if (next !== ocrIndexedTextRef.current) {
+        setOcrIndexedText(next);
+        ocrIndexedTextRef.current = next;
+        schedulePersistRef.current();
+      }
+      setIsIndexingPhotos(false);
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialLoadComplete, photoUrls]);
 
   // Autosave on leave (Swift `handleDisappear`) + cleanup never-persisted photos.
   useEffect(() => {
@@ -349,7 +395,7 @@ export default function ReviewFormScreen() {
     const ok = await persistNow(true);
     if (!ok) {
       Haptics.warning();
-      Alert.alert('Review', 'Add at least one star rating to finish.');
+      houseAlert('Review', 'Add at least one star rating to finish.');
       return;
     }
     Haptics.success();
@@ -388,30 +434,18 @@ export default function ReviewFormScreen() {
     schedulePersist();
   };
 
-  const togglePhotoSelection = (uri: string) => {
-    setSelectedForRemoval((prev) => {
-      const next = new Set(prev);
-      if (next.has(uri)) next.delete(uri);
-      else next.add(uri);
-      return next;
-    });
-  };
-
-  const removeSelectedPhotos = () => {
-    const toRemove = [...selectedForRemoval];
-    if (toRemove.length === 0) return;
-    Alert.alert(
-      'Remove Photos?',
-      'Selected photos will be permanently deleted. This cannot be undone.',
+  const confirmRemovePhoto = (uri: string) => {
+    houseAlert(
+      'Remove Photo?',
+      'This photo will be permanently deleted. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Remove',
           style: 'destructive',
           onPress: () => {
-            setPhotoUrls((prev) => prev.filter((u) => !selectedForRemoval.has(u)));
-            setSelectedForRemoval(new Set());
-            void deleteReviewPhotoFiles(toRemove);
+            setPhotoUrls((prev) => prev.filter((u) => u !== uri));
+            void deleteReviewPhotoFiles([uri]);
             schedulePersist();
           },
         },
@@ -448,7 +482,7 @@ export default function ReviewFormScreen() {
       }
     } catch {
       Haptics.error();
-      Alert.alert('Photos', 'Could not save one or more photos.');
+      houseAlert('Photos', 'Could not save one or more photos.');
     } finally {
       setIsImportingPhotos(false);
     }
@@ -475,23 +509,19 @@ export default function ReviewFormScreen() {
       schedulePersist();
     } catch {
       Haptics.error();
-      Alert.alert('Photos', 'Could not save the photo.');
+      houseAlert('Photos', 'Could not save the photo.');
     } finally {
       setIsImportingPhotos(false);
     }
   };
 
   const showPhotoSourcePicker = () => {
-    Alert.alert('Add Photos', undefined, [
-      { text: 'Take Photo', onPress: () => void takePhoto() },
-      { text: 'Photo Library', onPress: () => void importFromLibrary() },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    setShowPhotoSourceChooser(true);
   };
 
   const confirmDelete = () => {
     if (!activeReviewId && !existingReview) return;
-    Alert.alert('Delete?', 'This review will be permanently removed.', [
+    houseAlert('Delete?', 'This review will be permanently removed.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -556,7 +586,7 @@ export default function ReviewFormScreen() {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={0}>
-        <ScrollView
+        <NestableScrollContainer
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
@@ -583,13 +613,13 @@ export default function ReviewFormScreen() {
             <View style={styles.card}>
               <Text style={styles.revisitTitle}>
                 {revisitCount === 1
-                  ? "You've visited this restaurant once."
-                  : `You've visited this restaurant ${revisitCount} times.`}
+                  ? '1 other visit at this restaurant'
+                  : `${revisitCount} other visits at this restaurant`}
               </Text>
               <View style={styles.revisitMeta}>
                 {lastVisitIso ? (
                   <Text style={styles.revisitMetaText}>
-                    Last visit {formatShortDate(lastVisitIso)}
+                    Most recent {formatShortDate(lastVisitIso)}
                   </Text>
                 ) : null}
                 {revisitAverage > 0 ? (
@@ -709,78 +739,25 @@ export default function ReviewFormScreen() {
 
           <View style={styles.card}>
             <FormSectionTitle title="Photos" />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.photoRow}>
-              {photoUrls.map((uri) => {
-                const selected = selectedForRemoval.has(uri);
-                return (
-                  <Pressable
-                    key={uri}
-                    onPress={() => togglePhotoSelection(uri)}
-                    style={styles.photoThumbWrap}>
-                    <Image source={{ uri }} style={styles.photoThumb} />
-                    {selected ? (
-                      <View style={styles.photoSelectedRing} />
-                    ) : null}
-                    {selected ? (
-                      <View style={styles.photoCheck}>
-                        {Platform.OS === 'ios' ? (
-                          <SymbolView
-                            name="checkmark.circle.fill"
-                            size={22}
-                            tintColor={GustraColors.forestGreen}
-                          />
-                        ) : (
-                          <MaterialIcons
-                            name="check-circle"
-                            size={22}
-                            color={GustraColors.forestGreen}
-                          />
-                        )}
-                      </View>
-                    ) : null}
-                  </Pressable>
-                );
-              })}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Add Photos"
-                onPress={showPhotoSourcePicker}
-                disabled={isImportingPhotos}
-                style={({ pressed }) => [
-                  styles.addPhoto,
-                  pressed && styles.pressed,
-                ]}>
-                {isImportingPhotos ? (
-                  <ActivityIndicator color={GustraColors.forestGreen} />
-                ) : Platform.OS === 'ios' ? (
-                  <SymbolView
-                    name="plus"
-                    size={28}
-                    tintColor={GustraColors.forestGreen}
-                    weight="semibold"
-                  />
-                ) : (
-                  <MaterialIcons
-                    name="add"
-                    size={30}
-                    color={GustraColors.forestGreen}
-                  />
-                )}
-              </Pressable>
-            </ScrollView>
+            <ReorderablePhotoStrip
+              photoUrls={photoUrls}
+              onReorder={(next) => {
+                setPhotoUrls(next);
+                schedulePersist();
+              }}
+              onRemove={confirmRemovePhoto}
+              onAddPress={showPhotoSourcePicker}
+              isImporting={isImportingPhotos}
+            />
 
-            {selectedForRemoval.size > 0 ? (
-              <Pressable
-                onPress={removeSelectedPhotos}
-                style={({ pressed }) => [
-                  styles.removePhotosBtn,
-                  pressed && styles.pressed,
-                ]}>
-                <Text style={styles.removePhotosLabel}>Remove Photos</Text>
-              </Pressable>
+            {isIndexingPhotos ? (
+              <View style={styles.indexingRow}>
+                <ActivityIndicator
+                  size="small"
+                  color={GustraColors.forestGreen}
+                />
+                <Text style={styles.indexingLabel}>Indexing photo text…</Text>
+              </View>
             ) : null}
           </View>
 
@@ -796,21 +773,45 @@ export default function ReviewFormScreen() {
               {Platform.OS === 'ios' ? (
                 <SymbolView
                   name="trash"
-                  size={22}
-                  tintColor="rgba(199, 71, 66, 0.85)"
+                  size={34}
+                  tintColor="rgba(199, 71, 66, 0.9)"
                   weight="medium"
                 />
               ) : (
-                <MaterialIcons
-                  name="delete-outline"
-                  size={24}
-                  color="rgba(199, 71, 66, 0.85)"
+                // Ionicons trash-outline matches SF Symbol `trash` more closely
+                // than Material `delete-outline`.
+                <Ionicons
+                  name="trash-outline"
+                  size={34}
+                  color="rgba(199, 71, 66, 0.9)"
                 />
               )}
             </Pressable>
           ) : null}
-        </ScrollView>
+        </NestableScrollContainer>
       </KeyboardAvoidingView>
+
+      <PhotoSourceChooserModal
+        visible={showPhotoSourceChooser}
+        title="Add Photos"
+        isImporting={isImportingPhotos}
+        onClose={() => {
+          if (!isImportingPhotos) setShowPhotoSourceChooser(false);
+        }}
+        onTakePhoto={() => {
+          // Dismiss first so the system camera is not nested under our Modal.
+          setShowPhotoSourceChooser(false);
+          requestAnimationFrame(() => {
+            void takePhoto();
+          });
+        }}
+        onImportPhoto={() => {
+          setShowPhotoSourceChooser(false);
+          requestAnimationFrame(() => {
+            void importFromLibrary();
+          });
+        }}
+      />
 
       <Modal
         visible={showDatePicker}
@@ -1027,65 +1028,24 @@ const styles = StyleSheet.create({
     minHeight: 88,
     maxHeight: 160,
   },
-  photoRow: {
+  indexingRow: {
+    marginTop: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 2,
+    gap: 8,
   },
-  photoThumbWrap: {
-    width: 72,
-    height: 72,
-  },
-  photoThumb: {
-    width: 72,
-    height: 72,
-    borderRadius: Theme.radius.sm,
-  },
-  photoSelectedRing: {
-    ...StyleSheet.absoluteFill,
-    borderRadius: Theme.radius.sm,
-    borderWidth: 3,
-    borderColor: GustraColors.forestGreen,
-  },
-  photoCheck: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 11,
-  },
-  addPhoto: {
-    width: 72,
-    height: 72,
-    borderRadius: Theme.radius.sm,
-    backgroundColor: 'rgba(36, 78, 57, 0.12)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(36, 78, 57, 0.35)',
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  removePhotosBtn: {
-    marginTop: 10,
-    paddingVertical: 10,
-    borderRadius: Theme.radius.md,
-    backgroundColor: 'rgba(199, 71, 66, 0.14)',
-    alignItems: 'center',
-  },
-  removePhotosLabel: {
-    ...bodyTextStyle,
-    fontWeight: '600',
-    fontSize: 16,
-    color: GustraColors.ratingAvoid,
+  indexingLabel: {
+    ...captionTextStyle,
+    fontSize: 14,
+    color: GustraColors.forestGreen,
   },
   deleteBtn: {
     alignSelf: 'center',
-    width: 48,
-    height: 48,
+    width: 64,
+    height: 64,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
+    marginTop: 10,
     marginBottom: 12,
   },
   pressed: {

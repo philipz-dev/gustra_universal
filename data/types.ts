@@ -81,6 +81,16 @@ export type Review = {
   overallScore: number;
   /** `own` = app owner; `imported` = friends' shared reviews (Swift). */
   origin: ReviewOrigin;
+  /**
+   * Feed search blob: restaurant fields + comments + OCR
+   * (Swift `Review.searchableText`).
+   */
+  searchableText?: string;
+  /**
+   * Photo OCR text kept separately so comment edits can rebuild search
+   * without re-running Vision/ML Kit.
+   */
+  ocrText?: string;
 };
 
 /** Legacy backfill: non-empty `reviewedBy` ⇒ imported (Swift migrate). */
@@ -101,7 +111,10 @@ export type RestaurantVisitSummary = {
   primaryType: string;
   averageScore: number;
   visitCount: number;
+  /** Display label (abbreviated). */
   lastVisitDate: string;
+  /** Epoch ms of most recent visit — used for default date sort. */
+  lastVisitAt: number;
   reviewerName?: string;
   thumbnailColor: string;
   photoUrl: string;

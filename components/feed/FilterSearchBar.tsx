@@ -13,7 +13,7 @@ type FilterSearchBarProps = {
 export function FilterSearchBar({
   value,
   onChangeText,
-  placeholder = 'Search restaurants or cities',
+  placeholder = 'Search restaurants, comments, photos…',
 }: FilterSearchBarProps) {
   return (
     <View style={styles.wrap}>

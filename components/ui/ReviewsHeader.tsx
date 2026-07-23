@@ -1,5 +1,6 @@
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
+import { Haptics } from '@/services/haptics';
 
 type ReviewsHeaderProps = {
   title?: string;
@@ -41,6 +42,7 @@ export function ReviewsHeader({
       androidName="download"
       accessibilityLabel="Import reviews"
       onPress={() => {
+        Haptics.light();
         onImport?.();
       }}
     />
@@ -51,6 +53,7 @@ export function ReviewsHeader({
       accessibilityLabel="Share"
       disabled={!canShare || sharing}
       onPress={() => {
+        Haptics.light();
         onShare?.();
       }}
     />
@@ -69,6 +72,7 @@ export function ReviewsHeader({
             disabled={!canFilter}
             emphasized={filterActive}
             onPress={() => {
+              Haptics.selectionChanged();
               onFilter?.();
             }}
           />

@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 
-/** Same muted red as iOS SF Symbol heart.fill tint. */
+import { Haptics } from '@/services/haptics';
+
+/** Same muted red as iOS SF Symbol heart fills tint. */
 const HEART_RED = '#C74742';
 const HEART_EMPTY = 'rgba(35, 32, 26, 0.35)';
+const PRESS_SPRING = { damping: 16, stiffness: 280 };
 
 /** SF Symbol–like heart in a 24×24 viewBox. */
 const HEART_PATH =
@@ -49,6 +57,10 @@ export function FavoriteHeartButton({
   const [favorite, setFavorite] = useState(
     isControlled ? favoriteProp : initialFavorite,
   );
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
 
   useEffect(() => {
     if (isControlled) setFavorite(favoriteProp);
@@ -61,13 +73,17 @@ export function FavoriteHeartButton({
       hitSlop={8}
       onPress={() => {
         const next = !favorite;
+        Haptics.medium();
+        scale.value = withSpring(1.18, PRESS_SPRING, () => {
+          scale.value = withSpring(1, PRESS_SPRING);
+        });
         if (!isControlled) setFavorite(next);
         onToggle?.(next);
       }}
-      style={({ pressed }) => [styles.hit, pressed && styles.pressed]}>
-      <View style={styles.icon}>
+      style={styles.hit}>
+      <Animated.View style={[styles.icon, animatedStyle]}>
         <HeartIcon filled={favorite} />
-      </View>
+      </Animated.View>
     </Pressable>
   );
 }
@@ -75,9 +91,6 @@ export function FavoriteHeartButton({
 const styles = StyleSheet.create({
   hit: {
     padding: 2,
-  },
-  pressed: {
-    opacity: 0.7,
   },
   icon: {
     width: 22,

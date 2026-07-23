@@ -1,11 +1,22 @@
+import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GustraColors } from '@/constants/Colors';
-import { captionTextStyle } from '@/constants/Theme';
+import { captionTextStyle, Surface, Theme } from '@/constants/Theme';
+import { Haptics } from '@/services/haptics';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 /** Visible main tabs only — hidden siblings (e.g. edit-criteria) stay out of the pill. */
 const VISIBLE_TAB_NAMES = new Set(['(main)', 'map', 'passport', 'settings']);
+
+const PRESS_SPRING = { damping: 18, stiffness: 260 };
 
 /** Floating cream pill tab bar (visual match for iOS 26 Gustra TabView). */
 export function GustraTabBar(props: Record<string, unknown>) {
@@ -25,7 +36,7 @@ export function GustraTabBar(props: Record<string, unknown>) {
           focused: boolean;
           color: string;
           size: number;
-        }) => React.ReactNode;
+        }) => ReactNode;
       };
     }
   >;
@@ -43,7 +54,6 @@ export function GustraTabBar(props: Record<string, unknown>) {
     activeRouteName === 'backup-restore'
       ? 'settings'
       : activeRouteName;
-
 
   return (
     <View
@@ -68,51 +78,102 @@ export function GustraTabBar(props: Record<string, unknown>) {
             ? GustraColors.forestGreen
             : 'rgba(35, 32, 26, 0.45)';
 
-          const onPress = () => {
-            const event = navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            });
-            if (!focused && !event.defaultPrevented) {
-              navigation.navigate(route.name, route.params);
-            }
-          };
-
-          const onLongPress = () => {
-            navigation.emit({
-              type: 'tabLongPress',
-              target: route.key,
-            });
-          };
-
           return (
-            <Pressable
+            <TabItem
               key={route.key}
-              accessibilityRole="button"
-              accessibilityState={focused ? { selected: true } : {}}
+              focused={focused}
+              label={label}
+              color={color}
               accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
-              onPress={onPress}
-              onLongPress={onLongPress}
-              style={({ pressed }) => [
-                styles.item,
-                focused && styles.itemFocused,
-                pressed && styles.itemPressed,
-              ]}>
-              {options.tabBarIcon?.({
+              icon={options.tabBarIcon?.({
                 focused,
                 color,
                 size: 22,
               })}
-              <Text style={[styles.label, { color }]} numberOfLines={1}>
-                {label}
-              </Text>
-            </Pressable>
+              onPress={() => {
+                const event = navigation.emit({
+                  type: 'tabPress',
+                  target: route.key,
+                  canPreventDefault: true,
+                });
+                if (event.defaultPrevented) return;
+
+                if (focused) {
+                  // Swift: re-select Reviews / My Gustra → pop stack to root.
+                  if (route.name === '(main)') {
+                    Haptics.light();
+                    navigation.navigate('(main)', { screen: 'index' });
+                  } else if (route.name === 'passport') {
+                    Haptics.light();
+                    navigation.navigate('passport');
+                  } else {
+                    Haptics.selectionChanged();
+                  }
+                  return;
+                }
+
+                Haptics.selectionChanged();
+                navigation.navigate(route.name, route.params);
+              }}
+              onLongPress={() => {
+                navigation.emit({
+                  type: 'tabLongPress',
+                  target: route.key,
+                });
+              }}
+            />
           );
         })}
-
       </View>
     </View>
+  );
+}
+
+function TabItem({
+  focused,
+  label,
+  color,
+  accessibilityLabel,
+  icon,
+  onPress,
+  onLongPress,
+}: {
+  focused: boolean;
+  label: string;
+  color: string;
+  accessibilityLabel: string;
+  icon: ReactNode;
+  onPress: () => void;
+  onLongPress: () => void;
+}) {
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <AnimatedPressable
+      accessibilityRole="button"
+      accessibilityState={focused ? { selected: true } : {}}
+      accessibilityLabel={accessibilityLabel}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      onPressIn={() => {
+        scale.value = withSpring(0.94, PRESS_SPRING);
+      }}
+      onPressOut={() => {
+        scale.value = withSpring(1, PRESS_SPRING);
+      }}
+      style={[
+        styles.item,
+        focused && styles.itemFocused,
+        animatedStyle,
+      ]}>
+      {icon}
+      <Text style={[styles.label, { color }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </AnimatedPressable>
   );
 }
 
@@ -142,7 +203,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
+    ...Surface.floating,
   },
   item: {
     flex: 1,
@@ -152,13 +213,10 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 4,
     borderRadius: 26,
-    minHeight: 50,
+    minHeight: Theme.size.hitTarget,
   },
   itemFocused: {
     backgroundColor: GustraColors.bubble,
-  },
-  itemPressed: {
-    opacity: 0.85,
   },
   label: {
     ...captionTextStyle,
@@ -167,4 +225,3 @@ const styles = StyleSheet.create({
     letterSpacing: -0.1,
   },
 });
-

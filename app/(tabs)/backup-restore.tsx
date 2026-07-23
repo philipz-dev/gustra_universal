@@ -1,14 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import { houseAlert } from '@/components/ui/HouseAlert';
 import * as DocumentPicker from 'expo-document-picker';
 import { router, useNavigation } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
@@ -269,7 +262,7 @@ export default function EncryptedBackupScreen() {
     });
 
   const confirmOverwrite = () => {
-    Alert.alert(
+    houseAlert(
       'Overwrite existing data?',
       'All current restaurants and reviews will be replaced by this backup. This cannot be undone.',
       [
@@ -284,7 +277,7 @@ export default function EncryptedBackupScreen() {
   };
 
   const confirmDeleteBackup = (file: LocalBackupFile) => {
-    Alert.alert(
+    houseAlert(
       'Delete backup file?',
       `“${file.name}” will be permanently deleted. This cannot be undone.`,
       [

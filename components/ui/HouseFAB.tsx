@@ -1,20 +1,45 @@
-import { Pressable, StyleSheet, type PressableProps } from 'react-native';
+import { type PressableProps, StyleSheet, Pressable } from 'react-native';
 import { SymbolView } from 'expo-symbols';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 
 import { GustraColors } from '@/constants/Colors';
 import { Theme } from '@/constants/Theme';
+import { Haptics } from '@/services/haptics';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+const PRESS_SPRING = { damping: 18, stiffness: 220 };
 
 type HouseFABProps = PressableProps;
 
-export function HouseFAB({ style, ...rest }: HouseFABProps) {
+export function HouseFAB({ style, onPress, ...rest }: HouseFABProps) {
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
   return (
-    <Pressable
+    <AnimatedPressable
       accessibilityRole="button"
       accessibilityLabel="Add review"
+      onPressIn={() => {
+        scale.value = withSpring(0.9, PRESS_SPRING);
+      }}
+      onPressOut={() => {
+        scale.value = withSpring(1, PRESS_SPRING);
+      }}
+      onPress={(e) => {
+        Haptics.light();
+        if (typeof onPress === 'function') onPress(e);
+      }}
       style={(state) => [
         styles.fab,
         Theme.fabShadow,
-        state.pressed && styles.pressed,
+        animatedStyle,
         typeof style === 'function' ? style(state) : style,
       ]}
       {...rest}>
@@ -23,7 +48,7 @@ export function HouseFAB({ style, ...rest }: HouseFABProps) {
         tintColor="#FFFFFF"
         size={28}
       />
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -38,8 +63,5 @@ const styles = StyleSheet.create({
     backgroundColor: GustraColors.forestGreen,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  pressed: {
-    transform: [{ scale: 0.92 }],
   },
 });

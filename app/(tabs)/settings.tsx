@@ -1,15 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Alert,
-  Image,
-  Keyboard,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Image, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import { houseAlert } from '@/components/ui/HouseAlert';
 import { SymbolView } from 'expo-symbols';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,8 +20,10 @@ import {
   REVIEWER_MAX_NAME_LENGTH,
   useReviewerProfile,
 } from '@/context/ReviewerProfile';
+import { useReviewsStore } from '@/context/ReviewsStore';
 import { useShareImportLaunch } from '@/context/ShareImportLaunch';
 import { getPhotosDiskUsage } from '@/services/photos/diskUsage';
+import { scanSwiftLegacyData } from '@/services/migration/SwiftDataMigration';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -49,22 +43,97 @@ export default function SettingsScreen() {
     resetAll: resetApiCounters,
   } = useGoogleApiTracker();
   const { name, photoUri, updateName, ready } = useReviewerProfile();
+  const { reviews, importSwiftLegacyData } = useReviewsStore();
   const { pickSharePackage } = useShareImportLaunch();
   const [reviewerNameDraft, setReviewerNameDraft] = useState('');
   const [photosSubtitle, setPhotosSubtitle] = useState('0 photos stored locally');
   const [photosBytesLabel, setPhotosBytesLabel] = useState('0 B');
+  const [swiftScanLabel, setSwiftScanLabel] = useState<string | null>(null);
 
   const refreshPhotosUsage = useCallback(async () => {
+    // Swift BackupRestoreView.refreshPhotosStorageInfo — prune orphans first.
+    try {
+      const { performStartupPhotoMaintenance } = await import(
+        '@/services/photos/orphanCleanup'
+      );
+      await performStartupPhotoMaintenance(reviews);
+    } catch {
+      // ignore cleanup errors; still show usage
+    }
     const usage = await getPhotosDiskUsage();
     setPhotosSubtitle(usage.subtitle);
     setPhotosBytesLabel(usage.formattedBytes);
-  }, []);
+  }, [reviews]);
 
   useFocusEffect(
     useCallback(() => {
       void refreshPhotosUsage();
+      if (Platform.OS !== 'ios') {
+        setSwiftScanLabel(null);
+        return;
+      }
+      void (async () => {
+        try {
+          const scan = await scanSwiftLegacyData();
+          if (scan.storeExists) {
+            const bits = [
+              'Swift database found',
+              scan.photoCount > 0 ? `${scan.photoCount} photos` : null,
+              scan.localBackupCount > 0
+                ? `${scan.localBackupCount} .gustra backup(s)`
+                : null,
+            ].filter(Boolean);
+            setSwiftScanLabel(bits.join(' · '));
+          } else if (scan.localBackupCount > 0) {
+            setSwiftScanLabel(
+              `${scan.localBackupCount} .gustra backup(s) in Backups — use Backup / Restore`,
+            );
+          } else if (scan.photoCount > 0) {
+            setSwiftScanLabel(
+              `${scan.photoCount} old photos found, but no database`,
+            );
+          } else {
+            setSwiftScanLabel('No previous Swift data found on this device');
+          }
+        } catch {
+          setSwiftScanLabel(null);
+        }
+      })();
     }, [refreshPhotosUsage]),
   );
+
+  const confirmImportSwiftLegacy = () => {
+    houseAlert(
+      'Recover previous reviews?',
+      'This looks for the old Swift database and photos still on this iPhone, then replaces the current demo/local reviews with that data. Encrypted .gustra backups are not opened here — use Backup / Restore for those.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Recover',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              try {
+                const result = await importSwiftLegacyData();
+                houseAlert(
+                  'Recovery complete',
+                  `Imported ${result.reviewCount} reviews across ${result.restaurantCount} restaurants (${result.photosCopied} photos copied).`,
+                );
+                void refreshPhotosUsage();
+              } catch (error) {
+                houseAlert(
+                  'Recovery failed',
+                  error instanceof Error
+                    ? error.message
+                    : 'Could not import previous Gustra data.',
+                );
+              }
+            })();
+          },
+        },
+      ],
+    );
+  };
 
   useEffect(() => {
     if (!ready) return;
@@ -90,7 +159,7 @@ export default function SettingsScreen() {
   };
 
   const confirmResetCounters = () => {
-    Alert.alert(
+    houseAlert(
       'Reset counters?',
       'Today and all-time Google API usage counters will be cleared on this device.',
       [
@@ -244,6 +313,17 @@ export default function SettingsScreen() {
             void pickSharePackage();
           }}
         />
+        {Platform.OS === 'ios' ? (
+          <SettingsRow
+            title="Recover previous Gustra data"
+            subtitle={
+              swiftScanLabel ??
+              'Search this iPhone for the old Swift database and photos'
+            }
+            showChevron
+            onPress={confirmImportSwiftLegacy}
+          />
+        ) : null}
         <SettingsRow
           title="Backup / Restore"
           showChevron
@@ -284,7 +364,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: Theme.spacing.listRowHorizontal,
     paddingTop: 16,
-    gap: 22,
+    gap: Theme.list.sectionGap,
   },
   reviewerRow: {
     flexDirection: 'row',

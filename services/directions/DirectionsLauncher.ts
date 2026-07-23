@@ -1,4 +1,5 @@
 import { Linking, Platform } from 'react-native';
+import { houseAlert } from '@/components/ui/HouseAlert';
 
 /**
  * Opens a destination in Apple Maps, Google Maps, or Waze
@@ -64,7 +65,7 @@ export async function presentDirectionsOptions(args: {
   const { Alert } = await import('react-native');
   const { name, addressLine, latitude, longitude } = args;
   if (!restaurantHasCoordinates(latitude, longitude)) {
-    Alert.alert('Get directions', 'No map location is available.');
+    houseAlert('Get directions', 'No map location is available.');
     return;
   }
 
@@ -98,7 +99,7 @@ export async function presentDirectionsOptions(args: {
 
   buttons.push({ text: 'Cancel', style: 'cancel' });
 
-  Alert.alert(
+  houseAlert(
     'Get directions',
     addressLine?.trim() || name,
     buttons,

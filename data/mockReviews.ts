@@ -328,6 +328,7 @@ export function getFeedSummaries(
       averageScore,
       visitCount: visits.length,
       lastVisitDate: formatAbbreviated(visits[0].date),
+      lastVisitAt: +new Date(visits[0].date),
       reviewerName:
         origin === 'imported' && reviewerNames.length > 0
           ? reviewerNames.join(', ')
@@ -339,7 +340,10 @@ export function getFeedSummaries(
     });
   }
 
-  return summaries.sort((a, b) => b.averageScore - a.averageScore);
+  return summaries.sort((a, b) => {
+    if (a.lastVisitAt !== b.lastVisitAt) return b.lastVisitAt - a.lastVisitAt;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  });
 }
 
 export function formatReviewDate(iso: string): string {

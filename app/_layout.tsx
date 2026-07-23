@@ -16,15 +16,20 @@ import {
   SourceSerif4_800ExtraBold,
 } from '@expo-google-fonts/source-serif-4/800ExtraBold';
 import { useFonts } from 'expo-font';
+import * as NavigationBar from 'expo-navigation-bar';
 import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { SwipeDismissOverlay } from '@/components/feed/SwipeDismissOverlay';
+import { ReviewEmailSnapshotHost } from '@/components/share/ReviewEmailSnapshotHost';
+import { GlobalKeyboardDismiss } from '@/components/ui/GlobalKeyboardDismiss';
+import { HouseAlertHost } from '@/components/ui/HouseAlert';
 import { GustraColors } from '@/constants/Colors';
 import { CriteriaSettingsProvider } from '@/context/CriteriaSettings';
 import { GoogleApiTrackerProvider } from '@/context/GoogleApiTracker';
@@ -80,6 +85,14 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
+  useEffect(() => {
+    void SystemUI.setBackgroundColorAsync(GustraColors.cream);
+    if (Platform.OS === 'android') {
+      // Dark nav buttons on cream; contrast scrim disabled via config plugin.
+      void NavigationBar.setButtonStyleAsync('dark');
+    }
+  }, []);
+
   if (!loaded) {
     return null;
   }
@@ -94,20 +107,24 @@ export default function RootLayout() {
                 <ReviewsStoreProvider>
                   <ShareImportLaunchProvider>
                     <ThemeProvider value={GustraNavigationTheme}>
-                      <View style={styles.root}>
-                        <StatusBar style="light" />
-                        <Stack screenOptions={{ headerShown: false }}>
-                          <Stack.Screen name="(tabs)" />
-                          <Stack.Screen
-                            name="share-import"
-                            options={{
-                              presentation: 'modal',
-                              animation: 'slide_from_bottom',
-                            }}
-                          />
-                        </Stack>
-                        <SwipeDismissOverlay />
-                      </View>
+                      <GlobalKeyboardDismiss>
+                        <View style={styles.root}>
+                          <StatusBar style="light" />
+                          <Stack screenOptions={{ headerShown: false }}>
+                            <Stack.Screen name="(tabs)" />
+                            <Stack.Screen
+                              name="share-import"
+                              options={{
+                                presentation: 'modal',
+                                animation: 'slide_from_bottom',
+                              }}
+                            />
+                          </Stack>
+                          <SwipeDismissOverlay />
+                          <ReviewEmailSnapshotHost />
+                          <HouseAlertHost />
+                        </View>
+                      </GlobalKeyboardDismiss>
                     </ThemeProvider>
                   </ShareImportLaunchProvider>
                 </ReviewsStoreProvider>

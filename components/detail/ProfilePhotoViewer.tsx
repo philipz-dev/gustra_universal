@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Modal, StyleSheet } from 'react-native';
+import { Modal, StyleSheet } from 'react-native';
+
+import { houseAlert } from '@/components/ui/HouseAlert';
 import {
   Gesture,
   GestureDetector,
@@ -20,10 +22,7 @@ import {
 } from '@/components/detail/photoViewer/PhotoViewerChrome';
 import { ZoomablePhoto } from '@/components/detail/photoViewer/ZoomablePhoto';
 import { PhotoViewerStyle } from '@/constants/PhotoViewerStyle';
-import {
-  savePhotoUri,
-  sharePhotoUri,
-} from '@/services/photos/photoViewerActions';
+import { sharePhotoUri } from '@/services/photos/photoViewerActions';
 
 type ProfilePhotoViewerProps = {
   visible: boolean;
@@ -59,24 +58,9 @@ export function ProfilePhotoViewer({
     try {
       await sharePhotoUri(uri);
     } catch (error) {
-      Alert.alert(
+      houseAlert(
         'Error',
         error instanceof Error ? error.message : 'Could not share photo',
-      );
-    } finally {
-      setBusy(false);
-    }
-  }, [busy, uri]);
-
-  const handleSave = useCallback(async () => {
-    if (!uri || busy) return;
-    setBusy(true);
-    try {
-      await savePhotoUri(uri);
-    } catch (error) {
-      Alert.alert(
-        'Error',
-        error instanceof Error ? error.message : 'Could not save photo',
       );
     } finally {
       setBusy(false);
@@ -139,7 +123,6 @@ export function ProfilePhotoViewer({
           <PhotoViewerTopBar
             onClose={close}
             onShare={() => void handleShare()}
-            onSave={() => void handleSave()}
           />
 
           <PhotoViewerCountPill

@@ -40,6 +40,7 @@ import { placeTypeDisplayName } from '@/constants/PlaceTypeLabels';
 import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle, captionTextStyle, Theme } from '@/constants/Theme';
 import type { RestaurantVisitSummary } from '@/data/types';
+import { Haptics } from '@/services/haptics';
 
 type PanelRoute = 'location' | 'placeType' | 'sort';
 
@@ -183,10 +184,12 @@ export function FilterOptionsModal({
   const totalCount = sourceSummaries.length;
 
   const selectNone = () => {
+    Haptics.selectionChanged();
     setDraft((prev) => ({ ...prev, filters: [] }));
   };
 
   const openMultiSelect = (route: 'location' | 'placeType') => {
+    Haptics.selectionChanged();
     setDraft((prev) => {
       if (route === 'location') {
         const cities =
@@ -209,11 +212,13 @@ export function FilterOptionsModal({
   };
 
   const openSortPanel = () => {
+    Haptics.selectionChanged();
     setActivePanel('sort');
     setPanelRoute('sort');
   };
 
   const toggleFilter = (flag: FeedFilterFlag) => {
+    Haptics.selectionChanged();
     setDraft((prev) => {
       if (hasFeedFilter(prev, flag)) {
         return {

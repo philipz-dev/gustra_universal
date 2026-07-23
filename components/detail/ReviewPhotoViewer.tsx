@@ -1,15 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Alert,
-  Dimensions,
-  Modal,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  Platform,
-  ScrollView as RNScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { Dimensions, Modal, NativeScrollEvent, NativeSyntheticEvent, Platform, ScrollView as RNScrollView, StyleSheet, View } from 'react-native';
+
+import { houseAlert } from '@/components/ui/HouseAlert';
 import {
   Gesture,
   GestureDetector,
@@ -31,10 +23,7 @@ import {
 } from '@/components/detail/photoViewer/PhotoViewerChrome';
 import { ZoomablePhoto } from '@/components/detail/photoViewer/ZoomablePhoto';
 import { PhotoViewerStyle } from '@/constants/PhotoViewerStyle';
-import {
-  savePhotoUri,
-  sharePhotoUri,
-} from '@/services/photos/photoViewerActions';
+import { sharePhotoUri } from '@/services/photos/photoViewerActions';
 
 type ReviewPhotoViewerProps = {
   visible: boolean;
@@ -108,25 +97,9 @@ export function ReviewPhotoViewer({
     try {
       await sharePhotoUri(uri);
     } catch (error) {
-      Alert.alert(
+      houseAlert(
         'Error',
         error instanceof Error ? error.message : 'Could not share photo',
-      );
-    } finally {
-      setBusy(false);
-    }
-  }, [busy, index, uris]);
-
-  const handleSave = useCallback(async () => {
-    const uri = uris[index];
-    if (!uri || busy) return;
-    setBusy(true);
-    try {
-      await savePhotoUri(uri);
-    } catch (error) {
-      Alert.alert(
-        'Error',
-        error instanceof Error ? error.message : 'Could not save photo',
       );
     } finally {
       setBusy(false);
@@ -254,7 +227,6 @@ export function ReviewPhotoViewer({
           <PhotoViewerTopBar
             onClose={close}
             onShare={() => void handleShare()}
-            onSave={() => void handleSave()}
           />
 
           <PhotoViewerCountPill

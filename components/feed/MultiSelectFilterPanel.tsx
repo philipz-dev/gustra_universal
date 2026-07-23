@@ -7,6 +7,7 @@ import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle, Theme } from '@/constants/Theme';
+import { Haptics } from '@/services/haptics';
 
 type EmptySystemImage = NonNullable<
   ComponentProps<typeof HouseEmptyState>['systemImage']
@@ -52,6 +53,7 @@ export function MultiSelectFilterPanel({
   const selectedSet = new Set(selected);
 
   const toggle = (item: string) => {
+    Haptics.selectionChanged();
     if (selectedSet.has(item)) {
       onChangeSelected(selected.filter((value) => value !== item));
     } else {

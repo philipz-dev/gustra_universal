@@ -59,13 +59,3 @@ export async function sharePhotoUri(uri: string): Promise<void> {
   const local = await ensureLocalPhotoUri(uri);
   await presentSystemShare(local, 'Share photo');
 }
-
-/**
- * Present the system share sheet so the user can save the image
- * (Expo Go / current native binary has no MediaLibrary module linked).
- */
-export async function savePhotoUri(uri: string): Promise<'share'> {
-  const local = await ensureLocalPhotoUri(uri);
-  await presentSystemShare(local, 'Save to Photos');
-  return 'share';
-}

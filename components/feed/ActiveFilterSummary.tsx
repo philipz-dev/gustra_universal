@@ -9,6 +9,7 @@ import {
 import { placeTypeDisplayName } from '@/constants/PlaceTypeLabels';
 import { GustraColors } from '@/constants/Colors';
 import { captionTextStyle, Theme } from '@/constants/Theme';
+import { Haptics } from '@/services/haptics';
 
 type ActiveFilterSummaryProps = {
   state: FeedFilterState;
@@ -58,6 +59,11 @@ export function ActiveFilterSummary({
           .map(placeTypeDisplayName)
           .join(' · ');
 
+  const clear = (next: FeedFilterState) => {
+    Haptics.selectionChanged();
+    onChange(next);
+  };
+
   return (
     <View style={styles.wrap}>
       <View style={styles.topRow}>
@@ -68,7 +74,7 @@ export function ActiveFilterSummary({
             androidName="swap_vert"
             accessibilityHint="Clear sort"
             onPress={() =>
-              onChange({ ...state, sortKind: { type: 'averageScore' } })
+              clear({ ...state, sortKind: { type: 'averageScore' } })
             }
           />
         ) : (
@@ -88,7 +94,7 @@ export function ActiveFilterSummary({
           androidName="favorite"
           accessibilityHint="Clear favorites filter"
           onPress={() =>
-            onChange({
+            clear({
               ...state,
               filters: state.filters.filter((flag) => flag !== 'favorites'),
             })
@@ -103,7 +109,7 @@ export function ActiveFilterSummary({
           androidName="place"
           accessibilityHint="Clear location filter"
           onPress={() =>
-            onChange({
+            clear({
               ...state,
               filters: state.filters.filter((flag) => flag !== 'location'),
               locationCities: [],
@@ -119,7 +125,7 @@ export function ActiveFilterSummary({
           androidName="restaurant"
           accessibilityHint="Clear cuisine type filter"
           onPress={() =>
-            onChange({
+            clear({
               ...state,
               filters: state.filters.filter((flag) => flag !== 'placeType'),
               primaryTypes: [],

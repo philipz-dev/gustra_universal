@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle } from '@/constants/Theme';
 import type { ReviewOrigin } from '@/data/types';
+import { Haptics } from '@/services/haptics';
 
 const OPTIONS: { value: ReviewOrigin; label: string }[] = [
   { value: 'own', label: 'My reviews' },
@@ -26,7 +27,11 @@ export function ReviewSourcePicker({ value, onChange }: ReviewSourcePickerProps)
               key={option.value}
               accessibilityRole="tab"
               accessibilityState={{ selected }}
-              onPress={() => onChange(option.value)}
+              onPress={() => {
+                if (option.value === value) return;
+                Haptics.selectionChanged();
+                onChange(option.value);
+              }}
               style={[styles.segment, selected && styles.segmentSelected]}>
               <Text
                 style={[styles.label, selected && styles.labelSelected]}
@@ -57,7 +62,7 @@ const styles = StyleSheet.create({
   },
   segment: {
     flex: 1,
-    minHeight: 34,
+    minHeight: 44,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',

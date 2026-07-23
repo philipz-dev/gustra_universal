@@ -1,38 +1,32 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
-  Image,
   Linking,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+
+import { houseAlert } from '@/components/ui/HouseAlert';
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { CircularCropCanvas } from '@/components/settings/CircularCropCanvas';
+import { PhotoSourceChooserBody } from '@/components/ui/PhotoSourceChooser';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, bodyTextStyle } from '@/constants/Theme';
 import { useReviewerProfile } from '@/context/ReviewerProfile';
-
-/** Matches Swift `ImageCompressionService.matchingReviewPhotoMaxPixelSide`. */
-const MAX_PHOTO_SIDE = 480;
-
-async function prepareProfileJpeg(uri: string): Promise<string> {
-  const result = await ImageManipulator.manipulateAsync(
-    uri,
-    [{ resize: { width: MAX_PHOTO_SIDE } }],
-    { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG },
-  );
-  return result.uri;
-}
+import {
+  renderCroppedSquare,
+  type CropTransform,
+  type ImageSize,
+} from '@/services/photos/circularCrop';
 
 function openSettingsAlert(message: string) {
-  Alert.alert('Permission needed', message, [
+  houseAlert('Permission needed', message, [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Open Settings', onPress: () => void Linking.openSettings() },
   ]);
@@ -40,7 +34,7 @@ function openSettingsAlert(message: string) {
 
 /**
  * Full-screen reviewer photo editor (Swift `ReviewerPhotoEditorView`):
- * Take / Import → preview → confirm (checkmark) or discard (close).
+ * Take / Import → circular pinch/pan crop → confirm (checkmark) or discard.
  */
 export default function ReviewerPhotoEditorScreen() {
   const insets = useSafeAreaInsets();
@@ -52,6 +46,14 @@ export default function ReviewerPhotoEditorScreen() {
   const [pickingSource, setPickingSource] = useState(false);
   const [startedWithSavedPhoto, setStartedWithSavedPhoto] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  const imageSizeRef = useRef<ImageSize | null>(null);
+  const transformRef = useRef<CropTransform>({
+    scale: 1,
+    offsetX: 0,
+    offsetY: 0,
+  });
+  const diameterRef = useRef(280);
 
   useEffect(() => {
     if (hasPhoto && photoUri) {
@@ -71,6 +73,8 @@ export default function ReviewerPhotoEditorScreen() {
   }, [draftUri, pendingDelete]);
 
   const setDraft = useCallback((uri: string) => {
+    imageSizeRef.current = null;
+    transformRef.current = { scale: 1, offsetX: 0, offsetY: 0 };
     setDraftUri(uri);
     setPendingDelete(false);
     setPickingSource(false);
@@ -86,20 +90,11 @@ export default function ReviewerPhotoEditorScreen() {
     }
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
+      allowsEditing: false,
       quality: 1,
     });
     if (result.canceled || !result.assets[0]?.uri) return;
-    setBusy(true);
-    try {
-      const prepared = await prepareProfileJpeg(result.assets[0].uri);
-      setDraft(prepared);
-    } catch {
-      Alert.alert('Storage', 'Could not read the selected photo.');
-    } finally {
-      setBusy(false);
-    }
+    setDraft(result.assets[0].uri);
   }, [setDraft]);
 
   const importPhoto = useCallback(async () => {
@@ -112,20 +107,11 @@ export default function ReviewerPhotoEditorScreen() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
+      allowsEditing: false,
       quality: 1,
     });
     if (result.canceled || !result.assets[0]?.uri) return;
-    setBusy(true);
-    try {
-      const prepared = await prepareProfileJpeg(result.assets[0].uri);
-      setDraft(prepared);
-    } catch {
-      Alert.alert('Storage', 'Could not read the selected photo.');
-    } finally {
-      setBusy(false);
-    }
+    setDraft(result.assets[0].uri);
   }, [setDraft]);
 
   const markPendingDelete = useCallback(() => {
@@ -147,7 +133,18 @@ export default function ReviewerPhotoEditorScreen() {
     setBusy(true);
     try {
       if (draftUri) {
-        await setPhotoFromUri(draftUri);
+        const size = imageSizeRef.current;
+        if (!size) {
+          houseAlert('Storage', 'Could not read the selected photo.');
+          return;
+        }
+        const cropped = await renderCroppedSquare({
+          uri: draftUri,
+          image: size,
+          diameter: diameterRef.current,
+          transform: transformRef.current,
+        });
+        await setPhotoFromUri(cropped);
         router.navigate('/settings');
         return;
       }
@@ -156,7 +153,7 @@ export default function ReviewerPhotoEditorScreen() {
         router.navigate('/settings');
       }
     } catch (error) {
-      Alert.alert(
+      houseAlert(
         'Storage',
         error instanceof Error ? error.message : 'Could not save the photo.',
       );
@@ -192,18 +189,21 @@ export default function ReviewerPhotoEditorScreen() {
               (!canConfirm || busy) && styles.toolDisabled,
               pressed && canConfirm && styles.pressed,
             ]}>
-            <SymbolView
-              name={{
-                ios: 'checkmark.circle.fill',
-                android: 'check_circle',
-                web: 'check_circle',
-              }}
-
-              size={30}
-              tintColor={
-                canConfirm ? GustraColors.forestGreen : 'rgba(36, 78, 57, 0.35)'
-              }
-            />
+            {busy ? (
+              <ActivityIndicator color={GustraColors.forestGreen} />
+            ) : (
+              <SymbolView
+                name={{
+                  ios: 'checkmark.circle.fill',
+                  android: 'check_circle',
+                  web: 'check_circle',
+                }}
+                size={30}
+                tintColor={
+                  canConfirm ? GustraColors.forestGreen : 'rgba(36, 78, 57, 0.35)'
+                }
+              />
+            )}
           </Pressable>
         ) : (
           <View style={styles.toolSpacer} />
@@ -211,11 +211,35 @@ export default function ReviewerPhotoEditorScreen() {
       </View>
 
       {showsSourceChooser ? (
-        <View style={styles.chooser}>
-          <View style={styles.chooserIcon}>
-            {busy ? (
-              <ActivityIndicator color={GustraColors.forestGreen} size="large" />
-            ) : (
+        <PhotoSourceChooserBody
+          title="Add a profile photo"
+          isImporting={busy}
+          onTakePhoto={() => {
+            if (!busy) void takePhoto();
+          }}
+          onImportPhoto={() => {
+            if (!busy) void importPhoto();
+          }}
+        />
+      ) : (
+        <View style={styles.editor}>
+          {previewUri ? (
+            <CircularCropCanvas
+              uri={previewUri}
+              onImageSize={(size) => {
+                imageSizeRef.current = size;
+              }}
+              onTransformChange={(transform, diameter) => {
+                transformRef.current = transform;
+                diameterRef.current = diameter;
+              }}
+            />
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Add profile photo"
+              onPress={() => setPickingSource(true)}
+              style={styles.emptyCrop}>
               <SymbolView
                 name={{
                   ios: 'camera.fill',
@@ -225,58 +249,9 @@ export default function ReviewerPhotoEditorScreen() {
                 size={36}
                 tintColor={GustraColors.forestGreen}
               />
-            )}
-          </View>
-          <Text style={styles.chooserTitle}>Add a profile photo</Text>
-          <Pressable
-            accessibilityRole="button"
-            disabled={busy}
-            onPress={() => void takePhoto()}
-            style={({ pressed }) => [
-              styles.primaryButton,
-              pressed && styles.pressed,
-            ]}>
-            <Text style={styles.primaryLabel}>Take Photo</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            disabled={busy}
-            onPress={() => void importPhoto()}
-            style={({ pressed }) => [
-              styles.secondaryButton,
-              pressed && styles.pressed,
-            ]}>
-            <Text style={styles.secondaryLabel}>Import Photo</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <View style={styles.editor}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={
-              previewUri ? 'Profile photo' : 'Add profile photo'
-            }
-            onPress={() => {
-              if (!previewUri) setPickingSource(true);
-            }}
-            style={styles.cropFrame}>
-            {previewUri ? (
-              <Image source={{ uri: previewUri }} style={styles.cropImage} />
-            ) : (
-              <View style={styles.emptyCrop}>
-                <SymbolView
-                  name={{
-                    ios: 'camera.fill',
-                    android: 'photo_camera',
-                    web: 'photo_camera',
-                  }}
-                  size={36}
-                  tintColor={GustraColors.forestGreen}
-                />
-                <Text style={styles.emptyCropLabel}>Take or import a photo</Text>
-              </View>
-            )}
-          </Pressable>
+              <Text style={styles.emptyCropLabel}>Take or import a photo</Text>
+            </Pressable>
+          )}
 
           <View style={styles.bottomActions}>
             {previewUri ? (
@@ -297,9 +272,12 @@ export default function ReviewerPhotoEditorScreen() {
               <Text style={styles.pendingDeleteHint}>
                 Photo will be removed when you confirm.
               </Text>
+            ) : previewUri ? (
+              <Text style={styles.pendingDeleteHint}>
+                Pinch to zoom · drag to reposition
+              </Text>
             ) : null}
           </View>
-
         </View>
       )}
     </View>
@@ -331,30 +309,6 @@ const styles = StyleSheet.create({
   toolDisabled: {
     opacity: 0.5,
   },
-  chooser: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 28,
-    gap: 16,
-    paddingBottom: Theme.spacing.floatingTabBarClearance,
-  },
-  chooserIcon: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: 'rgba(36, 78, 57, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  chooserTitle: {
-    ...bodyTextStyle,
-    fontSize: 18,
-    fontWeight: '600',
-    color: GustraColors.forestGreen,
-    marginBottom: 8,
-  },
   editor: {
     flex: 1,
     alignItems: 'center',
@@ -362,22 +316,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: Theme.spacing.floatingTabBarClearance + 8,
   },
-  cropFrame: {
-    width: '86%',
+  emptyCrop: {
+    width: '78%',
     aspectRatio: 1,
     borderRadius: 9999,
     overflow: 'hidden',
-    backgroundColor: 'rgba(36, 78, 57, 0.08)',
+    backgroundColor: 'rgba(36, 78, 57, 0.12)',
     borderWidth: 2,
-    borderColor: 'rgba(36, 78, 57, 0.25)',
+    borderColor: 'rgba(36, 78, 57, 0.45)',
     borderStyle: 'dashed',
-  },
-  cropImage: {
-    width: '100%',
-    height: '100%',
-  },
-  emptyCrop: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
@@ -392,32 +339,6 @@ const styles = StyleSheet.create({
   bottomActions: {
     width: '100%',
     gap: 12,
-  },
-  primaryButton: {
-    width: '100%',
-    minHeight: 52,
-    borderRadius: 14,
-    backgroundColor: GustraColors.forestGreen,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryLabel: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  secondaryButton: {
-    width: '100%',
-    minHeight: 52,
-    borderRadius: 14,
-    backgroundColor: 'rgba(36, 78, 57, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryLabel: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: GustraColors.forestGreen,
   },
   deleteButton: {
     width: '100%',
@@ -445,4 +366,3 @@ const styles = StyleSheet.create({
     opacity: 0.75,
   },
 });
-

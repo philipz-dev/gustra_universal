@@ -6,6 +6,7 @@ import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle, captionTextStyle, Theme } from '@/constants/Theme';
+import { Haptics } from '@/services/haptics';
 
 type SortCriterion = { id: string; title: string };
 
@@ -87,7 +88,10 @@ function SortRow({
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      onPress={onPress}
+      onPress={() => {
+        Haptics.selectionChanged();
+        onPress();
+      }}
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
       <View style={styles.rowText}>
         <Text style={styles.rowTitle}>{title}</Text>

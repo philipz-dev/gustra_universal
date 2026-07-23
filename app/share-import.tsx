@@ -1,13 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { houseAlert } from '@/components/ui/HouseAlert';
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +14,7 @@ import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import {
   clearPendingSharePackage,
+  requestFeedReviewSource,
   takePendingSharePackage,
 } from '@/context/ShareImportLaunch';
 import { useReviewsStore } from '@/context/ReviewsStore';
@@ -128,9 +123,11 @@ export default function ShareImportScreen() {
       });
       await importSharePackage(result);
       clearPendingSharePackage();
+      // Land on Friends' reviews (parity gap `si-friends`).
+      requestFeedReviewSource('imported');
       router.replace('/(tabs)/(main)');
     } catch (error) {
-      Alert.alert(
+      houseAlert(
         'Error',
         error instanceof ShareImportError
           ? error.message
