@@ -14,6 +14,7 @@ import type {
 } from '@/services/backup/types';
 import {
   SHARE_FILE_EXTENSION,
+  SHARE_MIME_TYPE,
   SHARE_SCHEMA_VERSION,
   SHARE_UTI,
   toShareIso8601,
@@ -208,7 +209,7 @@ export async function shareReviewsPackage(args: {
   }
 
   await Sharing.shareAsync(uri, {
-    mimeType: 'application/json',
+    mimeType: SHARE_MIME_TYPE,
     dialogTitle: 'Share Gustra reviews',
     UTI: SHARE_UTI,
   });

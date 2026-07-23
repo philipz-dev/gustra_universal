@@ -1,8 +1,8 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-07-23T11:19:49Z
+Generated: 2026-07-23T12:48:04Z
 Root: /Users/philipzvar/Desktop/gustra_universal
-Files: 151
+Files: 156
 ================================================================================
 
 ================================================================================
@@ -329,6 +329,7 @@ import {
   availablePrimaryTypesFromSummaries,
   DEFAULT_FEED_FILTER_STATE,
   isFeedFilterActive,
+  pruneFeedFiltersForSummaries,
   type FeedFilterOptions,
   type FeedFilterState,
 } from '@/components/feed/feedFilters';
@@ -548,17 +549,33 @@ export default function ReviewsFeedScreen() {
   const emptyFromFilters =
     summaries.length > 0 && filtered.length === 0 && (filterActive || query);
   const emptyTitle = emptyFromFilters
-    ? 'No matches'
+    ? filterState.sortKind.type === 'criterion' && !query
+      ? 'No Matching Restaurants'
+      : 'No matches'
     : isFriends
       ? 'No Friend Reviews'
       : 'No reviews yet';
   const emptyDescription = emptyFromFilters
     ? query
       ? 'Try another restaurant, city, comment, or text from a photo.'
-      : 'Try clearing filters or choosing different options.'
+      : filterState.sortKind.type === 'criterion'
+        ? 'No restaurants have a rating for this criterion yet.'
+        : 'No restaurants match the selected filters.'
     : isFriends
       ? "Import shared reviews to see friends' reviews here."
       : 'Start collecting food memories. Your first review will appear here.';
+
+  const clearFeedFilters = useCallback(() => {
+    setQuery('');
+    setFilterState(DEFAULT_FEED_FILTER_STATE);
+  }, []);
+
+  // Swift `syncFiltersForReviewSourceChange` when switching My ↔ Friends.
+  useEffect(() => {
+    setFilterState((prev) => pruneFeedFiltersForSummaries(prev, summaries));
+    // Only on source switch — avoid wiping city/cuisine picks while summaries load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+  }, [reviewSource]);
 
   return (
     <View style={styles.screen}>
@@ -607,14 +624,14 @@ export default function ReviewsFeedScreen() {
           }
           actionTitle={
             emptyFromFilters
-              ? undefined
+              ? 'Clear filters'
               : isFriends
                 ? 'Import reviews'
                 : 'Add review'
           }
           onAction={
             emptyFromFilters
-              ? undefined
+              ? clearFeedFilters
               : isFriends
                 ? () => {
                     void pickSharePackage();
@@ -694,12 +711,13 @@ export default function ReviewsFeedScreen() {
       <ShareReviewerNameModal
         visible={nameModalVisible}
         onCancel={() => setNameModalVisible(false)}
-        onContinue={(name) => {
-          updateName(name);
-          setNameModalVisible(false);
-          setTimeout(() => {
-            void performShare(name);
-          }, 350);
+        onContinue={(sharedBy) => {
+          updateName(sharedBy);
+          // Keep this sheet up until the system share UI is up — closing first
+          // flashes the feed underneath.
+          void performShare(sharedBy).finally(() => {
+            setNameModalVisible(false);
+          });
         }}
       />
       <FilterOptionsModal
@@ -736,11 +754,10 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: app/(tabs)/(main)/manual-entry.tsx
 ================================================================================
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -757,13 +774,17 @@ import { SymbolView } from 'expo-symbols';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
+import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
+import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
 import { Haptics } from '@/services/haptics';
 import { resolveCurrentLocation } from '@/services/location/resolveCurrentLocation';
 import {
   formatAddressLine,
   formattedDistance,
   makeManualRestaurantDraft,
+  regionCodeForCountry,
   restaurantDraftFromResult,
+  resultMatchesCountry,
   searchText,
   type RestaurantDraft,
   type RestaurantSearchResult,
@@ -776,6 +797,11 @@ import {
 export default function ManualEntryScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const keyboardInset = useKeyboardBottomInset();
+  const { scrollRef, scrollInputIntoView } = useScrollInputIntoView();
+  const nameRef = useRef<TextInput | null>(null);
+  const cityRef = useRef<TextInput | null>(null);
+  const countryRef = useRef<TextInput | null>(null);
   const searchGenRef = useRef(0);
 
   const [name, setName] = useState('');
@@ -803,9 +829,9 @@ export default function ManualEntryScreen() {
 
   useEffect(() => {
     resetSearch();
-    // Reset Google results when name/city change (Swift onChange).
+    // Reset Google results when name/city/country change (Swift onChange of name/city).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, city]);
+  }, [name, city, country]);
 
   const flashSearchButton = () => {
     setSearchHighlighted(true);
@@ -822,7 +848,11 @@ export default function ManualEntryScreen() {
 
   const searchMatches = async () => {
     Keyboard.dismiss();
-    const query = [trimmedName, city.trim()].filter(Boolean).join(' ');
+    const cityTrim = city.trim();
+    const countryTrim = country.trim();
+    // Include country so Places can resolve "Name · Italy" without a city
+    // (without it, a 2 km GPS bias yields random FR/DE hits for common names).
+    const query = [trimmedName, cityTrim, countryTrim].filter(Boolean).join(' ');
     if (!query) return;
 
     flashSearchButton();
@@ -835,7 +865,9 @@ export default function ManualEntryScreen() {
     const location = await resolveCurrentLocation();
     if (gen !== searchGenRef.current) return;
 
-    if (!location.coords) {
+    const countryScoped = Boolean(countryTrim);
+    // Local name-only / city search still needs GPS for a useful bias.
+    if (!countryScoped && !location.coords) {
       setMatches([]);
       setSearchError(location.error ?? 'Current location unavailable.');
       setIsSearching(false);
@@ -843,9 +875,17 @@ export default function ManualEntryScreen() {
     }
 
     try {
-      const found = await searchText(query, location.coords);
+      const found = await searchText(query, location.coords, {
+        locationBias: !countryScoped,
+        regionCode: regionCodeForCountry(countryTrim),
+        // City present → keep the default nearby bias radius.
+        radius: cityTrim ? undefined : 50_000,
+      });
       if (gen !== searchGenRef.current) return;
-      setMatches(found);
+      const filtered = countryTrim
+        ? found.filter((match) => resultMatchesCountry(match.country, countryTrim))
+        : found;
+      setMatches(filtered);
       setIsSearching(false);
     } catch (error) {
       if (gen !== searchGenRef.current) return;
@@ -865,7 +905,11 @@ export default function ManualEntryScreen() {
     startReview(draft);
   };
 
-  const bottomPad =
+  const scrollBottomPad =
+    keyboardInset > 0
+      ? keyboardInset + 24
+      : Theme.spacing.floatingTabBarClearance + insets.bottom + 16;
+  const footerPad =
     Theme.spacing.floatingTabBarClearance + insets.bottom + 16;
 
   return (
@@ -877,34 +921,42 @@ export default function ManualEntryScreen() {
         onBack={() => router.back()}
       />
 
-      <KeyboardAvoidingView
+      <ScrollView
+        ref={scrollRef}
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          style={styles.flex}
-          contentContainerStyle={[styles.content, { paddingBottom: 12 }]}
-          keyboardShouldPersistTaps="handled"
-          overScrollMode="never">
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: scrollBottomPad },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        overScrollMode="never">
           <View style={styles.group}>
             <ClearableField
+              inputRef={nameRef}
               placeholder="Restaurant name"
               value={name}
               onChangeText={setName}
+              onFocus={() => scrollInputIntoView(nameRef.current)}
               autoFocus
               returnKeyType="next"
             />
             <View style={styles.fieldSep} />
             <ClearableField
+              inputRef={cityRef}
               placeholder="City"
               value={city}
               onChangeText={setCity}
+              onFocus={() => scrollInputIntoView(cityRef.current)}
               returnKeyType="next"
             />
             <View style={styles.fieldSep} />
             <ClearableField
+              inputRef={countryRef}
               placeholder="Country"
               value={country}
               onChangeText={setCountry}
+              onFocus={() => scrollInputIntoView(countryRef.current)}
               returnKeyType="done"
               onSubmitEditing={() => Keyboard.dismiss()}
             />
@@ -1046,7 +1098,7 @@ export default function ManualEntryScreen() {
         </ScrollView>
 
         {showContinueManually ? (
-          <View style={[styles.manualFooter, { paddingBottom: bottomPad }]}>
+          <View style={[styles.manualFooter, { paddingBottom: footerPad }]}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Continue manually"
@@ -1092,22 +1144,25 @@ export default function ManualEntryScreen() {
             </Text>
           </View>
         ) : null}
-      </KeyboardAvoidingView>
     </View>
   );
 }
 
 function ClearableField({
+  inputRef,
   placeholder,
   value,
   onChangeText,
+  onFocus,
   autoFocus,
   returnKeyType,
   onSubmitEditing,
 }: {
+  inputRef?: RefObject<TextInput | null>;
   placeholder: string;
   value: string;
   onChangeText: (value: string) => void;
+  onFocus?: () => void;
   autoFocus?: boolean;
   returnKeyType?: 'next' | 'done';
   onSubmitEditing?: () => void;
@@ -1115,8 +1170,10 @@ function ClearableField({
   return (
     <View style={styles.fieldRow}>
       <TextInput
+        ref={inputRef}
         value={value}
         onChangeText={onChangeText}
+        onFocus={onFocus}
         placeholder={placeholder}
         placeholderTextColor="rgba(35, 32, 26, 0.4)"
         style={styles.fieldInput}
@@ -2324,7 +2381,15 @@ const styles = StyleSheet.create({
 FILE: app/(tabs)/(main)/review/[id].tsx
 ================================================================================
 import { useCallback, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Image,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { houseAlert } from '@/components/ui/HouseAlert';
 
@@ -2338,13 +2403,12 @@ import { LocationBlock } from '@/components/detail/LocationBlock';
 import { ProfilePhotoViewer } from '@/components/detail/ProfilePhotoViewer';
 import { RestaurantMapViewer } from '@/components/detail/RestaurantMapViewer';
 import { ReviewPhotoViewer } from '@/components/detail/ReviewPhotoViewer';
-import {
-  ShareReviewChooser,
-  type ShareDestination,
-} from '@/components/detail/ShareReviewChooser';
-import { ShareReviewerNameModal } from '@/components/feed/ShareReviewerNameModal';
-import { EmailPersonalMessageModal } from '@/components/share/EmailPersonalMessageModal';
+import type { ShareDestination } from '@/components/detail/ShareReviewChooser';
 import { PreparingRecommendationOverlay } from '@/components/share/PreparingRecommendationOverlay';
+import {
+  ShareFlowSheet,
+  type ShareFlowStep,
+} from '@/components/share/ShareFlowSheet';
 import {
   HousePrimaryButton,
   HousePrimaryButtonRow,
@@ -2364,13 +2428,18 @@ import { presentDirectionsOptions } from '@/services/directions/DirectionsLaunch
 import { shareReviewAsEmail } from '@/services/share/ReviewEmailShare';
 import { shareReviewsPackage } from '@/services/share/ReviewShareService';
 
+function afterSheetDismiss(work: () => void): void {
+  setTimeout(work, Platform.OS === 'ios' ? 360 : 60);
+}
+
 export default function ReviewDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { getRestaurant, getReview, setRestaurantFavorite, restaurants } =
     useReviewsStore();
-  const { hasName, name, photoUri, getBackupSnapshot } = useReviewerProfile();
+  const { hasName, name, photoUri, getBackupSnapshot, updateName } =
+    useReviewerProfile();
   const review = getReview(id);
   const restaurant = review ? getRestaurant(review.restaurantId) : undefined;
 
@@ -2380,9 +2449,7 @@ export default function ReviewDetailScreen() {
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [showReviewerPhoto, setShowReviewerPhoto] = useState(false);
   const [showMap, setShowMap] = useState(false);
-  const [showShareChooser, setShowShareChooser] = useState(false);
-  const [showNameModal, setShowNameModal] = useState(false);
-  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [shareStep, setShareStep] = useState<ShareFlowStep | null>(null);
   const [pendingShare, setPendingShare] = useState<ShareDestination | null>(
     null,
   );
@@ -2398,6 +2465,12 @@ export default function ReviewDetailScreen() {
     null;
 
   const canShare = Boolean(review && !sharing);
+
+  const closeShareFlow = useCallback(() => {
+    setShareStep(null);
+    setPendingShare(null);
+    setPendingSharedBy(null);
+  }, []);
 
   const runShare = useCallback(
     async (
@@ -2454,23 +2527,60 @@ export default function ReviewDetailScreen() {
     ],
   );
 
-  const beginShare = useCallback(
-    (destination: ShareDestination, sharedByOverride?: string) => {
-      setShowShareChooser(false);
-      if (!hasName && !sharedByOverride?.trim()) {
-        setPendingShare(destination);
-        setShowNameModal(true);
+  const onSelectDestination = useCallback(
+    (destination: ShareDestination) => {
+      setPendingShare(destination);
+      if (!hasName) {
+        setShareStep('name');
         return;
       }
       if (destination === 'email') {
-        setPendingShare('email');
-        setPendingSharedBy(sharedByOverride?.trim() || null);
-        setShowMessageModal(true);
+        setPendingSharedBy(null);
+        setShareStep('message');
         return;
       }
-      void runShare(destination, sharedByOverride);
+      setShareStep(null);
+      afterSheetDismiss(() => {
+        void runShare(destination);
+      });
     },
     [hasName, runShare],
+  );
+
+  const onNameContinue = useCallback(
+    (sharedBy: string) => {
+      updateName(sharedBy);
+      setPendingSharedBy(sharedBy);
+      const destination = pendingShare;
+      if (!destination) {
+        closeShareFlow();
+        return;
+      }
+      if (destination === 'email') {
+        // Stay in the same Modal — swap to message step (no flicker).
+        setShareStep('message');
+        return;
+      }
+      setShareStep(null);
+      afterSheetDismiss(() => {
+        void runShare(destination, sharedBy);
+      });
+    },
+    [closeShareFlow, pendingShare, runShare, updateName],
+  );
+
+  const onMessageContinue = useCallback(
+    (message: string) => {
+      const sharedBy = pendingSharedBy ?? undefined;
+      // Show preparing under the sheet so the review never flashes through.
+      setPreparingEmail(true);
+      setShareStep(null);
+      setPendingShare(null);
+      afterSheetDismiss(() => {
+        void runShare('email', sharedBy, message);
+      });
+    },
+    [pendingSharedBy, runShare],
   );
 
   const addressLine = restaurant
@@ -2492,7 +2602,7 @@ export default function ReviewDetailScreen() {
             androidName="share"
             accessibilityLabel="Share"
             disabled={sharing}
-            onPress={() => setShowShareChooser(true)}
+            onPress={() => setShareStep('chooser')}
           />
         ) : null
       }
@@ -2652,36 +2762,14 @@ export default function ReviewDetailScreen() {
         onClose={() => setShowMap(false)}
       />
 
-      <ShareReviewChooser
-        visible={showShareChooser}
-        onClose={() => setShowShareChooser(false)}
-        onSelect={beginShare}
-      />
-
-      <ShareReviewerNameModal
-        visible={showNameModal}
+      <ShareFlowSheet
+        visible={shareStep !== null}
+        step={shareStep ?? 'chooser'}
         initialName={name}
-        onCancel={() => {
-          setShowNameModal(false);
-          setPendingShare(null);
-        }}
-        onContinue={(sharedBy) => {
-          setShowNameModal(false);
-          if (pendingShare) beginShare(pendingShare, sharedBy);
-        }}
-      />
-
-      <EmailPersonalMessageModal
-        visible={showMessageModal}
-        onCancel={() => {
-          setShowMessageModal(false);
-          setPendingShare(null);
-          setPendingSharedBy(null);
-        }}
-        onContinue={(message) => {
-          setShowMessageModal(false);
-          void runShare('email', pendingSharedBy ?? undefined, message);
-        }}
+        onClose={closeShareFlow}
+        onSelectDestination={onSelectDestination}
+        onNameContinue={onNameContinue}
+        onMessageContinue={onMessageContinue}
       />
 
       <PreparingRecommendationOverlay visible={preparingEmail} />
@@ -2764,7 +2852,7 @@ const styles = StyleSheet.create({
 FILE: app/(tabs)/(main)/review-form.tsx
 ================================================================================
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
 
 import { houseAlert } from '@/components/ui/HouseAlert';
@@ -2794,6 +2882,8 @@ import {
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import type { CriterionRating } from '@/data/types';
+import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
+import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
 import { extractTextFromImages } from '@/services/ocr/OCRService';
 import {
   draftAddressLine,
@@ -2877,6 +2967,10 @@ export default function ReviewFormScreen() {
   }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const keyboardInset = useKeyboardBottomInset();
+  const { scrollRef, scrollInputIntoView } = useScrollInputIntoView();
+  const commentInputRefs = useRef<Record<string, TextInput | null>>({});
+  const generalCommentRef = useRef<TextInput | null>(null);
   const { enabledCriteria, customCriteria } = useCriteriaSettings();
   const {
     ready,
@@ -2914,7 +3008,12 @@ export default function ReviewFormScreen() {
     Record<string, { rating: number; comment: string }>
   >({});
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+  const [selectedPhotosForRemoval, setSelectedPhotosForRemoval] = useState<
+    string[]
+  >([]);
   const [activeReviewId, setActiveReviewId] = useState<string | undefined>();
+  /** Synced immediately on upsert so Done/unmount cannot create a second review. */
+  const activeReviewIdRef = useRef<string | undefined>(undefined);
   const [isSaving, setIsSaving] = useState(false);
   const [isImportingPhotos, setIsImportingPhotos] = useState(false);
   const [showPhotoSourceChooser, setShowPhotoSourceChooser] = useState(false);
@@ -2941,6 +3040,8 @@ export default function ReviewFormScreen() {
     async () => false,
   );
   const schedulePersistRef = useRef<() => void>(() => undefined);
+  /** Serialize form persists so buildInput sees reviewId from the previous upsert. */
+  const persistChainRef = useRef(Promise.resolve());
 
   // Hydrate once store + route params are ready.
   useEffect(() => {
@@ -2949,11 +3050,13 @@ export default function ReviewFormScreen() {
 
     setDraft(initialDraft);
     setActiveReviewId(existingReview?.id);
+    activeReviewIdRef.current = existingReview?.id;
 
     if (existingReview) {
       setVisitDate(new Date(existingReview.date));
       setGeneralComment(existingReview.generalComment);
       setPhotoUrls([...existingReview.photoUrls]);
+      photoUrlsRef.current = [...existingReview.photoUrls];
       setOcrIndexedText(existingReview.ocrText ?? '');
       ocrIndexedTextRef.current = existingReview.ocrText ?? '';
       const map: Record<string, { rating: number; comment: string }> = {};
@@ -2989,8 +3092,9 @@ export default function ReviewFormScreen() {
 
   const matchedRestaurant = useMemo(() => {
     if (!draft) return undefined;
-    if (activeReviewId) {
-      const review = getReview(activeReviewId);
+    const reviewId = activeReviewIdRef.current ?? activeReviewId;
+    if (reviewId) {
+      const review = getReview(reviewId);
       if (review) return getRestaurant(review.restaurantId);
     }
     return findExistingRestaurant(draft, restaurants);
@@ -2998,7 +3102,8 @@ export default function ReviewFormScreen() {
 
   const priorVisits = useMemo(() => {
     if (!matchedRestaurant) return [];
-    const skipId = activeReviewId ?? existingReview?.id;
+    const skipId =
+      activeReviewIdRef.current ?? activeReviewId ?? existingReview?.id;
     return getReviewsForRestaurant(matchedRestaurant.id, 'own').filter(
       (r) => r.id !== skipId,
     );
@@ -3026,25 +3131,24 @@ export default function ReviewFormScreen() {
   const buildInput = useCallback(() => {
     if (!draft) return null;
     return {
-      reviewId: activeReviewId,
+      reviewId: activeReviewIdRef.current,
       draft,
       visitDateIso: visitDate.toISOString(),
       isFavorite,
       generalComment,
       criteria: criteriaList,
-      photoUrls,
+      // Prefer ref so reorder/remove in the same tick persist the latest order.
+      photoUrls: photoUrlsRef.current,
       ocrText: ocrIndexedText,
       customCriterionNames,
     };
   }, [
-    activeReviewId,
     criteriaList,
     customCriterionNames,
     draft,
     generalComment,
     isFavorite,
     ocrIndexedText,
-    photoUrls,
     visitDate,
   ]);
 
@@ -3060,33 +3164,39 @@ export default function ReviewFormScreen() {
 
   const persistNow = useCallback(
     async (markBusy = false): Promise<boolean> => {
-      const input = buildInput();
-      if (!input) return false;
-      if (
-        !hasPersistableContent() &&
-        !activeReviewId &&
-        !existingReview
-      ) {
-        return false;
-      }
-      if (markBusy) setIsSaving(true);
-      try {
-        const result = await upsertReviewFromForm(input);
-        if (!result) return false;
-        setActiveReviewId(result.reviewId);
-        persistedRef.current = true;
-        return true;
-      } finally {
-        if (markBusy) setIsSaving(false);
-      }
+      const run = async (): Promise<boolean> => {
+        // After awaiting the chain, the previous upsert has set activeReviewIdRef.
+        const input = buildInput();
+        if (!input) return false;
+        if (
+          !hasPersistableContent() &&
+          !activeReviewIdRef.current &&
+          !existingReview
+        ) {
+          return false;
+        }
+        if (markBusy) setIsSaving(true);
+        try {
+          const result = await upsertReviewFromForm(input);
+          if (!result) return false;
+          // Sync before any navigation/unmount so a second persist updates this visit.
+          activeReviewIdRef.current = result.reviewId;
+          setActiveReviewId(result.reviewId);
+          persistedRef.current = true;
+          return true;
+        } finally {
+          if (markBusy) setIsSaving(false);
+        }
+      };
+
+      const queued = persistChainRef.current.then(run, run);
+      persistChainRef.current = queued.then(
+        () => undefined,
+        () => undefined,
+      );
+      return queued;
     },
-    [
-      activeReviewId,
-      buildInput,
-      existingReview,
-      hasPersistableContent,
-      upsertReviewFromForm,
-    ],
+    [buildInput, existingReview, hasPersistableContent, upsertReviewFromForm],
   );
 
   const schedulePersist = useCallback(() => {
@@ -3199,22 +3309,36 @@ export default function ReviewFormScreen() {
     schedulePersist();
   };
 
-  const confirmRemovePhoto = (uri: string) => {
+  const confirmRemoveSelectedPhotos = () => {
+    if (selectedPhotosForRemoval.length === 0) return;
+    const toRemove = [...selectedPhotosForRemoval];
     houseAlert(
-      'Remove Photo?',
-      'This photo will be permanently deleted. This cannot be undone.',
+      'Remove Photos?',
+      'Selected photos will be permanently deleted. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Remove',
           style: 'destructive',
           onPress: () => {
-            setPhotoUrls((prev) => prev.filter((u) => u !== uri));
-            void deleteReviewPhotoFiles([uri]);
+            const removeSet = new Set(toRemove);
+            setPhotoUrls((prev) => {
+              const next = prev.filter((u) => !removeSet.has(u));
+              photoUrlsRef.current = next;
+              return next;
+            });
+            setSelectedPhotosForRemoval([]);
+            void deleteReviewPhotoFiles(toRemove);
             schedulePersist();
           },
         },
       ],
+    );
+  };
+
+  const togglePhotoSelection = (uri: string) => {
+    setSelectedPhotosForRemoval((prev) =>
+      prev.includes(uri) ? prev.filter((u) => u !== uri) : [...prev, uri],
     );
   };
 
@@ -3242,7 +3366,11 @@ export default function ReviewFormScreen() {
       }
       if (saved.length) {
         Haptics.light();
-        setPhotoUrls((prev) => [...prev, ...saved]);
+        setPhotoUrls((prev) => {
+          const next = [...prev, ...saved];
+          photoUrlsRef.current = next;
+          return next;
+        });
         schedulePersist();
       }
     } catch {
@@ -3270,7 +3398,11 @@ export default function ReviewFormScreen() {
     try {
       const uri = await saveReviewPhoto(result.assets[0].uri);
       Haptics.light();
-      setPhotoUrls((prev) => [...prev, uri]);
+      setPhotoUrls((prev) => {
+        const next = [...prev, uri];
+        photoUrlsRef.current = next;
+        return next;
+      });
       schedulePersist();
     } catch {
       Haptics.error();
@@ -3306,8 +3438,11 @@ export default function ReviewFormScreen() {
     ]);
   };
 
+  // Tab bar hides while the keyboard is up — drop its clearance and pad by keyboard height.
   const bottomPad =
-    Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
+    (keyboardInset > 0
+      ? keyboardInset + 24
+      : Theme.spacing.floatingTabBarClearance + insets.bottom + 24);
   const addressLine = draft ? draftAddressLine(draft) : null;
   const isEdit = Boolean(existingReview);
 
@@ -3347,15 +3482,13 @@ export default function ReviewFormScreen() {
         }
       />
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}>
-        <NestableScrollContainer
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
-          contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
-          overScrollMode="never">
+      <NestableScrollContainer
+        ref={scrollRef as never}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets={false}
+        contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
+        overScrollMode="never">
           <View style={styles.card}>
             <View style={styles.restaurantRow}>
               <View style={styles.restaurantCopy}>
@@ -3470,9 +3603,23 @@ export default function ReviewFormScreen() {
                       />
                       {RatingValue.isStarRating(state.rating) ? (
                         <TextInput
+                          ref={(node) => {
+                            commentInputRefs.current[criterion.id] = node;
+                          }}
                           value={state.comment}
                           onChangeText={(text) =>
                             setCriterionComment(criterion.id, text)
+                          }
+                          onFocus={() =>
+                            scrollInputIntoView(
+                              commentInputRefs.current[criterion.id] ?? null,
+                            )
+                          }
+                          onContentSizeChange={() =>
+                            scrollInputIntoView(
+                              commentInputRefs.current[criterion.id] ?? null,
+                              90,
+                            )
                           }
                           placeholder="Optional comment"
                           placeholderTextColor="rgba(35, 32, 26, 0.4)"
@@ -3490,11 +3637,16 @@ export default function ReviewFormScreen() {
           <View style={styles.card}>
             <FormSectionTitle title="General comments" />
             <TextInput
+              ref={generalCommentRef}
               value={generalComment}
               onChangeText={(text) => {
                 setGeneralComment(text);
                 schedulePersist();
               }}
+              onFocus={() => scrollInputIntoView(generalCommentRef.current)}
+              onContentSizeChange={() =>
+                scrollInputIntoView(generalCommentRef.current, 90)
+              }
               placeholder="Optional comment"
               placeholderTextColor="rgba(35, 32, 26, 0.4)"
               multiline
@@ -3506,14 +3658,43 @@ export default function ReviewFormScreen() {
             <FormSectionTitle title="Photos" />
             <ReorderablePhotoStrip
               photoUrls={photoUrls}
+              selectedUris={selectedPhotosForRemoval}
               onReorder={(next) => {
+                photoUrlsRef.current = next;
                 setPhotoUrls(next);
                 schedulePersist();
               }}
-              onRemove={confirmRemovePhoto}
+              onToggleSelect={togglePhotoSelection}
               onAddPress={showPhotoSourcePicker}
               isImporting={isImportingPhotos}
             />
+
+            {selectedPhotosForRemoval.length > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Remove Photos"
+                onPress={confirmRemoveSelectedPhotos}
+                style={({ pressed }) => [
+                  styles.removePhotosBtn,
+                  pressed && styles.pressed,
+                ]}>
+                {Platform.OS === 'ios' ? (
+                  <SymbolView
+                    name="trash"
+                    size={16}
+                    tintColor={GustraColors.ratingAvoid}
+                    weight="semibold"
+                  />
+                ) : (
+                  <MaterialIcons
+                    name="delete"
+                    size={18}
+                    color={GustraColors.ratingAvoid}
+                  />
+                )}
+                <Text style={styles.removePhotosLabel}>Remove Photos</Text>
+              </Pressable>
+            ) : null}
 
             {isIndexingPhotos ? (
               <View style={styles.indexingRow}>
@@ -3554,7 +3735,6 @@ export default function ReviewFormScreen() {
             </Pressable>
           ) : null}
         </NestableScrollContainer>
-      </KeyboardAvoidingView>
 
       <PhotoSourceChooserModal
         visible={showPhotoSourceChooser}
@@ -3803,6 +3983,22 @@ const styles = StyleSheet.create({
     ...captionTextStyle,
     fontSize: 14,
     color: GustraColors.forestGreen,
+  },
+  removePhotosBtn: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    borderRadius: Theme.radius.md,
+    backgroundColor: 'rgba(176, 64, 48, 0.14)',
+  },
+  removePhotosLabel: {
+    ...bodyTextStyle,
+    fontSize: 16,
+    fontWeight: '600',
+    color: GustraColors.ratingAvoid,
   },
   deleteBtn: {
     alignSelf: 'center',
@@ -4843,8 +5039,9 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: app/(tabs)/map.tsx
 ================================================================================
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Platform,
   Pressable,
   StyleSheet,
@@ -4860,6 +5057,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   GoogleMapsView,
   type GoogleMapMarker,
+  type GoogleMapsViewHandle,
 } from '@/components/map/GoogleMapsView';
 import { GustraColors } from '@/constants/Colors';
 import {
@@ -4876,9 +5074,13 @@ import {
   type SatisfactionLevel,
 } from '@/data/types';
 import { Haptics } from '@/services/haptics';
-import { resolveCurrentLocation } from '@/services/location/resolveCurrentLocation';
+import {
+  openSystemSettings,
+  resolveCurrentLocation,
+} from '@/services/location/resolveCurrentLocation';
 import { FALLBACK_MAP_CENTER, type LatLng } from '@/services/places';
 import { overallScoreFromCriteria } from '@/services/reviews/ratings';
+import { houseAlert } from '@/components/ui/HouseAlert';
 
 const LEVEL_COLOR: Record<SatisfactionLevel, string> = {
   excellent: GustraColors.ratingExcellent,
@@ -4924,6 +5126,8 @@ export default function MemoriesMapScreen() {
   const { enabledCriteria } = useCriteriaSettings();
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [showFriends, setShowFriends] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const mapRef = useRef<GoogleMapsViewHandle>(null);
 
   const enabledIds = useMemo(
     () => new Set(enabledCriteria.map((c) => c.id)),
@@ -5009,6 +5213,40 @@ export default function MemoriesMapScreen() {
     };
   }, []);
 
+  const recenterOnUser = async () => {
+    if (locating) return;
+    Haptics.selectionChanged();
+    setLocating(true);
+    try {
+      const location = await resolveCurrentLocation();
+      if (location.coords) {
+        setUserLocation(location.coords);
+        mapRef.current?.animateTo(location.coords, 15);
+        return;
+      }
+      if (location.isAuthorizationDenied) {
+        houseAlert(
+          'Location',
+          location.error ?? 'Location access is required.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Open Settings',
+              onPress: () => openSystemSettings(),
+            },
+          ],
+        );
+        return;
+      }
+      houseAlert(
+        'Location',
+        location.error ?? 'Current location unavailable.',
+      );
+    } finally {
+      setLocating(false);
+    }
+  };
+
   const toggleFriends = () => {
     Haptics.selectionChanged();
     setShowFriends((prev) => {
@@ -5040,6 +5278,7 @@ export default function MemoriesMapScreen() {
   return (
     <View style={styles.screen}>
       <GoogleMapsView
+        ref={mapRef}
         initialCenter={initialCenter}
         initialZoom={initialZoom}
         markers={markers}
@@ -5053,6 +5292,37 @@ export default function MemoriesMapScreen() {
           router.push(`/review/${id}`);
         }}
       />
+
+      <View
+        style={[styles.myLocationWrap, { bottom: bottomPad + 12 }]}
+        pointerEvents="box-none">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="My location"
+          onPress={() => {
+            void recenterOnUser();
+          }}
+          style={({ pressed }) => [
+            styles.myLocationBtn,
+            pressed && styles.pressed,
+          ]}>
+          {locating ? (
+            <ActivityIndicator size="small" color={GustraColors.forestGreen} />
+          ) : Platform.OS === 'ios' ? (
+            <SymbolView
+              name="location.fill"
+              size={20}
+              tintColor={GustraColors.forestGreen}
+            />
+          ) : (
+            <MaterialIcons
+              name="my-location"
+              size={22}
+              color={GustraColors.forestGreen}
+            />
+          )}
+        </Pressable>
+      </View>
 
       {hasFriendReviews ? (
         <View style={styles.friendsToggleWrap} pointerEvents="box-none">
@@ -5146,6 +5416,26 @@ const styles = StyleSheet.create({
     top: 12,
     right: 12,
     zIndex: 2,
+  },
+  myLocationWrap: {
+    position: 'absolute',
+    right: 12,
+    zIndex: 2,
+  },
+  myLocationBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(245, 238, 221, 0.96)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(36, 78, 57, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   friendsToggle: {
     flexDirection: 'row',
@@ -6440,6 +6730,7 @@ import { PhotoQualitySettingsProvider } from '@/context/PhotoQualitySettings';
 import { ReviewerProfileProvider } from '@/context/ReviewerProfile';
 import { ReviewsStoreProvider } from '@/context/ReviewsStore';
 import { ShareImportLaunchProvider } from '@/context/ShareImportLaunch';
+import { lockAppPortraitOrientation } from '@/services/orientation/photoViewerOrientation';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -6490,9 +6781,12 @@ export default function RootLayout() {
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(GustraColors.cream);
     if (Platform.OS === 'android') {
-      // Dark nav buttons on cream; contrast scrim disabled via config plugin.
-      void NavigationBar.setButtonStyleAsync('dark');
+      // SDK 57: `setStyle` — `light` = dark buttons on a light bar (cream UI).
+      NavigationBar.setStyle('light');
     }
+    // Info.plist allows all orientations so the photo viewer can rotate;
+    // keep the rest of the app locked to portrait (Swift OrientationLock).
+    void lockAppPortraitOrientation();
   }, []);
 
   if (!loaded) {
@@ -6918,7 +7212,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     slug: 'gustra',
     // Same marketing version as the Swift App Store app; iOS build continues that sequence.
     version: '1.0',
-    orientation: 'portrait',
+    orientation: 'default',
     icon: './assets/images/icon.png',
     scheme: 'gustra',
     userInterfaceStyle: 'light',
@@ -6949,6 +7243,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         LSApplicationQueriesSchemes: ['comgooglemaps', 'waze', 'tel'],
         // Required when CFBundleDocumentTypes is set (ASC warning 90737).
         LSSupportsOpeningDocumentsInPlace: true,
+        // Files → On My iPhone → Gustra (Swift parity).
+        UIFileSharingEnabled: true,
         // Standard HTTPS only — skips export-compliance prompt in App Store Connect.
         ITSAppUsesNonExemptEncryption: false,
         CFBundleDocumentTypes: [
@@ -6963,10 +7259,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           {
             UTTypeIdentifier: 'com.philip.gustra.share',
             UTTypeDescription: 'Gustra Share Package',
-            UTTypeConformsTo: ['public.json', 'public.data'],
+            // public.data only — conforming to public.json makes WhatsApp /
+            // Quick Look treat the file as blank JSON and rename to .json.
+            UTTypeConformsTo: ['public.data'],
             UTTypeTagSpecification: {
               'public.filename-extension': ['gustrashare'],
-              'public.mime-type': ['application/json'],
+              'public.mime-type': ['application/x-gustrashare'],
             },
           },
         ],
@@ -6987,6 +7285,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // Material / gesture navigation — cream surfaces bleed under system bars.
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: true,
+      // Keep focused fields visible with our scroll-into-view + tab-bar hide.
+      softwareKeyboardLayoutMode: 'resize',
       permissions: [
         'android.permission.CAMERA',
         'android.permission.READ_MEDIA_IMAGES',
@@ -7010,7 +7310,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           data: [
             {
               scheme: 'content',
-              mimeType: 'application/json',
+              mimeType: 'application/x-gustrashare',
             },
             {
               scheme: 'file',
@@ -7019,6 +7319,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             {
               scheme: 'content',
               pathPattern: '.*\\\\.gustrashare',
+            },
+            // Legacy shares that WhatsApp/Mail rewrote as .json
+            {
+              scheme: 'content',
+              mimeType: 'application/json',
+              pathPattern: '.*\\\\.json',
             },
           ],
         },
@@ -7038,6 +7344,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       'expo-router',
       'expo-dev-client',
       [
+        'expo-screen-orientation',
+        {
+          initialOrientation: 'PORTRAIT_UP',
+        },
+      ],
+      [
         'expo-splash-screen',
         {
           image: './assets/images/splash-icon.png',
@@ -7053,6 +7365,16 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             'Gustra uses your photo library to import photos for your profile and restaurant reviews.',
           cameraPermission:
             'Gustra uses the camera to take photos for your profile and restaurant reviews.',
+        },
+      ],
+      [
+        'expo-media-library',
+        {
+          photosPermission:
+            'Gustra uses your photo library to import photos for your profile and restaurant reviews.',
+          savePhotosPermission:
+            'Gustra saves review photos to your photo library when you choose Save to Photos.',
+          isAccessMediaLocationEnabled: false,
         },
       ],
       [
@@ -7097,8 +7419,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       [
         'expo-navigation-bar',
         {
-          // Dark icons on cream; no contrast scrim so the bar matches the house surface.
-          style: 'dark',
+          // `light` = dark buttons on cream; no contrast scrim (house surface).
+          style: 'light',
           enforceContrast: false,
         },
       ],
@@ -7446,7 +7768,7 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: components/detail/LocationBlock.tsx
 ================================================================================
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 
 import { SerifText } from '@/components/ui/SerifText';
@@ -7505,7 +7827,11 @@ export function LocationBlock({
             />
             <Text
               style={[styles.link, !hasCoords && styles.muted]}
-              numberOfLines={4}>
+              numberOfLines={4}
+              // Avoid iOS data-detectors stealing the press / opening Maps themselves.
+              {...(Platform.OS === 'ios'
+                ? { dataDetectorType: 'none' as const }
+                : null)}>
               {locationText}
             </Text>
           </Pressable>
@@ -7636,7 +7962,11 @@ import {
 } from '@/components/detail/photoViewer/PhotoViewerChrome';
 import { ZoomablePhoto } from '@/components/detail/photoViewer/ZoomablePhoto';
 import { PhotoViewerStyle } from '@/constants/PhotoViewerStyle';
-import { sharePhotoUri } from '@/services/photos/photoViewerActions';
+import {
+  lockAppPortraitOrientation,
+  unlockPhotoViewerOrientation,
+} from '@/services/orientation/photoViewerOrientation';
+import { sharePhotoUri, savePhotoUri } from '@/services/photos/photoViewerActions';
 
 type ProfilePhotoViewerProps = {
   visible: boolean;
@@ -7656,13 +7986,20 @@ export function ProfilePhotoViewer({
 
   useEffect(() => {
     if (!visible) {
+      void lockAppPortraitOrientation();
       dismissY.value = 0;
       setZoomed(false);
+      return;
     }
+    void unlockPhotoViewerOrientation();
+    return () => {
+      void lockAppPortraitOrientation();
+    };
   }, [visible, dismissY]);
 
   const close = useCallback(() => {
     dismissY.value = 0;
+    void lockAppPortraitOrientation();
     onClose();
   }, [dismissY, onClose]);
 
@@ -7675,6 +8012,22 @@ export function ProfilePhotoViewer({
       houseAlert(
         'Error',
         error instanceof Error ? error.message : 'Could not share photo',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, uri]);
+
+  const handleSave = useCallback(async () => {
+    if (!uri || busy) return;
+    setBusy(true);
+    try {
+      await savePhotoUri(uri);
+      houseAlert('Photo saved');
+    } catch (error) {
+      houseAlert(
+        'Error',
+        error instanceof Error ? error.message : 'Could not save photo',
       );
     } finally {
       setBusy(false);
@@ -7719,6 +8072,13 @@ export function ProfilePhotoViewer({
       animationType="fade"
       presentationStyle="fullScreen"
       onRequestClose={close}
+      supportedOrientations={[
+        'portrait',
+        'portrait-upside-down',
+        'landscape',
+        'landscape-left',
+        'landscape-right',
+      ]}
       statusBarTranslucent>
       {visible ? <StatusBar style="light" hidden /> : null}
       <GestureHandlerRootView style={styles.root}>
@@ -7737,6 +8097,7 @@ export function ProfilePhotoViewer({
           <PhotoViewerTopBar
             onClose={close}
             onShare={() => void handleShare()}
+            onSave={() => void handleSave()}
           />
 
           <PhotoViewerCountPill
@@ -7763,6 +8124,7 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: components/detail/RestaurantMapViewer.tsx
 ================================================================================
+import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
@@ -7772,6 +8134,8 @@ import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
 import type { Restaurant } from '@/data/types';
 import { presentDirectionsOptions } from '@/services/directions/DirectionsLauncher';
+import { resolveCurrentLocation } from '@/services/location/resolveCurrentLocation';
+import type { LatLng } from '@/services/places';
 
 type RestaurantMapViewerProps = {
   visible: boolean;
@@ -7788,9 +8152,27 @@ export function RestaurantMapViewer({
   onClose,
 }: RestaurantMapViewerProps) {
   const insets = useSafeAreaInsets();
+  const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const addressLine = [restaurant.address, restaurant.city, restaurant.country]
     .filter(Boolean)
     .join(', ');
+
+  useEffect(() => {
+    if (!visible) {
+      setUserLocation(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const location = await resolveCurrentLocation();
+      if (!cancelled && location.coords) {
+        setUserLocation(location.coords);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible]);
 
   return (
     <Modal
@@ -7837,19 +8219,25 @@ export function RestaurantMapViewer({
                 isSelected: true,
               },
             ]}
+            showsUserLocation
+            userLocation={userLocation}
           />
         </View>
 
         <Pressable
           style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}
-          onPress={() =>
-            void presentDirectionsOptions({
+          onPress={() => {
+            // Dismiss the map Modal first — ActionSheetIOS / houseAlert Modal
+            // presented on top of an RN Modal crashes iOS intermittently.
+            onClose();
+            presentDirectionsOptions({
               name: restaurant.name,
               addressLine,
               latitude: restaurant.latitude,
               longitude: restaurant.longitude,
-            })
-          }
+              afterModalDismiss: true,
+            });
+          }}
           accessibilityRole="button"
           accessibilityLabel="Get directions">
           <View style={styles.footerCopy}>
@@ -7924,7 +8312,14 @@ const styles = StyleSheet.create({
 FILE: components/detail/ReviewPhotoViewer.tsx
 ================================================================================
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Dimensions, Modal, NativeScrollEvent, NativeSyntheticEvent, Platform, ScrollView as RNScrollView, StyleSheet, View } from 'react-native';
+import {
+  Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 import { houseAlert } from '@/components/ui/HouseAlert';
 import {
@@ -7948,7 +8343,11 @@ import {
 } from '@/components/detail/photoViewer/PhotoViewerChrome';
 import { ZoomablePhoto } from '@/components/detail/photoViewer/ZoomablePhoto';
 import { PhotoViewerStyle } from '@/constants/PhotoViewerStyle';
-import { sharePhotoUri } from '@/services/photos/photoViewerActions';
+import {
+  lockAppPortraitOrientation,
+  unlockPhotoViewerOrientation,
+} from '@/services/orientation/photoViewerOrientation';
+import { sharePhotoUri, savePhotoUri } from '@/services/photos/photoViewerActions';
 
 type ReviewPhotoViewerProps = {
   visible: boolean;
@@ -7963,10 +8362,7 @@ const PAGE_GAP = 16;
 
 /**
  * Full-screen review photo pager (Swift `ReviewPhotoViewer` cinematic chrome).
- *
- * Android: native ScrollView + no parent dismiss pan around the pager
- * (gesture wrappers were stealing horizontal swipes).
- * iOS: RNGH ScrollView + vertical dismiss pan.
+ * GHScrollView + vertical dismiss on both platforms; pinch zoom with pan only when zoomed.
  */
 export function ReviewPhotoViewer({
   visible,
@@ -7975,37 +8371,58 @@ export function ReviewPhotoViewer({
   onIndexChange,
   onClose,
 }: ReviewPhotoViewerProps) {
-  const pageWidth = useRef(Dimensions.get('window').width).current;
+  const { width: pageWidth } = useWindowDimensions();
   const pageStride = pageWidth + PAGE_GAP;
-  const rnScrollRef = useRef<RNScrollView>(null);
   const ghScrollRef = useRef<GHScrollView>(null);
+  const indexRef = useRef(index);
+  indexRef.current = index;
   const [zoomed, setZoomed] = useState(false);
+  const [dismissDragging, setDismissDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const dismissY = useSharedValue(0);
-  const isAndroid = Platform.OS === 'android';
+  const touchStartX = useSharedValue(0);
+  const touchStartY = useSharedValue(0);
 
   useEffect(() => {
     if (!visible) {
+      void lockAppPortraitOrientation();
       dismissY.value = 0;
       setZoomed(false);
+      setDismissDragging(false);
       return;
     }
-    const x = index * pageStride;
+    void unlockPhotoViewerOrientation();
+    return () => {
+      void lockAppPortraitOrientation();
+    };
+  }, [visible, dismissY]);
+
+  const scrollToIndex = useCallback(
+    (targetIndex: number, animated: boolean) => {
+      const x = targetIndex * pageStride;
+      ghScrollRef.current?.scrollTo({ x, animated });
+    },
+    [pageStride],
+  );
+
+  useEffect(() => {
+    if (!visible) return;
     const id = requestAnimationFrame(() => {
-      if (Platform.OS === 'android') {
-        rnScrollRef.current?.scrollTo({ x, animated: false });
-      } else {
-        ghScrollRef.current?.scrollTo({ x, animated: false });
-      }
+      scrollToIndex(indexRef.current, false);
     });
     return () => cancelAnimationFrame(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- open sync only
-  }, [visible, pageStride, dismissY]);
+  }, [visible, pageStride, scrollToIndex]);
 
   const close = useCallback(() => {
     dismissY.value = 0;
+    setDismissDragging(false);
+    void lockAppPortraitOrientation();
     onClose();
   }, [dismissY, onClose]);
+
+  const markDismissDragging = useCallback((next: boolean) => {
+    setDismissDragging(next);
+  }, []);
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const next = Math.round(e.nativeEvent.contentOffset.x / pageStride);
@@ -8031,10 +8448,51 @@ export function ReviewPhotoViewer({
     }
   }, [busy, index, uris]);
 
+  const handleSave = useCallback(async () => {
+    const uri = uris[index];
+    if (!uri || busy) return;
+    setBusy(true);
+    try {
+      await savePhotoUri(uri);
+      houseAlert('Photo saved');
+    } catch (error) {
+      houseAlert(
+        'Error',
+        error instanceof Error ? error.message : 'Could not save photo',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, index, uris]);
+
+  // Swift: activate only when |dy| > |dx| * 1.2 so horizontal paging wins otherwise.
   const dismissGesture = Gesture.Pan()
-    .enabled(!zoomed && !isAndroid)
-    .activeOffsetY([-20, 20])
-    .failOffsetX([-10, 10])
+    .enabled(!zoomed)
+    .manualActivation(true)
+    .onTouchesDown((e) => {
+      const t = e.allTouches[0];
+      if (!t) return;
+      touchStartX.value = t.absoluteX;
+      touchStartY.value = t.absoluteY;
+    })
+    .onTouchesMove((e, state) => {
+      if (e.numberOfTouches > 1) {
+        state.fail();
+        return;
+      }
+      const t = e.allTouches[0];
+      if (!t) return;
+      const dx = t.absoluteX - touchStartX.value;
+      const dy = t.absoluteY - touchStartY.value;
+      if (Math.abs(dy) > 20 && Math.abs(dy) > Math.abs(dx) * 1.2) {
+        state.activate();
+      } else if (Math.abs(dx) > 12 && Math.abs(dx) >= Math.abs(dy)) {
+        state.fail();
+      }
+    })
+    .onStart(() => {
+      runOnJS(markDismissDragging)(true);
+    })
     .onUpdate((e) => {
       dismissY.value = e.translationY;
     })
@@ -8047,6 +8505,12 @@ export function ReviewPhotoViewer({
         runOnJS(close)();
       } else {
         dismissY.value = withSpring(0, { damping: 18, stiffness: 220 });
+        runOnJS(markDismissDragging)(false);
+      }
+    })
+    .onFinalize((_e, success) => {
+      if (!success) {
+        runOnJS(markDismissDragging)(false);
       }
     });
 
@@ -8088,31 +8552,23 @@ export function ReviewPhotoViewer({
     </View>
   ));
 
-  const pagerProps = {
-    horizontal: true as const,
-    // snapToInterval (not pagingEnabled) so PAGE_GAP shows between photos.
-    pagingEnabled: false,
-    snapToInterval: pageStride,
-    snapToAlignment: 'start' as const,
-    disableIntervalMomentum: true,
-    bounces: false,
-    scrollEnabled: !zoomed,
-    showsHorizontalScrollIndicator: false,
-    onScroll,
-    scrollEventThrottle: 16,
-    style: styles.pager,
-    decelerationRate: 'fast' as const,
-  };
-
-  const pager = isAndroid ? (
-    <RNScrollView
-      ref={rnScrollRef}
-      {...pagerProps}
-      removeClippedSubviews={false}>
-      {pages}
-    </RNScrollView>
-  ) : (
-    <GHScrollView ref={ghScrollRef} {...pagerProps}>
+  const pager = (
+    <GHScrollView
+      key={`pager-${pageWidth}`}
+      ref={ghScrollRef}
+      horizontal
+      // snapToInterval (not pagingEnabled) so PAGE_GAP shows between photos.
+      pagingEnabled={false}
+      snapToInterval={pageStride}
+      snapToAlignment="start"
+      disableIntervalMomentum
+      bounces={false}
+      scrollEnabled={!zoomed && !dismissDragging}
+      showsHorizontalScrollIndicator={false}
+      onScroll={onScroll}
+      scrollEventThrottle={16}
+      style={styles.pager}
+      decelerationRate="fast">
       {pages}
     </GHScrollView>
   );
@@ -8135,29 +8591,33 @@ export function ReviewPhotoViewer({
       animationType="fade"
       presentationStyle="fullScreen"
       onRequestClose={close}
+      supportedOrientations={[
+        'portrait',
+        'portrait-upside-down',
+        'landscape',
+        'landscape-left',
+        'landscape-right',
+      ]}
       statusBarTranslucent>
       {visible ? <StatusBar style="light" hidden /> : null}
       <GestureHandlerRootView style={styles.root}>
         <PhotoViewerShell dismissY={dismissY}>
-          {isAndroid ? (
-            <View style={styles.content}>{body}</View>
-          ) : (
-            <GestureDetector gesture={dismissGesture}>
-              <Animated.View style={[styles.content, contentStyle]}>
-                {body}
-              </Animated.View>
-            </GestureDetector>
-          )}
+          <GestureDetector gesture={dismissGesture}>
+            <Animated.View style={[styles.content, contentStyle]}>
+              {body}
+            </Animated.View>
+          </GestureDetector>
 
           <PhotoViewerTopBar
             onClose={close}
             onShare={() => void handleShare()}
+            onSave={() => void handleSave()}
           />
 
           <PhotoViewerCountPill
             text={`${index + 1} / ${uris.length}`}
             visible={uris.length > 1 && !zoomed}
-            dismissY={isAndroid ? undefined : dismissY}
+            dismissY={dismissY}
           />
         </PhotoViewerShell>
       </GestureHandlerRootView>
@@ -8443,14 +8903,17 @@ type TopBarProps = {
   onClose: () => void;
   /** Opens the system share sheet directly (no intermediate options menu). */
   onShare: () => void;
+  /** Save current photo to the device library (Swift `Save to Photos`). */
+  onSave?: () => void;
   title?: string;
   showTitle?: boolean;
 };
 
-/** Top gradient + close / share (Expo: share icon → system sheet). */
+/** Top gradient + close / save / share. */
 export function PhotoViewerTopBar({
   onClose,
   onShare,
+  onSave,
   title,
   showTitle = false,
 }: TopBarProps) {
@@ -8488,14 +8951,25 @@ export function PhotoViewerTopBar({
           ) : null}
         </View>
 
-        <PhotoViewerChromeButton
-          // iOS share glyph; Android `share` is the 3-dot network icon — use ios_share.
-          iosName="square.and.arrow.up"
-          androidName="ios-share"
-          accessibilityLabel="Share photo"
-          iconSize={22}
-          onPress={onShare}
-        />
+        <View style={styles.trailingActions}>
+          {onSave ? (
+            <PhotoViewerChromeButton
+              iosName="square.and.arrow.down"
+              androidName="file-download"
+              accessibilityLabel="Save to Photos"
+              iconSize={22}
+              onPress={onSave}
+            />
+          ) : null}
+          <PhotoViewerChromeButton
+            // iOS share glyph; Android `share` is the 3-dot network icon — use ios_share.
+            iosName="square.and.arrow.up"
+            androidName="ios-share"
+            accessibilityLabel="Share photo"
+            iconSize={22}
+            onPress={onShare}
+          />
+        </View>
       </View>
     </View>
   );
@@ -8597,6 +9071,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
   },
+  trailingActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   title: {
     color: PhotoViewerStyle.chromeForeground,
     fontSize: 15,
@@ -8654,8 +9133,8 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: components/detail/photoViewer/ZoomablePhoto.tsx
 ================================================================================
-import { useEffect } from 'react';
-import { Image, Platform, StyleSheet, useWindowDimensions } from 'react-native';
+import { useEffect, useState } from 'react';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -8671,8 +9150,8 @@ type ZoomablePhotoProps = {
   accessibilityLabel?: string;
   onZoomChange?: (zoomed: boolean) => void;
   /**
-   * Pager mode: on Android render a plain image (no GestureDetector) so the
-   * horizontal ScrollView always receives one-finger swipes.
+   * Pager mode: omit double-tap; delay one-finger pan until zoomed so the
+   * horizontal ScrollView keeps receiving page swipes (esp. Android).
    */
   pagingFriendly?: boolean;
 };
@@ -8688,6 +9167,7 @@ export function ZoomablePhoto({
   pagingFriendly = false,
 }: ZoomablePhotoProps) {
   const { width, height } = useWindowDimensions();
+  const [isZoomed, setIsZoomed] = useState(false);
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -8696,6 +9176,7 @@ export function ZoomablePhoto({
   const savedY = useSharedValue(0);
 
   const notifyZoom = (next: boolean) => {
+    setIsZoomed(next);
     onZoomChange?.(next);
   };
 
@@ -8718,6 +9199,7 @@ export function ZoomablePhoto({
       translateY.value = 0;
       savedX.value = 0;
       savedY.value = 0;
+      setIsZoomed(false);
       onZoomChange?.(false);
     }
   }, [
@@ -8730,19 +9212,6 @@ export function ZoomablePhoto({
     savedX,
     savedY,
   ]);
-
-  // Android pager: never mount a GestureDetector over the page — it wins the
-  // touch arena and kills horizontal swipes even when Pan "fails".
-  if (pagingFriendly && Platform.OS === 'android') {
-    return (
-      <Image
-        source={{ uri }}
-        accessibilityLabel={accessibilityLabel}
-        style={[styles.image, { width, height }]}
-        resizeMode="contain"
-      />
-    );
-  }
 
   const pinch = Gesture.Pinch()
     .onUpdate((e) => {
@@ -8758,6 +9227,8 @@ export function ZoomablePhoto({
       }
     });
 
+  // One-finger pan only when zoomed — attaching a failing Pan on Android
+  // paging still steals the horizontal ScrollView touch arena.
   const pan = Gesture.Pan()
     .manualActivation(true)
     .onTouchesMove((_e, state) => {
@@ -8790,8 +9261,11 @@ export function ZoomablePhoto({
       }
     });
 
+  // Pager: pinch-only until zoomed (Android-safe). Full canvas: double-tap + pinch/pan.
   const composed = pagingFriendly
-    ? Gesture.Simultaneous(pinch, pan)
+    ? isZoomed
+      ? Gesture.Simultaneous(pinch, pan)
+      : pinch
     : Gesture.Exclusive(doubleTap, Gesture.Simultaneous(pinch, pan));
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -9051,6 +9525,218 @@ const styles = StyleSheet.create({
 
 
 ================================================================================
+FILE: components/feed/FeedSwipeDelete.tsx
+================================================================================
+import { useRef, useState, type ReactNode, type RefObject } from 'react';
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import ReanimatedSwipeable, {
+  type SwipeableMethods,
+} from 'react-native-gesture-handler/ReanimatedSwipeable';
+import { SymbolView } from 'expo-symbols';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  type SharedValue,
+  useAnimatedStyle,
+} from 'react-native-reanimated';
+
+import {
+  clearOpenSwipeable,
+  performOpenSwipeableDelete,
+  registerOpenSwipeable,
+  updateOpenSwipeableFrame,
+} from '@/components/feed/openSwipeable';
+import { captionTextStyle, Theme } from '@/constants/Theme';
+import { Haptics } from '@/services/haptics';
+
+/** iOS system destructive red (Swift `.tint(.red)` on swipeActions). */
+const IOS_DESTRUCTIVE_RED = '#FF3B30';
+const ACTION_WIDTH = Platform.OS === 'ios' ? 74 : 80;
+
+type FeedSwipeDeleteProps = {
+  id: string;
+  onDelete: () => void;
+  children: ReactNode;
+  /** Corner radius of the row/card — keeps Delete flush with the trailing edge. */
+  cornerRadius?: number;
+};
+
+type RightActionsProps = {
+  progress: SharedValue<number>;
+  cornerRadius: number;
+  isOpen: boolean;
+  onMeasure: () => void;
+  deleteRef: RefObject<View | null>;
+};
+
+function RightDeleteActions({
+  progress,
+  cornerRadius,
+  isOpen,
+  onMeasure,
+  deleteRef,
+}: RightActionsProps) {
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      progress.value,
+      [0, 0.35, 1],
+      [0, 0.55, 1],
+      Extrapolation.CLAMP,
+    ),
+    transform: [
+      {
+        scale: interpolate(
+          progress.value,
+          [0, 1],
+          [0.88, 1],
+          Extrapolation.CLAMP,
+        ),
+      },
+    ],
+  }));
+
+  return (
+    <View
+      ref={deleteRef}
+      collapsable={false}
+      onLayout={() => {
+        if (isOpen) onMeasure();
+      }}
+      style={[
+        styles.deleteAction,
+        {
+          borderTopRightRadius: cornerRadius,
+          borderBottomRightRadius: cornerRadius,
+        },
+      ]}>
+      <Animated.View style={[styles.deleteAnimWrap, animStyle]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Delete"
+          onPress={() => {
+            performOpenSwipeableDelete();
+          }}
+          style={({ pressed }) => [
+            styles.deletePressable,
+            pressed && styles.deletePressed,
+          ]}>
+          <SymbolView
+            name={{
+              ios: 'trash.fill',
+              android: 'delete',
+              web: 'delete',
+            }}
+            tintColor="#FFFFFF"
+            size={22}
+          />
+          <Text style={styles.deleteLabel}>Delete</Text>
+        </Pressable>
+      </Animated.View>
+    </View>
+  );
+}
+
+/**
+ * Swipe-delete via ReanimatedSwipeable — closer to UIKit List swipeActions
+ * (`allowsFullSwipe: false`, system red, progress-driven reveal, open haptic).
+ */
+export function FeedSwipeDelete({
+  id,
+  onDelete,
+  children,
+  cornerRadius = Theme.radius.xl,
+}: FeedSwipeDeleteProps) {
+  const swipeableRef = useRef<SwipeableMethods>(null);
+  const deleteRef = useRef<View>(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  const measureDeleteFrame = () => {
+    deleteRef.current?.measureInWindow((x, y, width, height) => {
+      if (width <= 0 || height <= 0) return;
+      updateOpenSwipeableFrame(id, { x, y, width, height });
+    });
+  };
+
+  return (
+    <ReanimatedSwipeable
+      ref={swipeableRef}
+      friction={1}
+      rightThreshold={36}
+      dragOffsetFromRightEdge={16}
+      overshootRight={false}
+      overshootFriction={8}
+      enableTrackpadTwoFingerGesture
+      containerStyle={styles.container}
+      onSwipeableOpen={() => {
+        setIsOpen(true);
+        Haptics.selectionChanged();
+        registerOpenSwipeable({
+          id,
+          close: () => swipeableRef.current?.close(),
+          onDelete,
+          deleteFrame: null,
+        });
+        requestAnimationFrame(() => {
+          measureDeleteFrame();
+        });
+      }}
+      onSwipeableClose={() => {
+        clearOpenSwipeable(id);
+        setIsOpen(false);
+      }}
+      renderRightActions={(progress) => (
+        <RightDeleteActions
+          progress={progress}
+          cornerRadius={cornerRadius}
+          isOpen={isOpen}
+          onMeasure={measureDeleteFrame}
+          deleteRef={deleteRef}
+        />
+      )}>
+      {children}
+    </ReanimatedSwipeable>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    overflow: 'hidden',
+  },
+  deleteAction: {
+    width: ACTION_WIDTH,
+    backgroundColor: IOS_DESTRUCTIVE_RED,
+    justifyContent: 'center',
+  },
+  deleteAnimWrap: {
+    flex: 1,
+  },
+  deletePressable: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    minHeight: Theme.size.hitTarget,
+  },
+  deletePressed: {
+    opacity: 0.85,
+  },
+  deleteLabel: {
+    ...captionTextStyle,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+});
+
+
+================================================================================
 FILE: components/feed/FilterOptionsModal.tsx
 ================================================================================
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -9066,6 +9752,7 @@ import {
 } from 'react-native';
 import Animated, {
   Easing,
+  cancelAnimation,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -9116,7 +9803,7 @@ type FilterOptionsModalProps = {
 
 /** UINavigationController-like ease (no spring / bounce). */
 const NAV_EASING = Easing.bezier(0.25, 0.1, 0.25, 1);
-const NAV_DURATION_MS = 320;
+const NAV_DURATION_MS = 280;
 
 /**
  * Filter options sheet (Swift `ReviewFilterPanelView`).
@@ -9137,7 +9824,7 @@ export function FilterOptionsModal({
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<FeedFilterState>(value);
   const [panelRoute, setPanelRoute] = useState<PanelRoute | null>(null);
-  /** Content kept mounted through the pop animation (avoids Android remount jump). */
+  /** Content kept mounted through the pop animation (avoids remount jump). */
   const [activePanel, setActivePanel] = useState<PanelRoute | null>(null);
   const [locationSnapshot, setLocationSnapshot] = useState<string[] | null>(
     null,
@@ -9151,7 +9838,7 @@ export function FilterOptionsModal({
 
   const onStackLayout = (event: LayoutChangeEvent) => {
     const width = event.nativeEvent.layout.width;
-    // Never resize mid-push — that causes the Android jump.
+    // Never resize mid-push — that causes a layout jump.
     if (width > 0 && !panelRoute && !activePanel) {
       sheetWidth.value = width;
     }
@@ -9161,8 +9848,20 @@ export function FilterOptionsModal({
     setActivePanel(null);
   }, []);
 
+  const pushPanel = useCallback(
+    (route: PanelRoute) => {
+      // Always mount + route together — panelRoute alone freezes (root pointerEvents
+      // none while no pushed page is rendered).
+      cancelAnimation(pushProgress);
+      setActivePanel(route);
+      setPanelRoute(route);
+    },
+    [pushProgress],
+  );
+
   useEffect(() => {
     if (!visible) return;
+    cancelAnimation(pushProgress);
     setDraft({
       ...value,
       locationCities:
@@ -9186,6 +9885,7 @@ export function FilterOptionsModal({
   useEffect(() => {
     if (panelRoute) {
       // Panel is already mounted via activePanel (set in the same press handler).
+      cancelAnimation(pushProgress);
       pushProgress.value = withTiming(1, {
         duration: NAV_DURATION_MS,
         easing: NAV_EASING,
@@ -9193,13 +9893,14 @@ export function FilterOptionsModal({
       return;
     }
     if (!activePanel) return;
+    cancelAnimation(pushProgress);
     pushProgress.value = withTiming(
       0,
       { duration: NAV_DURATION_MS, easing: NAV_EASING },
       (finished) => {
-        if (finished) {
-          runOnJS(clearActivePanel)();
-        }
+        // Always unmount so the UI cannot stick mid-push if the animation is interrupted.
+        runOnJS(clearActivePanel)();
+        void finished;
       },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -9245,86 +9946,94 @@ export function FilterOptionsModal({
 
   const openMultiSelect = (route: 'location' | 'placeType') => {
     Haptics.selectionChanged();
-    setDraft((prev) => {
-      if (route === 'location') {
-        const cities =
-          prev.locationCities.length === 0
-            ? [...availableCities]
-            : prev.locationCities;
-        setLocationSnapshot(cities);
-        return { ...prev, locationCities: cities };
-      }
+    if (route === 'location') {
+      const cities =
+        draft.locationCities.length === 0
+          ? [...availableCities]
+          : [...draft.locationCities];
+      setLocationSnapshot(cities);
+      setDraft((prev) => ({ ...prev, locationCities: cities }));
+    } else {
       const types =
-        prev.primaryTypes.length === 0
+        draft.primaryTypes.length === 0
           ? [...availablePrimaryTypes]
-          : prev.primaryTypes;
+          : [...draft.primaryTypes];
       setPlaceTypeSnapshot(types);
-      return { ...prev, primaryTypes: types };
-    });
-    // Mount before animating so Android doesn't jump mid-flight.
-    setActivePanel(route);
-    setPanelRoute(route);
+      setDraft((prev) => ({ ...prev, primaryTypes: types }));
+    }
+    pushPanel(route);
   };
 
   const openSortPanel = () => {
     Haptics.selectionChanged();
-    setActivePanel('sort');
-    setPanelRoute('sort');
+    pushPanel('sort');
   };
 
   const toggleFilter = (flag: FeedFilterFlag) => {
     Haptics.selectionChanged();
-    setDraft((prev) => {
-      if (hasFeedFilter(prev, flag)) {
-        return {
-          ...prev,
-          filters: prev.filters.filter((item) => item !== flag),
-        };
-      }
 
-      if (flag === 'location') {
-        const cities =
-          prev.locationCities.length === 0
-            ? [...availableCities]
-            : prev.locationCities;
-        if (isAllSelection(cities, availableCities)) {
-          setLocationSnapshot(cities);
-          setPanelRoute('location');
-          return { ...prev, locationCities: cities };
-        }
-        return {
-          ...prev,
-          locationCities: cities,
-          filters: [...prev.filters, 'location'],
-        };
-      }
+    if (hasFeedFilter(draft, flag)) {
+      setDraft((prev) => ({
+        ...prev,
+        filters: prev.filters.filter((item) => item !== flag),
+      }));
+      return;
+    }
 
-      if (flag === 'placeType') {
-        const types =
-          prev.primaryTypes.length === 0
-            ? [...availablePrimaryTypes]
-            : prev.primaryTypes;
-        if (isAllSelection(types, availablePrimaryTypes)) {
-          setPlaceTypeSnapshot(types);
-          setPanelRoute('placeType');
-          return { ...prev, primaryTypes: types };
-        }
-        return {
-          ...prev,
-          primaryTypes: types,
-          filters: [...prev.filters, 'placeType'],
-        };
+    if (flag === 'location') {
+      const cities =
+        draft.locationCities.length === 0
+          ? [...availableCities]
+          : [...draft.locationCities];
+      if (isAllSelection(cities, availableCities)) {
+        // First enable → pick cities (Swift opens the location sheet).
+        setLocationSnapshot(cities);
+        setDraft((prev) => ({ ...prev, locationCities: cities }));
+        pushPanel('location');
+        return;
       }
+      setDraft((prev) => ({
+        ...prev,
+        locationCities: cities,
+        filters: prev.filters.includes('location')
+          ? prev.filters
+          : [...prev.filters, 'location'],
+      }));
+      return;
+    }
 
-      return { ...prev, filters: [...prev.filters, flag] };
-    });
+    if (flag === 'placeType') {
+      const types =
+        draft.primaryTypes.length === 0
+          ? [...availablePrimaryTypes]
+          : [...draft.primaryTypes];
+      if (isAllSelection(types, availablePrimaryTypes)) {
+        setPlaceTypeSnapshot(types);
+        setDraft((prev) => ({ ...prev, primaryTypes: types }));
+        pushPanel('placeType');
+        return;
+      }
+      setDraft((prev) => ({
+        ...prev,
+        primaryTypes: types,
+        filters: prev.filters.includes('placeType')
+          ? prev.filters
+          : [...prev.filters, 'placeType'],
+      }));
+      return;
+    }
+
+    setDraft((prev) => ({
+      ...prev,
+      filters: [...prev.filters, flag],
+    }));
   };
 
   const confirmLocationDraft = () => {
     setDraft((prev) => {
       const allSelected = isAllSelection(prev.locationCities, availableCities);
       const filters: FeedFilterFlag[] = allSelected
-        ? prev.filters.filter((flag) => flag !== 'location')
+        ? prev.filters.filter((item) => item !== 'location')
         : prev.filters.includes('location')
           ? prev.filters
           : [...prev.filters, 'location'];
@@ -9336,17 +10045,15 @@ export function FilterOptionsModal({
 
   const cancelLocationDraft = () => {
     if (locationSnapshot) {
-      setDraft((prev) => {
-        const cities = locationSnapshot;
-        const allSelected = isAllSelection(cities, availableCities);
-        return {
-          ...prev,
-          locationCities: cities,
-          filters: allSelected
-            ? prev.filters.filter((flag) => flag !== 'location')
-            : prev.filters,
-        };
-      });
+      const cities = locationSnapshot;
+      const allSelected = isAllSelection(cities, availableCities);
+      setDraft((prev) => ({
+        ...prev,
+        locationCities: cities,
+        filters: allSelected
+          ? prev.filters.filter((item) => item !== 'location')
+          : prev.filters,
+      }));
     }
     setLocationSnapshot(null);
     setPanelRoute(null);
@@ -9359,7 +10066,7 @@ export function FilterOptionsModal({
         availablePrimaryTypes,
       );
       const filters: FeedFilterFlag[] = allSelected
-        ? prev.filters.filter((flag) => flag !== 'placeType')
+        ? prev.filters.filter((item) => item !== 'placeType')
         : prev.filters.includes('placeType')
           ? prev.filters
           : [...prev.filters, 'placeType'];
@@ -9371,17 +10078,15 @@ export function FilterOptionsModal({
 
   const cancelPlaceTypeDraft = () => {
     if (placeTypeSnapshot) {
-      setDraft((prev) => {
-        const types = placeTypeSnapshot;
-        const allSelected = isAllSelection(types, availablePrimaryTypes);
-        return {
-          ...prev,
-          primaryTypes: types,
-          filters: allSelected
-            ? prev.filters.filter((flag) => flag !== 'placeType')
-            : prev.filters,
-        };
-      });
+      const types = placeTypeSnapshot;
+      const allSelected = isAllSelection(types, availablePrimaryTypes);
+      setDraft((prev) => ({
+        ...prev,
+        primaryTypes: types,
+        filters: allSelected
+          ? prev.filters.filter((item) => item !== 'placeType')
+          : prev.filters,
+      }));
     }
     setPlaceTypeSnapshot(null);
     setPanelRoute(null);
@@ -10029,18 +10734,9 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: components/feed/RestaurantFeedCard.tsx
 ================================================================================
-import { useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-// RNGH 2.x moved Swipeable out of the main entry — import the subpath.
-import Swipeable from 'react-native-gesture-handler/Swipeable';
-import { SymbolView } from 'expo-symbols';
 
-import {
-  clearOpenSwipeable,
-  performOpenSwipeableDelete,
-  registerOpenSwipeable,
-  updateOpenSwipeableFrame,
-} from '@/components/feed/openSwipeable';
+import { FeedSwipeDelete } from '@/components/feed/FeedSwipeDelete';
 import { RestaurantThumb } from '@/components/feed/RestaurantThumb';
 import { FavoriteHeartButton } from '@/components/ui/FavoriteHeartButton';
 import { SatisfactionDot } from '@/components/ui/SatisfactionDot';
@@ -10081,17 +10777,6 @@ export function RestaurantFeedCard({
   const displayScore =
     typeof scoreOverride === 'number' ? scoreOverride : summary.averageScore;
   const level = satisfactionFromScore(displayScore);
-  const swipeableRef = useRef<Swipeable>(null);
-  const deleteRef = useRef<View>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const rowId = summary.restaurantId;
-
-  const measureDeleteFrame = () => {
-    deleteRef.current?.measureInWindow((x, y, width, height) => {
-      if (width <= 0 || height <= 0) return;
-      updateOpenSwipeableFrame(rowId, { x, y, width, height });
-    });
-  };
 
   const card = (
     <Pressable
@@ -10149,58 +10834,12 @@ export function RestaurantFeedCard({
   if (!onDelete) return card;
 
   return (
-    <Swipeable
-      ref={swipeableRef}
-      friction={2}
-      overshootRight={false}
-      enableTrackpadTwoFingerGesture
-      onSwipeableOpen={() => {
-        setIsOpen(true);
-        registerOpenSwipeable({
-          id: rowId,
-          close: () => swipeableRef.current?.close(),
-          onDelete,
-          deleteFrame: null,
-        });
-        // Wait a frame so the action panel has laid out.
-        requestAnimationFrame(() => {
-          measureDeleteFrame();
-        });
-      }}
-      onSwipeableClose={() => {
-        clearOpenSwipeable(rowId);
-        setIsOpen(false);
-      }}
-      renderRightActions={() => (
-        <View
-          ref={deleteRef}
-          collapsable={false}
-          onLayout={() => {
-            if (isOpen) measureDeleteFrame();
-          }}
-          style={styles.deleteButton}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Delete"
-            onPress={() => {
-              performOpenSwipeableDelete();
-            }}
-            style={styles.deletePressable}>
-            <SymbolView
-              name={{
-                ios: 'trash.fill',
-                android: 'delete',
-                web: 'delete',
-              }}
-              tintColor="#FFFFFF"
-              size={22}
-            />
-            <Text style={styles.deleteLabel}>Delete</Text>
-          </Pressable>
-        </View>
-      )}>
+    <FeedSwipeDelete
+      id={summary.restaurantId}
+      onDelete={onDelete}
+      cornerRadius={Theme.radius.xl}>
       {card}
-    </Swipeable>
+    </FeedSwipeDelete>
   );
 }
 
@@ -10246,27 +10885,6 @@ const styles = StyleSheet.create({
   },
   score: {
     color: GustraColors.forestGreen,
-  },
-  deleteButton: {
-    width: 88,
-    marginLeft: 8,
-    borderRadius: 16,
-    backgroundColor: GustraColors.ratingAvoid,
-    overflow: 'hidden',
-  },
-  deletePressable: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    minHeight: Theme.size.hitTarget,
-  },
-  deleteLabel: {
-    ...captionTextStyle,
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
   },
 });
 
@@ -10593,7 +11211,7 @@ export function ShareReviewerNameModal({
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType="fade"
       transparent
       onRequestClose={onCancel}>
       <KeyboardAvoidingView
@@ -11025,26 +11643,13 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: components/feed/VisitRowCard.tsx
 ================================================================================
-import { useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import Swipeable from 'react-native-gesture-handler/Swipeable';
-import { SymbolView } from 'expo-symbols';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
-import {
-  clearOpenSwipeable,
-  performOpenSwipeableDelete,
-  registerOpenSwipeable,
-  updateOpenSwipeableFrame,
-} from '@/components/feed/openSwipeable';
+import { FeedSwipeDelete } from '@/components/feed/FeedSwipeDelete';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
 import { GustraColors } from '@/constants/Colors';
-import {
-  captionTextStyle,
-  listPressedStyle,
-  Surface,
-  Theme,
-} from '@/constants/Theme';
+import { listPressedStyle, Surface, Theme } from '@/constants/Theme';
 import type { Review } from '@/data/types';
 import { Haptics } from '@/services/haptics';
 
@@ -11067,18 +11672,7 @@ type VisitRowCardProps = {
  * Visit row for restaurant visit list (Swift `RestaurantVisitsView.visitRow`).
  */
 export function VisitRowCard({ review, onPress, onDelete }: VisitRowCardProps) {
-  const swipeableRef = useRef<Swipeable>(null);
-  const deleteRef = useRef<View>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const rowId = `visit_${review.id}`;
   const score = review.overallScore;
-
-  const measureDeleteFrame = () => {
-    deleteRef.current?.measureInWindow((x, y, width, height) => {
-      if (width <= 0 || height <= 0) return;
-      updateOpenSwipeableFrame(rowId, { x, y, width, height });
-    });
-  };
 
   const row = (
     <Pressable
@@ -11113,57 +11707,12 @@ export function VisitRowCard({ review, onPress, onDelete }: VisitRowCardProps) {
   if (!onDelete) return row;
 
   return (
-    <Swipeable
-      ref={swipeableRef}
-      friction={2}
-      overshootRight={false}
-      enableTrackpadTwoFingerGesture
-      onSwipeableOpen={() => {
-        setIsOpen(true);
-        registerOpenSwipeable({
-          id: rowId,
-          close: () => swipeableRef.current?.close(),
-          onDelete,
-          deleteFrame: null,
-        });
-        requestAnimationFrame(() => {
-          measureDeleteFrame();
-        });
-      }}
-      onSwipeableClose={() => {
-        clearOpenSwipeable(rowId);
-        setIsOpen(false);
-      }}
-      renderRightActions={() => (
-        <View
-          ref={deleteRef}
-          collapsable={false}
-          onLayout={() => {
-            if (isOpen) measureDeleteFrame();
-          }}
-          style={styles.deleteButton}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Delete"
-            onPress={() => {
-              performOpenSwipeableDelete();
-            }}
-            style={styles.deletePressable}>
-            <SymbolView
-              name={{
-                ios: 'trash.fill',
-                android: 'delete',
-                web: 'delete',
-              }}
-              tintColor="#FFFFFF"
-              size={22}
-            />
-            <Text style={styles.deleteLabel}>Delete</Text>
-          </Pressable>
-        </View>
-      )}>
+    <FeedSwipeDelete
+      id={`visit_${review.id}`}
+      onDelete={onDelete}
+      cornerRadius={Theme.radius.xl}>
       {row}
-    </Swipeable>
+    </FeedSwipeDelete>
   );
 }
 
@@ -11190,27 +11739,6 @@ const styles = StyleSheet.create({
   },
   score: {
     color: GustraColors.forestGreen,
-  },
-  deleteButton: {
-    width: 88,
-    marginLeft: 8,
-    borderRadius: 16,
-    backgroundColor: GustraColors.ratingAvoid,
-    overflow: 'hidden',
-  },
-  deletePressable: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    minHeight: Theme.size.hitTarget,
-  },
-  deleteLabel: {
-    ...captionTextStyle,
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
   },
 });
 
@@ -11326,17 +11854,6 @@ export function placeTypeSelectionSummary(
   return selectionSummary(selected, allItems, placeTypeDisplayName);
 }
 
-function rankByLastVisit(
-  summaries: RestaurantVisitSummary[],
-): RestaurantVisitSummary[] {
-  return [...summaries].sort((a, b) => {
-    if (a.lastVisitAt !== b.lastVisitAt) {
-      return b.lastVisitAt - a.lastVisitAt;
-    }
-    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
-  });
-}
-
 function rankByAverageScore(
   summaries: RestaurantVisitSummary[],
 ): RestaurantVisitSummary[] {
@@ -11414,14 +11931,41 @@ export function applyFeedFilters(
       state.sortKind.criterionId,
       options.criterionAverageFor,
     );
-  } else if (state.filters.length === 0) {
-    // Filters off → most recent visit first (default feed order).
-    next = rankByLastVisit(next);
   } else {
+    // Swift: averageScore sort always applies (including when no filter flags).
     next = rankByAverageScore(next);
   }
 
   return next;
+}
+
+/**
+ * Drop location/cuisine selections that no longer exist after My ↔ Friends switch
+ * (Swift `syncFiltersForReviewSourceChange`).
+ */
+export function pruneFeedFiltersForSummaries(
+  state: FeedFilterState,
+  summaries: RestaurantVisitSummary[],
+): FeedFilterState {
+  const cities = new Set(availableCitiesFromSummaries(summaries));
+  const types = new Set(availablePrimaryTypesFromSummaries(summaries));
+  let filters = [...state.filters];
+  let locationCities = state.locationCities.filter((c) => cities.has(c));
+  let primaryTypes = state.primaryTypes.filter((t) => types.has(t));
+
+  if (hasFeedFilter(state, 'location') && locationCities.length === 0) {
+    filters = filters.filter((f) => f !== 'location');
+  }
+  if (hasFeedFilter(state, 'placeType') && primaryTypes.length === 0) {
+    filters = filters.filter((f) => f !== 'placeType');
+  }
+
+  return {
+    ...state,
+    filters,
+    locationCities,
+    primaryTypes,
+  };
 }
 
 export function feedFilterPreviewCount(
@@ -12415,12 +12959,13 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: components/review/ReorderablePhotoStrip.tsx
 ================================================================================
-import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, StyleSheet, Text, View } from 'react-native';
 import {
   NestableDraggableFlatList,
   ScaleDecorator,
   type RenderItemParams,
 } from 'react-native-draggable-flatlist';
+import { TouchableOpacity } from 'react-native-gesture-handler';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolView } from 'expo-symbols';
 
@@ -12435,64 +12980,90 @@ const CELL_WIDTH = PHOTO_SIZE + PHOTO_GAP;
 
 type ReorderablePhotoStripProps = {
   photoUrls: string[];
+  selectedUris: string[];
   onReorder: (next: string[]) => void;
-  onRemove: (uri: string) => void;
+  onToggleSelect: (uri: string) => void;
   onAddPress: () => void;
   isImporting?: boolean;
 };
 
+/**
+ * Horizontal photo strip: tap to select (batch remove), long-press to reorder.
+ * Uses RNGH `TouchableOpacity` (not RN `Pressable`) so iOS does not cancel
+ * the drag when the item becomes active — a common NestableDraggableFlatList bug.
+ */
 export function ReorderablePhotoStrip({
   photoUrls,
+  selectedUris,
   onReorder,
-  onRemove,
+  onToggleSelect,
   onAddPress,
   isImporting = false,
 }: ReorderablePhotoStripProps) {
+  const selected = new Set(selectedUris);
+
   const renderItem = ({ item, drag, isActive, getIndex }: RenderItemParams<string>) => {
     const index = getIndex() ?? 0;
     const isCover = index === 0;
+    const isSelected = selected.has(item);
 
     return (
       // Fixed cell width — without this, horizontal DraggableFlatList
       // stretches each item across most of the row.
       <View style={styles.cell}>
         <ScaleDecorator activeScale={1.05}>
-          <Pressable
-            onLongPress={() => {
-              Haptics.light();
-              drag();
-            }}
-            delayLongPress={160}
-            disabled={isActive}
-            accessibilityRole="image"
-            accessibilityLabel={
-              isCover
-                ? 'Cover photo. Long-press to reorder.'
-                : 'Photo. Long-press to reorder.'
-            }
-            style={[styles.thumbWrap, isActive && styles.thumbActive]}>
-            <Image source={{ uri: item }} style={styles.thumb} resizeMode="cover" />
-            {isCover ? (
-              <View style={styles.coverBadge} pointerEvents="none">
-                <Text style={styles.coverBadgeText}>Cover</Text>
-              </View>
-            ) : null}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Remove photo"
-              hitSlop={6}
-              onPress={() => onRemove(item)}
-              style={({ pressed }) => [
-                styles.removeBtn,
-                pressed && styles.pressed,
-              ]}>
-              {Platform.OS === 'ios' ? (
-                <SymbolView name="xmark" size={12} tintColor="#FFFFFF" weight="bold" />
-              ) : (
-                <MaterialIcons name="close" size={14} color="#FFFFFF" />
-              )}
-            </Pressable>
-          </Pressable>
+          <View style={[styles.thumbWrap, isActive && styles.thumbActive]}>
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.selectionChanged();
+                onToggleSelect(item);
+              }}
+              onLongPress={() => {
+                Haptics.light();
+                drag();
+              }}
+              delayLongPress={180}
+              // Do NOT disable while active — that cancels the pan on iOS.
+              activeOpacity={0.92}
+              accessibilityRole="image"
+              accessibilityState={{ selected: isSelected }}
+              accessibilityLabel={
+                isCover
+                  ? 'Cover photo. Tap to select, long-press to reorder.'
+                  : 'Photo. Tap to select, long-press to reorder.'
+              }
+              style={styles.thumbHit}>
+              <Image source={{ uri: item }} style={styles.thumb} resizeMode="cover" />
+              {isSelected ? (
+                <View
+                  style={styles.selectedRing}
+                  pointerEvents="none"
+                />
+              ) : null}
+              {isCover ? (
+                <View style={styles.coverBadge} pointerEvents="none">
+                  <Text style={styles.coverBadgeText}>Cover</Text>
+                </View>
+              ) : null}
+              {isSelected ? (
+                <View style={styles.checkBadge} pointerEvents="none">
+                  {Platform.OS === 'ios' ? (
+                    <SymbolView
+                      name="checkmark.circle.fill"
+                      size={22}
+                      tintColor={GustraColors.forestGreen}
+                    />
+                  ) : (
+                    <MaterialIcons
+                      name="check-circle"
+                      size={22}
+                      color={GustraColors.forestGreen}
+                    />
+                  )}
+                </View>
+              ) : null}
+            </TouchableOpacity>
+          </View>
         </ScaleDecorator>
       </View>
     );
@@ -12500,8 +13071,12 @@ export function ReorderablePhotoStrip({
 
   return (
     <View style={styles.wrap}>
-      {photoUrls.length > 1 ? (
-        <Text style={styles.hint}>Long-press a photo to reorder · first is Cover</Text>
+      {photoUrls.length > 0 ? (
+        <Text style={styles.hint}>
+          {photoUrls.length > 1
+            ? 'Tap to select · long-press to reorder · first is Cover'
+            : 'Tap to select for removal'}
+        </Text>
       ) : null}
       <NestableDraggableFlatList
         horizontal
@@ -12514,7 +13089,9 @@ export function ReorderablePhotoStrip({
         }}
         renderItem={renderItem}
         showsHorizontalScrollIndicator={false}
-        activationDistance={12}
+        // Small distance after long-press so outer NestableScrollContainer
+        // does not steal the pan on iOS.
+        activationDistance={8}
         dragItemOverflow
         autoscrollSpeed={120}
         autoscrollThreshold={40}
@@ -12527,12 +13104,13 @@ export function ReorderablePhotoStrip({
         containerStyle={styles.list}
         contentContainerStyle={styles.listContent}
         ListFooterComponent={
-          <Pressable
+          <TouchableOpacity
             accessibilityRole="button"
             accessibilityLabel="Add Photos"
             onPress={onAddPress}
             disabled={isImporting}
-            style={({ pressed }) => [styles.addPhoto, pressed && styles.pressed]}>
+            activeOpacity={0.7}
+            style={styles.addPhoto}>
             {isImporting ? (
               <ActivityIndicator color={GustraColors.forestGreen} />
             ) : Platform.OS === 'ios' ? (
@@ -12545,7 +13123,7 @@ export function ReorderablePhotoStrip({
             ) : (
               <MaterialIcons name="add" size={30} color={GustraColors.forestGreen} />
             )}
-          </Pressable>
+          </TouchableOpacity>
         }
       />
     </View>
@@ -12579,7 +13157,10 @@ const styles = StyleSheet.create({
     width: PHOTO_SIZE,
     height: PHOTO_SIZE,
     borderRadius: Theme.radius.sm,
-    overflow: 'visible',
+  },
+  thumbHit: {
+    width: PHOTO_SIZE,
+    height: PHOTO_SIZE,
   },
   thumbActive: {
     opacity: 0.98,
@@ -12595,6 +13176,12 @@ const styles = StyleSheet.create({
     height: PHOTO_SIZE,
     borderRadius: Theme.radius.sm,
     backgroundColor: 'rgba(36, 78, 57, 0.08)',
+  },
+  selectedRing: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: Theme.radius.sm,
+    borderWidth: 3,
+    borderColor: GustraColors.forestGreen,
   },
   coverBadge: {
     position: 'absolute',
@@ -12612,24 +13199,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 0.2,
   },
-  removeBtn: {
+  checkBadge: {
     position: 'absolute',
     top: 3,
     right: 3,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: GustraColors.ratingAvoid,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
     zIndex: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 3,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 11,
   },
   addPhoto: {
     width: PHOTO_SIZE,
@@ -12641,9 +13217,6 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
   },
 });
 
@@ -13436,7 +14009,7 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: components/share/PreparingRecommendationOverlay.tsx
 ================================================================================
-import { ActivityIndicator, Modal, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
@@ -13449,30 +14022,38 @@ type PreparingRecommendationOverlayProps = {
 /**
  * Full-screen spinner while the JPEG card is rendered
  * (Swift `PreparingRecommendationOverlay`).
+ *
+ * Uses an absolute View (not Modal) so snapshot capture is not blocked by
+ * Modal presentation handles / InteractionManager waits.
  */
 export function PreparingRecommendationOverlay({
   visible,
 }: PreparingRecommendationOverlayProps) {
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
-          <ActivityIndicator size="large" color={GustraColors.forestGreen} />
-          <SerifText size={20} weight="semibold" style={styles.title}>
-            Preparing visual recommendation…
-          </SerifText>
-          <Text style={styles.body}>
-            Creating a snapshot of your review. This only takes a moment.
-          </Text>
-        </View>
+    <View
+      style={styles.backdrop}
+      pointerEvents="auto"
+      accessibilityViewIsModal>
+      <View style={styles.card}>
+        <ActivityIndicator size="large" color={GustraColors.forestGreen} />
+        <SerifText size={20} weight="semibold" style={styles.title}>
+          Preparing visual recommendation…
+        </SerifText>
+        <Text style={styles.body}>
+          Creating a snapshot of your review. This only takes a moment.
+        </Text>
       </View>
-    </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   backdrop: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    elevation: 1000,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(35, 32, 26, 0.4)',
@@ -13888,7 +14469,7 @@ const styles = StyleSheet.create({
 FILE: components/share/ReviewEmailSnapshotHost.tsx
 ================================================================================
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { InteractionManager, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { captureRef } from 'react-native-view-shot';
 
@@ -13903,9 +14484,15 @@ import {
   type EmailSnapshotRequest,
 } from '@/services/share/ReviewEmailSnapshot';
 
+const CAPTURE_TIMEOUT_MS = 12_000;
+
 /**
  * Off-screen host that renders `ReviewEmailCardView` and captures JPEG
  * (Swift `ReviewEmailSnapshotService` + ImageRenderer).
+ *
+ * Avoid `InteractionManager.runAfterInteractions` here: a visible preparing
+ * Modal (or dismiss animation) can keep interactions busy forever, so the
+ * capture never runs and the UI appears frozen.
  */
 export function ReviewEmailSnapshotHost() {
   const [request, setRequest] = useState<EmailSnapshotRequest | null>(null);
@@ -13928,50 +14515,59 @@ export function ReviewEmailSnapshotHost() {
     return () => clearTimeout(timeout);
   }, [request, photosReady]);
 
+  // Hard stop if capture never completes (view-shot / layout hang).
+  useEffect(() => {
+    if (!request) return;
+    const timeout = setTimeout(() => {
+      failEmailSnapshot(
+        new Error('Could not create the visual recommendation.'),
+      );
+    }, CAPTURE_TIMEOUT_MS);
+    return () => clearTimeout(timeout);
+  }, [request]);
+
   useEffect(() => {
     if (!request || !photosReady || capturing.current) return;
     capturing.current = true;
 
     let cancelled = false;
-    const task = InteractionManager.runAfterInteractions(() => {
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          void (async () => {
-            try {
-              if (cancelled || !cardRef.current) {
-                throw new Error('Email card was not ready to capture.');
-              }
-              const tmpUri = await captureRef(cardRef, {
-                format: 'jpg',
-                quality: 0.82,
-                result: 'tmpfile',
-              });
-              const cacheRoot = FileSystem.cacheDirectory;
-              if (!cacheRoot) {
-                throw new Error('Cache directory unavailable.');
-              }
-              const dest = `${cacheRoot}${request.fileName}`;
-              const info = await FileSystem.getInfoAsync(dest);
-              if (info.exists) {
-                await FileSystem.deleteAsync(dest, { idempotent: true });
-              }
-              await FileSystem.copyAsync({ from: tmpUri, to: dest });
-              completeEmailSnapshot(dest);
-            } catch (error) {
-              failEmailSnapshot(
-                error instanceof Error
-                  ? error
-                  : new Error('Could not create the visual recommendation.'),
-              );
-            }
-          })();
-        }, 80);
-      });
-    });
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          if (cancelled || !cardRef.current) {
+            throw new Error('Email card was not ready to capture.');
+          }
+          const tmpUri = await captureRef(cardRef, {
+            format: 'jpg',
+            quality: 0.82,
+            result: 'tmpfile',
+          });
+          const cacheRoot = FileSystem.cacheDirectory;
+          if (!cacheRoot) {
+            throw new Error('Cache directory unavailable.');
+          }
+          const dest = `${cacheRoot}${request.fileName}`;
+          const info = await FileSystem.getInfoAsync(dest);
+          if (info.exists) {
+            await FileSystem.deleteAsync(dest, { idempotent: true });
+          }
+          await FileSystem.copyAsync({ from: tmpUri, to: dest });
+          if (!cancelled) completeEmailSnapshot(dest);
+        } catch (error) {
+          if (!cancelled) {
+            failEmailSnapshot(
+              error instanceof Error
+                ? error
+                : new Error('Could not create the visual recommendation.'),
+            );
+          }
+        }
+      })();
+    }, 120);
 
     return () => {
       cancelled = true;
-      task.cancel();
+      clearTimeout(timer);
     };
   }, [request, photosReady]);
 
@@ -14001,6 +14597,469 @@ const styles = StyleSheet.create({
   },
   cardWrap: {
     width: EMAIL_CARD_OUTER_WIDTH,
+  },
+});
+
+
+================================================================================
+FILE: components/share/ShareFlowSheet.tsx
+================================================================================
+import { useEffect, useState } from 'react';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SymbolView } from 'expo-symbols';
+
+import { HousePrimaryButton } from '@/components/ui/HousePrimaryButton';
+import { SerifText } from '@/components/ui/SerifText';
+import { GustraColors } from '@/constants/Colors';
+import { bodyTextStyle, Theme } from '@/constants/Theme';
+import { REVIEWER_MAX_NAME_LENGTH } from '@/context/ReviewerProfile';
+import type { ShareDestination } from '@/components/detail/ShareReviewChooser';
+
+const MESSAGE_MAX = 280;
+
+export type ShareFlowStep = 'chooser' | 'name' | 'message';
+
+type ShareFlowSheetProps = {
+  visible: boolean;
+  step: ShareFlowStep;
+  initialName?: string;
+  onClose: () => void;
+  onSelectDestination: (destination: ShareDestination) => void;
+  onNameContinue: (name: string) => void;
+  onMessageContinue: (message: string) => void;
+};
+
+/**
+ * Single Modal for share destination → name → personal message.
+ * Keeps the sheet up between steps so iOS does not flash the review behind.
+ */
+export function ShareFlowSheet({
+  visible,
+  step,
+  initialName = '',
+  onClose,
+  onSelectDestination,
+  onNameContinue,
+  onMessageContinue,
+}: ShareFlowSheetProps) {
+  const insets = useSafeAreaInsets();
+  const [nameDraft, setNameDraft] = useState(initialName);
+  const [messageDraft, setMessageDraft] = useState('');
+
+  useEffect(() => {
+    if (!visible) return;
+    if (step === 'name') setNameDraft(initialName);
+    if (step === 'message') setMessageDraft('');
+  }, [visible, step, initialName]);
+
+  const nameTrimmed = nameDraft.trim();
+  const canContinueName = nameTrimmed.length > 0;
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={styles.backdrop}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <Pressable style={styles.dismissArea} onPress={onClose} />
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 24 }]}>
+          <View style={styles.handle} />
+
+          {step === 'chooser' ? (
+            <ChooserStep
+              onClose={onClose}
+              onSelect={onSelectDestination}
+            />
+          ) : null}
+
+          {step === 'name' ? (
+            <NameStep
+              draft={nameDraft}
+              onChangeDraft={setNameDraft}
+              canContinue={canContinueName}
+              onCancel={onClose}
+              onContinue={() => {
+                if (canContinueName) onNameContinue(nameTrimmed);
+              }}
+            />
+          ) : null}
+
+          {step === 'message' ? (
+            <MessageStep
+              draft={messageDraft}
+              onChangeDraft={setMessageDraft}
+              onCancel={onClose}
+              onContinue={() => onMessageContinue(messageDraft)}
+            />
+          ) : null}
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+function ChooserStep({
+  onClose,
+  onSelect,
+}: {
+  onClose: () => void;
+  onSelect: (destination: ShareDestination) => void;
+}) {
+  return (
+    <>
+      <View style={styles.header}>
+        <SerifText size={22} weight="semibold" style={styles.title}>
+          Share
+        </SerifText>
+        <Pressable
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Cancel"
+          hitSlop={12}
+          style={styles.iconButton}>
+          <SymbolView
+            name={{ ios: 'xmark', android: 'close', web: 'close' }}
+            tintColor={GustraColors.ink}
+            size={20}
+          />
+        </Pressable>
+      </View>
+
+      <ChooserRow
+        title="Share Gustra file"
+        subtitle="To import in the Gustra app"
+        iosName="doc.badge.arrow.up"
+        androidName="upload-file"
+        onPress={() => onSelect('gustraPackage')}
+      />
+      <ChooserRow
+        title="Send visual recommendation"
+        subtitle="Readable review for email or message"
+        iosName="envelope.fill"
+        androidName="email"
+        onPress={() => onSelect('email')}
+      />
+    </>
+  );
+}
+
+function NameStep({
+  draft,
+  onChangeDraft,
+  canContinue,
+  onCancel,
+  onContinue,
+}: {
+  draft: string;
+  onChangeDraft: (value: string) => void;
+  canContinue: boolean;
+  onCancel: () => void;
+  onContinue: () => void;
+}) {
+  return (
+    <>
+      <SerifText size={22} weight="semibold" style={styles.title}>
+        Your name
+      </SerifText>
+      <Text style={styles.hint}>
+        Your name is included when you share reviews.
+      </Text>
+      <TextInput
+        value={draft}
+        onChangeText={(text) =>
+          onChangeDraft(text.slice(0, REVIEWER_MAX_NAME_LENGTH))
+        }
+        placeholder="Reviewer name"
+        placeholderTextColor="rgba(35, 32, 26, 0.4)"
+        style={styles.input}
+        autoFocus
+        autoCorrect={false}
+        autoCapitalize="words"
+        maxLength={REVIEWER_MAX_NAME_LENGTH}
+        returnKeyType="done"
+        onSubmitEditing={() => {
+          if (canContinue) onContinue();
+        }}
+      />
+      <View style={styles.actions}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Cancel"
+          onPress={onCancel}
+          style={({ pressed }) => [
+            styles.cancelButton,
+            pressed && styles.pressed,
+          ]}>
+          <Text style={styles.cancelLabel}>Cancel</Text>
+        </Pressable>
+        <HousePrimaryButton
+          title="Continue"
+          disabled={!canContinue}
+          onPress={onContinue}
+        />
+      </View>
+    </>
+  );
+}
+
+function MessageStep({
+  draft,
+  onChangeDraft,
+  onCancel,
+  onContinue,
+}: {
+  draft: string;
+  onChangeDraft: (value: string) => void;
+  onCancel: () => void;
+  onContinue: () => void;
+}) {
+  return (
+    <>
+      <View style={styles.toolbar}>
+        <Pressable
+          onPress={onCancel}
+          hitSlop={12}
+          accessibilityLabel="Cancel"
+          style={styles.iconButton}>
+          <SymbolView
+            name={{ ios: 'xmark', android: 'close', web: 'close' }}
+            size={18}
+            tintColor={GustraColors.ink}
+          />
+        </Pressable>
+        <Pressable
+          onPress={onContinue}
+          hitSlop={12}
+          accessibilityLabel="Continue"
+          style={styles.iconButton}>
+          <SymbolView
+            name={{ ios: 'checkmark', android: 'check', web: 'check' }}
+            size={20}
+            tintColor={GustraColors.forestGreen}
+          />
+        </Pressable>
+      </View>
+
+      <SerifText size={22} weight="semibold" style={styles.title}>
+        Personal message
+      </SerifText>
+
+      <View style={styles.inputWrap}>
+        <TextInput
+          value={draft}
+          onChangeText={(text) => onChangeDraft(text.slice(0, MESSAGE_MAX))}
+          placeholder="Optional"
+          placeholderTextColor="rgba(35, 32, 26, 0.4)"
+          style={styles.messageInput}
+          multiline
+          maxLength={MESSAGE_MAX}
+          autoFocus
+          textAlignVertical="top"
+        />
+        {draft.length > 0 ? (
+          <Pressable
+            onPress={() => onChangeDraft('')}
+            hitSlop={8}
+            accessibilityLabel="Clear"
+            style={styles.clear}>
+            <SymbolView
+              name={{
+                ios: 'xmark.circle.fill',
+                android: 'cancel',
+                web: 'cancel',
+              }}
+              size={22}
+              tintColor="rgba(35,32,26,0.35)"
+            />
+          </Pressable>
+        ) : null}
+      </View>
+      <Text style={styles.hint}>
+        Shown above the review card in the email.
+      </Text>
+    </>
+  );
+}
+
+function ChooserRow({
+  title,
+  subtitle,
+  iosName,
+  androidName,
+  onPress,
+}: {
+  title: string;
+  subtitle: string;
+  iosName: string;
+  androidName: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+      accessibilityRole="button">
+      <View style={styles.iconCircle}>
+        <SymbolView
+          name={{
+            ios: iosName as never,
+            android: androidName as never,
+            web: androidName as never,
+          }}
+          tintColor={GustraColors.forestGreen}
+          size={20}
+        />
+      </View>
+      <View style={styles.rowCopy}>
+        <Text style={styles.rowTitle}>{title}</Text>
+        <Text style={styles.rowSubtitle}>{subtitle}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(35, 32, 26, 0.35)',
+  },
+  dismissArea: {
+    flex: 1,
+  },
+  sheet: {
+    backgroundColor: GustraColors.cream,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    gap: 12,
+    minHeight: 280,
+  },
+  handle: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(35, 32, 26, 0.18)',
+    marginBottom: 4,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  toolbar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: {
+    color: GustraColors.ink,
+  },
+  hint: {
+    ...bodyTextStyle,
+    fontSize: 14,
+    color: 'rgba(35, 32, 26, 0.6)',
+  },
+  input: {
+    ...bodyTextStyle,
+    fontSize: 17,
+    color: GustraColors.ink,
+    backgroundColor: GustraColors.bubble,
+    borderRadius: Theme.radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'ios' ? 14 : 12,
+  },
+  inputWrap: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    minHeight: 88,
+    padding: 14,
+    borderRadius: Theme.radius.lg,
+    backgroundColor: GustraColors.bubble,
+  },
+  messageInput: {
+    ...bodyTextStyle,
+    flex: 1,
+    minHeight: 72,
+    fontSize: 17,
+    color: GustraColors.ink,
+    padding: 0,
+  },
+  clear: {
+    marginTop: 2,
+  },
+  actions: {
+    marginTop: 8,
+    gap: 10,
+  },
+  cancelButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  cancelLabel: {
+    ...bodyTextStyle,
+    fontSize: 16,
+    color: 'rgba(35, 32, 26, 0.55)',
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: Theme.radius.lg,
+    backgroundColor: 'rgba(36, 78, 57, 0.08)',
+  },
+  rowPressed: {
+    backgroundColor: 'rgba(36, 78, 57, 0.14)',
+  },
+  iconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(36, 78, 57, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowCopy: {
+    flex: 1,
+    gap: 2,
+    paddingTop: 2,
+  },
+  rowTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: GustraColors.ink,
+  },
+  rowSubtitle: {
+    fontSize: 13,
+    color: 'rgba(35, 32, 26, 0.6)',
   },
 });
 
@@ -14262,7 +15321,8 @@ const styles = StyleSheet.create({
 FILE: components/ui/GustraTabBar.tsx
 ================================================================================
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Keyboard, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -14309,6 +15369,7 @@ export function GustraTabBar(props: Record<string, unknown>) {
   };
 
   const insets = useSafeAreaInsets();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const activeRouteName = state.routes[state.index]?.name;
   // Keep Settings highlighted while on its hidden sibling screens.
   const focusedTabName =
@@ -14317,6 +15378,25 @@ export function GustraTabBar(props: Record<string, unknown>) {
     activeRouteName === 'backup-restore'
       ? 'settings'
       : activeRouteName;
+
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent =
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  // Hide while typing so the soft keyboard does not fight the floating pill
+  // (same idea as React Navigation `tabBarHideOnKeyboard`).
+  if (keyboardVisible) {
+    return <View pointerEvents="none" style={styles.hidden} />;
+  }
 
   return (
     <View
@@ -14441,6 +15521,11 @@ function TabItem({
 }
 
 const styles = StyleSheet.create({
+  hidden: {
+    height: 0,
+    width: 0,
+    opacity: 0,
+  },
   wrap: {
     position: 'absolute',
     left: 0,
@@ -14757,7 +15842,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(35, 32, 26, 0.45)',
   },
   dismissArea: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
   },
   card: {
     width: '100%',
@@ -14816,6 +15901,7 @@ const styles = StyleSheet.create({
     color: 'rgba(35, 32, 26, 0.55)',
   },
   sheet: {
+    zIndex: 1,
     backgroundColor: GustraColors.cream,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
@@ -15090,6 +16176,8 @@ export function HouseHeaderTitle({
     <View style={styles.wrap}>
       <Text
         numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
         style={[styles.title, { fontSize: size, lineHeight, marginTop: 2 }]}>
         {children}
       </Text>
@@ -15174,6 +16262,9 @@ export function HouseNavHeader({
         <View style={styles.titleWrap} pointerEvents="none">
           <Text
             numberOfLines={1}
+            // Swift `titleLabel`: lineLimit(1) + minimumScaleFactor(0.75)
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
             style={[
               styles.title,
               {
@@ -17461,6 +18552,8 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const restaurantsRef = useRef(restaurants);
   const reviewsRef = useRef(reviews);
+  /** Serialize form upserts so autosave + Done cannot create duplicate restaurants. */
+  const upsertChainRef = useRef(Promise.resolve());
   restaurantsRef.current = restaurants;
   reviewsRef.current = reviews;
 
@@ -17645,117 +18738,146 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
 
   const upsertReviewFromForm = useCallback(
     async (input: ReviewFormUpsertInput): Promise<ReviewFormUpsertResult | null> => {
-      const draftName = input.draft.name.trim();
-      if (!draftName) return null;
+      let result: ReviewFormUpsertResult | null = null;
 
-      let nextRestaurants = [...restaurants];
-      let nextReviews = [...reviews];
+      const run = async () => {
+        const draftName = input.draft.name.trim();
+        if (!draftName) return;
 
-      const existingReview = input.reviewId
-        ? nextReviews.find((r) => r.id === input.reviewId)
-        : undefined;
+        // Always read the latest snapshot — concurrent autosave/Done must not
+        // each spawn a new restaurant from a stale empty/partial array.
+        let nextRestaurants = [...restaurantsRef.current];
+        let nextReviews = [...reviewsRef.current];
 
-      let restaurant: Restaurant | undefined;
-      if (existingReview) {
-        restaurant = nextRestaurants.find(
-          (r) => r.id === existingReview.restaurantId,
-        );
-      }
-      if (!restaurant) {
-        restaurant = findExistingRestaurant(input.draft, nextRestaurants);
-      }
+        const existingReview = input.reviewId
+          ? nextReviews.find((r) => r.id === input.reviewId)
+          : undefined;
 
-      if (restaurant) {
-        restaurant = applyDraftToRestaurant(
+        let restaurant: Restaurant | undefined;
+        if (existingReview) {
+          restaurant = nextRestaurants.find(
+            (r) => r.id === existingReview.restaurantId,
+          );
+        }
+        if (!restaurant) {
+          restaurant = findExistingRestaurant(input.draft, nextRestaurants);
+        }
+
+        if (restaurant) {
+          restaurant = applyDraftToRestaurant(
+            restaurant,
+            input.draft,
+            input.isFavorite,
+          );
+          nextRestaurants = nextRestaurants.map((r) =>
+            r.id === restaurant!.id ? restaurant! : r,
+          );
+        } else {
+          restaurant = restaurantFromDraft(input.draft, input.isFavorite);
+          nextRestaurants = [...nextRestaurants, restaurant];
+        }
+
+        const criteria = input.criteria.map((c) => ({
+          ...c,
+          comment: c.comment.trim(),
+          rating: RatingValue.isNotApplicable(c.rating)
+            ? RatingValue.notApplicable
+            : RatingValue.isStarRating(c.rating)
+              ? Math.round(c.rating)
+              : RatingValue.unrated,
+        }));
+        const photoUrls = input.photoUrls.filter(Boolean);
+        const overallScore = overallScoreFromCriteria(criteria);
+        const coverPhoto = photoUrls[0] ?? restaurant.photoUrl;
+        const ocrText = (input.ocrText ?? existingReview?.ocrText ?? '').trim();
+        const searchableText = rebuildSearchableText({
           restaurant,
-          input.draft,
-          input.isFavorite,
-        );
+          generalComment: input.generalComment.trim(),
+          criteria,
+          customCriterionNames: input.customCriterionNames,
+          ocrText,
+        });
+
+        restaurant = {
+          ...restaurant,
+          photoUrl: coverPhoto || restaurant.photoUrl,
+        };
         nextRestaurants = nextRestaurants.map((r) =>
           r.id === restaurant!.id ? restaurant! : r,
         );
-      } else {
-        restaurant = restaurantFromDraft(input.draft, input.isFavorite);
-        nextRestaurants = [...nextRestaurants, restaurant];
-      }
 
-      const criteria = input.criteria.map((c) => ({
-        ...c,
-        comment: c.comment.trim(),
-        rating: RatingValue.isNotApplicable(c.rating)
-          ? RatingValue.notApplicable
-          : RatingValue.isStarRating(c.rating)
-            ? Math.round(c.rating)
-            : RatingValue.unrated,
-      }));
-      const photoUrls = input.photoUrls.filter(Boolean);
-      const overallScore = overallScoreFromCriteria(criteria);
-      const coverPhoto = photoUrls[0] ?? restaurant.photoUrl;
-      const ocrText = (input.ocrText ?? existingReview?.ocrText ?? '').trim();
-      const searchableText = rebuildSearchableText({
-        restaurant,
-        generalComment: input.generalComment.trim(),
-        criteria,
-        customCriterionNames: input.customCriterionNames,
-        ocrText,
-      });
+        let reviewId = existingReview?.id;
+        let reviewToUpdate = existingReview;
+        if (!reviewToUpdate) {
+          // Concurrent autosave/Done without reviewId: reuse the visit just
+          // created for this restaurant + exact visit timestamp.
+          reviewToUpdate = nextReviews.find(
+            (r) =>
+              r.restaurantId === restaurant!.id &&
+              resolveReviewOrigin(r) === 'own' &&
+              r.date === input.visitDateIso,
+          );
+          reviewId = reviewToUpdate?.id;
+        }
 
-      restaurant = {
-        ...restaurant,
-        photoUrl: coverPhoto || restaurant.photoUrl,
+        if (reviewToUpdate) {
+          nextReviews = nextReviews.map((r) =>
+            r.id === reviewToUpdate!.id
+              ? {
+                  ...r,
+                  restaurantId: restaurant!.id,
+                  date: input.visitDateIso,
+                  generalComment: input.generalComment.trim(),
+                  criteria,
+                  photoUrls,
+                  overallScore,
+                  origin: resolveReviewOrigin(r),
+                  searchableText,
+                  ocrText,
+                }
+              : r,
+          );
+        } else {
+          reviewId = newEntityId('v');
+          nextReviews = [
+            ...nextReviews,
+            {
+              id: reviewId,
+              restaurantId: restaurant.id,
+              date: input.visitDateIso,
+              generalComment: input.generalComment.trim(),
+              criteria,
+              photoUrls,
+              reviewedBy: '',
+              overallScore,
+              origin: 'own',
+              searchableText,
+              ocrText,
+            },
+          ];
+        }
+
+        restaurantsRef.current = nextRestaurants;
+        reviewsRef.current = nextReviews;
+        setRestaurants(nextRestaurants);
+        setReviews(nextReviews);
+        await persist({
+          restaurants: nextRestaurants,
+          reviews: nextReviews,
+        });
+
+        result = { reviewId: reviewId!, restaurantId: restaurant.id };
       };
-      nextRestaurants = nextRestaurants.map((r) =>
-        r.id === restaurant!.id ? restaurant! : r,
+
+      const queued = upsertChainRef.current.then(run, run);
+      upsertChainRef.current = queued.then(
+        () => undefined,
+        () => undefined,
       );
-
-      let reviewId = existingReview?.id;
-      if (existingReview) {
-        nextReviews = nextReviews.map((r) =>
-          r.id === existingReview.id
-            ? {
-                ...r,
-                restaurantId: restaurant!.id,
-                date: input.visitDateIso,
-                generalComment: input.generalComment.trim(),
-                criteria,
-                photoUrls,
-                overallScore,
-                origin: resolveReviewOrigin(r),
-                searchableText,
-                ocrText,
-              }
-            : r,
-        );
-      } else {
-        reviewId = newEntityId('v');
-        nextReviews = [
-          ...nextReviews,
-          {
-            id: reviewId,
-            restaurantId: restaurant.id,
-            date: input.visitDateIso,
-            generalComment: input.generalComment.trim(),
-            criteria,
-            photoUrls,
-            reviewedBy: '',
-            overallScore,
-            origin: 'own',
-            searchableText,
-            ocrText,
-          },
-        ];
-      }
-
-      setRestaurants(nextRestaurants);
-      setReviews(nextReviews);
-      await persist({
-        restaurants: nextRestaurants,
-        reviews: nextReviews,
-      });
-
-      return { reviewId: reviewId!, restaurantId: restaurant.id };
+      await queued;
+      return result;
     },
-    [restaurants, reviews],
+    [],
   );
 
   const deleteReview = useCallback(
@@ -18113,21 +19235,20 @@ export function ShareImportLaunchProvider({
   const pickSharePackage = useCallback(async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/json', 'application/octet-stream', '*/*'],
+        type: [
+          'application/x-gustrashare',
+          'application/json',
+          'application/octet-stream',
+          '*/*',
+        ],
         copyToCacheDirectory: true,
         multiple: false,
       });
       if (result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
-      const name = asset.name ?? '';
-      if (
-        name &&
-        !name.toLowerCase().endsWith(`.${ShareInbox.fileExtension}`)
-      ) {
-        houseAlert('Error', 'This is not a Gustra share file.');
-        return;
-      }
-      await openSharePackageUri(asset.uri, name || null);
+      // Don't reject on filename alone — WhatsApp rewrites to `.json`.
+      // loadSharePackage sniffs content and shows a clear error if invalid.
+      await openSharePackageUri(asset.uri, asset.name || null);
     } catch (error) {
       houseAlert(
         'Error',
@@ -18897,6 +20018,126 @@ FILE: expo-env.d.ts
 
 
 ================================================================================
+FILE: hooks/useKeyboardBottomInset.ts
+================================================================================
+import { useEffect, useState } from 'react';
+import { Keyboard, Platform } from 'react-native';
+
+/**
+ * Live keyboard height for padding scroll content above the soft keyboard.
+ * iOS uses will* events so layout can track the animation.
+ */
+export function useKeyboardBottomInset(): number {
+  const [height, setHeight] = useState(0);
+
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent =
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      setHeight(event.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  return height;
+}
+
+
+================================================================================
+FILE: hooks/useScrollInputIntoView.ts
+================================================================================
+import { useCallback, useEffect, useRef } from 'react';
+import {
+  findNodeHandle,
+  Platform,
+  type ScrollView,
+  type TextInput,
+} from 'react-native';
+
+/** Match Swift `scrollCommentIntoView` delay after focus (keyboard animation). */
+const FOCUS_DELAY_MS = Platform.OS === 'ios' ? 280 : 120;
+/** Extra gap between input bottom and keyboard top (Swift ~0.72 anchor). */
+const KEYBOARD_GAP = 72;
+
+type Scrollable = ScrollView & {
+  getScrollResponder?: () => {
+    scrollResponderScrollNativeHandleToKeyboard?: (
+      nodeHandle: number,
+      additionalOffset: number,
+      preventNegativeScrolling?: boolean,
+    ) => void;
+  };
+};
+
+/**
+ * Keeps the focused TextInput visible above the keyboard inside a ScrollView
+ * (Swift `ReviewFormView.scrollCommentIntoView` / CommentField keep-visible).
+ */
+export function useScrollInputIntoView() {
+  const scrollRef = useRef<ScrollView | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const scrollInputIntoView = useCallback(
+    (input: TextInput | null, delayMs: number = FOCUS_DELAY_MS) => {
+      if (!input) return;
+      if (timerRef.current) clearTimeout(timerRef.current);
+
+      timerRef.current = setTimeout(() => {
+        timerRef.current = null;
+        const scroll = scrollRef.current as Scrollable | null;
+        if (!scroll) return;
+
+        const nodeHandle = findNodeHandle(input);
+        if (nodeHandle == null) return;
+
+        const responder = scroll.getScrollResponder?.() ?? (scroll as Scrollable);
+        const scrollToKeyboard =
+          responder.scrollResponderScrollNativeHandleToKeyboard;
+
+        if (typeof scrollToKeyboard === 'function') {
+          scrollToKeyboard(nodeHandle, KEYBOARD_GAP, true);
+          return;
+        }
+
+        // Fallback when the native scroll responder API is unavailable.
+        const scrollHandle = findNodeHandle(scroll);
+        if (scrollHandle == null) return;
+        input.measureLayout(
+          scrollHandle,
+          (_x, y, _w, height) => {
+            const targetY = Math.max(0, y + height - KEYBOARD_GAP * 2);
+            scroll.scrollTo({ y: targetY, animated: true });
+          },
+          () => {
+            // ignore measure failures
+          },
+        );
+      }, delayMs);
+    },
+    [],
+  );
+
+  return { scrollRef, scrollInputIntoView };
+}
+
+
+================================================================================
 FILE: package.json
 ================================================================================
 {
@@ -18924,9 +20165,11 @@ FILE: package.json
     "expo-linking": "~57.0.3",
     "expo-location": "~57.0.5",
     "expo-mail-composer": "~57.0.1",
+    "expo-media-library": "~57.0.3",
     "expo-navigation-bar": "^57.0.2",
     "expo-ocr-kit": "^0.1.4",
     "expo-router": "~57.0.7",
+    "expo-screen-orientation": "~57.0.1",
     "expo-sharing": "~57.0.6",
     "expo-splash-screen": "~57.0.4",
     "expo-sqlite": "^57.0.1",
@@ -20183,8 +21426,57 @@ export function fromAppleRefDate(ref: number): string {
 ================================================================================
 FILE: services/directions/DirectionsLauncher.ts
 ================================================================================
-import { Linking, Platform } from 'react-native';
+import {
+  ActionSheetIOS,
+  InteractionManager,
+  Linking,
+  Platform,
+} from 'react-native';
+
 import { houseAlert } from '@/components/ui/HouseAlert';
+
+/** Wait for a native Modal / ActionSheet to finish dismissing before presenting UI. */
+function afterPresentationSettles(work: () => void): void {
+  InteractionManager.runAfterInteractions(() => {
+    setTimeout(work, Platform.OS === 'ios' ? 320 : 50);
+  });
+}
+
+async function safeOpenURL(url: string): Promise<void> {
+  try {
+    // `canOpenURL` is unreliable / unnecessary for http(s); only gate custom schemes.
+    if (!/^https?:/i.test(url)) {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        afterPresentationSettles(() => {
+          houseAlert(
+            'Unable to open',
+            'This app is not available on this device.',
+          );
+        });
+        return;
+      }
+    }
+    await Linking.openURL(url);
+  } catch {
+    afterPresentationSettles(() => {
+      houseAlert('Unable to open', 'This app is not available on this device.');
+    });
+  }
+}
+
+function asCoord(value: number): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+async function canOpenWaze(): Promise<boolean> {
+  try {
+    return await Linking.canOpenURL('waze://');
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Opens a destination in Apple Maps, Google Maps, or Waze
@@ -20192,41 +21484,41 @@ import { houseAlert } from '@/components/ui/HouseAlert';
  */
 export const DirectionsLauncher = {
   async openAppleMaps(name: string, latitude: number, longitude: number) {
+    const lat = asCoord(latitude);
+    const lng = asCoord(longitude);
+    if (!restaurantHasCoordinates(lat, lng)) return;
+
     const label = encodeURIComponent(name.trim() || 'Destination');
     const url =
       Platform.OS === 'ios'
-        ? `http://maps.apple.com/?daddr=${latitude},${longitude}&dirflg=d&q=${label}`
-        : `geo:${latitude},${longitude}?q=${latitude},${longitude}(${label})`;
-    await Linking.openURL(url);
+        ? `https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d&q=${label}`
+        : `geo:${lat},${lng}?q=${lat},${lng}(${label})`;
+    await safeOpenURL(url);
   },
 
   async openGoogleMaps(latitude: number, longitude: number) {
-    const appURL = `comgooglemaps://?daddr=${latitude},${longitude}&directionsmode=driving`;
-    const webURL = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
+    const lat = asCoord(latitude);
+    const lng = asCoord(longitude);
+    if (!restaurantHasCoordinates(lat, lng)) return;
+
+    const appURL = `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`;
+    const webURL = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
     try {
-      const canOpen = await Linking.canOpenURL(appURL);
-      if (canOpen) {
+      if (await Linking.canOpenURL(appURL)) {
         await Linking.openURL(appURL);
         return;
       }
     } catch {
       // Fall through to web.
     }
-    await Linking.openURL(webURL);
-  },
-
-  async canOpenWaze(): Promise<boolean> {
-    try {
-      return await Linking.canOpenURL('waze://');
-    } catch {
-      return false;
-    }
+    await safeOpenURL(webURL);
   },
 
   async openWaze(latitude: number, longitude: number) {
-    await Linking.openURL(
-      `waze://?ll=${latitude},${longitude}&navigate=yes`,
-    );
+    const lat = asCoord(latitude);
+    const lng = asCoord(longitude);
+    if (!restaurantHasCoordinates(lat, lng)) return;
+    await safeOpenURL(`waze://?ll=${lat},${lng}&navigate=yes`);
   },
 };
 
@@ -20234,61 +21526,108 @@ export function restaurantHasCoordinates(
   latitude: number,
   longitude: number,
 ): boolean {
+  const lat = asCoord(latitude);
+  const lng = asCoord(longitude);
   return (
-    Number.isFinite(latitude) &&
-    Number.isFinite(longitude) &&
-    !(latitude === 0 && longitude === 0)
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    !(lat === 0 && lng === 0)
   );
 }
 
-export async function presentDirectionsOptions(args: {
+export type PresentDirectionsArgs = {
   name: string;
   addressLine?: string;
   latitude: number;
   longitude: number;
-}): Promise<void> {
-  const { Alert } = await import('react-native');
-  const { name, addressLine, latitude, longitude } = args;
+  /**
+   * When true, wait before presenting (caller is dismissing an RN Modal first).
+   * Presenting ActionSheetIOS / another Modal while one is visible crashes iOS.
+   */
+  afterModalDismiss?: boolean;
+};
+
+async function showDirectionsChooser(args: PresentDirectionsArgs): Promise<void> {
+  const latitude = asCoord(args.latitude);
+  const longitude = asCoord(args.longitude);
+  const name = args.name?.trim() || 'Destination';
+
   if (!restaurantHasCoordinates(latitude, longitude)) {
     houseAlert('Get directions', 'No map location is available.');
     return;
   }
 
-  const buttons: {
-    text: string;
-    onPress?: () => void;
-    style?: 'cancel' | 'default' | 'destructive';
-  }[] = [
-    {
-      text: 'Apple Maps',
-      onPress: () => {
-        void DirectionsLauncher.openAppleMaps(name, latitude, longitude);
-      },
-    },
-    {
-      text: 'Google Maps',
-      onPress: () => {
-        void DirectionsLauncher.openGoogleMaps(latitude, longitude);
-      },
-    },
-  ];
+  // ActionSheetIOS can misbehave with very long messages.
+  const rawMessage = args.addressLine?.trim() || name;
+  const message =
+    rawMessage.length > 160 ? `${rawMessage.slice(0, 157)}…` : rawMessage;
 
-  if (await DirectionsLauncher.canOpenWaze()) {
-    buttons.push({
-      text: 'Waze',
-      onPress: () => {
-        void DirectionsLauncher.openWaze(latitude, longitude);
-      },
+  const openApple = () => {
+    afterPresentationSettles(() => {
+      void DirectionsLauncher.openAppleMaps(name, latitude, longitude);
     });
+  };
+  const openGoogle = () => {
+    afterPresentationSettles(() => {
+      void DirectionsLauncher.openGoogleMaps(latitude, longitude);
+    });
+  };
+  const openWaze = () => {
+    afterPresentationSettles(() => {
+      void DirectionsLauncher.openWaze(latitude, longitude);
+    });
+  };
+
+  // Swift `DirectionsLauncher.canOpenWaze` — omit Waze when not installed.
+  const wazeAvailable = await canOpenWaze();
+
+  if (Platform.OS === 'ios') {
+    const options = wazeAvailable
+      ? ['Apple Maps', 'Google Maps', 'Waze', 'Cancel']
+      : ['Apple Maps', 'Google Maps', 'Cancel'];
+    const cancelButtonIndex = options.length - 1;
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        title: 'Get directions',
+        message,
+        options,
+        cancelButtonIndex,
+      },
+      (buttonIndex) => {
+        if (buttonIndex === 0) openApple();
+        else if (buttonIndex === 1) openGoogle();
+        else if (wazeAvailable && buttonIndex === 2) openWaze();
+      },
+    );
+    return;
   }
 
-  buttons.push({ text: 'Cancel', style: 'cancel' });
+  const buttons = [
+    {
+      text: 'Maps',
+      onPress: openApple,
+    },
+    { text: 'Google Maps', onPress: openGoogle },
+    ...(wazeAvailable
+      ? [{ text: 'Waze', onPress: openWaze }]
+      : []),
+    { text: 'Cancel', style: 'cancel' as const },
+  ];
+  houseAlert('Get directions', message, buttons);
+}
 
-  houseAlert(
-    'Get directions',
-    addressLine?.trim() || name,
-    buttons,
-  );
+/**
+ * Present map-app choices.
+ * On iOS this uses `ActionSheetIOS` synchronously (Swift `confirmationDialog`).
+ */
+export function presentDirectionsOptions(args: PresentDirectionsArgs): void {
+  if (args.afterModalDismiss) {
+    afterPresentationSettles(() => {
+      void showDirectionsChooser(args);
+    });
+    return;
+  }
+  void showDirectionsChooser(args);
 }
 
 
@@ -21321,6 +22660,35 @@ export async function extractTextFromImages(
 
 
 ================================================================================
+FILE: services/orientation/photoViewerOrientation.ts
+================================================================================
+import * as ScreenOrientation from 'expo-screen-orientation';
+import { Platform } from 'react-native';
+
+/** App default — portrait only (Swift `OrientationLock.setPortrait`). */
+export async function lockAppPortraitOrientation(): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    await ScreenOrientation.lockAsync(
+      ScreenOrientation.OrientationLock.PORTRAIT_UP,
+    );
+  } catch {
+    // Expo Go / unsupported platforms
+  }
+}
+
+/** Photo viewer — allow landscape (Swift `OrientationLock.setAll`). */
+export async function unlockPhotoViewerOrientation(): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    await ScreenOrientation.unlockAsync();
+  } catch {
+    // Expo Go / unsupported platforms
+  }
+}
+
+
+================================================================================
 FILE: services/photos/PhotoQualitySettings.ts
 ================================================================================
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21676,6 +23044,7 @@ FILE: services/photos/photoViewerActions.ts
 ================================================================================
 import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Asset, requestPermissionsAsync } from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 import { Platform, Share } from 'react-native';
 
@@ -21734,6 +23103,16 @@ async function presentSystemShare(
 export async function sharePhotoUri(uri: string): Promise<void> {
   const local = await ensureLocalPhotoUri(uri);
   await presentSystemShare(local, 'Share photo');
+}
+
+/** Save a photo into the device library (Swift `Save to Photos`, add-only). */
+export async function savePhotoUri(uri: string): Promise<void> {
+  const local = await ensureLocalPhotoUri(uri);
+  const { status } = await requestPermissionsAsync(true);
+  if (status !== 'granted') {
+    throw new Error('Photo access needed to save.');
+  }
+  await Asset.create(local);
 }
 
 
@@ -22003,44 +23382,52 @@ const inFlight = new Map<string, Promise<RestaurantSearchResult[]>>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const CACHE_RADIUS_M = 100;
 
-function bucketKey(center: LatLng, query: string): string {
-  const lat = Math.round(center.latitude * 1000) / 1000;
-  const lng = Math.round(center.longitude * 1000) / 1000;
-  // v2: field mask includes phone numbers.
-  return `v2:${query}@${lat},${lng}`;
+function bucketKey(
+  center: LatLng | null,
+  query: string,
+  extras: string = '',
+): string {
+  const lat = center ? Math.round(center.latitude * 1000) / 1000 : 'none';
+  const lng = center ? Math.round(center.longitude * 1000) / 1000 : 'none';
+  // v3: optional locationBias + regionCode for country-scoped manual search.
+  return `v3:${query}@${lat},${lng}${extras ? `:${extras}` : ''}`;
 }
 
-function cached(center: LatLng, query: string): RestaurantSearchResult[] | null {
+function cached(
+  center: LatLng | null,
+  query: string,
+): RestaurantSearchResult[] | null {
   const now = Date.now();
   for (let i = cacheEntries.length - 1; i >= 0; i -= 1) {
     if (now - cacheEntries[i]!.timestamp > CACHE_TTL_MS) {
       cacheEntries.splice(i, 1);
     }
   }
-  const hit = cacheEntries.find(
-    (entry) =>
-      entry.query === query &&
-      distanceMeters(entry.center, center) <= CACHE_RADIUS_M,
-  );
+  const hit = cacheEntries.find((entry) => {
+    if (entry.query !== query) return false;
+    if (!center) return entry.center.latitude === 0 && entry.center.longitude === 0;
+    return distanceMeters(entry.center, center) <= CACHE_RADIUS_M;
+  });
   return hit?.results ?? null;
 }
 
 async function resolveCache(
-  center: LatLng,
+  center: LatLng | null,
   query: string,
   work: () => Promise<RestaurantSearchResult[]>,
+  extras: string = '',
 ): Promise<RestaurantSearchResult[]> {
   const hit = cached(center, query);
   if (hit) return hit;
 
-  const key = bucketKey(center, query);
+  const key = bucketKey(center, query, extras);
   const existing = inFlight.get(key);
   if (existing) return existing;
 
   const task = (async () => {
     const results = await work();
     cacheEntries.push({
-      center,
+      center: center ?? { latitude: 0, longitude: 0 },
       query,
       timestamp: Date.now(),
       results,
@@ -22186,26 +23573,35 @@ async function postNearby(
 
 async function postText(
   query: string,
-  center: LatLng,
+  center: LatLng | null,
   radius: number,
+  regionCode?: string,
 ): Promise<RestaurantSearchResult[]> {
-  return postPlaces(
-    'places:searchText',
-    {
-      textQuery: query,
-      maxResultCount: 20,
-      locationBias: {
-        circle: {
-          center: {
-            latitude: center.latitude,
-            longitude: center.longitude,
-          },
-          radius,
+  const body: Record<string, unknown> = {
+    textQuery: query,
+    maxResultCount: 20,
+  };
+
+  // Soft GPS bias only when useful. An explicit place/country in `textQuery`
+  // already overrides bias per Places docs — still skip a tight 2 km circle
+  // so country-wide manual entry is not pulled toward FR/DE near the user.
+  if (center) {
+    body.locationBias = {
+      circle: {
+        center: {
+          latitude: center.latitude,
+          longitude: center.longitude,
         },
+        radius,
       },
-    },
-    true,
-  );
+    };
+  }
+
+  if (regionCode) {
+    body.regionCode = regionCode;
+  }
+
+  return postPlaces('places:searchText', body, true);
 }
 
 function normalizedPlaceID(placeID: string): string | null {
@@ -22275,21 +23671,93 @@ export async function searchNearby(
 }
 
 /**
- * Text search around a center (Swift `RestaurantSearchService.searchText`).
+ * Rough ISO 3166-1 alpha-2 for Places `regionCode` ranking.
+ * Names users commonly type in Manual entry.
+ */
+const COUNTRY_REGION_CODES: Record<string, string> = {
+  austria: 'AT',
+  belgium: 'BE',
+  denmark: 'DK',
+  france: 'FR',
+  germany: 'DE',
+  greece: 'GR',
+  ireland: 'IE',
+  italy: 'IT',
+  luxembourg: 'LU',
+  netherlands: 'NL',
+  'the netherlands': 'NL',
+  holland: 'NL',
+  norway: 'NO',
+  portugal: 'PT',
+  spain: 'ES',
+  sweden: 'SE',
+  switzerland: 'CH',
+  'united kingdom': 'GB',
+  uk: 'GB',
+  england: 'GB',
+  'united states': 'US',
+  usa: 'US',
+  'united states of america': 'US',
+};
+
+export function regionCodeForCountry(country: string): string | undefined {
+  const key = country.trim().toLowerCase();
+  if (!key) return undefined;
+  return COUNTRY_REGION_CODES[key];
+}
+
+/** Loose country filter after Places returns (FR/DE noise with empty city). */
+export function resultMatchesCountry(
+  resultCountry: string,
+  wantedCountry: string,
+): boolean {
+  const want = wantedCountry.trim().toLowerCase();
+  if (!want) return true;
+  const got = resultCountry.trim().toLowerCase();
+  if (!got) return true;
+  return got === want || got.includes(want) || want.includes(got);
+}
+
+export type SearchTextOptions = {
+  /** Soft GPS bias radius in meters (ignored when `locationBias` is false). */
+  radius?: number;
+  /**
+   * When false, omit `locationBias` so an explicit country/city in the query
+   * is not overridden by a tight circle around the device.
+   */
+  locationBias?: boolean;
+  /** ISO 3166-1 alpha-2 for ranking (Places `regionCode`). */
+  regionCode?: string;
+};
+
+/**
+ * Text search (Swift `RestaurantSearchService.searchText`).
+ * `center` is optional when the query already names a country/city.
  */
 export async function searchText(
   query: string,
-  center: LatLng,
-  radius: number = DEFAULT_SEARCH_RADIUS_M,
+  center?: LatLng | null,
+  options: SearchTextOptions = {},
 ): Promise<RestaurantSearchResult[]> {
   const trimmed = query.trim();
+  const radius = options.radius ?? DEFAULT_SEARCH_RADIUS_M;
+  const useBias = options.locationBias !== false && center != null;
+  const biasCenter = useBias ? center! : null;
+  const regionCode = options.regionCode?.trim().toUpperCase() || undefined;
+
   if (!trimmed) {
+    if (!center) return [];
     return searchNearby(center, radius);
   }
-  const results = await resolveCache(center, trimmed.toLowerCase(), () =>
-    postText(trimmed, center, radius),
+
+  const cacheQuery = `${trimmed.toLowerCase()}|bias=${useBias}|rc=${regionCode ?? ''}`;
+  const results = await resolveCache(
+    biasCenter,
+    cacheQuery,
+    () => postText(trimmed, biasCenter, radius, regionCode),
+    regionCode ?? '',
   );
-  return withDistance(results, center);
+  return center ? withDistance(results, center) : results;
 }
 
 
@@ -22429,6 +23897,8 @@ export {
   distanceMeters,
   fetchPrimaryType,
   formattedDistance,
+  regionCodeForCountry,
+  resultMatchesCountry,
   searchNearby,
   searchText,
 } from '@/services/places/RestaurantSearchService';
@@ -22859,18 +24329,19 @@ import * as Sharing from 'expo-sharing';
 
 import { SHARE_FILE_EXTENSION } from '@/services/share/types';
 import { ShareInbox } from '@/services/share/ShareInbox';
+import { uriLooksLikeSharePackage } from '@/services/share/ShareImportService';
 
 export type ExpoShareHandoffFile = {
   uri: string;
   filename: string | null;
 };
 
-function isGustraShareFile(uri: string, originalName: string | null): boolean {
-  if (ShareInbox.isSharePackageURL(uri)) return true;
-  if (originalName?.toLowerCase().endsWith(`.${SHARE_FILE_EXTENSION}`)) {
-    return true;
-  }
-  return false;
+function hasShareExtension(name: string | null | undefined): boolean {
+  if (!name) return false;
+  const lower = name.toLowerCase();
+  return (
+    lower.endsWith(`.${SHARE_FILE_EXTENSION}`) || lower.endsWith('.json')
+  );
 }
 
 /**
@@ -22895,12 +24366,26 @@ export async function consumeExpoShareHandoffFile(): Promise<ExpoShareHandoffFil
 
   try {
     const resolved = await Sharing.getResolvedSharedPayloadsAsync();
-    const match = resolved.find(
+    const withUri = resolved.filter(
       (payload) =>
         typeof payload.contentUri === 'string' &&
-        payload.contentUri.length > 0 &&
-        isGustraShareFile(payload.contentUri, payload.originalName ?? null),
+        payload.contentUri.length > 0,
     );
+
+    let match = withUri.find(
+      (payload) =>
+        ShareInbox.isSharePackageURL(payload.contentUri!) ||
+        hasShareExtension(payload.originalName),
+    );
+
+    if (!match) {
+      for (const payload of withUri) {
+        if (await uriLooksLikeSharePackage(payload.contentUri!)) {
+          match = payload;
+          break;
+        }
+      }
+    }
 
     Sharing.clearSharedPayloads();
 
@@ -23074,6 +24559,10 @@ import * as MailComposer from 'expo-mail-composer';
 import * as Sharing from 'expo-sharing';
 import { Platform, Share } from 'react-native';
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 import type { Restaurant, Review } from '@/data/types';
 import {
   emailSubject,
@@ -23134,6 +24623,9 @@ export async function shareReviewAsEmail(args: {
   }
 
   args.onSnapshotReady?.();
+  // Let preparing UI / keyboard dismiss before presenting Mail (iOS freezes
+  // if compose opens while another modal transition is still settling).
+  await delay(Platform.OS === 'ios' ? 350 : 80);
 
   const available = await MailComposer.isAvailableAsync();
   if (available) {
@@ -23337,6 +24829,7 @@ import type {
 } from '@/services/backup/types';
 import {
   SHARE_FILE_EXTENSION,
+  SHARE_MIME_TYPE,
   SHARE_SCHEMA_VERSION,
   SHARE_UTI,
   toShareIso8601,
@@ -23531,7 +25024,7 @@ export async function shareReviewsPackage(args: {
   }
 
   await Sharing.shareAsync(uri, {
-    mimeType: 'application/json',
+    mimeType: SHARE_MIME_TYPE,
     dialogTitle: 'Share Gustra reviews',
     UTI: SHARE_UTI,
   });
@@ -23697,6 +25190,9 @@ export async function loadSharePackage(uri: string): Promise<SharePackage> {
     const raw = await FileSystem.readAsStringAsync(uri, {
       encoding: FileSystem.EncodingType.UTF8,
     });
+    if (!peekLooksLikeSharePackage(raw)) {
+      throw new ShareImportError('This is not a Gustra share file.');
+    }
     const parsed = JSON.parse(raw) as SharePackage;
     if (
       !parsed ||
@@ -23719,6 +25215,32 @@ export async function loadSharePackage(uri: string): Promise<SharePackage> {
   } catch (error) {
     if (error instanceof ShareImportError) throw error;
     throw new ShareImportError('Could not read the shared reviews file.');
+  }
+}
+
+/**
+ * Cheap content sniff for WhatsApp/Mail rewrites (`.json` / no extension).
+ * Avoids full parse when the Share Extension sees arbitrary JSON.
+ */
+export function peekLooksLikeSharePackage(raw: string): boolean {
+  // Strip UTF-8 BOM if messaging apps re-saved the file.
+  const head = raw.replace(/^\uFEFF/, '').slice(0, 4096).trimStart();
+  if (!head.startsWith('{')) return false;
+  return (
+    head.includes('"reviews"') &&
+    head.includes('"restaurants"') &&
+    (head.includes('"schemaVersion"') || head.includes('"sharedBy"'))
+  );
+}
+
+export async function uriLooksLikeSharePackage(uri: string): Promise<boolean> {
+  try {
+    const raw = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+    return peekLooksLikeSharePackage(raw);
+  } catch {
+    return false;
   }
 }
 
@@ -23962,16 +25484,18 @@ export const ShareInbox = {
       const parts = sourceUri.split('/').filter(Boolean);
       filename = decodeURIComponent(parts[parts.length - 1] ?? '');
     }
+    // WhatsApp / Mail often rewrite our package as `.json` or strip the
+    // extension — normalize to `.gustrashare`; content is validated on load.
     if (!filename.toLowerCase().endsWith(`.${this.fileExtension}`)) {
-      if (this.isSharePackageURL(sourceUri)) {
-        const parts = sourceUri.split('/').filter(Boolean);
-        filename = decodeURIComponent(parts[parts.length - 1] ?? '');
-      } else {
-        filename = `share.${this.fileExtension}`;
-      }
-    }
-    if (!filename.toLowerCase().endsWith(`.${this.fileExtension}`)) {
-      throw new Error('This is not a Gustra share file.');
+      const base =
+        filename.replace(/\.[^/.]+$/, '').trim() ||
+        (this.isSharePackageURL(sourceUri)
+          ? decodeURIComponent(
+              sourceUri.split('/').filter(Boolean).pop() ?? '',
+            ).replace(/\.[^/.]+$/, '')
+          : '') ||
+        'share';
+      filename = `${base}.${this.fileExtension}`;
     }
 
     const inbox = await this.ensureInbox();
@@ -24020,6 +25544,11 @@ export const SHARE_SCHEMA_VERSION = 2;
 export const SHARE_FILE_EXTENSION = 'gustrashare';
 /** Matches Swift `ShareInbox.utiIdentifier`. */
 export const SHARE_UTI = 'com.philip.gustra.share';
+/**
+ * Custom MIME — do NOT use application/json. Messaging apps (WhatsApp) and
+ * Quick Look treat JSON as a blank/.json document and strip `.gustrashare`.
+ */
+export const SHARE_MIME_TYPE = 'application/x-gustrashare';
 
 /**
  * ISO-8601 suitable for Swift `JSONDecoder.dateDecodingStrategy = .iso8601`

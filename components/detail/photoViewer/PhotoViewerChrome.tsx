@@ -66,14 +66,17 @@ type TopBarProps = {
   onClose: () => void;
   /** Opens the system share sheet directly (no intermediate options menu). */
   onShare: () => void;
+  /** Save current photo to the device library (Swift `Save to Photos`). */
+  onSave?: () => void;
   title?: string;
   showTitle?: boolean;
 };
 
-/** Top gradient + close / share (Expo: share icon → system sheet). */
+/** Top gradient + close / save / share. */
 export function PhotoViewerTopBar({
   onClose,
   onShare,
+  onSave,
   title,
   showTitle = false,
 }: TopBarProps) {
@@ -111,14 +114,25 @@ export function PhotoViewerTopBar({
           ) : null}
         </View>
 
-        <PhotoViewerChromeButton
-          // iOS share glyph; Android `share` is the 3-dot network icon — use ios_share.
-          iosName="square.and.arrow.up"
-          androidName="ios-share"
-          accessibilityLabel="Share photo"
-          iconSize={22}
-          onPress={onShare}
-        />
+        <View style={styles.trailingActions}>
+          {onSave ? (
+            <PhotoViewerChromeButton
+              iosName="square.and.arrow.down"
+              androidName="file-download"
+              accessibilityLabel="Save to Photos"
+              iconSize={22}
+              onPress={onSave}
+            />
+          ) : null}
+          <PhotoViewerChromeButton
+            // iOS share glyph; Android `share` is the 3-dot network icon — use ios_share.
+            iosName="square.and.arrow.up"
+            androidName="ios-share"
+            accessibilityLabel="Share photo"
+            iconSize={22}
+            onPress={onShare}
+          />
+        </View>
       </View>
     </View>
   );
@@ -219,6 +233,11 @@ const styles = StyleSheet.create({
   titleSlot: {
     flex: 1,
     alignItems: 'center',
+  },
+  trailingActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   title: {
     color: PhotoViewerStyle.chromeForeground,

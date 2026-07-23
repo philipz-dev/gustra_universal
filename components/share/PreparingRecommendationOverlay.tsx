@@ -1,4 +1,4 @@
-import { ActivityIndicator, Modal, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
@@ -11,30 +11,38 @@ type PreparingRecommendationOverlayProps = {
 /**
  * Full-screen spinner while the JPEG card is rendered
  * (Swift `PreparingRecommendationOverlay`).
+ *
+ * Uses an absolute View (not Modal) so snapshot capture is not blocked by
+ * Modal presentation handles / InteractionManager waits.
  */
 export function PreparingRecommendationOverlay({
   visible,
 }: PreparingRecommendationOverlayProps) {
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
-          <ActivityIndicator size="large" color={GustraColors.forestGreen} />
-          <SerifText size={20} weight="semibold" style={styles.title}>
-            Preparing visual recommendation…
-          </SerifText>
-          <Text style={styles.body}>
-            Creating a snapshot of your review. This only takes a moment.
-          </Text>
-        </View>
+    <View
+      style={styles.backdrop}
+      pointerEvents="auto"
+      accessibilityViewIsModal>
+      <View style={styles.card}>
+        <ActivityIndicator size="large" color={GustraColors.forestGreen} />
+        <SerifText size={20} weight="semibold" style={styles.title}>
+          Preparing visual recommendation…
+        </SerifText>
+        <Text style={styles.body}>
+          Creating a snapshot of your review. This only takes a moment.
+        </Text>
       </View>
-    </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   backdrop: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    elevation: 1000,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(35, 32, 26, 0.4)',

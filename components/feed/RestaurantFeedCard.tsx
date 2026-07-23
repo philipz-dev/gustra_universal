@@ -1,15 +1,6 @@
-import { useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-// RNGH 2.x moved Swipeable out of the main entry — import the subpath.
-import Swipeable from 'react-native-gesture-handler/Swipeable';
-import { SymbolView } from 'expo-symbols';
 
-import {
-  clearOpenSwipeable,
-  performOpenSwipeableDelete,
-  registerOpenSwipeable,
-  updateOpenSwipeableFrame,
-} from '@/components/feed/openSwipeable';
+import { FeedSwipeDelete } from '@/components/feed/FeedSwipeDelete';
 import { RestaurantThumb } from '@/components/feed/RestaurantThumb';
 import { FavoriteHeartButton } from '@/components/ui/FavoriteHeartButton';
 import { SatisfactionDot } from '@/components/ui/SatisfactionDot';
@@ -50,17 +41,6 @@ export function RestaurantFeedCard({
   const displayScore =
     typeof scoreOverride === 'number' ? scoreOverride : summary.averageScore;
   const level = satisfactionFromScore(displayScore);
-  const swipeableRef = useRef<Swipeable>(null);
-  const deleteRef = useRef<View>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const rowId = summary.restaurantId;
-
-  const measureDeleteFrame = () => {
-    deleteRef.current?.measureInWindow((x, y, width, height) => {
-      if (width <= 0 || height <= 0) return;
-      updateOpenSwipeableFrame(rowId, { x, y, width, height });
-    });
-  };
 
   const card = (
     <Pressable
@@ -118,58 +98,12 @@ export function RestaurantFeedCard({
   if (!onDelete) return card;
 
   return (
-    <Swipeable
-      ref={swipeableRef}
-      friction={2}
-      overshootRight={false}
-      enableTrackpadTwoFingerGesture
-      onSwipeableOpen={() => {
-        setIsOpen(true);
-        registerOpenSwipeable({
-          id: rowId,
-          close: () => swipeableRef.current?.close(),
-          onDelete,
-          deleteFrame: null,
-        });
-        // Wait a frame so the action panel has laid out.
-        requestAnimationFrame(() => {
-          measureDeleteFrame();
-        });
-      }}
-      onSwipeableClose={() => {
-        clearOpenSwipeable(rowId);
-        setIsOpen(false);
-      }}
-      renderRightActions={() => (
-        <View
-          ref={deleteRef}
-          collapsable={false}
-          onLayout={() => {
-            if (isOpen) measureDeleteFrame();
-          }}
-          style={styles.deleteButton}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Delete"
-            onPress={() => {
-              performOpenSwipeableDelete();
-            }}
-            style={styles.deletePressable}>
-            <SymbolView
-              name={{
-                ios: 'trash.fill',
-                android: 'delete',
-                web: 'delete',
-              }}
-              tintColor="#FFFFFF"
-              size={22}
-            />
-            <Text style={styles.deleteLabel}>Delete</Text>
-          </Pressable>
-        </View>
-      )}>
+    <FeedSwipeDelete
+      id={summary.restaurantId}
+      onDelete={onDelete}
+      cornerRadius={Theme.radius.xl}>
       {card}
-    </Swipeable>
+    </FeedSwipeDelete>
   );
 }
 
@@ -215,26 +149,5 @@ const styles = StyleSheet.create({
   },
   score: {
     color: GustraColors.forestGreen,
-  },
-  deleteButton: {
-    width: 88,
-    marginLeft: 8,
-    borderRadius: 16,
-    backgroundColor: GustraColors.ratingAvoid,
-    overflow: 'hidden',
-  },
-  deletePressable: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    minHeight: Theme.size.hitTarget,
-  },
-  deleteLabel: {
-    ...captionTextStyle,
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
   },
 });

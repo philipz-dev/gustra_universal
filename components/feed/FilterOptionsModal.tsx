@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import Animated, {
   Easing,
+  cancelAnimation,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -61,7 +62,7 @@ type FilterOptionsModalProps = {
 
 /** UINavigationController-like ease (no spring / bounce). */
 const NAV_EASING = Easing.bezier(0.25, 0.1, 0.25, 1);
-const NAV_DURATION_MS = 320;
+const NAV_DURATION_MS = 280;
 
 /**
  * Filter options sheet (Swift `ReviewFilterPanelView`).
@@ -82,7 +83,7 @@ export function FilterOptionsModal({
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<FeedFilterState>(value);
   const [panelRoute, setPanelRoute] = useState<PanelRoute | null>(null);
-  /** Content kept mounted through the pop animation (avoids Android remount jump). */
+  /** Content kept mounted through the pop animation (avoids remount jump). */
   const [activePanel, setActivePanel] = useState<PanelRoute | null>(null);
   const [locationSnapshot, setLocationSnapshot] = useState<string[] | null>(
     null,
@@ -96,7 +97,7 @@ export function FilterOptionsModal({
 
   const onStackLayout = (event: LayoutChangeEvent) => {
     const width = event.nativeEvent.layout.width;
-    // Never resize mid-push — that causes the Android jump.
+    // Never resize mid-push — that causes a layout jump.
     if (width > 0 && !panelRoute && !activePanel) {
       sheetWidth.value = width;
     }
@@ -106,8 +107,20 @@ export function FilterOptionsModal({
     setActivePanel(null);
   }, []);
 
+  const pushPanel = useCallback(
+    (route: PanelRoute) => {
+      // Always mount + route together — panelRoute alone freezes (root pointerEvents
+      // none while no pushed page is rendered).
+      cancelAnimation(pushProgress);
+      setActivePanel(route);
+      setPanelRoute(route);
+    },
+    [pushProgress],
+  );
+
   useEffect(() => {
     if (!visible) return;
+    cancelAnimation(pushProgress);
     setDraft({
       ...value,
       locationCities:
@@ -131,6 +144,7 @@ export function FilterOptionsModal({
   useEffect(() => {
     if (panelRoute) {
       // Panel is already mounted via activePanel (set in the same press handler).
+      cancelAnimation(pushProgress);
       pushProgress.value = withTiming(1, {
         duration: NAV_DURATION_MS,
         easing: NAV_EASING,
@@ -138,13 +152,14 @@ export function FilterOptionsModal({
       return;
     }
     if (!activePanel) return;
+    cancelAnimation(pushProgress);
     pushProgress.value = withTiming(
       0,
       { duration: NAV_DURATION_MS, easing: NAV_EASING },
       (finished) => {
-        if (finished) {
-          runOnJS(clearActivePanel)();
-        }
+        // Always unmount so the UI cannot stick mid-push if the animation is interrupted.
+        runOnJS(clearActivePanel)();
+        void finished;
       },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -190,86 +205,94 @@ export function FilterOptionsModal({
 
   const openMultiSelect = (route: 'location' | 'placeType') => {
     Haptics.selectionChanged();
-    setDraft((prev) => {
-      if (route === 'location') {
-        const cities =
-          prev.locationCities.length === 0
-            ? [...availableCities]
-            : prev.locationCities;
-        setLocationSnapshot(cities);
-        return { ...prev, locationCities: cities };
-      }
+    if (route === 'location') {
+      const cities =
+        draft.locationCities.length === 0
+          ? [...availableCities]
+          : [...draft.locationCities];
+      setLocationSnapshot(cities);
+      setDraft((prev) => ({ ...prev, locationCities: cities }));
+    } else {
       const types =
-        prev.primaryTypes.length === 0
+        draft.primaryTypes.length === 0
           ? [...availablePrimaryTypes]
-          : prev.primaryTypes;
+          : [...draft.primaryTypes];
       setPlaceTypeSnapshot(types);
-      return { ...prev, primaryTypes: types };
-    });
-    // Mount before animating so Android doesn't jump mid-flight.
-    setActivePanel(route);
-    setPanelRoute(route);
+      setDraft((prev) => ({ ...prev, primaryTypes: types }));
+    }
+    pushPanel(route);
   };
 
   const openSortPanel = () => {
     Haptics.selectionChanged();
-    setActivePanel('sort');
-    setPanelRoute('sort');
+    pushPanel('sort');
   };
 
   const toggleFilter = (flag: FeedFilterFlag) => {
     Haptics.selectionChanged();
-    setDraft((prev) => {
-      if (hasFeedFilter(prev, flag)) {
-        return {
-          ...prev,
-          filters: prev.filters.filter((item) => item !== flag),
-        };
-      }
 
-      if (flag === 'location') {
-        const cities =
-          prev.locationCities.length === 0
-            ? [...availableCities]
-            : prev.locationCities;
-        if (isAllSelection(cities, availableCities)) {
-          setLocationSnapshot(cities);
-          setPanelRoute('location');
-          return { ...prev, locationCities: cities };
-        }
-        return {
-          ...prev,
-          locationCities: cities,
-          filters: [...prev.filters, 'location'],
-        };
-      }
+    if (hasFeedFilter(draft, flag)) {
+      setDraft((prev) => ({
+        ...prev,
+        filters: prev.filters.filter((item) => item !== flag),
+      }));
+      return;
+    }
 
-      if (flag === 'placeType') {
-        const types =
-          prev.primaryTypes.length === 0
-            ? [...availablePrimaryTypes]
-            : prev.primaryTypes;
-        if (isAllSelection(types, availablePrimaryTypes)) {
-          setPlaceTypeSnapshot(types);
-          setPanelRoute('placeType');
-          return { ...prev, primaryTypes: types };
-        }
-        return {
-          ...prev,
-          primaryTypes: types,
-          filters: [...prev.filters, 'placeType'],
-        };
+    if (flag === 'location') {
+      const cities =
+        draft.locationCities.length === 0
+          ? [...availableCities]
+          : [...draft.locationCities];
+      if (isAllSelection(cities, availableCities)) {
+        // First enable → pick cities (Swift opens the location sheet).
+        setLocationSnapshot(cities);
+        setDraft((prev) => ({ ...prev, locationCities: cities }));
+        pushPanel('location');
+        return;
       }
+      setDraft((prev) => ({
+        ...prev,
+        locationCities: cities,
+        filters: prev.filters.includes('location')
+          ? prev.filters
+          : [...prev.filters, 'location'],
+      }));
+      return;
+    }
 
-      return { ...prev, filters: [...prev.filters, flag] };
-    });
+    if (flag === 'placeType') {
+      const types =
+        draft.primaryTypes.length === 0
+          ? [...availablePrimaryTypes]
+          : [...draft.primaryTypes];
+      if (isAllSelection(types, availablePrimaryTypes)) {
+        setPlaceTypeSnapshot(types);
+        setDraft((prev) => ({ ...prev, primaryTypes: types }));
+        pushPanel('placeType');
+        return;
+      }
+      setDraft((prev) => ({
+        ...prev,
+        primaryTypes: types,
+        filters: prev.filters.includes('placeType')
+          ? prev.filters
+          : [...prev.filters, 'placeType'],
+      }));
+      return;
+    }
+
+    setDraft((prev) => ({
+      ...prev,
+      filters: [...prev.filters, flag],
+    }));
   };
 
   const confirmLocationDraft = () => {
     setDraft((prev) => {
       const allSelected = isAllSelection(prev.locationCities, availableCities);
       const filters: FeedFilterFlag[] = allSelected
-        ? prev.filters.filter((flag) => flag !== 'location')
+        ? prev.filters.filter((item) => item !== 'location')
         : prev.filters.includes('location')
           ? prev.filters
           : [...prev.filters, 'location'];
@@ -281,17 +304,15 @@ export function FilterOptionsModal({
 
   const cancelLocationDraft = () => {
     if (locationSnapshot) {
-      setDraft((prev) => {
-        const cities = locationSnapshot;
-        const allSelected = isAllSelection(cities, availableCities);
-        return {
-          ...prev,
-          locationCities: cities,
-          filters: allSelected
-            ? prev.filters.filter((flag) => flag !== 'location')
-            : prev.filters,
-        };
-      });
+      const cities = locationSnapshot;
+      const allSelected = isAllSelection(cities, availableCities);
+      setDraft((prev) => ({
+        ...prev,
+        locationCities: cities,
+        filters: allSelected
+          ? prev.filters.filter((item) => item !== 'location')
+          : prev.filters,
+      }));
     }
     setLocationSnapshot(null);
     setPanelRoute(null);
@@ -304,7 +325,7 @@ export function FilterOptionsModal({
         availablePrimaryTypes,
       );
       const filters: FeedFilterFlag[] = allSelected
-        ? prev.filters.filter((flag) => flag !== 'placeType')
+        ? prev.filters.filter((item) => item !== 'placeType')
         : prev.filters.includes('placeType')
           ? prev.filters
           : [...prev.filters, 'placeType'];
@@ -316,17 +337,15 @@ export function FilterOptionsModal({
 
   const cancelPlaceTypeDraft = () => {
     if (placeTypeSnapshot) {
-      setDraft((prev) => {
-        const types = placeTypeSnapshot;
-        const allSelected = isAllSelection(types, availablePrimaryTypes);
-        return {
-          ...prev,
-          primaryTypes: types,
-          filters: allSelected
-            ? prev.filters.filter((flag) => flag !== 'placeType')
-            : prev.filters,
-        };
-      });
+      const types = placeTypeSnapshot;
+      const allSelected = isAllSelection(types, availablePrimaryTypes);
+      setDraft((prev) => ({
+        ...prev,
+        primaryTypes: types,
+        filters: allSelected
+          ? prev.filters.filter((item) => item !== 'placeType')
+          : prev.filters,
+      }));
     }
     setPlaceTypeSnapshot(null);
     setPanelRoute(null);

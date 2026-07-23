@@ -1,5 +1,54 @@
-import { Linking, Platform } from 'react-native';
+import {
+  ActionSheetIOS,
+  InteractionManager,
+  Linking,
+  Platform,
+} from 'react-native';
+
 import { houseAlert } from '@/components/ui/HouseAlert';
+
+/** Wait for a native Modal / ActionSheet to finish dismissing before presenting UI. */
+function afterPresentationSettles(work: () => void): void {
+  InteractionManager.runAfterInteractions(() => {
+    setTimeout(work, Platform.OS === 'ios' ? 320 : 50);
+  });
+}
+
+async function safeOpenURL(url: string): Promise<void> {
+  try {
+    // `canOpenURL` is unreliable / unnecessary for http(s); only gate custom schemes.
+    if (!/^https?:/i.test(url)) {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        afterPresentationSettles(() => {
+          houseAlert(
+            'Unable to open',
+            'This app is not available on this device.',
+          );
+        });
+        return;
+      }
+    }
+    await Linking.openURL(url);
+  } catch {
+    afterPresentationSettles(() => {
+      houseAlert('Unable to open', 'This app is not available on this device.');
+    });
+  }
+}
+
+function asCoord(value: number): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+async function canOpenWaze(): Promise<boolean> {
+  try {
+    return await Linking.canOpenURL('waze://');
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Opens a destination in Apple Maps, Google Maps, or Waze
@@ -7,41 +56,41 @@ import { houseAlert } from '@/components/ui/HouseAlert';
  */
 export const DirectionsLauncher = {
   async openAppleMaps(name: string, latitude: number, longitude: number) {
+    const lat = asCoord(latitude);
+    const lng = asCoord(longitude);
+    if (!restaurantHasCoordinates(lat, lng)) return;
+
     const label = encodeURIComponent(name.trim() || 'Destination');
     const url =
       Platform.OS === 'ios'
-        ? `http://maps.apple.com/?daddr=${latitude},${longitude}&dirflg=d&q=${label}`
-        : `geo:${latitude},${longitude}?q=${latitude},${longitude}(${label})`;
-    await Linking.openURL(url);
+        ? `https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d&q=${label}`
+        : `geo:${lat},${lng}?q=${lat},${lng}(${label})`;
+    await safeOpenURL(url);
   },
 
   async openGoogleMaps(latitude: number, longitude: number) {
-    const appURL = `comgooglemaps://?daddr=${latitude},${longitude}&directionsmode=driving`;
-    const webURL = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=driving`;
+    const lat = asCoord(latitude);
+    const lng = asCoord(longitude);
+    if (!restaurantHasCoordinates(lat, lng)) return;
+
+    const appURL = `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`;
+    const webURL = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
     try {
-      const canOpen = await Linking.canOpenURL(appURL);
-      if (canOpen) {
+      if (await Linking.canOpenURL(appURL)) {
         await Linking.openURL(appURL);
         return;
       }
     } catch {
       // Fall through to web.
     }
-    await Linking.openURL(webURL);
-  },
-
-  async canOpenWaze(): Promise<boolean> {
-    try {
-      return await Linking.canOpenURL('waze://');
-    } catch {
-      return false;
-    }
+    await safeOpenURL(webURL);
   },
 
   async openWaze(latitude: number, longitude: number) {
-    await Linking.openURL(
-      `waze://?ll=${latitude},${longitude}&navigate=yes`,
-    );
+    const lat = asCoord(latitude);
+    const lng = asCoord(longitude);
+    if (!restaurantHasCoordinates(lat, lng)) return;
+    await safeOpenURL(`waze://?ll=${lat},${lng}&navigate=yes`);
   },
 };
 
@@ -49,59 +98,106 @@ export function restaurantHasCoordinates(
   latitude: number,
   longitude: number,
 ): boolean {
+  const lat = asCoord(latitude);
+  const lng = asCoord(longitude);
   return (
-    Number.isFinite(latitude) &&
-    Number.isFinite(longitude) &&
-    !(latitude === 0 && longitude === 0)
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    !(lat === 0 && lng === 0)
   );
 }
 
-export async function presentDirectionsOptions(args: {
+export type PresentDirectionsArgs = {
   name: string;
   addressLine?: string;
   latitude: number;
   longitude: number;
-}): Promise<void> {
-  const { Alert } = await import('react-native');
-  const { name, addressLine, latitude, longitude } = args;
+  /**
+   * When true, wait before presenting (caller is dismissing an RN Modal first).
+   * Presenting ActionSheetIOS / another Modal while one is visible crashes iOS.
+   */
+  afterModalDismiss?: boolean;
+};
+
+async function showDirectionsChooser(args: PresentDirectionsArgs): Promise<void> {
+  const latitude = asCoord(args.latitude);
+  const longitude = asCoord(args.longitude);
+  const name = args.name?.trim() || 'Destination';
+
   if (!restaurantHasCoordinates(latitude, longitude)) {
     houseAlert('Get directions', 'No map location is available.');
     return;
   }
 
-  const buttons: {
-    text: string;
-    onPress?: () => void;
-    style?: 'cancel' | 'default' | 'destructive';
-  }[] = [
-    {
-      text: 'Apple Maps',
-      onPress: () => {
-        void DirectionsLauncher.openAppleMaps(name, latitude, longitude);
-      },
-    },
-    {
-      text: 'Google Maps',
-      onPress: () => {
-        void DirectionsLauncher.openGoogleMaps(latitude, longitude);
-      },
-    },
-  ];
+  // ActionSheetIOS can misbehave with very long messages.
+  const rawMessage = args.addressLine?.trim() || name;
+  const message =
+    rawMessage.length > 160 ? `${rawMessage.slice(0, 157)}…` : rawMessage;
 
-  if (await DirectionsLauncher.canOpenWaze()) {
-    buttons.push({
-      text: 'Waze',
-      onPress: () => {
-        void DirectionsLauncher.openWaze(latitude, longitude);
-      },
+  const openApple = () => {
+    afterPresentationSettles(() => {
+      void DirectionsLauncher.openAppleMaps(name, latitude, longitude);
     });
+  };
+  const openGoogle = () => {
+    afterPresentationSettles(() => {
+      void DirectionsLauncher.openGoogleMaps(latitude, longitude);
+    });
+  };
+  const openWaze = () => {
+    afterPresentationSettles(() => {
+      void DirectionsLauncher.openWaze(latitude, longitude);
+    });
+  };
+
+  // Swift `DirectionsLauncher.canOpenWaze` — omit Waze when not installed.
+  const wazeAvailable = await canOpenWaze();
+
+  if (Platform.OS === 'ios') {
+    const options = wazeAvailable
+      ? ['Apple Maps', 'Google Maps', 'Waze', 'Cancel']
+      : ['Apple Maps', 'Google Maps', 'Cancel'];
+    const cancelButtonIndex = options.length - 1;
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        title: 'Get directions',
+        message,
+        options,
+        cancelButtonIndex,
+      },
+      (buttonIndex) => {
+        if (buttonIndex === 0) openApple();
+        else if (buttonIndex === 1) openGoogle();
+        else if (wazeAvailable && buttonIndex === 2) openWaze();
+      },
+    );
+    return;
   }
 
-  buttons.push({ text: 'Cancel', style: 'cancel' });
+  const buttons = [
+    {
+      text: 'Maps',
+      onPress: openApple,
+    },
+    { text: 'Google Maps', onPress: openGoogle },
+    ...(wazeAvailable
+      ? [{ text: 'Waze', onPress: openWaze }]
+      : []),
+    { text: 'Cancel', style: 'cancel' as const },
+  ];
+  houseAlert('Get directions', message, buttons);
+}
 
-  houseAlert(
-    'Get directions',
-    addressLine?.trim() || name,
-    buttons,
-  );
+/**
+ * Present map-app choices.
+ * On iOS this uses `ActionSheetIOS` synchronously (Swift `confirmationDialog`).
+ */
+export function presentDirectionsOptions(args: PresentDirectionsArgs): void {
+  if (args.afterModalDismiss) {
+    afterPresentationSettles(() => {
+      void showDirectionsChooser(args);
+    });
+    return;
+  }
+  void showDirectionsChooser(args);
 }

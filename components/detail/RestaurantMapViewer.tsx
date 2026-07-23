@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
@@ -7,6 +8,8 @@ import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
 import type { Restaurant } from '@/data/types';
 import { presentDirectionsOptions } from '@/services/directions/DirectionsLauncher';
+import { resolveCurrentLocation } from '@/services/location/resolveCurrentLocation';
+import type { LatLng } from '@/services/places';
 
 type RestaurantMapViewerProps = {
   visible: boolean;
@@ -23,9 +26,27 @@ export function RestaurantMapViewer({
   onClose,
 }: RestaurantMapViewerProps) {
   const insets = useSafeAreaInsets();
+  const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const addressLine = [restaurant.address, restaurant.city, restaurant.country]
     .filter(Boolean)
     .join(', ');
+
+  useEffect(() => {
+    if (!visible) {
+      setUserLocation(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const location = await resolveCurrentLocation();
+      if (!cancelled && location.coords) {
+        setUserLocation(location.coords);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible]);
 
   return (
     <Modal
@@ -72,19 +93,25 @@ export function RestaurantMapViewer({
                 isSelected: true,
               },
             ]}
+            showsUserLocation
+            userLocation={userLocation}
           />
         </View>
 
         <Pressable
           style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}
-          onPress={() =>
-            void presentDirectionsOptions({
+          onPress={() => {
+            // Dismiss the map Modal first — ActionSheetIOS / houseAlert Modal
+            // presented on top of an RN Modal crashes iOS intermittently.
+            onClose();
+            presentDirectionsOptions({
               name: restaurant.name,
               addressLine,
               latitude: restaurant.latitude,
               longitude: restaurant.longitude,
-            })
-          }
+              afterModalDismiss: true,
+            });
+          }}
           accessibilityRole="button"
           accessibilityLabel="Get directions">
           <View style={styles.footerCopy}>

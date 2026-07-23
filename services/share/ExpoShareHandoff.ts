@@ -3,18 +3,19 @@ import * as Sharing from 'expo-sharing';
 
 import { SHARE_FILE_EXTENSION } from '@/services/share/types';
 import { ShareInbox } from '@/services/share/ShareInbox';
+import { uriLooksLikeSharePackage } from '@/services/share/ShareImportService';
 
 export type ExpoShareHandoffFile = {
   uri: string;
   filename: string | null;
 };
 
-function isGustraShareFile(uri: string, originalName: string | null): boolean {
-  if (ShareInbox.isSharePackageURL(uri)) return true;
-  if (originalName?.toLowerCase().endsWith(`.${SHARE_FILE_EXTENSION}`)) {
-    return true;
-  }
-  return false;
+function hasShareExtension(name: string | null | undefined): boolean {
+  if (!name) return false;
+  const lower = name.toLowerCase();
+  return (
+    lower.endsWith(`.${SHARE_FILE_EXTENSION}`) || lower.endsWith('.json')
+  );
 }
 
 /**
@@ -39,12 +40,26 @@ export async function consumeExpoShareHandoffFile(): Promise<ExpoShareHandoffFil
 
   try {
     const resolved = await Sharing.getResolvedSharedPayloadsAsync();
-    const match = resolved.find(
+    const withUri = resolved.filter(
       (payload) =>
         typeof payload.contentUri === 'string' &&
-        payload.contentUri.length > 0 &&
-        isGustraShareFile(payload.contentUri, payload.originalName ?? null),
+        payload.contentUri.length > 0,
     );
+
+    let match = withUri.find(
+      (payload) =>
+        ShareInbox.isSharePackageURL(payload.contentUri!) ||
+        hasShareExtension(payload.originalName),
+    );
+
+    if (!match) {
+      for (const payload of withUri) {
+        if (await uriLooksLikeSharePackage(payload.contentUri!)) {
+          match = payload;
+          break;
+        }
+      }
+    }
 
     Sharing.clearSharedPayloads();
 

@@ -102,44 +102,52 @@ const inFlight = new Map<string, Promise<RestaurantSearchResult[]>>();
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const CACHE_RADIUS_M = 100;
 
-function bucketKey(center: LatLng, query: string): string {
-  const lat = Math.round(center.latitude * 1000) / 1000;
-  const lng = Math.round(center.longitude * 1000) / 1000;
-  // v2: field mask includes phone numbers.
-  return `v2:${query}@${lat},${lng}`;
+function bucketKey(
+  center: LatLng | null,
+  query: string,
+  extras: string = '',
+): string {
+  const lat = center ? Math.round(center.latitude * 1000) / 1000 : 'none';
+  const lng = center ? Math.round(center.longitude * 1000) / 1000 : 'none';
+  // v3: optional locationBias + regionCode for country-scoped manual search.
+  return `v3:${query}@${lat},${lng}${extras ? `:${extras}` : ''}`;
 }
 
-function cached(center: LatLng, query: string): RestaurantSearchResult[] | null {
+function cached(
+  center: LatLng | null,
+  query: string,
+): RestaurantSearchResult[] | null {
   const now = Date.now();
   for (let i = cacheEntries.length - 1; i >= 0; i -= 1) {
     if (now - cacheEntries[i]!.timestamp > CACHE_TTL_MS) {
       cacheEntries.splice(i, 1);
     }
   }
-  const hit = cacheEntries.find(
-    (entry) =>
-      entry.query === query &&
-      distanceMeters(entry.center, center) <= CACHE_RADIUS_M,
-  );
+  const hit = cacheEntries.find((entry) => {
+    if (entry.query !== query) return false;
+    if (!center) return entry.center.latitude === 0 && entry.center.longitude === 0;
+    return distanceMeters(entry.center, center) <= CACHE_RADIUS_M;
+  });
   return hit?.results ?? null;
 }
 
 async function resolveCache(
-  center: LatLng,
+  center: LatLng | null,
   query: string,
   work: () => Promise<RestaurantSearchResult[]>,
+  extras: string = '',
 ): Promise<RestaurantSearchResult[]> {
   const hit = cached(center, query);
   if (hit) return hit;
 
-  const key = bucketKey(center, query);
+  const key = bucketKey(center, query, extras);
   const existing = inFlight.get(key);
   if (existing) return existing;
 
   const task = (async () => {
     const results = await work();
     cacheEntries.push({
-      center,
+      center: center ?? { latitude: 0, longitude: 0 },
       query,
       timestamp: Date.now(),
       results,
@@ -285,26 +293,35 @@ async function postNearby(
 
 async function postText(
   query: string,
-  center: LatLng,
+  center: LatLng | null,
   radius: number,
+  regionCode?: string,
 ): Promise<RestaurantSearchResult[]> {
-  return postPlaces(
-    'places:searchText',
-    {
-      textQuery: query,
-      maxResultCount: 20,
-      locationBias: {
-        circle: {
-          center: {
-            latitude: center.latitude,
-            longitude: center.longitude,
-          },
-          radius,
+  const body: Record<string, unknown> = {
+    textQuery: query,
+    maxResultCount: 20,
+  };
+
+  // Soft GPS bias only when useful. An explicit place/country in `textQuery`
+  // already overrides bias per Places docs — still skip a tight 2 km circle
+  // so country-wide manual entry is not pulled toward FR/DE near the user.
+  if (center) {
+    body.locationBias = {
+      circle: {
+        center: {
+          latitude: center.latitude,
+          longitude: center.longitude,
         },
+        radius,
       },
-    },
-    true,
-  );
+    };
+  }
+
+  if (regionCode) {
+    body.regionCode = regionCode;
+  }
+
+  return postPlaces('places:searchText', body, true);
 }
 
 function normalizedPlaceID(placeID: string): string | null {
@@ -374,19 +391,91 @@ export async function searchNearby(
 }
 
 /**
- * Text search around a center (Swift `RestaurantSearchService.searchText`).
+ * Rough ISO 3166-1 alpha-2 for Places `regionCode` ranking.
+ * Names users commonly type in Manual entry.
+ */
+const COUNTRY_REGION_CODES: Record<string, string> = {
+  austria: 'AT',
+  belgium: 'BE',
+  denmark: 'DK',
+  france: 'FR',
+  germany: 'DE',
+  greece: 'GR',
+  ireland: 'IE',
+  italy: 'IT',
+  luxembourg: 'LU',
+  netherlands: 'NL',
+  'the netherlands': 'NL',
+  holland: 'NL',
+  norway: 'NO',
+  portugal: 'PT',
+  spain: 'ES',
+  sweden: 'SE',
+  switzerland: 'CH',
+  'united kingdom': 'GB',
+  uk: 'GB',
+  england: 'GB',
+  'united states': 'US',
+  usa: 'US',
+  'united states of america': 'US',
+};
+
+export function regionCodeForCountry(country: string): string | undefined {
+  const key = country.trim().toLowerCase();
+  if (!key) return undefined;
+  return COUNTRY_REGION_CODES[key];
+}
+
+/** Loose country filter after Places returns (FR/DE noise with empty city). */
+export function resultMatchesCountry(
+  resultCountry: string,
+  wantedCountry: string,
+): boolean {
+  const want = wantedCountry.trim().toLowerCase();
+  if (!want) return true;
+  const got = resultCountry.trim().toLowerCase();
+  if (!got) return true;
+  return got === want || got.includes(want) || want.includes(got);
+}
+
+export type SearchTextOptions = {
+  /** Soft GPS bias radius in meters (ignored when `locationBias` is false). */
+  radius?: number;
+  /**
+   * When false, omit `locationBias` so an explicit country/city in the query
+   * is not overridden by a tight circle around the device.
+   */
+  locationBias?: boolean;
+  /** ISO 3166-1 alpha-2 for ranking (Places `regionCode`). */
+  regionCode?: string;
+};
+
+/**
+ * Text search (Swift `RestaurantSearchService.searchText`).
+ * `center` is optional when the query already names a country/city.
  */
 export async function searchText(
   query: string,
-  center: LatLng,
-  radius: number = DEFAULT_SEARCH_RADIUS_M,
+  center?: LatLng | null,
+  options: SearchTextOptions = {},
 ): Promise<RestaurantSearchResult[]> {
   const trimmed = query.trim();
+  const radius = options.radius ?? DEFAULT_SEARCH_RADIUS_M;
+  const useBias = options.locationBias !== false && center != null;
+  const biasCenter = useBias ? center! : null;
+  const regionCode = options.regionCode?.trim().toUpperCase() || undefined;
+
   if (!trimmed) {
+    if (!center) return [];
     return searchNearby(center, radius);
   }
-  const results = await resolveCache(center, trimmed.toLowerCase(), () =>
-    postText(trimmed, center, radius),
+
+  const cacheQuery = `${trimmed.toLowerCase()}|bias=${useBias}|rc=${regionCode ?? ''}`;
+  const results = await resolveCache(
+    biasCenter,
+    cacheQuery,
+    () => postText(trimmed, biasCenter, radius, regionCode),
+    regionCode ?? '',
   );
-  return withDistance(results, center);
+  return center ? withDistance(results, center) : results;
 }

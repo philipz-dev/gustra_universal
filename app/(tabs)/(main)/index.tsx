@@ -14,6 +14,7 @@ import {
   availablePrimaryTypesFromSummaries,
   DEFAULT_FEED_FILTER_STATE,
   isFeedFilterActive,
+  pruneFeedFiltersForSummaries,
   type FeedFilterOptions,
   type FeedFilterState,
 } from '@/components/feed/feedFilters';
@@ -233,17 +234,33 @@ export default function ReviewsFeedScreen() {
   const emptyFromFilters =
     summaries.length > 0 && filtered.length === 0 && (filterActive || query);
   const emptyTitle = emptyFromFilters
-    ? 'No matches'
+    ? filterState.sortKind.type === 'criterion' && !query
+      ? 'No Matching Restaurants'
+      : 'No matches'
     : isFriends
       ? 'No Friend Reviews'
       : 'No reviews yet';
   const emptyDescription = emptyFromFilters
     ? query
       ? 'Try another restaurant, city, comment, or text from a photo.'
-      : 'Try clearing filters or choosing different options.'
+      : filterState.sortKind.type === 'criterion'
+        ? 'No restaurants have a rating for this criterion yet.'
+        : 'No restaurants match the selected filters.'
     : isFriends
       ? "Import shared reviews to see friends' reviews here."
       : 'Start collecting food memories. Your first review will appear here.';
+
+  const clearFeedFilters = useCallback(() => {
+    setQuery('');
+    setFilterState(DEFAULT_FEED_FILTER_STATE);
+  }, []);
+
+  // Swift `syncFiltersForReviewSourceChange` when switching My ↔ Friends.
+  useEffect(() => {
+    setFilterState((prev) => pruneFeedFiltersForSummaries(prev, summaries));
+    // Only on source switch — avoid wiping city/cuisine picks while summaries load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+  }, [reviewSource]);
 
   return (
     <View style={styles.screen}>
@@ -292,14 +309,14 @@ export default function ReviewsFeedScreen() {
           }
           actionTitle={
             emptyFromFilters
-              ? undefined
+              ? 'Clear filters'
               : isFriends
                 ? 'Import reviews'
                 : 'Add review'
           }
           onAction={
             emptyFromFilters
-              ? undefined
+              ? clearFeedFilters
               : isFriends
                 ? () => {
                     void pickSharePackage();
@@ -379,12 +396,13 @@ export default function ReviewsFeedScreen() {
       <ShareReviewerNameModal
         visible={nameModalVisible}
         onCancel={() => setNameModalVisible(false)}
-        onContinue={(name) => {
-          updateName(name);
-          setNameModalVisible(false);
-          setTimeout(() => {
-            void performShare(name);
-          }, 350);
+        onContinue={(sharedBy) => {
+          updateName(sharedBy);
+          // Keep this sheet up until the system share UI is up — closing first
+          // flashes the feed underneath.
+          void performShare(sharedBy).finally(() => {
+            setNameModalVisible(false);
+          });
         }}
       />
       <FilterOptionsModal

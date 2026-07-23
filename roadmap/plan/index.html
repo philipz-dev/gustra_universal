@@ -351,7 +351,7 @@
   <div class="wrap">
     <header class="hero">
       <h1 class="brand">Gustra</h1>
-      <p class="tagline">Roadmap naar 100% Swift-parity — vink af, voeg features toe, progress update live.</p>
+      <p class="tagline">Roadmap naar Swift-parity — open gaps tellen mee; 100% pas als die dicht zijn.</p>
       <div class="status-row">
         <div class="progress-block">
           <div class="progress-label">
@@ -395,7 +395,7 @@
 
     <section class="panel" id="parity">
       <h2>Swift parity</h2>
-      <p class="section-meta">Hoofd- en subpunten om Expo gelijk te trekken met de native Swift-app. Done-items staan al aangevinkt.</p>
+      <p class="section-meta">Expo vs Swift iOS. Badge “open” = audit-gap (verlaagt %). Bewuste uitstel (Siri, localization, search-suggest) staat onder Ideeën.</p>
       <div id="parityRoot"></div>
     </section>
 
@@ -501,7 +501,24 @@
             id: "new-2026-07-23",
             title: "23 jul 2026",
             tasks: [
+              { id: "chg-20260723-p3-parity", title: "P3 parity: Android photo zoom/dismiss + ReanimatedSwipeable feel", done: true, badge: "Expo", date: "2026-07-23" },
+              { id: "chg-20260723-p2-parity", title: "P2 parity: map location, batch Remove Photos, UIFileSharing, landscape viewer", done: true, badge: "Expo", date: "2026-07-23" },
+              { id: "chg-20260723-p1-parity", title: "P1 parity: avg-sort, Clear filters, My↔Friends prune, Save to Photos, Waze-gate", done: true, badge: "Expo", date: "2026-07-23" },
+              { id: "chg-20260723-parity-audit", title: "Parity-audit: open gaps heropend (niet meer vals 100%)", done: true, badge: "Plan", date: "2026-07-23" },
+              { id: "chg-20260723-photo-reorder", title: "Fix iOS: photo thumbnails herschikken (long-press drag)", done: true, badge: "Expo", date: "2026-07-23" },
+              { id: "chg-20260723-swipe-tune", title: "Swipe-delete: iOS-achtiger (friction, system red, haptic)", done: true, badge: "Expo", date: "2026-07-23" },
+              { id: "chg-20260723-nav-scale", title: "Nav-titel: schaal tot 75% zoals Swift (geen ellipsis)", done: true, badge: "Expo", date: "2026-07-23" },
+              { id: "chg-20260723-share-flicker", title: "Fix: share flow zonder flikkeren (één sheet voor naam/message)", done: true, badge: "Expo", date: "2026-07-23" },
+              { id: "chg-20260723-visual-freeze", title: "Fix: visual recommendation bevriest niet meer na personal message", done: true, badge: "Expo", date: "2026-07-23" },
+              { id: "chg-20260723-share-json", title: "Fix WhatsApp: .gustrashare niet meer als JSON + import sniff", done: true, badge: "Expo", date: "2026-07-23" },
+              { id: "chg-20260723-dup-review", title: "Fix: geen dubbele review na autosave + Done/unmount", done: true, badge: "Expo", date: "2026-07-23" },
               { id: "chg-20260723-android-polish", title: "Android polish: edge-to-edge, surfaces, type ramp, 48dp hits", done: true, badge: "Expo", date: "2026-07-23" },
+              { id: "chg-20260723-nav-setstyle", title: "Fix Android crash: NavigationBar.setStyle (SDK 57 API)", done: true, badge: "Expo", date: "2026-07-23" },
+              { id: "chg-20260723-directions-ios", title: "Fix iOS: directions via ActionSheetIOS (geen crash na adres-tap)", done: true, badge: "Expo", date: "2026-07-23" },
+              { id: "chg-20260723-manual-country", title: "Manual entry: land in Google-query + geen GPS-bias zonder stad", done: true, badge: "Expo", date: "2026-07-23" },
+              { id: "chg-20260723-keyboard-overlap", title: "Keyboard: tab bar hide + scroll focused field above keyboard", done: true, badge: "Expo", date: "2026-07-23" },
+              { id: "chg-20260723-directions-modal", title: "Fix iOS crash: directions pas na sluiten kaart-Modal", done: true, badge: "Expo", date: "2026-07-23" },
+              { id: "chg-20260723-filter-push", title: "Fix iOS: filter Location/Cuisine push bevriest niet meer", done: true, badge: "Expo", date: "2026-07-23" },
               { id: "chg-20260723-web-sqlite-stub", title: "Web: SwiftDataMigration stub (geen expo-sqlite in export)", done: true, badge: "Expo", date: "2026-07-23" },
               { id: "chg-20260723-ios-type-list", title: "iOS polish: SF body + list/form (44pt, separators, press)", done: true, badge: "Expo", date: "2026-07-23" },
               { id: "chg-20260723-ios-polish", title: "iOS polish: nav chrome, haptics overal, spring motion", done: true, badge: "Expo", date: "2026-07-23" },
@@ -545,6 +562,28 @@
         title: "Swift parity",
         groups: [
           {
+            id: "open-gaps",
+            title: "Open gaps (audit 23 jul 2026)",
+            tasks: [
+              { id: "gap-sort-avg-empty", title: "Feed: Average score sort ook zonder actieve filters", done: true, badge: "Expo" },
+              { id: "gap-empty-clear", title: "Feed empty: Clear filters-knop (zoals Swift)", done: true, badge: "Expo" },
+              { id: "gap-filter-prune", title: "My↔Friends: ongeldige city/cuisine-selectie prune", done: true, badge: "Expo" },
+              { id: "gap-photo-batch", title: "Review form: multi-select + batch Remove Photos", done: true, badge: "Expo" },
+              { id: "gap-save-photos", title: "Photo viewer: Save to Photos", done: true, badge: "Expo" },
+              { id: "gap-photo-landscape", title: "Photo viewer: landscape orientation unlock", done: true, badge: "Expo" },
+              { id: "gap-android-zoom", title: "Android photo pager: pinch/pan zoom", done: true, badge: "Expo" },
+              { id: "gap-android-dismiss", title: "Android photo pager: vertical swipe-to-dismiss", done: true, badge: "Expo" },
+              { id: "gap-map-my-btn", title: "My Map: my-location recenter-knop", done: true, badge: "Expo" },
+              { id: "gap-map-detail-loc", title: "Restaurant-kaart: user location tonen", done: true, badge: "Expo" },
+              { id: "gap-waze-gate", title: "Directions: Waze alleen als app geïnstalleerd is", done: true, badge: "Expo" },
+              { id: "gap-share-preview", title: "Share sheet: rich preview (titel + hero, Swift LPLinkMetadata)", badge: "gap" },
+              { id: "gap-share-ext-ui", title: "Share Extension: branded Swift-achtige UI (nu generic expo-sharing)", badge: "gap" },
+              { id: "gap-file-sharing", title: "iOS: UIFileSharingEnabled (Files → On My iPhone)", done: true, badge: "Expo" },
+              { id: "gap-map-sdk", title: "My Map: native Google Maps SDK i.p.v. JS WebView (optioneel)", badge: "gap" },
+              { id: "gap-swipe-feel", title: "Swipe-delete: nog dichter bij native List swipeActions", done: true, badge: "Expo" },
+            ],
+          },
+          {
             id: "nav",
             title: "Tabs & navigatie",
             tasks: [
@@ -571,7 +610,7 @@
               },
               { id: "feed-single", title: "Single-visit → review detail", done: true, badge: "Expo" },
               { id: "feed-multi", title: "Multi-visit → restaurant visits list", done: true, badge: "Expo" },
-              { id: "feed-swipe", title: "Swipe-delete restaurant + alle visits", done: true, badge: "Expo" },
+              { id: "feed-swipe", title: "Swipe-delete restaurant + alle visits (RNGH, niet native List)", done: true, badge: "Expo" },
               { id: "feed-fab", title: "FAB Add review", done: true, badge: "Expo" },
               { id: "feed-empty", title: "Empty states (geen reviews / friends / filters)", done: true, badge: "Expo" },
             ],
@@ -595,7 +634,7 @@
                 children: [
                   { id: "fil-city", title: "Multi-select city + All/None", done: true },
                   { id: "fil-type", title: "Multi-select place-type + labels", done: true },
-                  { id: "fil-sort-avg", title: "Sort by average score", done: true },
+                  { id: "fil-sort-avg", title: "Sort by average score (nu vooral mét actieve filters)", done: true, badge: "Expo" },
                   { id: "fil-sort-crit", title: "Sort by enabled criterion", done: true },
                   { id: "fil-preview", title: "Live preview count in filter sheet", done: true },
                 ],
@@ -641,7 +680,7 @@
               { id: "rf-header", title: "Header + favorite + revisit banner", done: true, badge: "Expo" },
               { id: "rf-date", title: "Visit date/time picker (niet in toekomst)", done: true, badge: "Expo" },
               { id: "rf-stars", title: "Stars + per-criterion comments", done: true, badge: "Expo" },
-              { id: "rf-photos", title: "Camera / library + compress per quality setting", done: true, badge: "Expo" },
+              { id: "rf-photos", title: "Camera / library + compress (batch remove = open gap)", done: true, badge: "Expo" },
               { id: "rf-chooser-ui", title: "House-style full-screen photo source chooser", done: true, badge: "Expo" },
               { id: "rf-ocr", title: "OCR index in searchable text", done: true, badge: "Expo" },
               { id: "rf-save", title: "Save / delete / unsaved-changes guard", done: true, badge: "Expo" },
@@ -662,7 +701,7 @@
             id: "photos",
             title: "Photo viewers",
             tasks: [
-              { id: "pv-review", title: "Full-screen review viewer (zoom/pan/chrome)", done: true, badge: "Expo" },
+              { id: "pv-review", title: "Full-screen review viewer (zoom/pan/chrome; Save to Photos = gap)", done: true, badge: "Expo" },
               { id: "pv-share", title: "Share photo (share-icoon → system sheet)", done: true, badge: "Expo" },
               { id: "pv-profile", title: "Reviewer profile photo viewer", done: true, badge: "Expo" },
               { id: "pv-map", title: "Restaurant map viewer", done: true, badge: "Expo" },
@@ -672,8 +711,9 @@
             id: "map-passport",
             title: "My Map & Passport",
             tasks: [
-              { id: "mp-pins", title: "Map pins + fit camera + tap → detail", done: true, badge: "Expo" },
+              { id: "mp-pins", title: "Map pins + fit camera + tap → detail (JS WebView, niet native SDK)", done: true, badge: "Expo" },
               { id: "mp-loc", title: "User location dot", done: true, badge: "Expo" },
+              { id: "mp-friends", title: "Friends-reviews toggle op kaart (Expo-extra t.o.v. Swift)", done: true, badge: "Expo" },
               { id: "pp-stats", title: "Passport overview / best / categories / cities", done: true, badge: "Expo" },
             ],
           },
@@ -705,7 +745,7 @@
             title: "Platform polish",
             tasks: [
               { id: "pl-email", title: "Branded HTML email + snapshot JPEG", done: true, badge: "Expo" },
-              { id: "pl-dir", title: "Directions chooser (Apple/Google/Waze)", done: true, badge: "Expo" },
+              { id: "pl-dir", title: "Directions chooser (Apple/Google/Waze — Waze-gate = gap)", done: true, badge: "Expo" },
               { id: "pl-types", title: "Place-type labels + startup backfill", done: true, badge: "Expo" },
               { id: "pl-orphan", title: "Startup orphan photo cleanup", done: true, badge: "Expo" },
               { id: "pl-haptics", title: "Haptics + swipe-dismiss overlays", done: true, badge: "Expo" },
@@ -768,11 +808,13 @@
             id: "platform-ideas",
             title: "Platform",
             tasks: [
-              { id: "idea-universal", title: "Universal build (Apple + Android)" },
+              { id: "idea-universal", title: "Universal build (Apple + Android)", done: true, badge: "Expo" },
               { id: "idea-watch", title: "Apple Watch app" },
-              { id: "pl-nl", title: "Localization (English, Mandarin Chinese, Hindi, Spanish, French)" },
+              { id: "pl-nl", title: "Localization (English, Mandarin Chinese, Hindi, Spanish, French) — Swift heeft NL" },
               { id: "nav-siri", title: "iOS Siri Shortcuts / App Intents (“Log Visit”)", badge: "Apple" },
-              { id: "fil-suggest", title: "Restaurant-name autocomplete suggestions (Swift parity, later)" },
+              { id: "fil-suggest", title: "Restaurant-name autocomplete suggestions (Swift FilterMatrix)" },
+              { id: "idea-filter-reset", title: "Optioneel: filters wissen bij verlaten feed-stack (Swift-gedrag)" },
+              { id: "idea-swipe-confirm", title: "Optioneel: swipe-delete zonder confirm (Swift delete meteen)" },
             ],
           },
           {
@@ -894,6 +936,16 @@
         },
       );
       for (const id of REMOVED_TASK_IDS) delete checked[id];
+
+      // Keep audit gaps at the top of Swift parity.
+      const paritySec = sections.find((s) => s.id === "parity");
+      if (paritySec) {
+        const gapIdx = paritySec.groups.findIndex((g) => g.id === "open-gaps");
+        if (gapIdx > 0) {
+          const [gapGroup] = paritySec.groups.splice(gapIdx, 1);
+          paritySec.groups.unshift(gapGroup);
+        }
+      }
     }
 
     function pruneTaskList(tasks, sectionId) {

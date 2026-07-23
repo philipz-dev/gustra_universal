@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Image, Platform, StyleSheet, useWindowDimensions } from 'react-native';
+import { useEffect, useState } from 'react';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -15,8 +15,8 @@ type ZoomablePhotoProps = {
   accessibilityLabel?: string;
   onZoomChange?: (zoomed: boolean) => void;
   /**
-   * Pager mode: on Android render a plain image (no GestureDetector) so the
-   * horizontal ScrollView always receives one-finger swipes.
+   * Pager mode: omit double-tap; delay one-finger pan until zoomed so the
+   * horizontal ScrollView keeps receiving page swipes (esp. Android).
    */
   pagingFriendly?: boolean;
 };
@@ -32,6 +32,7 @@ export function ZoomablePhoto({
   pagingFriendly = false,
 }: ZoomablePhotoProps) {
   const { width, height } = useWindowDimensions();
+  const [isZoomed, setIsZoomed] = useState(false);
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -40,6 +41,7 @@ export function ZoomablePhoto({
   const savedY = useSharedValue(0);
 
   const notifyZoom = (next: boolean) => {
+    setIsZoomed(next);
     onZoomChange?.(next);
   };
 
@@ -62,6 +64,7 @@ export function ZoomablePhoto({
       translateY.value = 0;
       savedX.value = 0;
       savedY.value = 0;
+      setIsZoomed(false);
       onZoomChange?.(false);
     }
   }, [
@@ -74,19 +77,6 @@ export function ZoomablePhoto({
     savedX,
     savedY,
   ]);
-
-  // Android pager: never mount a GestureDetector over the page — it wins the
-  // touch arena and kills horizontal swipes even when Pan "fails".
-  if (pagingFriendly && Platform.OS === 'android') {
-    return (
-      <Image
-        source={{ uri }}
-        accessibilityLabel={accessibilityLabel}
-        style={[styles.image, { width, height }]}
-        resizeMode="contain"
-      />
-    );
-  }
 
   const pinch = Gesture.Pinch()
     .onUpdate((e) => {
@@ -102,6 +92,8 @@ export function ZoomablePhoto({
       }
     });
 
+  // One-finger pan only when zoomed — attaching a failing Pan on Android
+  // paging still steals the horizontal ScrollView touch arena.
   const pan = Gesture.Pan()
     .manualActivation(true)
     .onTouchesMove((_e, state) => {
@@ -134,8 +126,11 @@ export function ZoomablePhoto({
       }
     });
 
+  // Pager: pinch-only until zoomed (Android-safe). Full canvas: double-tap + pinch/pan.
   const composed = pagingFriendly
-    ? Gesture.Simultaneous(pinch, pan)
+    ? isZoomed
+      ? Gesture.Simultaneous(pinch, pan)
+      : pinch
     : Gesture.Exclusive(doubleTap, Gesture.Simultaneous(pinch, pan));
 
   const animatedStyle = useAnimatedStyle(() => ({

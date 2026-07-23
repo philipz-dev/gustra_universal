@@ -1,5 +1,13 @@
 import { useCallback, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Image,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { houseAlert } from '@/components/ui/HouseAlert';
 
@@ -13,13 +21,12 @@ import { LocationBlock } from '@/components/detail/LocationBlock';
 import { ProfilePhotoViewer } from '@/components/detail/ProfilePhotoViewer';
 import { RestaurantMapViewer } from '@/components/detail/RestaurantMapViewer';
 import { ReviewPhotoViewer } from '@/components/detail/ReviewPhotoViewer';
-import {
-  ShareReviewChooser,
-  type ShareDestination,
-} from '@/components/detail/ShareReviewChooser';
-import { ShareReviewerNameModal } from '@/components/feed/ShareReviewerNameModal';
-import { EmailPersonalMessageModal } from '@/components/share/EmailPersonalMessageModal';
+import type { ShareDestination } from '@/components/detail/ShareReviewChooser';
 import { PreparingRecommendationOverlay } from '@/components/share/PreparingRecommendationOverlay';
+import {
+  ShareFlowSheet,
+  type ShareFlowStep,
+} from '@/components/share/ShareFlowSheet';
 import {
   HousePrimaryButton,
   HousePrimaryButtonRow,
@@ -39,13 +46,18 @@ import { presentDirectionsOptions } from '@/services/directions/DirectionsLaunch
 import { shareReviewAsEmail } from '@/services/share/ReviewEmailShare';
 import { shareReviewsPackage } from '@/services/share/ReviewShareService';
 
+function afterSheetDismiss(work: () => void): void {
+  setTimeout(work, Platform.OS === 'ios' ? 360 : 60);
+}
+
 export default function ReviewDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { getRestaurant, getReview, setRestaurantFavorite, restaurants } =
     useReviewsStore();
-  const { hasName, name, photoUri, getBackupSnapshot } = useReviewerProfile();
+  const { hasName, name, photoUri, getBackupSnapshot, updateName } =
+    useReviewerProfile();
   const review = getReview(id);
   const restaurant = review ? getRestaurant(review.restaurantId) : undefined;
 
@@ -55,9 +67,7 @@ export default function ReviewDetailScreen() {
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [showReviewerPhoto, setShowReviewerPhoto] = useState(false);
   const [showMap, setShowMap] = useState(false);
-  const [showShareChooser, setShowShareChooser] = useState(false);
-  const [showNameModal, setShowNameModal] = useState(false);
-  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [shareStep, setShareStep] = useState<ShareFlowStep | null>(null);
   const [pendingShare, setPendingShare] = useState<ShareDestination | null>(
     null,
   );
@@ -73,6 +83,12 @@ export default function ReviewDetailScreen() {
     null;
 
   const canShare = Boolean(review && !sharing);
+
+  const closeShareFlow = useCallback(() => {
+    setShareStep(null);
+    setPendingShare(null);
+    setPendingSharedBy(null);
+  }, []);
 
   const runShare = useCallback(
     async (
@@ -129,23 +145,60 @@ export default function ReviewDetailScreen() {
     ],
   );
 
-  const beginShare = useCallback(
-    (destination: ShareDestination, sharedByOverride?: string) => {
-      setShowShareChooser(false);
-      if (!hasName && !sharedByOverride?.trim()) {
-        setPendingShare(destination);
-        setShowNameModal(true);
+  const onSelectDestination = useCallback(
+    (destination: ShareDestination) => {
+      setPendingShare(destination);
+      if (!hasName) {
+        setShareStep('name');
         return;
       }
       if (destination === 'email') {
-        setPendingShare('email');
-        setPendingSharedBy(sharedByOverride?.trim() || null);
-        setShowMessageModal(true);
+        setPendingSharedBy(null);
+        setShareStep('message');
         return;
       }
-      void runShare(destination, sharedByOverride);
+      setShareStep(null);
+      afterSheetDismiss(() => {
+        void runShare(destination);
+      });
     },
     [hasName, runShare],
+  );
+
+  const onNameContinue = useCallback(
+    (sharedBy: string) => {
+      updateName(sharedBy);
+      setPendingSharedBy(sharedBy);
+      const destination = pendingShare;
+      if (!destination) {
+        closeShareFlow();
+        return;
+      }
+      if (destination === 'email') {
+        // Stay in the same Modal — swap to message step (no flicker).
+        setShareStep('message');
+        return;
+      }
+      setShareStep(null);
+      afterSheetDismiss(() => {
+        void runShare(destination, sharedBy);
+      });
+    },
+    [closeShareFlow, pendingShare, runShare, updateName],
+  );
+
+  const onMessageContinue = useCallback(
+    (message: string) => {
+      const sharedBy = pendingSharedBy ?? undefined;
+      // Show preparing under the sheet so the review never flashes through.
+      setPreparingEmail(true);
+      setShareStep(null);
+      setPendingShare(null);
+      afterSheetDismiss(() => {
+        void runShare('email', sharedBy, message);
+      });
+    },
+    [pendingSharedBy, runShare],
   );
 
   const addressLine = restaurant
@@ -167,7 +220,7 @@ export default function ReviewDetailScreen() {
             androidName="share"
             accessibilityLabel="Share"
             disabled={sharing}
-            onPress={() => setShowShareChooser(true)}
+            onPress={() => setShareStep('chooser')}
           />
         ) : null
       }
@@ -327,36 +380,14 @@ export default function ReviewDetailScreen() {
         onClose={() => setShowMap(false)}
       />
 
-      <ShareReviewChooser
-        visible={showShareChooser}
-        onClose={() => setShowShareChooser(false)}
-        onSelect={beginShare}
-      />
-
-      <ShareReviewerNameModal
-        visible={showNameModal}
+      <ShareFlowSheet
+        visible={shareStep !== null}
+        step={shareStep ?? 'chooser'}
         initialName={name}
-        onCancel={() => {
-          setShowNameModal(false);
-          setPendingShare(null);
-        }}
-        onContinue={(sharedBy) => {
-          setShowNameModal(false);
-          if (pendingShare) beginShare(pendingShare, sharedBy);
-        }}
-      />
-
-      <EmailPersonalMessageModal
-        visible={showMessageModal}
-        onCancel={() => {
-          setShowMessageModal(false);
-          setPendingShare(null);
-          setPendingSharedBy(null);
-        }}
-        onContinue={(message) => {
-          setShowMessageModal(false);
-          void runShare('email', pendingSharedBy ?? undefined, message);
-        }}
+        onClose={closeShareFlow}
+        onSelectDestination={onSelectDestination}
+        onNameContinue={onNameContinue}
+        onMessageContinue={onMessageContinue}
       />
 
       <PreparingRecommendationOverlay visible={preparingEmail} />

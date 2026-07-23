@@ -1,5 +1,6 @@
 import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Asset, requestPermissionsAsync } from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 import { Platform, Share } from 'react-native';
 
@@ -58,4 +59,14 @@ async function presentSystemShare(
 export async function sharePhotoUri(uri: string): Promise<void> {
   const local = await ensureLocalPhotoUri(uri);
   await presentSystemShare(local, 'Share photo');
+}
+
+/** Save a photo into the device library (Swift `Save to Photos`, add-only). */
+export async function savePhotoUri(uri: string): Promise<void> {
+  const local = await ensureLocalPhotoUri(uri);
+  const { status } = await requestPermissionsAsync(true);
+  if (status !== 'granted') {
+    throw new Error('Photo access needed to save.');
+  }
+  await Asset.create(local);
 }

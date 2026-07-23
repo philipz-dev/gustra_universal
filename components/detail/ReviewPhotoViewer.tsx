@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Dimensions, Modal, NativeScrollEvent, NativeSyntheticEvent, Platform, ScrollView as RNScrollView, StyleSheet, View } from 'react-native';
+import {
+  Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 import { houseAlert } from '@/components/ui/HouseAlert';
 import {
@@ -23,7 +30,11 @@ import {
 } from '@/components/detail/photoViewer/PhotoViewerChrome';
 import { ZoomablePhoto } from '@/components/detail/photoViewer/ZoomablePhoto';
 import { PhotoViewerStyle } from '@/constants/PhotoViewerStyle';
-import { sharePhotoUri } from '@/services/photos/photoViewerActions';
+import {
+  lockAppPortraitOrientation,
+  unlockPhotoViewerOrientation,
+} from '@/services/orientation/photoViewerOrientation';
+import { sharePhotoUri, savePhotoUri } from '@/services/photos/photoViewerActions';
 
 type ReviewPhotoViewerProps = {
   visible: boolean;
@@ -38,10 +49,7 @@ const PAGE_GAP = 16;
 
 /**
  * Full-screen review photo pager (Swift `ReviewPhotoViewer` cinematic chrome).
- *
- * Android: native ScrollView + no parent dismiss pan around the pager
- * (gesture wrappers were stealing horizontal swipes).
- * iOS: RNGH ScrollView + vertical dismiss pan.
+ * GHScrollView + vertical dismiss on both platforms; pinch zoom with pan only when zoomed.
  */
 export function ReviewPhotoViewer({
   visible,
@@ -50,37 +58,58 @@ export function ReviewPhotoViewer({
   onIndexChange,
   onClose,
 }: ReviewPhotoViewerProps) {
-  const pageWidth = useRef(Dimensions.get('window').width).current;
+  const { width: pageWidth } = useWindowDimensions();
   const pageStride = pageWidth + PAGE_GAP;
-  const rnScrollRef = useRef<RNScrollView>(null);
   const ghScrollRef = useRef<GHScrollView>(null);
+  const indexRef = useRef(index);
+  indexRef.current = index;
   const [zoomed, setZoomed] = useState(false);
+  const [dismissDragging, setDismissDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const dismissY = useSharedValue(0);
-  const isAndroid = Platform.OS === 'android';
+  const touchStartX = useSharedValue(0);
+  const touchStartY = useSharedValue(0);
 
   useEffect(() => {
     if (!visible) {
+      void lockAppPortraitOrientation();
       dismissY.value = 0;
       setZoomed(false);
+      setDismissDragging(false);
       return;
     }
-    const x = index * pageStride;
+    void unlockPhotoViewerOrientation();
+    return () => {
+      void lockAppPortraitOrientation();
+    };
+  }, [visible, dismissY]);
+
+  const scrollToIndex = useCallback(
+    (targetIndex: number, animated: boolean) => {
+      const x = targetIndex * pageStride;
+      ghScrollRef.current?.scrollTo({ x, animated });
+    },
+    [pageStride],
+  );
+
+  useEffect(() => {
+    if (!visible) return;
     const id = requestAnimationFrame(() => {
-      if (Platform.OS === 'android') {
-        rnScrollRef.current?.scrollTo({ x, animated: false });
-      } else {
-        ghScrollRef.current?.scrollTo({ x, animated: false });
-      }
+      scrollToIndex(indexRef.current, false);
     });
     return () => cancelAnimationFrame(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- open sync only
-  }, [visible, pageStride, dismissY]);
+  }, [visible, pageStride, scrollToIndex]);
 
   const close = useCallback(() => {
     dismissY.value = 0;
+    setDismissDragging(false);
+    void lockAppPortraitOrientation();
     onClose();
   }, [dismissY, onClose]);
+
+  const markDismissDragging = useCallback((next: boolean) => {
+    setDismissDragging(next);
+  }, []);
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const next = Math.round(e.nativeEvent.contentOffset.x / pageStride);
@@ -106,10 +135,51 @@ export function ReviewPhotoViewer({
     }
   }, [busy, index, uris]);
 
+  const handleSave = useCallback(async () => {
+    const uri = uris[index];
+    if (!uri || busy) return;
+    setBusy(true);
+    try {
+      await savePhotoUri(uri);
+      houseAlert('Photo saved');
+    } catch (error) {
+      houseAlert(
+        'Error',
+        error instanceof Error ? error.message : 'Could not save photo',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, index, uris]);
+
+  // Swift: activate only when |dy| > |dx| * 1.2 so horizontal paging wins otherwise.
   const dismissGesture = Gesture.Pan()
-    .enabled(!zoomed && !isAndroid)
-    .activeOffsetY([-20, 20])
-    .failOffsetX([-10, 10])
+    .enabled(!zoomed)
+    .manualActivation(true)
+    .onTouchesDown((e) => {
+      const t = e.allTouches[0];
+      if (!t) return;
+      touchStartX.value = t.absoluteX;
+      touchStartY.value = t.absoluteY;
+    })
+    .onTouchesMove((e, state) => {
+      if (e.numberOfTouches > 1) {
+        state.fail();
+        return;
+      }
+      const t = e.allTouches[0];
+      if (!t) return;
+      const dx = t.absoluteX - touchStartX.value;
+      const dy = t.absoluteY - touchStartY.value;
+      if (Math.abs(dy) > 20 && Math.abs(dy) > Math.abs(dx) * 1.2) {
+        state.activate();
+      } else if (Math.abs(dx) > 12 && Math.abs(dx) >= Math.abs(dy)) {
+        state.fail();
+      }
+    })
+    .onStart(() => {
+      runOnJS(markDismissDragging)(true);
+    })
     .onUpdate((e) => {
       dismissY.value = e.translationY;
     })
@@ -122,6 +192,12 @@ export function ReviewPhotoViewer({
         runOnJS(close)();
       } else {
         dismissY.value = withSpring(0, { damping: 18, stiffness: 220 });
+        runOnJS(markDismissDragging)(false);
+      }
+    })
+    .onFinalize((_e, success) => {
+      if (!success) {
+        runOnJS(markDismissDragging)(false);
       }
     });
 
@@ -163,31 +239,23 @@ export function ReviewPhotoViewer({
     </View>
   ));
 
-  const pagerProps = {
-    horizontal: true as const,
-    // snapToInterval (not pagingEnabled) so PAGE_GAP shows between photos.
-    pagingEnabled: false,
-    snapToInterval: pageStride,
-    snapToAlignment: 'start' as const,
-    disableIntervalMomentum: true,
-    bounces: false,
-    scrollEnabled: !zoomed,
-    showsHorizontalScrollIndicator: false,
-    onScroll,
-    scrollEventThrottle: 16,
-    style: styles.pager,
-    decelerationRate: 'fast' as const,
-  };
-
-  const pager = isAndroid ? (
-    <RNScrollView
-      ref={rnScrollRef}
-      {...pagerProps}
-      removeClippedSubviews={false}>
-      {pages}
-    </RNScrollView>
-  ) : (
-    <GHScrollView ref={ghScrollRef} {...pagerProps}>
+  const pager = (
+    <GHScrollView
+      key={`pager-${pageWidth}`}
+      ref={ghScrollRef}
+      horizontal
+      // snapToInterval (not pagingEnabled) so PAGE_GAP shows between photos.
+      pagingEnabled={false}
+      snapToInterval={pageStride}
+      snapToAlignment="start"
+      disableIntervalMomentum
+      bounces={false}
+      scrollEnabled={!zoomed && !dismissDragging}
+      showsHorizontalScrollIndicator={false}
+      onScroll={onScroll}
+      scrollEventThrottle={16}
+      style={styles.pager}
+      decelerationRate="fast">
       {pages}
     </GHScrollView>
   );
@@ -210,29 +278,33 @@ export function ReviewPhotoViewer({
       animationType="fade"
       presentationStyle="fullScreen"
       onRequestClose={close}
+      supportedOrientations={[
+        'portrait',
+        'portrait-upside-down',
+        'landscape',
+        'landscape-left',
+        'landscape-right',
+      ]}
       statusBarTranslucent>
       {visible ? <StatusBar style="light" hidden /> : null}
       <GestureHandlerRootView style={styles.root}>
         <PhotoViewerShell dismissY={dismissY}>
-          {isAndroid ? (
-            <View style={styles.content}>{body}</View>
-          ) : (
-            <GestureDetector gesture={dismissGesture}>
-              <Animated.View style={[styles.content, contentStyle]}>
-                {body}
-              </Animated.View>
-            </GestureDetector>
-          )}
+          <GestureDetector gesture={dismissGesture}>
+            <Animated.View style={[styles.content, contentStyle]}>
+              {body}
+            </Animated.View>
+          </GestureDetector>
 
           <PhotoViewerTopBar
             onClose={close}
             onShare={() => void handleShare()}
+            onSave={() => void handleSave()}
           />
 
           <PhotoViewerCountPill
             text={`${index + 1} / ${uris.length}`}
             visible={uris.length > 1 && !zoomed}
-            dismissY={isAndroid ? undefined : dismissY}
+            dismissY={dismissY}
           />
         </PhotoViewerShell>
       </GestureHandlerRootView>

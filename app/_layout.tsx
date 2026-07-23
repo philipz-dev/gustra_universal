@@ -38,6 +38,7 @@ import { PhotoQualitySettingsProvider } from '@/context/PhotoQualitySettings';
 import { ReviewerProfileProvider } from '@/context/ReviewerProfile';
 import { ReviewsStoreProvider } from '@/context/ReviewsStore';
 import { ShareImportLaunchProvider } from '@/context/ShareImportLaunch';
+import { lockAppPortraitOrientation } from '@/services/orientation/photoViewerOrientation';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -88,9 +89,12 @@ export default function RootLayout() {
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(GustraColors.cream);
     if (Platform.OS === 'android') {
-      // Dark nav buttons on cream; contrast scrim disabled via config plugin.
-      void NavigationBar.setButtonStyleAsync('dark');
+      // SDK 57: `setStyle` — `light` = dark buttons on a light bar (cream UI).
+      NavigationBar.setStyle('light');
     }
+    // Info.plist allows all orientations so the photo viewer can rotate;
+    // keep the rest of the app locked to portrait (Swift OrientationLock).
+    void lockAppPortraitOrientation();
   }, []);
 
   if (!loaded) {

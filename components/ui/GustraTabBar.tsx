@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Keyboard, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -46,6 +47,7 @@ export function GustraTabBar(props: Record<string, unknown>) {
   };
 
   const insets = useSafeAreaInsets();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const activeRouteName = state.routes[state.index]?.name;
   // Keep Settings highlighted while on its hidden sibling screens.
   const focusedTabName =
@@ -54,6 +56,25 @@ export function GustraTabBar(props: Record<string, unknown>) {
     activeRouteName === 'backup-restore'
       ? 'settings'
       : activeRouteName;
+
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent =
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  // Hide while typing so the soft keyboard does not fight the floating pill
+  // (same idea as React Navigation `tabBarHideOnKeyboard`).
+  if (keyboardVisible) {
+    return <View pointerEvents="none" style={styles.hidden} />;
+  }
 
   return (
     <View
@@ -178,6 +199,11 @@ function TabItem({
 }
 
 const styles = StyleSheet.create({
+  hidden: {
+    height: 0,
+    width: 0,
+    opacity: 0,
+  },
   wrap: {
     position: 'absolute',
     left: 0,

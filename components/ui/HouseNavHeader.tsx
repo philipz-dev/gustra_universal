@@ -58,6 +58,9 @@ export function HouseNavHeader({
         <View style={styles.titleWrap} pointerEvents="none">
           <Text
             numberOfLines={1}
+            // Swift `titleLabel`: lineLimit(1) + minimumScaleFactor(0.75)
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
             style={[
               styles.title,
               {

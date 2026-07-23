@@ -282,6 +282,8 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const restaurantsRef = useRef(restaurants);
   const reviewsRef = useRef(reviews);
+  /** Serialize form upserts so autosave + Done cannot create duplicate restaurants. */
+  const upsertChainRef = useRef(Promise.resolve());
   restaurantsRef.current = restaurants;
   reviewsRef.current = reviews;
 
@@ -466,117 +468,146 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
 
   const upsertReviewFromForm = useCallback(
     async (input: ReviewFormUpsertInput): Promise<ReviewFormUpsertResult | null> => {
-      const draftName = input.draft.name.trim();
-      if (!draftName) return null;
+      let result: ReviewFormUpsertResult | null = null;
 
-      let nextRestaurants = [...restaurants];
-      let nextReviews = [...reviews];
+      const run = async () => {
+        const draftName = input.draft.name.trim();
+        if (!draftName) return;
 
-      const existingReview = input.reviewId
-        ? nextReviews.find((r) => r.id === input.reviewId)
-        : undefined;
+        // Always read the latest snapshot — concurrent autosave/Done must not
+        // each spawn a new restaurant from a stale empty/partial array.
+        let nextRestaurants = [...restaurantsRef.current];
+        let nextReviews = [...reviewsRef.current];
 
-      let restaurant: Restaurant | undefined;
-      if (existingReview) {
-        restaurant = nextRestaurants.find(
-          (r) => r.id === existingReview.restaurantId,
-        );
-      }
-      if (!restaurant) {
-        restaurant = findExistingRestaurant(input.draft, nextRestaurants);
-      }
+        const existingReview = input.reviewId
+          ? nextReviews.find((r) => r.id === input.reviewId)
+          : undefined;
 
-      if (restaurant) {
-        restaurant = applyDraftToRestaurant(
+        let restaurant: Restaurant | undefined;
+        if (existingReview) {
+          restaurant = nextRestaurants.find(
+            (r) => r.id === existingReview.restaurantId,
+          );
+        }
+        if (!restaurant) {
+          restaurant = findExistingRestaurant(input.draft, nextRestaurants);
+        }
+
+        if (restaurant) {
+          restaurant = applyDraftToRestaurant(
+            restaurant,
+            input.draft,
+            input.isFavorite,
+          );
+          nextRestaurants = nextRestaurants.map((r) =>
+            r.id === restaurant!.id ? restaurant! : r,
+          );
+        } else {
+          restaurant = restaurantFromDraft(input.draft, input.isFavorite);
+          nextRestaurants = [...nextRestaurants, restaurant];
+        }
+
+        const criteria = input.criteria.map((c) => ({
+          ...c,
+          comment: c.comment.trim(),
+          rating: RatingValue.isNotApplicable(c.rating)
+            ? RatingValue.notApplicable
+            : RatingValue.isStarRating(c.rating)
+              ? Math.round(c.rating)
+              : RatingValue.unrated,
+        }));
+        const photoUrls = input.photoUrls.filter(Boolean);
+        const overallScore = overallScoreFromCriteria(criteria);
+        const coverPhoto = photoUrls[0] ?? restaurant.photoUrl;
+        const ocrText = (input.ocrText ?? existingReview?.ocrText ?? '').trim();
+        const searchableText = rebuildSearchableText({
           restaurant,
-          input.draft,
-          input.isFavorite,
-        );
+          generalComment: input.generalComment.trim(),
+          criteria,
+          customCriterionNames: input.customCriterionNames,
+          ocrText,
+        });
+
+        restaurant = {
+          ...restaurant,
+          photoUrl: coverPhoto || restaurant.photoUrl,
+        };
         nextRestaurants = nextRestaurants.map((r) =>
           r.id === restaurant!.id ? restaurant! : r,
         );
-      } else {
-        restaurant = restaurantFromDraft(input.draft, input.isFavorite);
-        nextRestaurants = [...nextRestaurants, restaurant];
-      }
 
-      const criteria = input.criteria.map((c) => ({
-        ...c,
-        comment: c.comment.trim(),
-        rating: RatingValue.isNotApplicable(c.rating)
-          ? RatingValue.notApplicable
-          : RatingValue.isStarRating(c.rating)
-            ? Math.round(c.rating)
-            : RatingValue.unrated,
-      }));
-      const photoUrls = input.photoUrls.filter(Boolean);
-      const overallScore = overallScoreFromCriteria(criteria);
-      const coverPhoto = photoUrls[0] ?? restaurant.photoUrl;
-      const ocrText = (input.ocrText ?? existingReview?.ocrText ?? '').trim();
-      const searchableText = rebuildSearchableText({
-        restaurant,
-        generalComment: input.generalComment.trim(),
-        criteria,
-        customCriterionNames: input.customCriterionNames,
-        ocrText,
-      });
+        let reviewId = existingReview?.id;
+        let reviewToUpdate = existingReview;
+        if (!reviewToUpdate) {
+          // Concurrent autosave/Done without reviewId: reuse the visit just
+          // created for this restaurant + exact visit timestamp.
+          reviewToUpdate = nextReviews.find(
+            (r) =>
+              r.restaurantId === restaurant!.id &&
+              resolveReviewOrigin(r) === 'own' &&
+              r.date === input.visitDateIso,
+          );
+          reviewId = reviewToUpdate?.id;
+        }
 
-      restaurant = {
-        ...restaurant,
-        photoUrl: coverPhoto || restaurant.photoUrl,
+        if (reviewToUpdate) {
+          nextReviews = nextReviews.map((r) =>
+            r.id === reviewToUpdate!.id
+              ? {
+                  ...r,
+                  restaurantId: restaurant!.id,
+                  date: input.visitDateIso,
+                  generalComment: input.generalComment.trim(),
+                  criteria,
+                  photoUrls,
+                  overallScore,
+                  origin: resolveReviewOrigin(r),
+                  searchableText,
+                  ocrText,
+                }
+              : r,
+          );
+        } else {
+          reviewId = newEntityId('v');
+          nextReviews = [
+            ...nextReviews,
+            {
+              id: reviewId,
+              restaurantId: restaurant.id,
+              date: input.visitDateIso,
+              generalComment: input.generalComment.trim(),
+              criteria,
+              photoUrls,
+              reviewedBy: '',
+              overallScore,
+              origin: 'own',
+              searchableText,
+              ocrText,
+            },
+          ];
+        }
+
+        restaurantsRef.current = nextRestaurants;
+        reviewsRef.current = nextReviews;
+        setRestaurants(nextRestaurants);
+        setReviews(nextReviews);
+        await persist({
+          restaurants: nextRestaurants,
+          reviews: nextReviews,
+        });
+
+        result = { reviewId: reviewId!, restaurantId: restaurant.id };
       };
-      nextRestaurants = nextRestaurants.map((r) =>
-        r.id === restaurant!.id ? restaurant! : r,
+
+      const queued = upsertChainRef.current.then(run, run);
+      upsertChainRef.current = queued.then(
+        () => undefined,
+        () => undefined,
       );
-
-      let reviewId = existingReview?.id;
-      if (existingReview) {
-        nextReviews = nextReviews.map((r) =>
-          r.id === existingReview.id
-            ? {
-                ...r,
-                restaurantId: restaurant!.id,
-                date: input.visitDateIso,
-                generalComment: input.generalComment.trim(),
-                criteria,
-                photoUrls,
-                overallScore,
-                origin: resolveReviewOrigin(r),
-                searchableText,
-                ocrText,
-              }
-            : r,
-        );
-      } else {
-        reviewId = newEntityId('v');
-        nextReviews = [
-          ...nextReviews,
-          {
-            id: reviewId,
-            restaurantId: restaurant.id,
-            date: input.visitDateIso,
-            generalComment: input.generalComment.trim(),
-            criteria,
-            photoUrls,
-            reviewedBy: '',
-            overallScore,
-            origin: 'own',
-            searchableText,
-            ocrText,
-          },
-        ];
-      }
-
-      setRestaurants(nextRestaurants);
-      setReviews(nextReviews);
-      await persist({
-        restaurants: nextRestaurants,
-        reviews: nextReviews,
-      });
-
-      return { reviewId: reviewId!, restaurantId: restaurant.id };
+      await queued;
+      return result;
     },
-    [restaurants, reviews],
+    [],
   );
 
   const deleteReview = useCallback(

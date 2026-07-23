@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -19,13 +18,17 @@ import { SymbolView } from 'expo-symbols';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
+import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
+import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
 import { Haptics } from '@/services/haptics';
 import { resolveCurrentLocation } from '@/services/location/resolveCurrentLocation';
 import {
   formatAddressLine,
   formattedDistance,
   makeManualRestaurantDraft,
+  regionCodeForCountry,
   restaurantDraftFromResult,
+  resultMatchesCountry,
   searchText,
   type RestaurantDraft,
   type RestaurantSearchResult,
@@ -38,6 +41,11 @@ import {
 export default function ManualEntryScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const keyboardInset = useKeyboardBottomInset();
+  const { scrollRef, scrollInputIntoView } = useScrollInputIntoView();
+  const nameRef = useRef<TextInput | null>(null);
+  const cityRef = useRef<TextInput | null>(null);
+  const countryRef = useRef<TextInput | null>(null);
   const searchGenRef = useRef(0);
 
   const [name, setName] = useState('');
@@ -65,9 +73,9 @@ export default function ManualEntryScreen() {
 
   useEffect(() => {
     resetSearch();
-    // Reset Google results when name/city change (Swift onChange).
+    // Reset Google results when name/city/country change (Swift onChange of name/city).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, city]);
+  }, [name, city, country]);
 
   const flashSearchButton = () => {
     setSearchHighlighted(true);
@@ -84,7 +92,11 @@ export default function ManualEntryScreen() {
 
   const searchMatches = async () => {
     Keyboard.dismiss();
-    const query = [trimmedName, city.trim()].filter(Boolean).join(' ');
+    const cityTrim = city.trim();
+    const countryTrim = country.trim();
+    // Include country so Places can resolve "Name · Italy" without a city
+    // (without it, a 2 km GPS bias yields random FR/DE hits for common names).
+    const query = [trimmedName, cityTrim, countryTrim].filter(Boolean).join(' ');
     if (!query) return;
 
     flashSearchButton();
@@ -97,7 +109,9 @@ export default function ManualEntryScreen() {
     const location = await resolveCurrentLocation();
     if (gen !== searchGenRef.current) return;
 
-    if (!location.coords) {
+    const countryScoped = Boolean(countryTrim);
+    // Local name-only / city search still needs GPS for a useful bias.
+    if (!countryScoped && !location.coords) {
       setMatches([]);
       setSearchError(location.error ?? 'Current location unavailable.');
       setIsSearching(false);
@@ -105,9 +119,17 @@ export default function ManualEntryScreen() {
     }
 
     try {
-      const found = await searchText(query, location.coords);
+      const found = await searchText(query, location.coords, {
+        locationBias: !countryScoped,
+        regionCode: regionCodeForCountry(countryTrim),
+        // City present → keep the default nearby bias radius.
+        radius: cityTrim ? undefined : 50_000,
+      });
       if (gen !== searchGenRef.current) return;
-      setMatches(found);
+      const filtered = countryTrim
+        ? found.filter((match) => resultMatchesCountry(match.country, countryTrim))
+        : found;
+      setMatches(filtered);
       setIsSearching(false);
     } catch (error) {
       if (gen !== searchGenRef.current) return;
@@ -127,7 +149,11 @@ export default function ManualEntryScreen() {
     startReview(draft);
   };
 
-  const bottomPad =
+  const scrollBottomPad =
+    keyboardInset > 0
+      ? keyboardInset + 24
+      : Theme.spacing.floatingTabBarClearance + insets.bottom + 16;
+  const footerPad =
     Theme.spacing.floatingTabBarClearance + insets.bottom + 16;
 
   return (
@@ -139,34 +165,42 @@ export default function ManualEntryScreen() {
         onBack={() => router.back()}
       />
 
-      <KeyboardAvoidingView
+      <ScrollView
+        ref={scrollRef}
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          style={styles.flex}
-          contentContainerStyle={[styles.content, { paddingBottom: 12 }]}
-          keyboardShouldPersistTaps="handled"
-          overScrollMode="never">
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: scrollBottomPad },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        overScrollMode="never">
           <View style={styles.group}>
             <ClearableField
+              inputRef={nameRef}
               placeholder="Restaurant name"
               value={name}
               onChangeText={setName}
+              onFocus={() => scrollInputIntoView(nameRef.current)}
               autoFocus
               returnKeyType="next"
             />
             <View style={styles.fieldSep} />
             <ClearableField
+              inputRef={cityRef}
               placeholder="City"
               value={city}
               onChangeText={setCity}
+              onFocus={() => scrollInputIntoView(cityRef.current)}
               returnKeyType="next"
             />
             <View style={styles.fieldSep} />
             <ClearableField
+              inputRef={countryRef}
               placeholder="Country"
               value={country}
               onChangeText={setCountry}
+              onFocus={() => scrollInputIntoView(countryRef.current)}
               returnKeyType="done"
               onSubmitEditing={() => Keyboard.dismiss()}
             />
@@ -308,7 +342,7 @@ export default function ManualEntryScreen() {
         </ScrollView>
 
         {showContinueManually ? (
-          <View style={[styles.manualFooter, { paddingBottom: bottomPad }]}>
+          <View style={[styles.manualFooter, { paddingBottom: footerPad }]}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Continue manually"
@@ -354,22 +388,25 @@ export default function ManualEntryScreen() {
             </Text>
           </View>
         ) : null}
-      </KeyboardAvoidingView>
     </View>
   );
 }
 
 function ClearableField({
+  inputRef,
   placeholder,
   value,
   onChangeText,
+  onFocus,
   autoFocus,
   returnKeyType,
   onSubmitEditing,
 }: {
+  inputRef?: RefObject<TextInput | null>;
   placeholder: string;
   value: string;
   onChangeText: (value: string) => void;
+  onFocus?: () => void;
   autoFocus?: boolean;
   returnKeyType?: 'next' | 'done';
   onSubmitEditing?: () => void;
@@ -377,8 +414,10 @@ function ClearableField({
   return (
     <View style={styles.fieldRow}>
       <TextInput
+        ref={inputRef}
         value={value}
         onChangeText={onChangeText}
+        onFocus={onFocus}
         placeholder={placeholder}
         placeholderTextColor="rgba(35, 32, 26, 0.4)"
         style={styles.fieldInput}

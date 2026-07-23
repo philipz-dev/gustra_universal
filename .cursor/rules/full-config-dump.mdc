@@ -1,0 +1,17 @@
+---
+description: Regenerate GUSTRA_UNIVERSAL_FULL.txt after every code change
+alwaysApply: true
+---
+
+# Full config dump
+
+After **any** code change in this repo (app source, config, services, components, etc.):
+
+1. Regenerate the concatenated project dump:
+   ```bash
+   python3 scripts/dump-full-config.py
+   ```
+2. Do this in the **same turn** as the implementation — do not wait for the user to ask.
+3. The output file is `GUSTRA_UNIVERSAL_FULL.txt` at the repo root.
+
+Skip only for pure plan-site HTML edits with no app code changes, or when the user explicitly says not to dump.

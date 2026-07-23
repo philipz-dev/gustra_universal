@@ -44,7 +44,7 @@ export function ShareReviewerNameModal({
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType="fade"
       transparent
       onRequestClose={onCancel}>
       <KeyboardAvoidingView

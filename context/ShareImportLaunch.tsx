@@ -172,21 +172,20 @@ export function ShareImportLaunchProvider({
   const pickSharePackage = useCallback(async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/json', 'application/octet-stream', '*/*'],
+        type: [
+          'application/x-gustrashare',
+          'application/json',
+          'application/octet-stream',
+          '*/*',
+        ],
         copyToCacheDirectory: true,
         multiple: false,
       });
       if (result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
-      const name = asset.name ?? '';
-      if (
-        name &&
-        !name.toLowerCase().endsWith(`.${ShareInbox.fileExtension}`)
-      ) {
-        houseAlert('Error', 'This is not a Gustra share file.');
-        return;
-      }
-      await openSharePackageUri(asset.uri, name || null);
+      // Don't reject on filename alone — WhatsApp rewrites to `.json`.
+      // loadSharePackage sniffs content and shows a clear error if invalid.
+      await openSharePackageUri(asset.uri, asset.name || null);
     } catch (error) {
       houseAlert(
         'Error',

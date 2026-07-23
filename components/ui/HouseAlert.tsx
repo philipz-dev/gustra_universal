@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(35, 32, 26, 0.45)',
   },
   dismissArea: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
   },
   card: {
     width: '100%',
@@ -321,6 +321,7 @@ const styles = StyleSheet.create({
     color: 'rgba(35, 32, 26, 0.55)',
   },
   sheet: {
+    zIndex: 1,
     backgroundColor: GustraColors.cream,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,

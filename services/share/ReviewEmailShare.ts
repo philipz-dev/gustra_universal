@@ -2,6 +2,10 @@ import * as MailComposer from 'expo-mail-composer';
 import * as Sharing from 'expo-sharing';
 import { Platform, Share } from 'react-native';
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 import type { Restaurant, Review } from '@/data/types';
 import {
   emailSubject,
@@ -62,6 +66,9 @@ export async function shareReviewAsEmail(args: {
   }
 
   args.onSnapshotReady?.();
+  // Let preparing UI / keyboard dismiss before presenting Mail (iOS freezes
+  // if compose opens while another modal transition is still settling).
+  await delay(Platform.OS === 'ios' ? 350 : 80);
 
   const available = await MailComposer.isAvailableAsync();
   if (available) {

@@ -1,4 +1,4 @@
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 
 import { SerifText } from '@/components/ui/SerifText';
@@ -57,7 +57,11 @@ export function LocationBlock({
             />
             <Text
               style={[styles.link, !hasCoords && styles.muted]}
-              numberOfLines={4}>
+              numberOfLines={4}
+              // Avoid iOS data-detectors stealing the press / opening Maps themselves.
+              {...(Platform.OS === 'ios'
+                ? { dataDetectorType: 'none' as const }
+                : null)}>
               {locationText}
             </Text>
           </Pressable>

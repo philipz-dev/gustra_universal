@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
 
 import { houseAlert } from '@/components/ui/HouseAlert';
@@ -29,6 +29,8 @@ import {
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import type { CriterionRating } from '@/data/types';
+import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
+import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
 import { extractTextFromImages } from '@/services/ocr/OCRService';
 import {
   draftAddressLine,
@@ -112,6 +114,10 @@ export default function ReviewFormScreen() {
   }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const keyboardInset = useKeyboardBottomInset();
+  const { scrollRef, scrollInputIntoView } = useScrollInputIntoView();
+  const commentInputRefs = useRef<Record<string, TextInput | null>>({});
+  const generalCommentRef = useRef<TextInput | null>(null);
   const { enabledCriteria, customCriteria } = useCriteriaSettings();
   const {
     ready,
@@ -149,7 +155,12 @@ export default function ReviewFormScreen() {
     Record<string, { rating: number; comment: string }>
   >({});
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+  const [selectedPhotosForRemoval, setSelectedPhotosForRemoval] = useState<
+    string[]
+  >([]);
   const [activeReviewId, setActiveReviewId] = useState<string | undefined>();
+  /** Synced immediately on upsert so Done/unmount cannot create a second review. */
+  const activeReviewIdRef = useRef<string | undefined>(undefined);
   const [isSaving, setIsSaving] = useState(false);
   const [isImportingPhotos, setIsImportingPhotos] = useState(false);
   const [showPhotoSourceChooser, setShowPhotoSourceChooser] = useState(false);
@@ -176,6 +187,8 @@ export default function ReviewFormScreen() {
     async () => false,
   );
   const schedulePersistRef = useRef<() => void>(() => undefined);
+  /** Serialize form persists so buildInput sees reviewId from the previous upsert. */
+  const persistChainRef = useRef(Promise.resolve());
 
   // Hydrate once store + route params are ready.
   useEffect(() => {
@@ -184,11 +197,13 @@ export default function ReviewFormScreen() {
 
     setDraft(initialDraft);
     setActiveReviewId(existingReview?.id);
+    activeReviewIdRef.current = existingReview?.id;
 
     if (existingReview) {
       setVisitDate(new Date(existingReview.date));
       setGeneralComment(existingReview.generalComment);
       setPhotoUrls([...existingReview.photoUrls]);
+      photoUrlsRef.current = [...existingReview.photoUrls];
       setOcrIndexedText(existingReview.ocrText ?? '');
       ocrIndexedTextRef.current = existingReview.ocrText ?? '';
       const map: Record<string, { rating: number; comment: string }> = {};
@@ -224,8 +239,9 @@ export default function ReviewFormScreen() {
 
   const matchedRestaurant = useMemo(() => {
     if (!draft) return undefined;
-    if (activeReviewId) {
-      const review = getReview(activeReviewId);
+    const reviewId = activeReviewIdRef.current ?? activeReviewId;
+    if (reviewId) {
+      const review = getReview(reviewId);
       if (review) return getRestaurant(review.restaurantId);
     }
     return findExistingRestaurant(draft, restaurants);
@@ -233,7 +249,8 @@ export default function ReviewFormScreen() {
 
   const priorVisits = useMemo(() => {
     if (!matchedRestaurant) return [];
-    const skipId = activeReviewId ?? existingReview?.id;
+    const skipId =
+      activeReviewIdRef.current ?? activeReviewId ?? existingReview?.id;
     return getReviewsForRestaurant(matchedRestaurant.id, 'own').filter(
       (r) => r.id !== skipId,
     );
@@ -261,25 +278,24 @@ export default function ReviewFormScreen() {
   const buildInput = useCallback(() => {
     if (!draft) return null;
     return {
-      reviewId: activeReviewId,
+      reviewId: activeReviewIdRef.current,
       draft,
       visitDateIso: visitDate.toISOString(),
       isFavorite,
       generalComment,
       criteria: criteriaList,
-      photoUrls,
+      // Prefer ref so reorder/remove in the same tick persist the latest order.
+      photoUrls: photoUrlsRef.current,
       ocrText: ocrIndexedText,
       customCriterionNames,
     };
   }, [
-    activeReviewId,
     criteriaList,
     customCriterionNames,
     draft,
     generalComment,
     isFavorite,
     ocrIndexedText,
-    photoUrls,
     visitDate,
   ]);
 
@@ -295,33 +311,39 @@ export default function ReviewFormScreen() {
 
   const persistNow = useCallback(
     async (markBusy = false): Promise<boolean> => {
-      const input = buildInput();
-      if (!input) return false;
-      if (
-        !hasPersistableContent() &&
-        !activeReviewId &&
-        !existingReview
-      ) {
-        return false;
-      }
-      if (markBusy) setIsSaving(true);
-      try {
-        const result = await upsertReviewFromForm(input);
-        if (!result) return false;
-        setActiveReviewId(result.reviewId);
-        persistedRef.current = true;
-        return true;
-      } finally {
-        if (markBusy) setIsSaving(false);
-      }
+      const run = async (): Promise<boolean> => {
+        // After awaiting the chain, the previous upsert has set activeReviewIdRef.
+        const input = buildInput();
+        if (!input) return false;
+        if (
+          !hasPersistableContent() &&
+          !activeReviewIdRef.current &&
+          !existingReview
+        ) {
+          return false;
+        }
+        if (markBusy) setIsSaving(true);
+        try {
+          const result = await upsertReviewFromForm(input);
+          if (!result) return false;
+          // Sync before any navigation/unmount so a second persist updates this visit.
+          activeReviewIdRef.current = result.reviewId;
+          setActiveReviewId(result.reviewId);
+          persistedRef.current = true;
+          return true;
+        } finally {
+          if (markBusy) setIsSaving(false);
+        }
+      };
+
+      const queued = persistChainRef.current.then(run, run);
+      persistChainRef.current = queued.then(
+        () => undefined,
+        () => undefined,
+      );
+      return queued;
     },
-    [
-      activeReviewId,
-      buildInput,
-      existingReview,
-      hasPersistableContent,
-      upsertReviewFromForm,
-    ],
+    [buildInput, existingReview, hasPersistableContent, upsertReviewFromForm],
   );
 
   const schedulePersist = useCallback(() => {
@@ -434,22 +456,36 @@ export default function ReviewFormScreen() {
     schedulePersist();
   };
 
-  const confirmRemovePhoto = (uri: string) => {
+  const confirmRemoveSelectedPhotos = () => {
+    if (selectedPhotosForRemoval.length === 0) return;
+    const toRemove = [...selectedPhotosForRemoval];
     houseAlert(
-      'Remove Photo?',
-      'This photo will be permanently deleted. This cannot be undone.',
+      'Remove Photos?',
+      'Selected photos will be permanently deleted. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Remove',
           style: 'destructive',
           onPress: () => {
-            setPhotoUrls((prev) => prev.filter((u) => u !== uri));
-            void deleteReviewPhotoFiles([uri]);
+            const removeSet = new Set(toRemove);
+            setPhotoUrls((prev) => {
+              const next = prev.filter((u) => !removeSet.has(u));
+              photoUrlsRef.current = next;
+              return next;
+            });
+            setSelectedPhotosForRemoval([]);
+            void deleteReviewPhotoFiles(toRemove);
             schedulePersist();
           },
         },
       ],
+    );
+  };
+
+  const togglePhotoSelection = (uri: string) => {
+    setSelectedPhotosForRemoval((prev) =>
+      prev.includes(uri) ? prev.filter((u) => u !== uri) : [...prev, uri],
     );
   };
 
@@ -477,7 +513,11 @@ export default function ReviewFormScreen() {
       }
       if (saved.length) {
         Haptics.light();
-        setPhotoUrls((prev) => [...prev, ...saved]);
+        setPhotoUrls((prev) => {
+          const next = [...prev, ...saved];
+          photoUrlsRef.current = next;
+          return next;
+        });
         schedulePersist();
       }
     } catch {
@@ -505,7 +545,11 @@ export default function ReviewFormScreen() {
     try {
       const uri = await saveReviewPhoto(result.assets[0].uri);
       Haptics.light();
-      setPhotoUrls((prev) => [...prev, uri]);
+      setPhotoUrls((prev) => {
+        const next = [...prev, uri];
+        photoUrlsRef.current = next;
+        return next;
+      });
       schedulePersist();
     } catch {
       Haptics.error();
@@ -541,8 +585,11 @@ export default function ReviewFormScreen() {
     ]);
   };
 
+  // Tab bar hides while the keyboard is up — drop its clearance and pad by keyboard height.
   const bottomPad =
-    Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
+    (keyboardInset > 0
+      ? keyboardInset + 24
+      : Theme.spacing.floatingTabBarClearance + insets.bottom + 24);
   const addressLine = draft ? draftAddressLine(draft) : null;
   const isEdit = Boolean(existingReview);
 
@@ -582,15 +629,13 @@ export default function ReviewFormScreen() {
         }
       />
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}>
-        <NestableScrollContainer
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
-          contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
-          overScrollMode="never">
+      <NestableScrollContainer
+        ref={scrollRef as never}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets={false}
+        contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
+        overScrollMode="never">
           <View style={styles.card}>
             <View style={styles.restaurantRow}>
               <View style={styles.restaurantCopy}>
@@ -705,9 +750,23 @@ export default function ReviewFormScreen() {
                       />
                       {RatingValue.isStarRating(state.rating) ? (
                         <TextInput
+                          ref={(node) => {
+                            commentInputRefs.current[criterion.id] = node;
+                          }}
                           value={state.comment}
                           onChangeText={(text) =>
                             setCriterionComment(criterion.id, text)
+                          }
+                          onFocus={() =>
+                            scrollInputIntoView(
+                              commentInputRefs.current[criterion.id] ?? null,
+                            )
+                          }
+                          onContentSizeChange={() =>
+                            scrollInputIntoView(
+                              commentInputRefs.current[criterion.id] ?? null,
+                              90,
+                            )
                           }
                           placeholder="Optional comment"
                           placeholderTextColor="rgba(35, 32, 26, 0.4)"
@@ -725,11 +784,16 @@ export default function ReviewFormScreen() {
           <View style={styles.card}>
             <FormSectionTitle title="General comments" />
             <TextInput
+              ref={generalCommentRef}
               value={generalComment}
               onChangeText={(text) => {
                 setGeneralComment(text);
                 schedulePersist();
               }}
+              onFocus={() => scrollInputIntoView(generalCommentRef.current)}
+              onContentSizeChange={() =>
+                scrollInputIntoView(generalCommentRef.current, 90)
+              }
               placeholder="Optional comment"
               placeholderTextColor="rgba(35, 32, 26, 0.4)"
               multiline
@@ -741,14 +805,43 @@ export default function ReviewFormScreen() {
             <FormSectionTitle title="Photos" />
             <ReorderablePhotoStrip
               photoUrls={photoUrls}
+              selectedUris={selectedPhotosForRemoval}
               onReorder={(next) => {
+                photoUrlsRef.current = next;
                 setPhotoUrls(next);
                 schedulePersist();
               }}
-              onRemove={confirmRemovePhoto}
+              onToggleSelect={togglePhotoSelection}
               onAddPress={showPhotoSourcePicker}
               isImporting={isImportingPhotos}
             />
+
+            {selectedPhotosForRemoval.length > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Remove Photos"
+                onPress={confirmRemoveSelectedPhotos}
+                style={({ pressed }) => [
+                  styles.removePhotosBtn,
+                  pressed && styles.pressed,
+                ]}>
+                {Platform.OS === 'ios' ? (
+                  <SymbolView
+                    name="trash"
+                    size={16}
+                    tintColor={GustraColors.ratingAvoid}
+                    weight="semibold"
+                  />
+                ) : (
+                  <MaterialIcons
+                    name="delete"
+                    size={18}
+                    color={GustraColors.ratingAvoid}
+                  />
+                )}
+                <Text style={styles.removePhotosLabel}>Remove Photos</Text>
+              </Pressable>
+            ) : null}
 
             {isIndexingPhotos ? (
               <View style={styles.indexingRow}>
@@ -789,7 +882,6 @@ export default function ReviewFormScreen() {
             </Pressable>
           ) : null}
         </NestableScrollContainer>
-      </KeyboardAvoidingView>
 
       <PhotoSourceChooserModal
         visible={showPhotoSourceChooser}
@@ -1038,6 +1130,22 @@ const styles = StyleSheet.create({
     ...captionTextStyle,
     fontSize: 14,
     color: GustraColors.forestGreen,
+  },
+  removePhotosBtn: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    borderRadius: Theme.radius.md,
+    backgroundColor: 'rgba(176, 64, 48, 0.14)',
+  },
+  removePhotosLabel: {
+    ...bodyTextStyle,
+    fontSize: 16,
+    fontWeight: '600',
+    color: GustraColors.ratingAvoid,
   },
   deleteBtn: {
     alignSelf: 'center',

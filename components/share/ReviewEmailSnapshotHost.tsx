@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { InteractionManager, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { captureRef } from 'react-native-view-shot';
 
@@ -14,9 +14,15 @@ import {
   type EmailSnapshotRequest,
 } from '@/services/share/ReviewEmailSnapshot';
 
+const CAPTURE_TIMEOUT_MS = 12_000;
+
 /**
  * Off-screen host that renders `ReviewEmailCardView` and captures JPEG
  * (Swift `ReviewEmailSnapshotService` + ImageRenderer).
+ *
+ * Avoid `InteractionManager.runAfterInteractions` here: a visible preparing
+ * Modal (or dismiss animation) can keep interactions busy forever, so the
+ * capture never runs and the UI appears frozen.
  */
 export function ReviewEmailSnapshotHost() {
   const [request, setRequest] = useState<EmailSnapshotRequest | null>(null);
@@ -39,50 +45,59 @@ export function ReviewEmailSnapshotHost() {
     return () => clearTimeout(timeout);
   }, [request, photosReady]);
 
+  // Hard stop if capture never completes (view-shot / layout hang).
+  useEffect(() => {
+    if (!request) return;
+    const timeout = setTimeout(() => {
+      failEmailSnapshot(
+        new Error('Could not create the visual recommendation.'),
+      );
+    }, CAPTURE_TIMEOUT_MS);
+    return () => clearTimeout(timeout);
+  }, [request]);
+
   useEffect(() => {
     if (!request || !photosReady || capturing.current) return;
     capturing.current = true;
 
     let cancelled = false;
-    const task = InteractionManager.runAfterInteractions(() => {
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          void (async () => {
-            try {
-              if (cancelled || !cardRef.current) {
-                throw new Error('Email card was not ready to capture.');
-              }
-              const tmpUri = await captureRef(cardRef, {
-                format: 'jpg',
-                quality: 0.82,
-                result: 'tmpfile',
-              });
-              const cacheRoot = FileSystem.cacheDirectory;
-              if (!cacheRoot) {
-                throw new Error('Cache directory unavailable.');
-              }
-              const dest = `${cacheRoot}${request.fileName}`;
-              const info = await FileSystem.getInfoAsync(dest);
-              if (info.exists) {
-                await FileSystem.deleteAsync(dest, { idempotent: true });
-              }
-              await FileSystem.copyAsync({ from: tmpUri, to: dest });
-              completeEmailSnapshot(dest);
-            } catch (error) {
-              failEmailSnapshot(
-                error instanceof Error
-                  ? error
-                  : new Error('Could not create the visual recommendation.'),
-              );
-            }
-          })();
-        }, 80);
-      });
-    });
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          if (cancelled || !cardRef.current) {
+            throw new Error('Email card was not ready to capture.');
+          }
+          const tmpUri = await captureRef(cardRef, {
+            format: 'jpg',
+            quality: 0.82,
+            result: 'tmpfile',
+          });
+          const cacheRoot = FileSystem.cacheDirectory;
+          if (!cacheRoot) {
+            throw new Error('Cache directory unavailable.');
+          }
+          const dest = `${cacheRoot}${request.fileName}`;
+          const info = await FileSystem.getInfoAsync(dest);
+          if (info.exists) {
+            await FileSystem.deleteAsync(dest, { idempotent: true });
+          }
+          await FileSystem.copyAsync({ from: tmpUri, to: dest });
+          if (!cancelled) completeEmailSnapshot(dest);
+        } catch (error) {
+          if (!cancelled) {
+            failEmailSnapshot(
+              error instanceof Error
+                ? error
+                : new Error('Could not create the visual recommendation.'),
+            );
+          }
+        }
+      })();
+    }, 120);
 
     return () => {
       cancelled = true;
-      task.cancel();
+      clearTimeout(timer);
     };
   }, [request, photosReady]);
 

@@ -79,16 +79,18 @@ export const ShareInbox = {
       const parts = sourceUri.split('/').filter(Boolean);
       filename = decodeURIComponent(parts[parts.length - 1] ?? '');
     }
+    // WhatsApp / Mail often rewrite our package as `.json` or strip the
+    // extension — normalize to `.gustrashare`; content is validated on load.
     if (!filename.toLowerCase().endsWith(`.${this.fileExtension}`)) {
-      if (this.isSharePackageURL(sourceUri)) {
-        const parts = sourceUri.split('/').filter(Boolean);
-        filename = decodeURIComponent(parts[parts.length - 1] ?? '');
-      } else {
-        filename = `share.${this.fileExtension}`;
-      }
-    }
-    if (!filename.toLowerCase().endsWith(`.${this.fileExtension}`)) {
-      throw new Error('This is not a Gustra share file.');
+      const base =
+        filename.replace(/\.[^/.]+$/, '').trim() ||
+        (this.isSharePackageURL(sourceUri)
+          ? decodeURIComponent(
+              sourceUri.split('/').filter(Boolean).pop() ?? '',
+            ).replace(/\.[^/.]+$/, '')
+          : '') ||
+        'share';
+      filename = `${base}.${this.fileExtension}`;
     }
 
     const inbox = await this.ensureInbox();

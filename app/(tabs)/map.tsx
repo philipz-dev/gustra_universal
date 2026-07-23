@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Platform,
   Pressable,
   StyleSheet,
@@ -15,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   GoogleMapsView,
   type GoogleMapMarker,
+  type GoogleMapsViewHandle,
 } from '@/components/map/GoogleMapsView';
 import { GustraColors } from '@/constants/Colors';
 import {
@@ -31,9 +33,13 @@ import {
   type SatisfactionLevel,
 } from '@/data/types';
 import { Haptics } from '@/services/haptics';
-import { resolveCurrentLocation } from '@/services/location/resolveCurrentLocation';
+import {
+  openSystemSettings,
+  resolveCurrentLocation,
+} from '@/services/location/resolveCurrentLocation';
 import { FALLBACK_MAP_CENTER, type LatLng } from '@/services/places';
 import { overallScoreFromCriteria } from '@/services/reviews/ratings';
+import { houseAlert } from '@/components/ui/HouseAlert';
 
 const LEVEL_COLOR: Record<SatisfactionLevel, string> = {
   excellent: GustraColors.ratingExcellent,
@@ -79,6 +85,8 @@ export default function MemoriesMapScreen() {
   const { enabledCriteria } = useCriteriaSettings();
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [showFriends, setShowFriends] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const mapRef = useRef<GoogleMapsViewHandle>(null);
 
   const enabledIds = useMemo(
     () => new Set(enabledCriteria.map((c) => c.id)),
@@ -164,6 +172,40 @@ export default function MemoriesMapScreen() {
     };
   }, []);
 
+  const recenterOnUser = async () => {
+    if (locating) return;
+    Haptics.selectionChanged();
+    setLocating(true);
+    try {
+      const location = await resolveCurrentLocation();
+      if (location.coords) {
+        setUserLocation(location.coords);
+        mapRef.current?.animateTo(location.coords, 15);
+        return;
+      }
+      if (location.isAuthorizationDenied) {
+        houseAlert(
+          'Location',
+          location.error ?? 'Location access is required.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Open Settings',
+              onPress: () => openSystemSettings(),
+            },
+          ],
+        );
+        return;
+      }
+      houseAlert(
+        'Location',
+        location.error ?? 'Current location unavailable.',
+      );
+    } finally {
+      setLocating(false);
+    }
+  };
+
   const toggleFriends = () => {
     Haptics.selectionChanged();
     setShowFriends((prev) => {
@@ -195,6 +237,7 @@ export default function MemoriesMapScreen() {
   return (
     <View style={styles.screen}>
       <GoogleMapsView
+        ref={mapRef}
         initialCenter={initialCenter}
         initialZoom={initialZoom}
         markers={markers}
@@ -208,6 +251,37 @@ export default function MemoriesMapScreen() {
           router.push(`/review/${id}`);
         }}
       />
+
+      <View
+        style={[styles.myLocationWrap, { bottom: bottomPad + 12 }]}
+        pointerEvents="box-none">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="My location"
+          onPress={() => {
+            void recenterOnUser();
+          }}
+          style={({ pressed }) => [
+            styles.myLocationBtn,
+            pressed && styles.pressed,
+          ]}>
+          {locating ? (
+            <ActivityIndicator size="small" color={GustraColors.forestGreen} />
+          ) : Platform.OS === 'ios' ? (
+            <SymbolView
+              name="location.fill"
+              size={20}
+              tintColor={GustraColors.forestGreen}
+            />
+          ) : (
+            <MaterialIcons
+              name="my-location"
+              size={22}
+              color={GustraColors.forestGreen}
+            />
+          )}
+        </Pressable>
+      </View>
 
       {hasFriendReviews ? (
         <View style={styles.friendsToggleWrap} pointerEvents="box-none">
@@ -301,6 +375,26 @@ const styles = StyleSheet.create({
     top: 12,
     right: 12,
     zIndex: 2,
+  },
+  myLocationWrap: {
+    position: 'absolute',
+    right: 12,
+    zIndex: 2,
+  },
+  myLocationBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(245, 238, 221, 0.96)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(36, 78, 57, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   friendsToggle: {
     flexDirection: 'row',

@@ -1,9 +1,10 @@
-import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, StyleSheet, Text, View } from 'react-native';
 import {
   NestableDraggableFlatList,
   ScaleDecorator,
   type RenderItemParams,
 } from 'react-native-draggable-flatlist';
+import { TouchableOpacity } from 'react-native-gesture-handler';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolView } from 'expo-symbols';
 
@@ -18,64 +19,90 @@ const CELL_WIDTH = PHOTO_SIZE + PHOTO_GAP;
 
 type ReorderablePhotoStripProps = {
   photoUrls: string[];
+  selectedUris: string[];
   onReorder: (next: string[]) => void;
-  onRemove: (uri: string) => void;
+  onToggleSelect: (uri: string) => void;
   onAddPress: () => void;
   isImporting?: boolean;
 };
 
+/**
+ * Horizontal photo strip: tap to select (batch remove), long-press to reorder.
+ * Uses RNGH `TouchableOpacity` (not RN `Pressable`) so iOS does not cancel
+ * the drag when the item becomes active — a common NestableDraggableFlatList bug.
+ */
 export function ReorderablePhotoStrip({
   photoUrls,
+  selectedUris,
   onReorder,
-  onRemove,
+  onToggleSelect,
   onAddPress,
   isImporting = false,
 }: ReorderablePhotoStripProps) {
+  const selected = new Set(selectedUris);
+
   const renderItem = ({ item, drag, isActive, getIndex }: RenderItemParams<string>) => {
     const index = getIndex() ?? 0;
     const isCover = index === 0;
+    const isSelected = selected.has(item);
 
     return (
       // Fixed cell width — without this, horizontal DraggableFlatList
       // stretches each item across most of the row.
       <View style={styles.cell}>
         <ScaleDecorator activeScale={1.05}>
-          <Pressable
-            onLongPress={() => {
-              Haptics.light();
-              drag();
-            }}
-            delayLongPress={160}
-            disabled={isActive}
-            accessibilityRole="image"
-            accessibilityLabel={
-              isCover
-                ? 'Cover photo. Long-press to reorder.'
-                : 'Photo. Long-press to reorder.'
-            }
-            style={[styles.thumbWrap, isActive && styles.thumbActive]}>
-            <Image source={{ uri: item }} style={styles.thumb} resizeMode="cover" />
-            {isCover ? (
-              <View style={styles.coverBadge} pointerEvents="none">
-                <Text style={styles.coverBadgeText}>Cover</Text>
-              </View>
-            ) : null}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Remove photo"
-              hitSlop={6}
-              onPress={() => onRemove(item)}
-              style={({ pressed }) => [
-                styles.removeBtn,
-                pressed && styles.pressed,
-              ]}>
-              {Platform.OS === 'ios' ? (
-                <SymbolView name="xmark" size={12} tintColor="#FFFFFF" weight="bold" />
-              ) : (
-                <MaterialIcons name="close" size={14} color="#FFFFFF" />
-              )}
-            </Pressable>
-          </Pressable>
+          <View style={[styles.thumbWrap, isActive && styles.thumbActive]}>
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.selectionChanged();
+                onToggleSelect(item);
+              }}
+              onLongPress={() => {
+                Haptics.light();
+                drag();
+              }}
+              delayLongPress={180}
+              // Do NOT disable while active — that cancels the pan on iOS.
+              activeOpacity={0.92}
+              accessibilityRole="image"
+              accessibilityState={{ selected: isSelected }}
+              accessibilityLabel={
+                isCover
+                  ? 'Cover photo. Tap to select, long-press to reorder.'
+                  : 'Photo. Tap to select, long-press to reorder.'
+              }
+              style={styles.thumbHit}>
+              <Image source={{ uri: item }} style={styles.thumb} resizeMode="cover" />
+              {isSelected ? (
+                <View
+                  style={styles.selectedRing}
+                  pointerEvents="none"
+                />
+              ) : null}
+              {isCover ? (
+                <View style={styles.coverBadge} pointerEvents="none">
+                  <Text style={styles.coverBadgeText}>Cover</Text>
+                </View>
+              ) : null}
+              {isSelected ? (
+                <View style={styles.checkBadge} pointerEvents="none">
+                  {Platform.OS === 'ios' ? (
+                    <SymbolView
+                      name="checkmark.circle.fill"
+                      size={22}
+                      tintColor={GustraColors.forestGreen}
+                    />
+                  ) : (
+                    <MaterialIcons
+                      name="check-circle"
+                      size={22}
+                      color={GustraColors.forestGreen}
+                    />
+                  )}
+                </View>
+              ) : null}
+            </TouchableOpacity>
+          </View>
         </ScaleDecorator>
       </View>
     );
@@ -83,8 +110,12 @@ export function ReorderablePhotoStrip({
 
   return (
     <View style={styles.wrap}>
-      {photoUrls.length > 1 ? (
-        <Text style={styles.hint}>Long-press a photo to reorder · first is Cover</Text>
+      {photoUrls.length > 0 ? (
+        <Text style={styles.hint}>
+          {photoUrls.length > 1
+            ? 'Tap to select · long-press to reorder · first is Cover'
+            : 'Tap to select for removal'}
+        </Text>
       ) : null}
       <NestableDraggableFlatList
         horizontal
@@ -97,7 +128,9 @@ export function ReorderablePhotoStrip({
         }}
         renderItem={renderItem}
         showsHorizontalScrollIndicator={false}
-        activationDistance={12}
+        // Small distance after long-press so outer NestableScrollContainer
+        // does not steal the pan on iOS.
+        activationDistance={8}
         dragItemOverflow
         autoscrollSpeed={120}
         autoscrollThreshold={40}
@@ -110,12 +143,13 @@ export function ReorderablePhotoStrip({
         containerStyle={styles.list}
         contentContainerStyle={styles.listContent}
         ListFooterComponent={
-          <Pressable
+          <TouchableOpacity
             accessibilityRole="button"
             accessibilityLabel="Add Photos"
             onPress={onAddPress}
             disabled={isImporting}
-            style={({ pressed }) => [styles.addPhoto, pressed && styles.pressed]}>
+            activeOpacity={0.7}
+            style={styles.addPhoto}>
             {isImporting ? (
               <ActivityIndicator color={GustraColors.forestGreen} />
             ) : Platform.OS === 'ios' ? (
@@ -128,7 +162,7 @@ export function ReorderablePhotoStrip({
             ) : (
               <MaterialIcons name="add" size={30} color={GustraColors.forestGreen} />
             )}
-          </Pressable>
+          </TouchableOpacity>
         }
       />
     </View>
@@ -162,7 +196,10 @@ const styles = StyleSheet.create({
     width: PHOTO_SIZE,
     height: PHOTO_SIZE,
     borderRadius: Theme.radius.sm,
-    overflow: 'visible',
+  },
+  thumbHit: {
+    width: PHOTO_SIZE,
+    height: PHOTO_SIZE,
   },
   thumbActive: {
     opacity: 0.98,
@@ -178,6 +215,12 @@ const styles = StyleSheet.create({
     height: PHOTO_SIZE,
     borderRadius: Theme.radius.sm,
     backgroundColor: 'rgba(36, 78, 57, 0.08)',
+  },
+  selectedRing: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: Theme.radius.sm,
+    borderWidth: 3,
+    borderColor: GustraColors.forestGreen,
   },
   coverBadge: {
     position: 'absolute',
@@ -195,24 +238,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 0.2,
   },
-  removeBtn: {
+  checkBadge: {
     position: 'absolute',
     top: 3,
     right: 3,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: GustraColors.ratingAvoid,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
     zIndex: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 3,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 11,
   },
   addPhoto: {
     width: PHOTO_SIZE,
@@ -224,8 +256,5 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
   },
 });

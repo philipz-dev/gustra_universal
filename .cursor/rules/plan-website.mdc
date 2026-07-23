@@ -1,0 +1,24 @@
+---
+description: Always sync completed work to gustra.net/plan (parity + New changelog)
+alwaysApply: true
+---
+
+# Plan website sync
+
+When you complete (or substantially ship) work in this repo:
+
+1. **Parity checklist** — if a matching task exists in `roadmap/plan/index.html`, mark it `done: true` (and `badge: "Expo"` for Expo parity).
+2. **New tab (required)** — also log the addition under the `new` section, in today’s date group (`id: new-YYYY-MM-DD`, title via `nl-BE` date). Prefer editing `DEFAULT_SECTIONS` so `mergeDefaultsIntoSections()` picks it up for all clients:
+   ```js
+   { id: "chg-YYYYMMDD-short-slug", title: "Korte omschrijving", done: true, badge: "Expo", date: "YYYY-MM-DD" }
+   ```
+   Newest day groups stay on top; newest tasks first within the day.
+3. **Deploy without waiting for the user to ask:**
+   ```bash
+   python3 roadmap/deploy.py
+   ```
+4. Mention `https://gustra.net/plan/` briefly in the reply.
+
+Do this in the same turn as the implementation for every finished addition.
+
+Also regenerate `GUSTRA_UNIVERSAL_FULL.txt` after app code changes via `python3 scripts/dump-full-config.py` (see `full-config-dump` rule).

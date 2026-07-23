@@ -9,6 +9,8 @@ export {
   distanceMeters,
   fetchPrimaryType,
   formattedDistance,
+  regionCodeForCountry,
+  resultMatchesCountry,
   searchNearby,
   searchText,
 } from '@/services/places/RestaurantSearchService';

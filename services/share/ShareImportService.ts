@@ -152,6 +152,9 @@ export async function loadSharePackage(uri: string): Promise<SharePackage> {
     const raw = await FileSystem.readAsStringAsync(uri, {
       encoding: FileSystem.EncodingType.UTF8,
     });
+    if (!peekLooksLikeSharePackage(raw)) {
+      throw new ShareImportError('This is not a Gustra share file.');
+    }
     const parsed = JSON.parse(raw) as SharePackage;
     if (
       !parsed ||
@@ -174,6 +177,32 @@ export async function loadSharePackage(uri: string): Promise<SharePackage> {
   } catch (error) {
     if (error instanceof ShareImportError) throw error;
     throw new ShareImportError('Could not read the shared reviews file.');
+  }
+}
+
+/**
+ * Cheap content sniff for WhatsApp/Mail rewrites (`.json` / no extension).
+ * Avoids full parse when the Share Extension sees arbitrary JSON.
+ */
+export function peekLooksLikeSharePackage(raw: string): boolean {
+  // Strip UTF-8 BOM if messaging apps re-saved the file.
+  const head = raw.replace(/^\uFEFF/, '').slice(0, 4096).trimStart();
+  if (!head.startsWith('{')) return false;
+  return (
+    head.includes('"reviews"') &&
+    head.includes('"restaurants"') &&
+    (head.includes('"schemaVersion"') || head.includes('"sharedBy"'))
+  );
+}
+
+export async function uriLooksLikeSharePackage(uri: string): Promise<boolean> {
+  try {
+    const raw = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+    return peekLooksLikeSharePackage(raw);
+  } catch {
+    return false;
   }
 }
 

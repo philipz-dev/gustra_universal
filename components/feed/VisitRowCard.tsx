@@ -1,23 +1,10 @@
-import { useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import Swipeable from 'react-native-gesture-handler/Swipeable';
-import { SymbolView } from 'expo-symbols';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
-import {
-  clearOpenSwipeable,
-  performOpenSwipeableDelete,
-  registerOpenSwipeable,
-  updateOpenSwipeableFrame,
-} from '@/components/feed/openSwipeable';
+import { FeedSwipeDelete } from '@/components/feed/FeedSwipeDelete';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
 import { GustraColors } from '@/constants/Colors';
-import {
-  captionTextStyle,
-  listPressedStyle,
-  Surface,
-  Theme,
-} from '@/constants/Theme';
+import { listPressedStyle, Surface, Theme } from '@/constants/Theme';
 import type { Review } from '@/data/types';
 import { Haptics } from '@/services/haptics';
 
@@ -40,18 +27,7 @@ type VisitRowCardProps = {
  * Visit row for restaurant visit list (Swift `RestaurantVisitsView.visitRow`).
  */
 export function VisitRowCard({ review, onPress, onDelete }: VisitRowCardProps) {
-  const swipeableRef = useRef<Swipeable>(null);
-  const deleteRef = useRef<View>(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const rowId = `visit_${review.id}`;
   const score = review.overallScore;
-
-  const measureDeleteFrame = () => {
-    deleteRef.current?.measureInWindow((x, y, width, height) => {
-      if (width <= 0 || height <= 0) return;
-      updateOpenSwipeableFrame(rowId, { x, y, width, height });
-    });
-  };
 
   const row = (
     <Pressable
@@ -86,57 +62,12 @@ export function VisitRowCard({ review, onPress, onDelete }: VisitRowCardProps) {
   if (!onDelete) return row;
 
   return (
-    <Swipeable
-      ref={swipeableRef}
-      friction={2}
-      overshootRight={false}
-      enableTrackpadTwoFingerGesture
-      onSwipeableOpen={() => {
-        setIsOpen(true);
-        registerOpenSwipeable({
-          id: rowId,
-          close: () => swipeableRef.current?.close(),
-          onDelete,
-          deleteFrame: null,
-        });
-        requestAnimationFrame(() => {
-          measureDeleteFrame();
-        });
-      }}
-      onSwipeableClose={() => {
-        clearOpenSwipeable(rowId);
-        setIsOpen(false);
-      }}
-      renderRightActions={() => (
-        <View
-          ref={deleteRef}
-          collapsable={false}
-          onLayout={() => {
-            if (isOpen) measureDeleteFrame();
-          }}
-          style={styles.deleteButton}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Delete"
-            onPress={() => {
-              performOpenSwipeableDelete();
-            }}
-            style={styles.deletePressable}>
-            <SymbolView
-              name={{
-                ios: 'trash.fill',
-                android: 'delete',
-                web: 'delete',
-              }}
-              tintColor="#FFFFFF"
-              size={22}
-            />
-            <Text style={styles.deleteLabel}>Delete</Text>
-          </Pressable>
-        </View>
-      )}>
+    <FeedSwipeDelete
+      id={`visit_${review.id}`}
+      onDelete={onDelete}
+      cornerRadius={Theme.radius.xl}>
       {row}
-    </Swipeable>
+    </FeedSwipeDelete>
   );
 }
 
@@ -163,26 +94,5 @@ const styles = StyleSheet.create({
   },
   score: {
     color: GustraColors.forestGreen,
-  },
-  deleteButton: {
-    width: 88,
-    marginLeft: 8,
-    borderRadius: 16,
-    backgroundColor: GustraColors.ratingAvoid,
-    overflow: 'hidden',
-  },
-  deletePressable: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    minHeight: Theme.size.hitTarget,
-  },
-  deleteLabel: {
-    ...captionTextStyle,
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
   },
 });

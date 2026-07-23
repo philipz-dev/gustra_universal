@@ -106,17 +106,6 @@ export function placeTypeSelectionSummary(
   return selectionSummary(selected, allItems, placeTypeDisplayName);
 }
 
-function rankByLastVisit(
-  summaries: RestaurantVisitSummary[],
-): RestaurantVisitSummary[] {
-  return [...summaries].sort((a, b) => {
-    if (a.lastVisitAt !== b.lastVisitAt) {
-      return b.lastVisitAt - a.lastVisitAt;
-    }
-    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
-  });
-}
-
 function rankByAverageScore(
   summaries: RestaurantVisitSummary[],
 ): RestaurantVisitSummary[] {
@@ -194,14 +183,41 @@ export function applyFeedFilters(
       state.sortKind.criterionId,
       options.criterionAverageFor,
     );
-  } else if (state.filters.length === 0) {
-    // Filters off → most recent visit first (default feed order).
-    next = rankByLastVisit(next);
   } else {
+    // Swift: averageScore sort always applies (including when no filter flags).
     next = rankByAverageScore(next);
   }
 
   return next;
+}
+
+/**
+ * Drop location/cuisine selections that no longer exist after My ↔ Friends switch
+ * (Swift `syncFiltersForReviewSourceChange`).
+ */
+export function pruneFeedFiltersForSummaries(
+  state: FeedFilterState,
+  summaries: RestaurantVisitSummary[],
+): FeedFilterState {
+  const cities = new Set(availableCitiesFromSummaries(summaries));
+  const types = new Set(availablePrimaryTypesFromSummaries(summaries));
+  let filters = [...state.filters];
+  let locationCities = state.locationCities.filter((c) => cities.has(c));
+  let primaryTypes = state.primaryTypes.filter((t) => types.has(t));
+
+  if (hasFeedFilter(state, 'location') && locationCities.length === 0) {
+    filters = filters.filter((f) => f !== 'location');
+  }
+  if (hasFeedFilter(state, 'placeType') && primaryTypes.length === 0) {
+    filters = filters.filter((f) => f !== 'placeType');
+  }
+
+  return {
+    ...state,
+    filters,
+    locationCities,
+    primaryTypes,
+  };
 }
 
 export function feedFilterPreviewCount(

@@ -22,7 +22,11 @@ import {
 } from '@/components/detail/photoViewer/PhotoViewerChrome';
 import { ZoomablePhoto } from '@/components/detail/photoViewer/ZoomablePhoto';
 import { PhotoViewerStyle } from '@/constants/PhotoViewerStyle';
-import { sharePhotoUri } from '@/services/photos/photoViewerActions';
+import {
+  lockAppPortraitOrientation,
+  unlockPhotoViewerOrientation,
+} from '@/services/orientation/photoViewerOrientation';
+import { sharePhotoUri, savePhotoUri } from '@/services/photos/photoViewerActions';
 
 type ProfilePhotoViewerProps = {
   visible: boolean;
@@ -42,13 +46,20 @@ export function ProfilePhotoViewer({
 
   useEffect(() => {
     if (!visible) {
+      void lockAppPortraitOrientation();
       dismissY.value = 0;
       setZoomed(false);
+      return;
     }
+    void unlockPhotoViewerOrientation();
+    return () => {
+      void lockAppPortraitOrientation();
+    };
   }, [visible, dismissY]);
 
   const close = useCallback(() => {
     dismissY.value = 0;
+    void lockAppPortraitOrientation();
     onClose();
   }, [dismissY, onClose]);
 
@@ -61,6 +72,22 @@ export function ProfilePhotoViewer({
       houseAlert(
         'Error',
         error instanceof Error ? error.message : 'Could not share photo',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, uri]);
+
+  const handleSave = useCallback(async () => {
+    if (!uri || busy) return;
+    setBusy(true);
+    try {
+      await savePhotoUri(uri);
+      houseAlert('Photo saved');
+    } catch (error) {
+      houseAlert(
+        'Error',
+        error instanceof Error ? error.message : 'Could not save photo',
       );
     } finally {
       setBusy(false);
@@ -105,6 +132,13 @@ export function ProfilePhotoViewer({
       animationType="fade"
       presentationStyle="fullScreen"
       onRequestClose={close}
+      supportedOrientations={[
+        'portrait',
+        'portrait-upside-down',
+        'landscape',
+        'landscape-left',
+        'landscape-right',
+      ]}
       statusBarTranslucent>
       {visible ? <StatusBar style="light" hidden /> : null}
       <GestureHandlerRootView style={styles.root}>
@@ -123,6 +157,7 @@ export function ProfilePhotoViewer({
           <PhotoViewerTopBar
             onClose={close}
             onShare={() => void handleShare()}
+            onSave={() => void handleSave()}
           />
 
           <PhotoViewerCountPill

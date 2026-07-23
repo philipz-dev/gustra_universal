@@ -22,6 +22,8 @@ export function HouseHeaderTitle({
     <View style={styles.wrap}>
       <Text
         numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
         style={[styles.title, { fontSize: size, lineHeight, marginTop: 2 }]}>
         {children}
       </Text>

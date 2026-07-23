@@ -22,7 +22,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     slug: 'gustra',
     // Same marketing version as the Swift App Store app; iOS build continues that sequence.
     version: '1.0',
-    orientation: 'portrait',
+    orientation: 'default',
     icon: './assets/images/icon.png',
     scheme: 'gustra',
     userInterfaceStyle: 'light',
@@ -53,6 +53,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         LSApplicationQueriesSchemes: ['comgooglemaps', 'waze', 'tel'],
         // Required when CFBundleDocumentTypes is set (ASC warning 90737).
         LSSupportsOpeningDocumentsInPlace: true,
+        // Files → On My iPhone → Gustra (Swift parity).
+        UIFileSharingEnabled: true,
         // Standard HTTPS only — skips export-compliance prompt in App Store Connect.
         ITSAppUsesNonExemptEncryption: false,
         CFBundleDocumentTypes: [
@@ -67,10 +69,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           {
             UTTypeIdentifier: 'com.philip.gustra.share',
             UTTypeDescription: 'Gustra Share Package',
-            UTTypeConformsTo: ['public.json', 'public.data'],
+            // public.data only — conforming to public.json makes WhatsApp /
+            // Quick Look treat the file as blank JSON and rename to .json.
+            UTTypeConformsTo: ['public.data'],
             UTTypeTagSpecification: {
               'public.filename-extension': ['gustrashare'],
-              'public.mime-type': ['application/json'],
+              'public.mime-type': ['application/x-gustrashare'],
             },
           },
         ],
@@ -91,6 +95,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // Material / gesture navigation — cream surfaces bleed under system bars.
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: true,
+      // Keep focused fields visible with our scroll-into-view + tab-bar hide.
+      softwareKeyboardLayoutMode: 'resize',
       permissions: [
         'android.permission.CAMERA',
         'android.permission.READ_MEDIA_IMAGES',
@@ -114,7 +120,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           data: [
             {
               scheme: 'content',
-              mimeType: 'application/json',
+              mimeType: 'application/x-gustrashare',
             },
             {
               scheme: 'file',
@@ -123,6 +129,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             {
               scheme: 'content',
               pathPattern: '.*\\\\.gustrashare',
+            },
+            // Legacy shares that WhatsApp/Mail rewrote as .json
+            {
+              scheme: 'content',
+              mimeType: 'application/json',
+              pathPattern: '.*\\\\.json',
             },
           ],
         },
@@ -142,6 +154,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       'expo-router',
       'expo-dev-client',
       [
+        'expo-screen-orientation',
+        {
+          initialOrientation: 'PORTRAIT_UP',
+        },
+      ],
+      [
         'expo-splash-screen',
         {
           image: './assets/images/splash-icon.png',
@@ -157,6 +175,16 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             'Gustra uses your photo library to import photos for your profile and restaurant reviews.',
           cameraPermission:
             'Gustra uses the camera to take photos for your profile and restaurant reviews.',
+        },
+      ],
+      [
+        'expo-media-library',
+        {
+          photosPermission:
+            'Gustra uses your photo library to import photos for your profile and restaurant reviews.',
+          savePhotosPermission:
+            'Gustra saves review photos to your photo library when you choose Save to Photos.',
+          isAccessMediaLocationEnabled: false,
         },
       ],
       [
@@ -201,8 +229,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       [
         'expo-navigation-bar',
         {
-          // Dark icons on cream; no contrast scrim so the bar matches the house surface.
-          style: 'dark',
+          // `light` = dark buttons on cream; no contrast scrim (house surface).
+          style: 'light',
           enforceContrast: false,
         },
       ],
