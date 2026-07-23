@@ -37,11 +37,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       supportsTablet: true,
       // Must match the existing App Store Connect / Swift app.
       bundleIdentifier: 'com.philip.gustra',
-      buildNumber: '18',
+      buildNumber: '19',
       entitlements: {
         'com.apple.security.application-groups': ['group.com.philip.gustra'],
       },
       infoPlist: {
+        CFBundleAllowMixedLocalizations: true,
         NSCameraUsageDescription:
           'Gustra uses the camera to take photos for your profile and restaurant reviews.',
         NSPhotoLibraryUsageDescription:
@@ -150,9 +151,21 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       output: 'static',
       favicon: './assets/images/favicon.png',
     },
+    locales: {
+      nl: './locales/nl.json',
+    },
     plugins: [
       'expo-router',
       'expo-dev-client',
+      [
+        'expo-localization',
+        {
+          supportedLocales: {
+            ios: ['en', 'nl'],
+            android: ['en', 'nl'],
+          },
+        },
+      ],
       [
         'expo-screen-orientation',
         {
