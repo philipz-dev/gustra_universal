@@ -332,8 +332,9 @@ export default function ReviewDetailScreen() {
         nestedScrollEnabled>
         {review.photoUrls.length > 0 ? (
           <HeroPhotoPager
+            key={review.photoUrls.join('|')}
             uris={review.photoUrls}
-            index={photoIndex}
+            index={Math.min(photoIndex, review.photoUrls.length - 1)}
             onIndexChange={setPhotoIndex}
             onPressPhoto={(index) => {
               setPhotoIndex(index);

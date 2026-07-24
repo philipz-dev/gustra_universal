@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Dimensions,
   Image,
@@ -16,7 +16,6 @@ import { Theme } from '@/constants/Theme';
 
 const HERO_H = Theme.size.heroHeight;
 const HERO_H_PAD = 16;
-const HERO_V_PAD = 4;
 
 type HeroPhotoPagerProps = {
   uris: string[];
@@ -27,7 +26,8 @@ type HeroPhotoPagerProps = {
 
 /**
  * Horizontal review hero pager (Swift `ReviewDetailView.heroPhoto`).
- * Aspect-fit inside a fixed 220pt canvas — never crop/stretch (`cover`).
+ * Aspect-fit in a fixed 220pt canvas via `resizeMode="contain"` — no crop.
+ * Avoid Image.getSize + nested frames (broke display on some devices).
  */
 export function HeroPhotoPager({
   uris,
@@ -76,26 +76,6 @@ export function HeroPhotoPager({
   );
 }
 
-/** Aspect-fit size that keeps the full photo visible (Swift `fittedSize`). */
-function fittedSize(
-  imageW: number,
-  imageH: number,
-  canvasW: number,
-  canvasH: number,
-): { width: number; height: number } {
-  if (imageW <= 0 || imageH <= 0 || canvasW <= 0 || canvasH <= 0) {
-    return { width: canvasW, height: canvasH };
-  }
-  const imageAspect = imageW / imageH;
-  const canvasAspect = canvasW / canvasH;
-  if (imageAspect > canvasAspect) {
-    const width = canvasW;
-    return { width, height: width / imageAspect };
-  }
-  const height = canvasH;
-  return { width: height * imageAspect, height };
-}
-
 function HeroPage({
   uri,
   width,
@@ -107,30 +87,9 @@ function HeroPage({
   label: string;
   onPress: () => void;
 }) {
-  const canvasW = Math.max(0, width - HERO_H_PAD * 2);
-  const canvasH = Math.max(0, HERO_H - HERO_V_PAD);
-  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setNatural(null);
-    Image.getSize(
-      uri,
-      (w, h) => {
-        if (!cancelled) setNatural({ w, h });
-      },
-      () => {
-        if (!cancelled) setNatural({ w: canvasW, h: canvasH });
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [uri, canvasW, canvasH]);
-
-  const fitted = natural
-    ? fittedSize(natural.w, natural.h, canvasW, canvasH)
-    : { width: canvasW, height: canvasH };
+  const canvasW = Math.max(1, width - HERO_H_PAD * 2);
+  const canvasH = Math.max(1, HERO_H - 8);
+  const [failed, setFailed] = useState(false);
 
   const tap = Gesture.Tap()
     .maxDistance(12)
@@ -145,18 +104,17 @@ function HeroPage({
         accessibilityRole="imagebutton"
         accessibilityLabel={label}
         collapsable={false}>
-        <View style={[styles.heroCanvas, { width: canvasW, height: canvasH }]}>
-          <View
-            style={[
-              styles.heroFrame,
-              { width: fitted.width, height: fitted.height },
-            ]}>
+        <View style={[styles.heroFrame, { width: canvasW, height: canvasH }]}>
+          {failed ? (
+            <View style={styles.failed} />
+          ) : (
             <Image
               source={{ uri }}
-              style={StyleSheet.absoluteFillObject}
+              style={{ width: canvasW, height: canvasH }}
               resizeMode="contain"
+              onError={() => setFailed(true)}
             />
-          </View>
+          )}
         </View>
       </View>
     </GestureDetector>
@@ -178,17 +136,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  heroCanvas: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: GustraColors.cream,
-  },
   heroFrame: {
     borderRadius: Theme.radius.md,
     borderWidth: 1,
     borderColor: 'rgba(35, 32, 26, 0.14)',
     overflow: 'hidden',
     backgroundColor: GustraColors.bubble,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  failed: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(36, 78, 57, 0.12)',
   },
   pageIndicator: {
     alignSelf: 'center',
