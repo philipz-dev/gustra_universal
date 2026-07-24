@@ -2,20 +2,21 @@
 # Upload builds for testers only (TestFlight / Play Internal).
 # Never submits a public App Store or Play production release.
 #
-# Default = dry-run (no bump, no EAS upload, no commit).
+# Default = overview + optional upload (double confirm).
 # Real upload:  npm run deploy -- --go
 #               bash scripts/deploy-store.sh --go
 #
 # Options:
-#   --go                 Actually bump + EAS build/submit to testers + commit
+#   --go                 Jump to double confirmation, then bump + EAS + commit
 #   --platform TARGET    ios | android | both  (skips platform prompt)
 #   --help               Show usage
 #
-# Env (optional, skips prompts when set):
+# Env (optional):
 #   DEPLOY_PLATFORM      ios | android | both
-#   DEPLOY_NOTES         what-to-test notes for testers
 #   DEPLOY_CONFIRM1      "1" for yes when using --go without a TTY
 #   DEPLOY_CONFIRM2      "1" for yes (second confirm) without a TTY
+#
+# No release notes / --what-to-test: EAS changelog requires Enterprise.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -24,13 +25,13 @@ cd "$ROOT"
 
 DO_UPLOAD=0
 PLATFORM_ARG="${DEPLOY_PLATFORM:-}"
-NOTES_ARG="${DEPLOY_NOTES:-}"
 
 usage() {
   cat <<'EOF'
 Usage: bash scripts/deploy-store.sh [--go] [--platform ios|android|both]
 
   Uploads tester builds only (TestFlight / Play Internal) — not a public store release.
+  Does not ask for notes (EAS What to Test / changelog needs Enterprise).
 
   Default: overview first, then optional upload with double confirm (1 = ja, twice).
   Pass --go to jump straight to the double confirmation.
@@ -66,9 +67,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ ! -t 0 ]]; then
-  # Non-interactive only when platform + notes are supplied (and --go needs confirm env).
-  if [[ -z "$PLATFORM_ARG" || -z "$NOTES_ARG" ]]; then
-    echo "Geen TTY: geef --platform en DEPLOY_NOTES=… (of DEPLOY_PLATFORM)." >&2
+  if [[ -z "$PLATFORM_ARG" ]]; then
+    echo "Geen TTY: geef --platform (of DEPLOY_PLATFORM)." >&2
     echo "Voor upload zonder TTY: DEPLOY_CONFIRM1=1 DEPLOY_CONFIRM2=1 … --go" >&2
     exit 1
   fi
@@ -101,23 +101,6 @@ prompt_platform() {
   done
 }
 
-prompt_notes() {
-  echo "" >&2
-  echo "Plak notes voor testers (what to test)." >&2
-  echo "Daarna: lege regel, of een regel met alleen EOF." >&2
-  echo "----" >&2
-  local notes="" line
-  while IFS= read -r line; do
-    if [[ -z "$line" || "$line" == "EOF" ]]; then
-      break
-    fi
-    notes+="$line"$'\n'
-  done
-  # Drop trailing newline from the last pasted line.
-  notes="${notes%$'\n'}"
-  printf '%s' "$notes"
-}
-
 normalize_platform() {
   case "$1" in
     ios|iOS|IOS|1) echo "ios" ;;
@@ -135,6 +118,7 @@ echo "════════════════════════�
 echo "  Gustra → upload voor testers" >&2
 echo "  iOS: TestFlight · Android: Play Internal" >&2
 echo "  Geen publieke App Store / Play release" >&2
+echo "  (geen notes — EAS What to Test = Enterprise)" >&2
 if [[ "$DO_UPLOAD" -eq 1 ]]; then
   echo "  Modus: direct naar dubbele bevestiging (--go)" >&2
 else
@@ -147,23 +131,6 @@ if [[ -n "$PLATFORM_ARG" ]]; then
   PLATFORM="$(normalize_platform "$PLATFORM_ARG")"
 else
   PLATFORM="$(normalize_platform "$(prompt_platform)")"
-fi
-
-if [[ -n "$NOTES_ARG" ]]; then
-  NOTES="$NOTES_ARG"
-else
-  NOTES="$(prompt_notes)"
-fi
-
-if [[ -z "${NOTES//[[:space:]]/}" ]]; then
-  if [[ -t 0 ]]; then
-    echo "" >&2
-    echo "Geen notes ingevuld. Opnieuw proberen? Anders Enter om leeg door te gaan." >&2
-    read -r -p "Notes opnieuw plakken? [j/N]: " retry
-    if [[ "$retry" =~ ^[jJyY] ]]; then
-      NOTES="$(prompt_notes)"
-    fi
-  fi
 fi
 
 IOS_CURRENT="$(read_ios_build)"
@@ -191,13 +158,6 @@ fi
 if [[ "$PLATFORM" == "android" || "$PLATFORM" == "both" ]]; then
   echo "Android versionCode: $AND_CURRENT → $AND_NEXT  (Play Internal)"
 fi
-echo "---- Notes voor testers ----"
-if [[ -n "$NOTES" ]]; then
-  printf '%s\n' "$NOTES"
-else
-  echo "(leeg)"
-fi
-echo "-----------------------"
 echo ""
 echo "Bij upload gebeurt dit:"
 if [[ "$PLATFORM" == "ios" || "$PLATFORM" == "both" ]]; then
@@ -260,20 +220,11 @@ echo ""
 commit_bump() {
   local title="$1"
   git add app.config.ts
-  if [[ -n "$NOTES" ]]; then
-    git commit -m "$(cat <<EOF
-${title}
-
-${NOTES}
-EOF
-)"
-  else
-    git commit -m "$(cat <<EOF
+  git commit -m "$(cat <<EOF
 ${title}
 
 EOF
 )"
-  fi
 }
 
 deploy_ios() {
@@ -285,14 +236,12 @@ deploy_ios() {
 
   cleanup_on_fail() {
     # Keep the bumped number: EAS already packaged this buildNumber into the upload.
-    # Reverting caused local 19 while remote build 20 still existed.
     echo "iOS build/submit mislukt — buildNumber blijft ${next} (niet teruggezet)." >&2
-    echo "Check de build op expo.dev. Submit desnoods handmatig zonder --what-to-test." >&2
+    echo "Check de build op expo.dev. Submit desnoods handmatig." >&2
   }
   trap cleanup_on_fail ERR
 
-  # Do NOT pass --what-to-test: EAS maps it to `changelog` (Enterprise only).
-  # Notes stay in the git commit; paste into TestFlight “What to Test” manually if needed.
+  # No --what-to-test (EAS changelog / Enterprise only).
   EAS_SKIP_AUTO_FINGERPRINT=1 npx eas-cli build \
     --platform ios \
     --profile production \
@@ -302,9 +251,6 @@ deploy_ios() {
   trap - ERR
   commit_bump "Bump iOS buildNumber to ${next} for TestFlight."
   echo "Klaar: iOS build ${next} → TestFlight."
-  if [[ -n "$NOTES" ]]; then
-    echo "Notes staan in de git commit. Plak ze desgewenst in TestFlight → What to Test."
-  fi
 }
 
 deploy_android() {
@@ -329,9 +275,6 @@ deploy_android() {
   trap - ERR
   commit_bump "Bump Android versionCode to ${next} for Play Internal testing."
   echo "Klaar: Android versionCode ${next} → Play Internal."
-  if [[ -n "$NOTES" ]]; then
-    echo "Let op: notes staan in de git commit; plak ze desgewenst ook in Play Console."
-  fi
 }
 
 if [[ "$PLATFORM" == "ios" || "$PLATFORM" == "both" ]]; then

@@ -70,6 +70,7 @@
     "deploy:ios": "bash scripts/deploy-ios-testflight.sh",
     "deploy:android": "bash scripts/deploy-android-internal.sh",
     "deploy:web": "python3 scripts/deploy-webversion.py",
+    "deploy:github": "python3 scripts/deploy-github.py",
     "ios": "expo run:ios",
     "web": "expo start --web"
   },

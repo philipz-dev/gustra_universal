@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gustra — Versions &amp; changes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --forest: #244e39; --forest-deep: #1a3a2a; --cream: #f5eedd; --bubble: #ece3cf;
+      --gold: #d9a227; --ink: #23201a; --ink-soft: rgba(35, 32, 26, 0.55);
+      --ok: #388c56; --warn: #8a4b12; --danger: #c74742;
+      --shadow: 0 18px 50px rgba(36, 78, 57, 0.12); --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0; min-height: 100vh;
+      font-family: "DM Sans", system-ui, sans-serif; color: var(--ink);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(217, 162, 39, 0.16), transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, rgba(36, 78, 57, 0.14), transparent 50%),
+        linear-gradient(180deg, #f8f3e7 0%, var(--cream) 45%, #efe6d2 100%);
+    }
+    .wrap { width: min(920px, calc(100% - 2rem)); margin: 0 auto; padding: 2.25rem 0 4rem; }
+    header.hero {
+      background: linear-gradient(145deg, var(--forest) 0%, var(--forest-deep) 100%);
+      color: #f7f1e4; border-radius: calc(var(--radius) + 6px);
+      padding: 1.75rem 1.5rem 1.5rem; box-shadow: var(--shadow);
+    }
+    .brand {
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: clamp(2.2rem, 5vw, 3rem); font-weight: 700;
+      letter-spacing: -0.03em; line-height: 0.95; margin: 0 0 0.45rem;
+    }
+    .tagline { margin: 0; max-width: 38rem; color: rgba(247, 241, 228, 0.84); font-size: 1.02rem; line-height: 1.45; }
+    .stats {
+      display: flex; flex-wrap: wrap; gap: 0.55rem; margin-top: 1.1rem;
+    }
+    .stats span {
+      font-size: 0.82rem; font-weight: 600;
+      padding: 0.35rem 0.7rem; border-radius: 999px;
+      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.16);
+    }
+    .hero-links { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-top: 1.1rem; }
+    .hero-links a {
+      color: #f7f1e4; text-decoration: none; font-size: 0.92rem; font-weight: 600;
+      padding: 0.45rem 0.8rem; border-radius: 999px;
+      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
+    }
+    .hero-links a:hover { background: rgba(217, 162, 39, 0.28); }
+    nav.toc { display: flex; flex-wrap: wrap; gap: 0.55rem; margin: 1.25rem 0 1.5rem; }
+    nav.toc a {
+      color: var(--forest); text-decoration: none; font-weight: 600; font-size: 0.92rem;
+      padding: 0.4rem 0.75rem; border-radius: 999px; background: rgba(36, 78, 57, 0.1);
+    }
+    section.panel {
+      background: rgba(255,255,255,0.45); border: 1px solid rgba(35, 32, 26, 0.08);
+      border-radius: var(--radius); padding: 1.25rem 1.15rem 1.4rem;
+      margin-bottom: 1.25rem; box-shadow: 0 8px 24px rgba(36, 78, 57, 0.06);
+    }
+    section.panel h2 {
+      font-family: "Source Serif 4", Georgia, serif; font-size: 1.55rem;
+      margin: 0 0 0.35rem; color: var(--forest-deep);
+    }
+    .section-meta { margin: 0 0 1rem; color: var(--ink-soft); font-size: 0.95rem; line-height: 1.4; }
+    .day { margin-bottom: 1.15rem; }
+    .day-title {
+      font-family: "Source Serif 4", Georgia, serif; font-size: 1.2rem;
+      margin: 0 0 0.55rem; color: var(--forest);
+    }
+    ul.changelog { list-style: none; padding: 0; margin: 0; }
+    ul.changelog li {
+      background: rgba(236, 227, 207, 0.55); border-radius: 12px;
+      padding: 0.7rem 0.85rem; margin-bottom: 0.45rem;
+      font-size: 0.95rem; line-height: 1.4;
+      display: flex; gap: 0.55rem; align-items: flex-start;
+    }
+    .card {
+      background: rgba(236, 227, 207, 0.55); border-radius: 14px;
+      padding: 1rem 1rem 0.85rem; margin-bottom: 0.75rem;
+    }
+    .card-head h3 { margin: 0 0 0.35rem; font-size: 1.08rem; font-weight: 600; line-height: 1.35; }
+    .card-head h3 a { color: var(--ink); text-decoration: none; }
+    .card-head h3 a:hover { color: var(--forest); }
+    .meta {
+      display: flex; flex-wrap: wrap; gap: 0.45rem 0.7rem; align-items: center;
+      font-size: 0.82rem; color: var(--ink-soft);
+    }
+    .meta code, .files code {
+      font-size: 0.78rem; background: rgba(35, 32, 26, 0.08);
+      padding: 0.12rem 0.4rem; border-radius: 6px;
+    }
+    .badge {
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.03em;
+      text-transform: uppercase; padding: 0.18rem 0.45rem; border-radius: 6px;
+      flex: 0 0 auto; margin-top: 0.15rem;
+    }
+    .badge.ok { color: #1a3a2a; background: rgba(56, 140, 86, 0.18); }
+    .badge.warn { color: var(--warn); background: rgba(217, 162, 39, 0.22); }
+    .body { margin-top: 0.65rem; font-size: 0.95rem; line-height: 1.45; color: rgba(35, 32, 26, 0.82); }
+    .body p { margin: 0 0 0.55rem; }
+    .body ul { margin: 0 0 0.55rem; padding-left: 1.2rem; }
+    .files-block { margin-top: 0.65rem; }
+    .diff { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 0.86rem; }
+    .diff .add { color: var(--ok); margin-right: 0.45rem; }
+    .diff .del { color: var(--danger); }
+    ul.files { margin: 0.4rem 0 0; padding-left: 1.1rem; font-size: 0.86rem; }
+    ul.files li { margin: 0.15rem 0; }
+    .muted { color: var(--ink-soft); }
+    .empty { padding: 0.75rem 0.25rem; color: var(--ink-soft); }
+    footer { margin-top: 1.5rem; font-size: 0.85rem; color: var(--ink-soft); text-align: center; }
+    footer a { color: var(--forest); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <h1 class="brand">Gustra</h1>
+      <p class="tagline">Universal repository for Gustra food diary. What’s new from the plan changelog, GitHub Releases, and useful commits.</p>
+      <div class="stats">
+        <span>Created 21 Jul 2026</span>
+        <span>Last push 24 Jul 2026</span>
+        <span>14 commits on main</span>
+        <span>106 plan notes</span>
+      </div>
+      <div class="hero-links">
+        <a href="https://github.com/philipz-dev/gustra_universal" rel="noopener">GitHub repo</a>
+        <a href="https://github.com/philipz-dev/gustra_universal/releases" rel="noopener">Releases</a>
+        <a href="https://gustra.net/plan/">Plan</a>
+        <a href="https://gustra.net/webversion/">Web app</a>
+      </div>
+    </header>
+
+    <nav class="toc">
+      <a href="#changelog">What’s new</a>
+      <a href="#releases">Releases</a>
+      <a href="#commits">Commits</a>
+    </nav>
+
+    <section class="panel" id="changelog">
+      <h2>What’s new (from plan)</h2>
+      <p class="section-meta">Human-readable shipping notes — the richest log while GitHub Releases are empty. Synced from <a href="https://gustra.net/plan/">gustra.net/plan</a>.</p>
+      
+        <div class="day">
+          <h3 class="day-title">24 Jul 2026</h3>
+          <ul class="changelog"><li><span class="badge ok">Website</span> gustra.net/github enriched: plan What’s new + commit file stats (GitHub alone had almost no Releases/PRs).</li><li><span class="badge ok">Website</span> gustra.net/github — public log from GitHub Releases + useful commits (npm run deploy:github).</li><li><span class="badge ok">Added/fixed</span> Deploy script no longer asks for tester notes (EAS What to Test needs Enterprise).</li><li><span class="badge ok">Added/fixed</span> Review detail: hero photo shows again after adding a photo (thumbnails worked; top hero was blank).</li><li><span class="badge ok">Added/fixed</span> iOS buildNumber set to 20 (EAS build in progress). Deploy no longer reverts bump on submit failure; no Enterprise --what-to-test.</li><li><span class="badge ok">Added/fixed</span> Deploy iOS: drop EAS --what-to-test (Enterprise-only changelog); notes stay in git commit / paste into TestFlight.</li><li><span class="badge ok">Added/fixed</span> Deploy confirm simplified: same 1=Yes / 2=No menu twice (no more typing ja/upload).</li><li><span class="badge ok">Added/fixed</span> Deploy script: after the summary you can still upload for testers (double confirm: ja → upload).</li><li><span class="badge ok">Added/fixed</span> Deploy script: platform menu was invisible (stdout swallowed); clearer tester-upload intro.</li><li><span class="badge ok">Website</span> Plan site: one “Upload for testers” howto (TestFlight / Play Internal only; no public store release). Confirm word is upload.</li><li><span class="badge ok">Website</span> Plan site: store build howto updated (dry-run default, paste notes, type publiceer, --go).</li><li><span class="badge ok">Added/fixed</span> Interactive store deploy: choose iOS/Android/both, paste release notes, dry-run by default (--go to publish).</li><li><span class="badge ok">Added/fixed</span> Android: Share Gustra file icon shows again (was missing). Example: Options → Share → file icon next to Gustra file.</li><li><span class="badge ok">Website</span> Plan badges renamed: Added/fixed, Website, Still open (clearer labels).</li><li><span class="badge ok">Website</span> Plan site: checked items no longer use strikethrough (easier to read).</li><li><span class="badge ok">Added/fixed</span> Review Options sheet: inset grouped list + separate Share group (File / Visual).</li><li><span class="badge ok">Website</span> Plan website in simple English (easy titles + examples).</li><li><span class="badge ok">Added/fixed</span> More languages (German, Spanish, French) + a clean Settings language list (like iPhone Settings). Example: tap Language → pick Español.</li><li><span class="badge ok">Added/fixed</span> Language picker you can scroll + Italian. Example: Settings → Language → Italiano.</li><li><span class="badge ok">Added/fixed</span> Friend reviews keep their own name/photo (not yours). Example: a friend’s review no longer shows your profile picture.</li><li><span class="badge ok">Added/fixed</span> Review photo fits without cropping stretch; keyboard doesn’t hide what you type. Example: tall photos show fully; typing comments stays on screen.</li><li><span class="badge ok">Added/fixed</span> Editing a review: Back asks before throwing away changes. Example: change stars → Back → Keep editing or Discard.</li><li><span class="badge ok">Added/fixed</span> Opening Edit no longer jumps to comments. Example: you stay at the top until you tap a comment box.</li><li><span class="badge ok">Added/fixed</span> Review form: drag on stars to rate (won’t fight with scrolling). Star words translate. Example: slide across Food stars.</li></ul>
+        </div>
+        <div class="day">
+          <h3 class="day-title">23 Jul 2026</h3>
+          <ul class="changelog"><li><span class="badge ok">Added/fixed</span> Android: the ⋯ Options icon showed as “?” — fixed. Example: review screen shows three dots again.</li><li><span class="badge ok">Added/fixed</span> Removed the download/import button from Reviews. Example: import only via Settings → Import shared reviews.</li><li><span class="badge ok">Added/fixed</span> Review screen: ⋯ opens Options (edit/share/delete). Friend reviews can’t be edited. Example: tap ⋯ → Options.</li><li><span class="badge ok">Added/fixed</span> “Show ratings as stars” remembers your choice. Example: turn it on, leave Settings, come back — still on.</li><li><span class="badge ok">Added/fixed</span> My Gustra stars are a bit bigger on Android (easier to see).</li><li><span class="badge ok">Added/fixed</span> Same filters on Reviews, Map, and My Gustra. Friends optional. Top 3 best places/cities. Example: filter Favorites once — map updates too.</li><li><span class="badge ok">Added/fixed</span> Settings no longer counts leftover orphan photos as “stored locally”. Example: delete a review → photo count drops.</li><li><span class="badge ok">Added/fixed</span> App can speak Dutch (and English). Example: Settings → Language → Nederlands.</li><li><span class="badge ok">Added/fixed</span> No fake demo reviews on launch — only your real data.</li><li><span class="badge ok">Added/fixed</span> Location/Cuisine “select all” looks like the other checkboxes (square).</li><li><span class="badge ok">Added/fixed</span> Map: “Friend’s reviews” lives inside Filters (not a separate row).</li><li><span class="badge ok">Added/fixed</span> Map: friends toggle sits under the filter header (not on the map tiles).</li><li><span class="badge ok">Added/fixed</span> The green + button on Reviews stays visible above the tab bar.</li><li><span class="badge ok">Added/fixed</span> Fixed: Add-review + button was missing — it’s back.</li><li><span class="badge ok">Added/fixed</span> Location/Cuisine: quick none/all toggle above the list.</li><li><span class="badge ok">Added/fixed</span> Map pins show score colors again (red / orange / green).</li><li><span class="badge ok">Added/fixed</span> Map uses the same filters as Reviews and zooms to matching pins.</li><li><span class="badge ok">Added/fixed</span> Map: compact people button for friends (doesn’t cover tiles).</li><li><span class="badge ok">Added/fixed</span> Map: green header comes back after you open a review and go back.</li><li><span class="badge ok">Added/fixed</span> From a map pin → review → Back returns to the map (not Reviews).</li><li><span class="badge ok">Added/fixed</span> After pin → review → Back, the map stays where you left it.</li><li><span class="badge ok">Added/fixed</span> Map markers look like Google flag pins (like the old Swift app).</li><li><span class="badge ok">Website</span> Rule: updates must never break old reviews/backups. Example: old .gustra files still open.</li><li><span class="badge ok">Added/fixed</span> Android Settings rows were blank — fixed; you can see them again.</li><li><span class="badge ok">Added/fixed</span> My Gustra city averages show stars or numbers + ranking. Settings looks cleaner on Android.</li><li><span class="badge ok">Added/fixed</span> Android feed cards look like one clean frame (like iOS) when you swipe.</li><li><span class="badge ok">Added/fixed</span> Auto backups older than 30 days get cleaned up (newest kept).</li><li><span class="badge ok">Added/fixed</span> Can find old Swift app data on the phone and import it safely (won’t delete your files).</li><li><span class="badge ok">Added/fixed</span> Android Expo Go starts without crashing on the review screen.</li><li><span class="badge ok">Added/fixed</span> Android can import shared review files again (copy/read fix).</li><li><span class="badge ok">Added/fixed</span> Import checks the file type smarter (big photo packages OK).</li><li><span class="badge ok">Added/fixed</span> Fixed false “not a Gustra share file” when a profile photo was first in the package.</li><li><span class="badge ok">Added/fixed</span> iOS: opening Location/Cuisine filter twice no longer freezes.</li><li><span class="badge ok">Added/fixed</span> Delete confirm button is soft red (house style), not screaming red.</li><li><span class="badge ok">Added/fixed</span> You can drag photo thumbnails to reorder without wild auto-scroll.</li><li><span class="badge ok">Added/fixed</span> Fewer crashes when opening maps/links or alerts over photos.</li><li><span class="badge ok">Added/fixed</span> Android photo viewer: pinch zoom + swipe down to close (closer to iPhone).</li><li><span class="badge ok">Added/fixed</span> Closer to Swift: map location, remove many photos at once, Files access, landscape photos.</li><li><span class="badge ok">Added/fixed</span> Closer to Swift: sort by average, Clear filters, Save to Photos, Waze only if installed.</li><li><span class="badge ok">Website</span> Honest checklist: missing Swift pieces marked open again (not fake 100%).</li><li><span class="badge ok">Added/fixed</span> iOS: long-press and drag to reorder review photos.</li><li><span class="badge ok">Added/fixed</span> Swipe-to-delete feels more like iPhone (red + little vibration).</li><li><span class="badge ok">Added/fixed</span> Long restaurant names shrink (down to 75%) instead of cutting off with …</li><li><span class="badge ok">Added/fixed</span> Sharing no longer flickers — name/message in one smooth sheet.</li><li><span class="badge ok">Added/fixed</span> Email recommendation no longer freezes after you type a personal message.</li><li><span class="badge ok">Added/fixed</span> WhatsApp share sends a real .gustrashare file (not raw JSON).</li><li><span class="badge ok">Added/fixed</span> No more duplicate visits when autosave and Done both run.</li><li><span class="badge ok">Added/fixed</span> Android looks/feels tidier (full screen, bigger tap targets).</li><li><span class="badge ok">Added/fixed</span> Fixed Android crash about the navigation bar style.</li><li><span class="badge ok">Added/fixed</span> iOS: tap address → pick Maps/Google/Waze without crashing.</li><li><span class="badge ok">Added/fixed</span> Manual entry: country goes into Google search; no wrong GPS bias without a city.</li><li><span class="badge ok">Added/fixed</span> Keyboard hides the tab bar and scrolls so the field stays visible.</li><li><span class="badge ok">Added/fixed</span> iOS: get directions only after the map popup closes (no crash).</li><li><span class="badge ok">Added/fixed</span> iOS: Location/Cuisine filter no longer freezes when opened.</li><li><span class="badge ok">Added/fixed</span> Web build skips native SQLite migration code (so export works).</li><li><span class="badge ok">Added/fixed</span> iOS lists/forms feel more like Apple (spacing + press feedback).</li><li><span class="badge ok">Added/fixed</span> iOS: nicer headers, taps vibrate lightly, smoother motion.</li><li><span class="badge ok">Added/fixed</span> Settings: Recover reviews from the old Swift Gustra app.</li><li><span class="badge ok">Added/fixed</span> Web app published at gustra.net/webversion.</li><li><span class="badge ok">Added/fixed</span> Web: tap outside to dismiss keyboard without crashing.</li><li><span class="badge ok">Added/fixed</span> iOS Info.plist bits so Files/opening docs and App Store encryption flags are correct.</li><li><span class="badge ok">Added/fixed</span> TestFlight submit wired with App Store Connect app id (build 16).</li><li><span class="badge ok">Added/fixed</span> One command builds Android for Play Internal testing and bumps the version.</li><li><span class="badge ok">Added/fixed</span> iOS deploy script uses the right EAS CLI flags.</li><li><span class="badge ok">Website</span> Plan page: how-to for TestFlight build at the bottom.</li><li><span class="badge ok">Added/fixed</span> One command builds iPhone for TestFlight and bumps the build number.</li><li><span class="badge ok">Added/fixed</span> EAS project id stored in app config.</li><li><span class="badge ok">Added/fixed</span> After importing a friend’s file, you land on Friends’ reviews. Example: import → Friends tab.</li><li><span class="badge ok">Added/fixed</span> iOS app id matches the old Swift app (same family of apps).</li><li><span class="badge ok">Added/fixed</span> Share from other apps into Gustra via iOS Share Extension.</li><li><span class="badge ok">Website</span> Plan idea: top world languages later (EN, Chinese, Hindi, Spanish, French).</li><li><span class="badge ok">Website</span> Plan: Dutch localization → Ideas (Localization)</li><li><span class="badge ok">Added/fixed</span> Photo viewer: share icon opens the system share sheet.</li><li><span class="badge ok">Added/fixed</span> Pretty full-screen chooser: Camera or Library when adding photos.</li><li><span class="badge ok">Website</span> Plan cleanup: removed a duplicate Favorites filter task.</li><li><span class="badge ok">Website</span> Plan cleanup: autocomplete/Siri moved to Ideas; unused Add Review modal removed</li></ul>
+        </div>
+        <div class="day">
+          <h3 class="day-title">22 Jul 2026</h3>
+          <ul class="changelog"><li><span class="badge ok">Added/fixed</span> Feed card shows that criterion’s score when you sort by it. Example: sort by Food → card shows Food score.</li><li><span class="badge ok">Added/fixed</span> With no filters, feed sorts by newest visit first.</li><li><span class="badge ok">Added/fixed</span> Circle-crop your profile photo with pinch/zoom.</li><li><span class="badge ok">Added/fixed</span> On launch, delete leftover photo files that belong to nothing.</li><li><span class="badge ok">Added/fixed</span> Tap outside text to close the keyboard.</li><li><span class="badge ok">Added/fixed</span> Review photo strip is tighter; drag to reorder.</li></ul>
+        </div>
+    </section>
+
+    <section class="panel" id="releases">
+      <h2>GitHub Releases</h2>
+      <p class="section-meta">Tagged versions with release notes (when you create them on GitHub).</p>
+      
+        <div class="empty">
+          <p>No GitHub Releases yet (tags + release notes).</p>
+          <p class="muted">Optional: <code>gh release create v1.0.0 --generate-notes</code> then <code>npm run deploy:github</code>.</p>
+        </div>
+    </section>
+
+    <section class="panel" id="commits">
+      <h2>Useful commits</h2>
+      <p class="section-meta">Commit message + changed files (+/−). Skips buildNumber bumps and checkpoints.</p>
+      
+        <article class="card commit">
+          <div class="card-head">
+            <h3><a href="https://github.com/philipz-dev/gustra_universal/commit/91c2bbed189207bf45a3ee293bfb6d15d63f8a6c" rel="noopener">Fix blank review hero photo after the aspect-fit change.</a></h3>
+            <div class="meta"><span>24 Jul 2026</span><code>91c2bbe</code></div>
+          </div>
+          <div class="body"><p>Use a simple contain Image again so photos show at the top of review detail, matching feed/edit thumbnails.</p></div>
+          <div class="files-block"><span class="diff"><span class="add">+44</span> <span class="del">−123</span></span><ul class="files"><li><code>app/(tabs)/(main)/review/[id].tsx</code> <span class="muted">(modified)</span></li><li><code>components/detail/HeroPhotoPager.tsx</code> <span class="muted">(modified)</span></li><li><code>roadmap/plan/index.html</code> <span class="muted">(modified)</span></li><li class="muted">+1 more files</li></ul></div>
+        </article>
+        <article class="card commit">
+          <div class="card-head">
+            <h3><a href="https://github.com/philipz-dev/gustra_universal/commit/6a04bfa2d938dd7d3b97bb6e8da7d1e66e2125ba" rel="noopener">Add interactive tester deploy and sync iOS buildNumber to 20.</a></h3>
+            <div class="meta"><span>24 Jul 2026</span><code>6a04bfa</code></div>
+          </div>
+          <div class="body"><p>Keeps the EAS build 20 bump after a failed auto-submit (no Enterprise --what-to-test), so the next deploy goes to 21.</p></div>
+          <div class="files-block"><span class="diff"><span class="add">+380</span> <span class="del">−102</span></span><ul class="files"><li><code>app.config.ts</code> <span class="muted">(modified)</span></li><li><code>package.json</code> <span class="muted">(modified)</span></li><li><code>roadmap/plan/index.html</code> <span class="muted">(modified)</span></li><li><code>scripts/deploy-android-internal.sh</code> <span class="muted">(modified)</span></li><li><code>scripts/deploy-ios-testflight.sh</code> <span class="muted">(modified)</span></li><li><code>scripts/deploy-store.sh</code> <span class="muted">(added)</span></li><li class="muted">+1 more files</li></ul></div>
+        </article>
+        <article class="card commit">
+          <div class="card-head">
+            <h3><a href="https://github.com/philipz-dev/gustra_universal/commit/548fbee293e222d73411118194e362db94a1fb63" rel="noopener">Ship i18n (6 languages), review Options sheet, and map/UX polish.</a></h3>
+            <div class="meta"><span>24 Jul 2026</span><code>548fbee</code></div>
+          </div>
+          <div class="body"><p>Adds System + DE/EN/ES/FR/IT/NL catalogs, inset language picker, grouped share options (with Android Gustra-file icon fix), nested map routes, shared feed filters, and plan-site badge/copy updates.</p></div>
+          <div class="files-block"><span class="diff"><span class="add">+26376</span> <span class="del">−14084</span></span><ul class="files"><li><code>.cursor/rules/backwards-compatible-data.mdc</code> <span class="muted">(added)</span></li><li><code>.cursor/rules/plan-website.mdc</code> <span class="muted">(modified)</span></li><li><code>AGENTS.md</code> <span class="muted">(modified)</span></li><li><code>app.config.ts</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/(main)/_layout.tsx</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/(main)/add-review.tsx</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/(main)/index.tsx</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/(main)/manual-entry.tsx</code> <span class="muted">(modified)</span></li><li class="muted">+97 more files</li></ul></div>
+        </article>
+        <article class="card commit">
+          <div class="card-head">
+            <h3><a href="https://github.com/philipz-dev/gustra_universal/commit/231ba217e6a190ee15622fed3ab77c1488c4fed4" rel="noopener">Ship Swift parity P1–P3 plus photo, map, and share fixes.</a></h3>
+            <div class="meta"><span>23 Jul 2026</span><code>231ba21</code></div>
+          </div>
+          <div class="body"><p>Close daily-use gaps (filters, Save to Photos, Waze, maps, batch photo remove, landscape, Android zoom/dismiss, swipe feel) and harden share/import flows toward Swift behavior.</p></div>
+          <div class="files-block"><span class="diff"><span class="add">+4996</span> <span class="del">−1848</span></span><ul class="files"><li><code>.cursor/rules/full-config-dump.mdc</code> <span class="muted">(added)</span></li><li><code>.cursor/rules/plan-website.mdc</code> <span class="muted">(added)</span></li><li><code>app.config.ts</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/(main)/index.tsx</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/(main)/manual-entry.tsx</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/(main)/review-form.tsx</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/(main)/review/[id].tsx</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/map.tsx</code> <span class="muted">(modified)</span></li><li class="muted">+40 more files</li></ul></div>
+        </article>
+        <article class="card commit">
+          <div class="card-head">
+            <h3><a href="https://github.com/philipz-dev/gustra_universal/commit/a3001554ffb0ef469e2898259bdbdb03fd61d5a2" rel="noopener">Fix web export by stubbing SwiftData migration off expo-sqlite.</a></h3>
+            <div class="meta"><span>23 Jul 2026</span><code>a300155</code></div>
+          </div>
+          <div class="body"><p>Keeps iOS recovery intact while allowing static deploy to gustra.net/webversion.</p></div>
+          <div class="files-block"><span class="diff"><span class="add">+92</span> <span class="del">−2</span></span><ul class="files"><li><code>roadmap/plan/index.html</code> <span class="muted">(modified)</span></li><li><code>services/migration/SwiftDataMigration.web.ts</code> <span class="muted">(added)</span></li><li class="muted">+1 more files</li></ul></div>
+        </article>
+        <article class="card commit">
+          <div class="card-head">
+            <h3><a href="https://github.com/philipz-dev/gustra_universal/commit/ae7aee8e0369e37d9a719d6848870af0db27654f" rel="noopener">Ship Expo polish, deploy tooling, and Android edge-to-edge UI.</a></h3>
+            <div class="meta"><span>23 Jul 2026</span><code>ae7aee8</code></div>
+          </div>
+          <div class="body"><p>Aligns iOS/Android house chrome (haptics, surfaces, type), adds EAS/web deploy scripts, SwiftData recovery, and plan-site sync for TestFlight/Play Internal.</p></div>
+          <div class="files-block"><span class="diff"><span class="add">+21119</span> <span class="del">−9450</span></span><ul class="files"><li><code>.env.example</code> <span class="muted">(added)</span></li><li><code>.gitignore</code> <span class="muted">(modified)</span></li><li><code>app.config.ts</code> <span class="muted">(added)</span></li><li><code>app.json</code> <span class="muted">(removed)</span></li><li><code>app/(tabs)/(main)/_layout.tsx</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/(main)/index.tsx</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/(main)/restaurant/[id].tsx</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/(main)/review-form.tsx</code> <span class="muted">(modified)</span></li><li class="muted">+74 more files</li></ul></div>
+        </article>
+        <article class="card commit">
+          <div class="card-head">
+            <h3><a href="https://github.com/philipz-dev/gustra_universal/commit/9f37c1d99a645e2e144f4b28a2938f8f8379d92a" rel="noopener">Add .gustrashare import and fix Android photo viewer paging.</a></h3>
+            <div class="meta"><span>22 Jul 2026</span><code>9f37c1d</code></div>
+          </div>
+          <div class="body"><p>Friends can import shared packages via picker/deep link, and the fullscreen pager swipes reliably on Android with spacing between photos.</p></div>
+          <div class="files-block"><span class="diff"><span class="add">+18367</span> <span class="del">−6544</span></span><ul class="files"><li><code>app.json</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/(main)/index.tsx</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/(main)/review/[id].tsx</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/settings.tsx</code> <span class="muted">(modified)</span></li><li><code>app/_layout.tsx</code> <span class="muted">(modified)</span></li><li><code>app/share-import.tsx</code> <span class="muted">(added)</span></li><li><code>components/detail/HeroPhotoPager.tsx</code> <span class="muted">(added)</span></li><li><code>components/detail/ProfilePhotoViewer.tsx</code> <span class="muted">(modified)</span></li><li class="muted">+9 more files</li></ul></div>
+        </article>
+        <article class="card commit">
+          <div class="card-head">
+            <h3><a href="https://github.com/philipz-dev/gustra_universal/commit/0415ac89892e8c837fe6949e3eabc6c7c51857a5" rel="noopener">Add review flows, map/detail polish, and Places-backed restaurant search.</a></h3>
+            <div class="meta"><span>22 Jul 2026</span><code>0415ac8</code></div>
+          </div>
+          <div class="body"><p>Bring Expo closer to Swift parity with add/edit review, cinematic photo viewer, directions, share/email, friends map overlay, and Google Places integration.</p></div>
+          <div class="files-block"><span class="diff"><span class="add">+10156</span> <span class="del">−258</span></span><ul class="files"><li><code>app.json</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/(main)/_layout.tsx</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/(main)/add-review.tsx</code> <span class="muted">(added)</span></li><li><code>app/(tabs)/(main)/index.tsx</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/(main)/manual-entry.tsx</code> <span class="muted">(added)</span></li><li><code>app/(tabs)/(main)/map-search.tsx</code> <span class="muted">(added)</span></li><li><code>app/(tabs)/(main)/nearby-restaurants.tsx</code> <span class="muted">(added)</span></li><li><code>app/(tabs)/(main)/review-form.tsx</code> <span class="muted">(added)</span></li><li class="muted">+60 more files</li></ul></div>
+        </article>
+        <article class="card commit">
+          <div class="card-head">
+            <h3><a href="https://github.com/philipz-dev/gustra_universal/commit/4dec895d107a5ec6acf5a30707f00dcf058408e7" rel="noopener">Add reviews store, backup/share, friends feed, and swipe-to-delete.</a></h3>
+            <div class="meta"><span>22 Jul 2026</span><code>4dec895</code></div>
+          </div>
+          <div class="body"><p>Wire Swift-aligned persistence and feed UX: encrypted .gustra backup, .gustrashare export, My/Friends reviews, nested stack navigation, and dismissible swipe delete.</p></div>
+          <div class="files-block"><span class="diff"><span class="add">+12075</span> <span class="del">−271</span></span><ul class="files"><li><code>app.json</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/(main)/_layout.tsx</code> <span class="muted">(added)</span></li><li><code>app/(tabs)/(main)/index.tsx</code> <span class="muted">(added)</span></li><li><code>app/(tabs)/(main)/restaurant/[id].tsx</code> <span class="muted">(renamed)</span></li><li><code>app/(tabs)/(main)/review/[id].tsx</code> <span class="muted">(renamed)</span></li><li><code>app/(tabs)/_layout.tsx</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/backup-restore.tsx</code> <span class="muted">(added)</span></li><li><code>app/(tabs)/edit-criteria.tsx</code> <span class="muted">(renamed)</span></li><li class="muted">+36 more files</li></ul></div>
+        </article>
+        <article class="card commit">
+          <div class="card-head">
+            <h3><a href="https://github.com/philipz-dev/gustra_universal/commit/e6dd979a3d5b56d209ce8cd3f6b0b718581523dd" rel="noopener">Add Gustra house UI shell with reviews, passport, and settings.</a></h3>
+            <div class="meta"><span>21 Jul 2026</span><code>e6dd979</code></div>
+          </div>
+          <div class="body"><p>Port the Swift app’s cream/forest chrome, feed and detail flows, My Gustra stats, and editable review criteria onto Expo, with fixed nav height and OTA updates disabled for local development.</p></div>
+          <div class="files-block"><span class="diff"><span class="add">+4170</span> <span class="del">−260</span></span><ul class="files"><li><code>app.json</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/_layout.tsx</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/index.tsx</code> <span class="muted">(modified)</span></li><li><code>app/(tabs)/map.tsx</code> <span class="muted">(added)</span></li><li><code>app/(tabs)/passport.tsx</code> <span class="muted">(added)</span></li><li><code>app/(tabs)/settings.tsx</code> <span class="muted">(added)</span></li><li><code>app/(tabs)/two.tsx</code> <span class="muted">(removed)</span></li><li><code>app/+html.tsx</code> <span class="muted">(modified)</span></li><li class="muted">+45 more files</li></ul></div>
+        </article>
+    </section>
+
+    <footer>
+      Generated 2026-07-24 16:23 UTC · <a href="https://github.com/philipz-dev/gustra_universal">philipz-dev/gustra_universal</a> · <code>npm run deploy:github</code>
+    </footer>
+  </div>
+</body>
+</html>

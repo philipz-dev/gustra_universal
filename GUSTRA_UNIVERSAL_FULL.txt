@@ -1,6 +1,6 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-07-24T16:10:22Z
+Generated: 2026-07-24T16:23:12Z
 Root: /Users/philipzvar/Desktop/gustra_universal
 Files: 180
 ================================================================================
@@ -7718,7 +7718,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       supportsTablet: true,
       // Must match the existing App Store Connect / Swift app.
       bundleIdentifier: 'com.philip.gustra',
-      buildNumber: '20',
+      buildNumber: '21',
       entitlements: {
         'com.apple.security.application-groups': ['group.com.philip.gustra'],
       },
@@ -25563,6 +25563,7 @@ FILE: package.json
     "deploy:ios": "bash scripts/deploy-ios-testflight.sh",
     "deploy:android": "bash scripts/deploy-android-internal.sh",
     "deploy:web": "python3 scripts/deploy-webversion.py",
+    "deploy:github": "python3 scripts/deploy-github.py",
     "ios": "expo run:ios",
     "web": "expo start --web"
   },
