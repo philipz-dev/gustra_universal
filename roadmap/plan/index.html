@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Gustra — Roadmap naar 100% Swift</title>
+  <title>Gustra — Roadmap to 100% Swift</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -230,7 +230,7 @@
       border-radius: 12px;
     }
     .task:hover { background: rgba(36, 78, 57, 0.05); }
-    .task.done label { color: var(--ink-soft); text-decoration: line-through; text-decoration-color: rgba(36,78,57,.28); }
+    .task.done label { color: var(--ink-soft); }
     .task label {
       cursor: pointer;
       line-height: 1.35;
@@ -274,6 +274,7 @@
       margin-top: 0.1rem;
     }
     .badge.gap { color: #8a4b12; background: rgba(217, 162, 39, 0.2); }
+    .badge.website { color: #1a3a2a; background: rgba(36, 78, 57, 0.14); }
     .badge.apple { color: #3b2f1a; background: rgba(217, 162, 39, 0.28); }
     .badge.na { color: var(--ink-soft); background: rgba(35, 32, 26, 0.08); }
 
@@ -351,7 +352,7 @@
   <div class="wrap">
     <header class="hero">
       <h1 class="brand">Gustra</h1>
-      <p class="tagline">Roadmap naar Swift-parity — open gaps tellen mee; 100% pas als die dicht zijn.</p>
+      <p class="tagline">Roadmap to match the old Swift app. Open gaps count — 100% only when they are closed.</p>
       <div class="status-row">
         <div class="progress-block">
           <div class="progress-label">
@@ -360,7 +361,7 @@
           </div>
           <div class="bar"><i id="parityBar"></i></div>
           <div class="progress-label" style="margin-top:0.85rem">
-            <span>Alles samen</span>
+            <span>Everything together</span>
             <span id="allCount">0 / 0</span>
           </div>
           <div class="bar"><i id="allBar"></i></div>
@@ -368,10 +369,10 @@
         <div class="pct" id="parityPct">0%<small>parity</small></div>
       </div>
       <div class="toolbar">
-        <button type="button" class="btn-light" id="btnExpand">Alles open</button>
-        <button type="button" class="btn-light" id="btnCollapse">Alles dicht</button>
-        <button type="button" class="btn-gold" id="btnExport">Exporteer status</button>
-        <button type="button" class="btn-light" id="btnImport">Importeer status</button>
+        <button type="button" class="btn-light" id="btnExpand">Expand all</button>
+        <button type="button" class="btn-light" id="btnCollapse">Collapse all</button>
+        <button type="button" class="btn-gold" id="btnExport">Export status</button>
+        <button type="button" class="btn-light" id="btnImport">Import status</button>
         <input type="file" id="importFile" accept="application/json" hidden />
       </div>
     </header>
@@ -379,9 +380,9 @@
     <nav class="toc">
       <a href="#new">New</a>
       <a href="#parity">Swift parity</a>
-      <a href="#features">Nieuwe features</a>
-      <a href="#ideas">Ideeën</a>
-      <a href="#add">Toevoegen</a>
+      <a href="#features">New features</a>
+      <a href="#ideas">Ideas</a>
+      <a href="#add">Add</a>
       <a href="#compile-ios">TestFlight</a>
       <a href="#compile-android">Play Internal</a>
       <a href="#deploy-web">Web</a>
@@ -389,96 +390,96 @@
 
     <section class="panel" id="new">
       <h2>New</h2>
-      <p class="section-meta">Changelog van wat er recent is toegevoegd — gegroepeerd op datum (nieuwste bovenaan).</p>
+      <p class="section-meta">What shipped recently — grouped by day (newest on top).</p>
       <div id="newRoot"></div>
     </section>
 
     <section class="panel" id="parity">
       <h2>Swift parity</h2>
-      <p class="section-meta">Expo vs Swift iOS. Badge “open” = audit-gap (verlaagt %). Bewuste uitstel (Siri, localization, search-suggest) staat onder Ideeën.</p>
+      <p class="section-meta">App vs the old Swift iPhone app. Badge “Still open” = not done yet (lowers %). Later ideas (Siri, more languages) live under Ideas.</p>
       <div id="parityRoot"></div>
     </section>
 
     <section class="panel" id="features">
-      <h2>Nieuwe features</h2>
-      <p class="section-meta">Niet nodig voor parity, wel gepland — inclusief de wijnflow met tussenstappen.</p>
+      <h2>New features</h2>
+      <p class="section-meta">Nice extras (not required for Swift match) — including the wine flow with small steps.</p>
       <div id="featuresRoot"></div>
     </section>
 
     <section class="panel" id="ideas">
-      <h2>Ideeën</h2>
-      <p class="section-meta">Backlog / exploratie — telt mee in “alles samen”, niet in Swift-parity %.</p>
+      <h2>Ideas</h2>
+      <p class="section-meta">Backlog / experiments — counts in “everything together”, not in Swift-parity %.</p>
       <div id="ideasRoot"></div>
     </section>
 
     <section class="panel" id="add">
-      <h2>Nieuwe feature of to-do</h2>
-      <p class="section-meta">Wordt meteen in de lijst gezet, in je status bewaard, en (indien mogelijk) naar de server gesynchroniseerd.</p>
+      <h2>Add a feature or to-do</h2>
+      <p class="section-meta">Added to the list right away, saved in your status, and synced to the server when possible.</p>
       <form class="add-form" id="addForm">
         <div class="row">
           <select id="addSection" required>
             <option value="new">New (changelog)</option>
             <option value="parity">Swift parity</option>
-            <option value="features" selected>Nieuwe features</option>
-            <option value="ideas">Ideeën</option>
+            <option value="features" selected>New features</option>
+            <option value="ideas">Ideas</option>
           </select>
           <select id="addGroup"></select>
-          <button type="submit" class="btn-gold">Toevoegen</button>
+          <button type="submit" class="btn-gold">Add</button>
         </div>
-        <input id="addTitle" type="text" maxlength="160" placeholder="Titel van de taak…" required />
-        <textarea id="addNote" maxlength="280" placeholder="Optionele toelichting / tussenstap…"></textarea>
-        <p class="hint">Tip: kies een bestaande groep, of typ een nieuwe groepsnaam in het tweede veld (als “Nieuwe groep…”).</p>
+        <input id="addTitle" type="text" maxlength="160" placeholder="Task title…" required />
+        <textarea id="addNote" maxlength="280" placeholder="Optional note / small step…"></textarea>
+        <p class="hint">Tip: pick an existing group, or type a new group name in the second field (when it says “New group…”).</p>
       </form>
-      <p class="sync" id="syncMsg">Status wordt lokaal bewaard. Server-sync start zodra save-plan.php bereikbaar is.</p>
+      <p class="sync" id="syncMsg">Status is saved on this device. Server sync starts when save-plan.php is available.</p>
     </section>
 
     <hr class="page-rule" />
 
     <section class="panel howto" id="compile-ios">
-      <h2>Compileer voor iPhone (testflight)</h2>
-      <p class="section-meta"><strong>Gebruik</strong></p>
+      <h2>Build for iPhone (TestFlight)</h2>
+      <p class="section-meta"><strong>How to run</strong></p>
       <p class="section-meta" style="margin-top:0.35rem"><code>npm run deploy:ios</code></p>
-      <p class="section-meta" style="margin-top:1rem"><strong>Wat het doet</strong></p>
+      <p class="section-meta" style="margin-top:1rem"><strong>What it does</strong></p>
       <ol class="howto-list">
         <li><code>ios.buildNumber</code> in <code>app.config.ts</code> +1</li>
         <li><code>EAS_SKIP_AUTO_FINGERPRINT=1 npx eas-cli build</code> production + auto-submit (TestFlight)</li>
-        <li>Bij succes: commit van de buildNumber-bump</li>
-        <li>Bij falen: buildNumber terugzetten (geen commit)</li>
+        <li>On success: commit the buildNumber bump</li>
+        <li>On failure: put buildNumber back (no commit)</li>
       </ol>
     </section>
 
     <hr class="page-rule" />
 
     <section class="panel howto" id="compile-android">
-      <h2>Compileer voor Android (Play Internal testing)</h2>
-      <p class="section-meta"><strong>Gebruik</strong></p>
+      <h2>Build for Android (Play Internal testing)</h2>
+      <p class="section-meta"><strong>How to run</strong></p>
       <p class="section-meta" style="margin-top:0.35rem"><code>npm run deploy:android</code></p>
-      <p class="section-meta" style="margin-top:1rem"><strong>Wat het doet</strong></p>
+      <p class="section-meta" style="margin-top:1rem"><strong>What it does</strong></p>
       <ol class="howto-list">
         <li><code>android.versionCode</code> in <code>app.config.ts</code> +1</li>
-        <li><code>EAS_SKIP_AUTO_FINGERPRINT=1 npx eas-cli build</code> production AAB + auto-submit naar Play track <code>internal</code></li>
-        <li>Bij succes: commit van de versionCode-bump</li>
-        <li>Bij falen: versionCode terugzetten (geen commit)</li>
+        <li><code>EAS_SKIP_AUTO_FINGERPRINT=1 npx eas-cli build</code> production AAB + auto-submit to Play track <code>internal</code></li>
+        <li>On success: commit the versionCode bump</li>
+        <li>On failure: put versionCode back (no commit)</li>
       </ol>
-      <p class="section-meta" style="margin-top:1rem">Eerste keer: Google Service Account JSON koppelen in EAS (Play Console → Users and permissions).</p>
+      <p class="section-meta" style="margin-top:1rem">First time: link a Google Service Account JSON in EAS (Play Console → Users and permissions).</p>
     </section>
 
     <hr class="page-rule" />
 
     <section class="panel howto" id="deploy-web">
-      <h2>Webversie (gustra.net/webversion)</h2>
-      <p class="section-meta"><strong>Gebruik</strong></p>
+      <h2>Web version (gustra.net/webversion)</h2>
+      <p class="section-meta"><strong>How to run</strong></p>
       <p class="section-meta" style="margin-top:0.35rem"><code>npm run deploy:web</code></p>
-      <p class="section-meta" style="margin-top:1rem"><strong>Wat het doet</strong></p>
+      <p class="section-meta" style="margin-top:1rem"><strong>What it does</strong></p>
       <ol class="howto-list">
         <li><code>npx expo export --platform web</code> (static, <code>baseUrl: /webversion</code>)</li>
-        <li>Upload <code>dist/</code> via FTP naar <code>public_html/webversion</code></li>
+        <li>Upload <code>dist/</code> via FTP to <code>public_html/webversion</code></li>
       </ol>
       <p class="section-meta" style="margin-top:1rem"><a href="https://gustra.net/webversion/">https://gustra.net/webversion/</a></p>
     </section>
 
     <footer>
-      Gustra plan · huisstijl forest <strong>#244E39</strong> · cream <strong>#F5EEDD</strong> · gold <strong>#D9A227</strong>
+      Gustra plan · house style forest <strong>#244E39</strong> · cream <strong>#F5EEDD</strong> · gold <strong>#D9A227</strong>
     </footer>
   </div>
 
@@ -498,61 +499,119 @@
         title: "New",
         groups: [
           {
-            id: "new-2026-07-23",
-            title: "23 jul 2026",
+            id: "new-2026-07-24",
+            title: "24 Jul 2026",
             tasks: [
-              { id: "chg-20260723-p3-parity", title: "P3 parity: Android photo zoom/dismiss + ReanimatedSwipeable feel", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-p2-parity", title: "P2 parity: map location, batch Remove Photos, UIFileSharing, landscape viewer", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-p1-parity", title: "P1 parity: avg-sort, Clear filters, My↔Friends prune, Save to Photos, Waze-gate", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-parity-audit", title: "Parity-audit: open gaps heropend (niet meer vals 100%)", done: true, badge: "Plan", date: "2026-07-23" },
-              { id: "chg-20260723-photo-reorder", title: "Fix iOS: photo thumbnails herschikken (long-press drag)", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-swipe-tune", title: "Swipe-delete: iOS-achtiger (friction, system red, haptic)", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-nav-scale", title: "Nav-titel: schaal tot 75% zoals Swift (geen ellipsis)", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-share-flicker", title: "Fix: share flow zonder flikkeren (één sheet voor naam/message)", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-visual-freeze", title: "Fix: visual recommendation bevriest niet meer na personal message", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-share-json", title: "Fix WhatsApp: .gustrashare niet meer als JSON + import sniff", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-dup-review", title: "Fix: geen dubbele review na autosave + Done/unmount", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-android-polish", title: "Android polish: edge-to-edge, surfaces, type ramp, 48dp hits", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-nav-setstyle", title: "Fix Android crash: NavigationBar.setStyle (SDK 57 API)", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-directions-ios", title: "Fix iOS: directions via ActionSheetIOS (geen crash na adres-tap)", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-manual-country", title: "Manual entry: land in Google-query + geen GPS-bias zonder stad", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-keyboard-overlap", title: "Keyboard: tab bar hide + scroll focused field above keyboard", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-directions-modal", title: "Fix iOS crash: directions pas na sluiten kaart-Modal", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-filter-push", title: "Fix iOS: filter Location/Cuisine push bevriest niet meer", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-web-sqlite-stub", title: "Web: SwiftDataMigration stub (geen expo-sqlite in export)", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-ios-type-list", title: "iOS polish: SF body + list/form (44pt, separators, press)", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-ios-polish", title: "iOS polish: nav chrome, haptics overal, spring motion", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-swift-migrate", title: "Settings: Recover previous Gustra data (SwiftData → Expo)", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-webversion", title: "Web static deploy naar gustra.net/webversion", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-kbd-web", title: "GlobalKeyboardDismiss.web — geen TextInputState op web", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-doc-inplace", title: "iOS: LSSupportsOpeningDocumentsInPlace + ITSAppUsesNonExemptEncryption", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-asc-appid", title: "EAS submit: ascAppId + iOS buildNumber 16", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-deploy-android", title: "Script deploy:android — bump versionCode + Play Internal + commit", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-eas-skip-fp", title: "deploy:ios: EAS_SKIP_AUTO_FINGERPRINT + npx eas-cli", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-plan-testflight", title: "Plan: Compileer voor iPhone (TestFlight) howto onderaan", done: true, badge: "Plan", date: "2026-07-23" },
-              { id: "chg-20260723-deploy-ios", title: "Script deploy:ios — bump buildNumber + TestFlight + commit", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-eas-projectid", title: "EAS projectId in app.config.ts (extra.eas)", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-si-friends", title: "Na import landen op Friends’ reviews tab", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-asc-bundle", title: "iOS: bundle ID + App Group gelijk aan Swift (1.0 build 15)", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-si-extension", title: "iOS Share Extension + App Group handoff (.gustrashare)", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-localization-top5", title: "Plan: Localization → top 5 talen (EN, ZH, HI, ES, FR)", done: true, badge: "Plan", date: "2026-07-23" },
-              { id: "chg-20260723-localization-ideas", title: "Plan: Dutch localization → Ideeën (Localization)", done: true, badge: "Plan", date: "2026-07-23" },
-              { id: "chg-20260723-viewer-share", title: "Photo viewer: share-icoon → system share sheet (geen ⋯-menu)", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-photo-chooser", title: "House-style full-screen photo source chooser (review form)", done: true, badge: "Expo", date: "2026-07-23" },
-              { id: "chg-20260723-drop-fav-dup", title: "Plan: Favorites filter over duplicates verwijderd (niet nodig)", done: true, badge: "Plan", date: "2026-07-23" },
-              { id: "chg-20260723-plan-triage", title: "Plan: autocomplete + Siri → Ideeën; Add Review root modal verwijderd", done: true, badge: "Plan", date: "2026-07-23" },
+              { id: "chg-20260724-share-file-icon-android", title: "Android: Share Gustra file icon shows again (was missing). Example: Options → Share → file icon next to Gustra file.", done: true, badge: "Added/fixed", date: "2026-07-24" },
+              { id: "chg-20260724-plan-badges", title: "Plan badges renamed: Added/fixed, Website, Still open (clearer labels).", done: true, badge: "Website", date: "2026-07-24" },
+              { id: "chg-20260724-plan-no-strike", title: "Plan site: checked items no longer use strikethrough (easier to read).", done: true, badge: "Website", date: "2026-07-24" },
+              { id: "chg-20260724-options-grouped", title: "Review Options sheet: inset grouped list + separate Share group (File / Visual).", done: true, badge: "Added/fixed", date: "2026-07-24" },
+              { id: "chg-20260724-plan-en-simple", title: "Plan website in simple English (easy titles + examples).", done: true, badge: "Website", date: "2026-07-24" },
+              { id: "chg-20260724-lang-de-es-fr-inset", title: "More languages (German, Spanish, French) + a clean Settings language list (like iPhone Settings). Example: tap Language → pick Español.", done: true, badge: "Added/fixed", date: "2026-07-24" },
+              { id: "chg-20260724-lang-picker-it", title: "Language picker you can scroll + Italian. Example: Settings → Language → Italiano.", done: true, badge: "Added/fixed", date: "2026-07-24" },
+              { id: "chg-20260724-reviewer-id", title: "Friend reviews keep their own name/photo (not yours). Example: a friend’s review no longer shows your profile picture.", done: true, badge: "Added/fixed", date: "2026-07-24" },
+              { id: "chg-20260724-hero-fit-kbd", title: "Review photo fits without cropping stretch; keyboard doesn’t hide what you type. Example: tall photos show fully; typing comments stays on screen.", done: true, badge: "Added/fixed", date: "2026-07-24" },
+              { id: "chg-20260724-edit-discard", title: "Editing a review: Back asks before throwing away changes. Example: change stars → Back → Keep editing or Discard.", done: true, badge: "Added/fixed", date: "2026-07-24" },
+              { id: "chg-20260724-edit-no-autoscroll", title: "Opening Edit no longer jumps to comments. Example: you stay at the top until you tap a comment box.", done: true, badge: "Added/fixed", date: "2026-07-24" },
+              { id: "chg-20260724-star-scrub", title: "Review form: drag on stars to rate (won’t fight with scrolling). Star words translate. Example: slide across Food stars.", done: true, badge: "Added/fixed", date: "2026-07-24" },
+            ],
+          },
+          {
+            id: "new-2026-07-23",
+            title: "23 Jul 2026",
+            tasks: [
+              { id: "chg-20260723-options-more-vert", title: "Android: the ⋯ Options icon showed as “?” — fixed. Example: review screen shows three dots again.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-reviews-no-import-btn", title: "Removed the download/import button from Reviews. Example: import only via Settings → Import shared reviews.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-review-options", title: "Review screen: ⋯ opens Options (edit/share/delete). Friend reviews can’t be edited. Example: tap ⋯ → Options.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-passport-stars-persist", title: "“Show ratings as stars” remembers your choice. Example: turn it on, leave Settings, come back — still on.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-passport-stars-android", title: "My Gustra stars are a bit bigger on Android (easier to see).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+
+              { id: "chg-20260723-shared-filters-3tabs", title: "Same filters on Reviews, Map, and My Gustra. Friends optional. Top 3 best places/cities. Example: filter Favorites once — map updates too.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+
+              { id: "chg-20260723-photo-orphan-count", title: "Settings no longer counts leftover orphan photos as “stored locally”. Example: delete a review → photo count drops.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+
+              { id: "chg-20260723-nl-i18n", title: "App can speak Dutch (and English). Example: Settings → Language → Nederlands.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+
+              { id: "chg-20260723-no-seed-data", title: "No fake demo reviews on launch — only your real data.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-filter-select-all-sq", title: "Location/Cuisine “select all” looks like the other checkboxes (square).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-map-friends-filter", title: "Map: “Friend’s reviews” lives inside Filters (not a separate row).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-map-friends-row", title: "Map: friends toggle sits under the filter header (not on the map tiles).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-reviews-fab-2", title: "The green + button on Reviews stays visible above the tab bar.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-reviews-fab", title: "Fixed: Add-review + button was missing — it’s back.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-filter-select-all", title: "Location/Cuisine: quick none/all toggle above the list.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-map-pin-colors", title: "Map pins show score colors again (red / orange / green).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-map-filters", title: "Map uses the same filters as Reviews and zooms to matching pins.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-map-friends-btn", title: "Map: compact people button for friends (doesn’t cover tiles).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-map-green-banner", title: "Map: green header comes back after you open a review and go back.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-map-back", title: "From a map pin → review → Back returns to the map (not Reviews).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-map-camera", title: "After pin → review → Back, the map stays where you left it.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-map-flag-pins", title: "Map markers look like Google flag pins (like the old Swift app).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-compat-rule", title: "Rule: updates must never break old reviews/backups. Example: old .gustra files still open.", done: true, badge: "Website", date: "2026-07-23" },
+              { id: "chg-20260723-android-settings-blank", title: "Android Settings rows were blank — fixed; you can see them again.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-passport-cities", title: "My Gustra city averages show stars or numbers + ranking. Settings looks cleaner on Android.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-android-feed-card", title: "Android feed cards look like one clean frame (like iOS) when you swipe.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-autoprotect-prune", title: "Auto backups older than 30 days get cleaned up (newest kept).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-swift-auto-migrate", title: "Can find old Swift app data on the phone and import it safely (won’t delete your files).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-android-boot", title: "Android Expo Go starts without crashing on the review screen.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-share-android-copy", title: "Android can import shared review files again (copy/read fix).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-share-sniff-2", title: "Import checks the file type smarter (big photo packages OK).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-share-sniff", title: "Fixed false “not a Gustra share file” when a profile photo was first in the package.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-filter-push-2", title: "iOS: opening Location/Cuisine filter twice no longer freezes.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-destructive-pastel", title: "Delete confirm button is soft red (house style), not screaming red.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-photo-reorder-2", title: "You can drag photo thumbnails to reorder without wild auto-scroll.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-crash-harden", title: "Fewer crashes when opening maps/links or alerts over photos.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-p3-parity", title: "Android photo viewer: pinch zoom + swipe down to close (closer to iPhone).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-p2-parity", title: "Closer to Swift: map location, remove many photos at once, Files access, landscape photos.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-p1-parity", title: "Closer to Swift: sort by average, Clear filters, Save to Photos, Waze only if installed.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-parity-audit", title: "Honest checklist: missing Swift pieces marked open again (not fake 100%).", done: true, badge: "Website", date: "2026-07-23" },
+              { id: "chg-20260723-photo-reorder", title: "iOS: long-press and drag to reorder review photos.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-swipe-tune", title: "Swipe-to-delete feels more like iPhone (red + little vibration).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-nav-scale", title: "Long restaurant names shrink (down to 75%) instead of cutting off with …", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-share-flicker", title: "Sharing no longer flickers — name/message in one smooth sheet.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-visual-freeze", title: "Email recommendation no longer freezes after you type a personal message.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-share-json", title: "WhatsApp share sends a real .gustrashare file (not raw JSON).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-dup-review", title: "No more duplicate visits when autosave and Done both run.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-android-polish", title: "Android looks/feels tidier (full screen, bigger tap targets).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-nav-setstyle", title: "Fixed Android crash about the navigation bar style.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-directions-ios", title: "iOS: tap address → pick Maps/Google/Waze without crashing.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-manual-country", title: "Manual entry: country goes into Google search; no wrong GPS bias without a city.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-keyboard-overlap", title: "Keyboard hides the tab bar and scrolls so the field stays visible.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-directions-modal", title: "iOS: get directions only after the map popup closes (no crash).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-filter-push", title: "iOS: Location/Cuisine filter no longer freezes when opened.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-web-sqlite-stub", title: "Web build skips native SQLite migration code (so export works).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-ios-type-list", title: "iOS lists/forms feel more like Apple (spacing + press feedback).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-ios-polish", title: "iOS: nicer headers, taps vibrate lightly, smoother motion.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-swift-migrate", title: "Settings: Recover reviews from the old Swift Gustra app.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-webversion", title: "Web app published at gustra.net/webversion.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-kbd-web", title: "Web: tap outside to dismiss keyboard without crashing.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-doc-inplace", title: "iOS Info.plist bits so Files/opening docs and App Store encryption flags are correct.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-asc-appid", title: "TestFlight submit wired with App Store Connect app id (build 16).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-deploy-android", title: "One command builds Android for Play Internal testing and bumps the version.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-eas-skip-fp", title: "iOS deploy script uses the right EAS CLI flags.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-plan-testflight", title: "Plan page: how-to for TestFlight build at the bottom.", done: true, badge: "Website", date: "2026-07-23" },
+              { id: "chg-20260723-deploy-ios", title: "One command builds iPhone for TestFlight and bumps the build number.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-eas-projectid", title: "EAS project id stored in app config.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-si-friends", title: "After importing a friend’s file, you land on Friends’ reviews. Example: import → Friends tab.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-asc-bundle", title: "iOS app id matches the old Swift app (same family of apps).", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-si-extension", title: "Share from other apps into Gustra via iOS Share Extension.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-localization-top5", title: "Plan idea: top world languages later (EN, Chinese, Hindi, Spanish, French).", done: true, badge: "Website", date: "2026-07-23" },
+              { id: "chg-20260723-localization-ideas", title: "Plan: Dutch localization → Ideas (Localization)", done: true, badge: "Website", date: "2026-07-23" },
+              { id: "chg-20260723-viewer-share", title: "Photo viewer: share icon opens the system share sheet.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-photo-chooser", title: "Pretty full-screen chooser: Camera or Library when adding photos.", done: true, badge: "Added/fixed", date: "2026-07-23" },
+              { id: "chg-20260723-drop-fav-dup", title: "Plan cleanup: removed a duplicate Favorites filter task.", done: true, badge: "Website", date: "2026-07-23" },
+              { id: "chg-20260723-plan-triage", title: "Plan cleanup: autocomplete/Siri moved to Ideas; unused Add Review modal removed", done: true, badge: "Website", date: "2026-07-23" },
             ],
           },
           {
             id: "new-2026-07-22",
-            title: "22 jul 2026",
+            title: "22 Jul 2026",
             tasks: [
-              { id: "chg-20260722-criterion-score", title: "Criterion-score op feed-card bij sort op criterium", done: true, badge: "Expo", date: "2026-07-22" },
-              { id: "chg-20260722-feed-date", title: "Feed: zonder filters sorteren op datum (recentste bovenaan)", done: true, badge: "Expo", date: "2026-07-22" },
-              { id: "chg-20260722-crop", title: "Circular crop (pinch/pan/zoom) voor profile photo", done: true, badge: "Expo", date: "2026-07-22" },
-              { id: "chg-20260722-orphan", title: "Startup orphan photo cleanup", done: true, badge: "Expo", date: "2026-07-22" },
-              { id: "chg-20260722-keyboard", title: "Global keyboard dismiss on tap outside", done: true, badge: "Expo", date: "2026-07-22" },
-              { id: "chg-20260722-photo-strip", title: "Review-foto’s: dichte spacing + nestable drag-reorder", done: true, badge: "Expo", date: "2026-07-22" },
+              { id: "chg-20260722-criterion-score", title: "Feed card shows that criterion’s score when you sort by it. Example: sort by Food → card shows Food score.", done: true, badge: "Added/fixed", date: "2026-07-22" },
+              { id: "chg-20260722-feed-date", title: "With no filters, feed sorts by newest visit first.", done: true, badge: "Added/fixed", date: "2026-07-22" },
+              { id: "chg-20260722-crop", title: "Circle-crop your profile photo with pinch/zoom.", done: true, badge: "Added/fixed", date: "2026-07-22" },
+              { id: "chg-20260722-orphan", title: "On launch, delete leftover photo files that belong to nothing.", done: true, badge: "Added/fixed", date: "2026-07-22" },
+              { id: "chg-20260722-keyboard", title: "Tap outside text to close the keyboard.", done: true, badge: "Added/fixed", date: "2026-07-22" },
+              { id: "chg-20260722-photo-strip", title: "Review photo strip is tighter; drag to reorder.", done: true, badge: "Added/fixed", date: "2026-07-22" },
             ],
           },
         ],
@@ -563,80 +622,80 @@
         groups: [
           {
             id: "open-gaps",
-            title: "Open gaps (audit 23 jul 2026)",
+            title: "Open gaps (audit 23 Jul 2026)",
             tasks: [
-              { id: "gap-sort-avg-empty", title: "Feed: Average score sort ook zonder actieve filters", done: true, badge: "Expo" },
-              { id: "gap-empty-clear", title: "Feed empty: Clear filters-knop (zoals Swift)", done: true, badge: "Expo" },
-              { id: "gap-filter-prune", title: "My↔Friends: ongeldige city/cuisine-selectie prune", done: true, badge: "Expo" },
-              { id: "gap-photo-batch", title: "Review form: multi-select + batch Remove Photos", done: true, badge: "Expo" },
-              { id: "gap-save-photos", title: "Photo viewer: Save to Photos", done: true, badge: "Expo" },
-              { id: "gap-photo-landscape", title: "Photo viewer: landscape orientation unlock", done: true, badge: "Expo" },
-              { id: "gap-android-zoom", title: "Android photo pager: pinch/pan zoom", done: true, badge: "Expo" },
-              { id: "gap-android-dismiss", title: "Android photo pager: vertical swipe-to-dismiss", done: true, badge: "Expo" },
-              { id: "gap-map-my-btn", title: "My Map: my-location recenter-knop", done: true, badge: "Expo" },
-              { id: "gap-map-detail-loc", title: "Restaurant-kaart: user location tonen", done: true, badge: "Expo" },
-              { id: "gap-waze-gate", title: "Directions: Waze alleen als app geïnstalleerd is", done: true, badge: "Expo" },
-              { id: "gap-share-preview", title: "Share sheet: rich preview (titel + hero, Swift LPLinkMetadata)", badge: "gap" },
-              { id: "gap-share-ext-ui", title: "Share Extension: branded Swift-achtige UI (nu generic expo-sharing)", badge: "gap" },
-              { id: "gap-file-sharing", title: "iOS: UIFileSharingEnabled (Files → On My iPhone)", done: true, badge: "Expo" },
-              { id: "gap-map-sdk", title: "My Map: native Google Maps SDK i.p.v. JS WebView (optioneel)", badge: "gap" },
-              { id: "gap-swipe-feel", title: "Swipe-delete: nog dichter bij native List swipeActions", done: true, badge: "Expo" },
+              { id: "gap-sort-avg-empty", title: "You can sort the feed by average score even with no filters on.", done: true, badge: "Added/fixed" },
+              { id: "gap-empty-clear", title: "Empty feed shows a Clear filters button (like Swift).", done: true, badge: "Added/fixed" },
+              { id: "gap-filter-prune", title: "Switching My/Friends drops city/cuisine choices that don’t exist there.", done: true, badge: "Added/fixed" },
+              { id: "gap-photo-batch", title: "In the form, select several photos and remove them together.", done: true, badge: "Added/fixed" },
+              { id: "gap-save-photos", title: "Save a review photo into your phone Photos app.", done: true, badge: "Added/fixed" },
+              { id: "gap-photo-landscape", title: "Photo viewer can rotate to landscape.", done: true, badge: "Added/fixed" },
+              { id: "gap-android-zoom", title: "Android: pinch to zoom photos.", done: true, badge: "Added/fixed" },
+              { id: "gap-android-dismiss", title: "Android: swipe down on a photo to close it.", done: true, badge: "Added/fixed" },
+              { id: "gap-map-my-btn", title: "Map: button to jump back to your location.", done: true, badge: "Added/fixed" },
+              { id: "gap-map-detail-loc", title: "Restaurant map can show where you are.", done: true, badge: "Added/fixed" },
+              { id: "gap-waze-gate", title: "Directions only offers Waze if Waze is installed.", done: true, badge: "Added/fixed" },
+              { id: "gap-share-preview", title: "Share sheet shows a rich preview (title + hero image), like Swift.", badge: "gap" },
+              { id: "gap-share-ext-ui", title: "Share Extension UI should look more like branded Swift (still partly generic).", badge: "gap" },
+              { id: "gap-file-sharing", title: "iOS: see Gustra files in the Files app (On My iPhone).", done: true, badge: "Added/fixed" },
+              { id: "gap-map-sdk", title: "Optional later: real Google Maps SDK instead of a web map.", badge: "gap" },
+              { id: "gap-swipe-feel", title: "Swipe-delete should feel even closer to native iPhone lists.", done: true, badge: "Added/fixed" },
             ],
           },
           {
             id: "nav",
-            title: "Tabs & navigatie",
+            title: "Tabs & navigation",
             tasks: [
-              { id: "nav-shell", title: "Vier-tab shell: Reviews, My map, My Gustra, Settings", done: true, badge: "Expo" },
-              { id: "nav-tabbar", title: "Floating cream pill tab bar", done: true, badge: "Expo" },
-              { id: "nav-hidden", title: "Settings sub-routes houden tab bar zichtbaar", done: true, badge: "Expo" },
-              { id: "nav-theme", title: "Force light / cream house theme", done: true, badge: "Expo" },
-              { id: "nav-retap-reviews", title: "Re-tap Reviews → stack terug naar feed root", done: true, badge: "Expo" },
-              { id: "nav-retap-gustra", title: "Re-tap My Gustra → stack terug naar passport root", done: true, badge: "Expo" },
+              { id: "nav-shell", title: "Four tabs: Reviews, My map, My Gustra, Settings.", done: true, badge: "Added/fixed" },
+              { id: "nav-tabbar", title: "Cream pill-shaped tab bar floating at the bottom.", done: true, badge: "Added/fixed" },
+              { id: "nav-hidden", title: "Inside Settings sub-pages, the tab bar stays visible.", done: true, badge: "Added/fixed" },
+              { id: "nav-theme", title: "App stays light cream (no dark mode).", done: true, badge: "Added/fixed" },
+              { id: "nav-retap-reviews", title: "Tap Reviews again to jump back to the main feed.", done: true, badge: "Added/fixed" },
+              { id: "nav-retap-gustra", title: "Tap My Gustra again to jump back to the passport home.", done: true, badge: "Added/fixed" },
             ],
           },
           {
             id: "feed",
             title: "Feed",
             tasks: [
-              { id: "feed-cards", title: "Restaurant-gegroepeerde feed cards", done: true, badge: "Expo",
+              { id: "feed-cards", title: "Feed groups visits per restaurant on one card.", done: true, badge: "Added/fixed",
                 children: [
-                  { id: "feed-thumb", title: "Thumbnail, stad, visit count, laatste datum", done: true },
-                  { id: "feed-score", title: "Satisfaction dot / score", done: true },
-                  { id: "feed-fav", title: "Favorite heart", done: true },
-                  { id: "feed-friend", title: "Friend reviewer name op imported cards", done: true },
-                  { id: "feed-criterion-score", title: "Criterion-score op card bij sort op criterium", done: true, badge: "Expo" },
+                  { id: "feed-thumb", title: "Card shows photo, city, visit count, last date.", done: true },
+                  { id: "feed-score", title: "Card shows a score/satisfaction color dot.", done: true },
+                  { id: "feed-fav", title: "Heart icon for favorites.", done: true },
+                  { id: "feed-friend", title: "Imported cards show the friend’s name.", done: true },
+                  { id: "feed-criterion-score", title: "When sorting by a criterion, that score shows on the card.", done: true, badge: "Added/fixed" },
                 ],
               },
-              { id: "feed-single", title: "Single-visit → review detail", done: true, badge: "Expo" },
-              { id: "feed-multi", title: "Multi-visit → restaurant visits list", done: true, badge: "Expo" },
-              { id: "feed-swipe", title: "Swipe-delete restaurant + alle visits (RNGH, niet native List)", done: true, badge: "Expo" },
-              { id: "feed-fab", title: "FAB Add review", done: true, badge: "Expo" },
-              { id: "feed-empty", title: "Empty states (geen reviews / friends / filters)", done: true, badge: "Expo" },
+              { id: "feed-single", title: "One visit → opens that review.", done: true, badge: "Added/fixed" },
+              { id: "feed-multi", title: "Several visits → opens the list of visits for that place.", done: true, badge: "Added/fixed" },
+              { id: "feed-swipe", title: "Swipe a card to delete the restaurant and all its visits.", done: true, badge: "Added/fixed" },
+              { id: "feed-fab", title: "Floating + button to add a review.", done: true, badge: "Added/fixed" },
+              { id: "feed-empty", title: "Friendly empty screens when there’s nothing to show.", done: true, badge: "Added/fixed" },
             ],
           },
           {
             id: "source",
             title: "Own vs Friends",
             tasks: [
-              { id: "src-picker", title: "Own / Friends segmented picker", done: true, badge: "Expo" },
-              { id: "src-hide", title: "Friends tab verbergen zonder imports", done: true, badge: "Expo" },
-              { id: "src-friends-ui", title: "Friends feed: geen share FAB, wel import", done: true, badge: "Expo" },
+              { id: "src-picker", title: "Switch My reviews / Friends’ reviews.", done: true, badge: "Added/fixed" },
+              { id: "src-hide", title: "Friends tab hides until you import something.", done: true, badge: "Added/fixed" },
+              { id: "src-friends-ui", title: "On Friends: no share +, but you can import.", done: true, badge: "Added/fixed" },
             ],
           },
           {
             id: "filters",
-            title: "Zoeken, filters & sort",
+            title: "Search, filters & sort",
             tasks: [
-              { id: "fil-search", title: "Search bar (restaurant, stad, comments, OCR)", done: true, badge: "Expo" },
-              { id: "fil-chips", title: "Active filter chips + clear", done: true, badge: "Expo" },
-              { id: "fil-sheet", title: "Filter sheet: Favorites, Location, Cuisine, Sort", done: true, badge: "Expo",
+              { id: "fil-search", title: "Search restaurants, cities, comments, and text from photos.", done: true, badge: "Added/fixed" },
+              { id: "fil-chips", title: "Active filters show as chips; easy clear.", done: true, badge: "Added/fixed" },
+              { id: "fil-sheet", title: "Filter sheet: Favorites, Location, Cuisine, Sort.", done: true, badge: "Added/fixed",
                 children: [
-                  { id: "fil-city", title: "Multi-select city + All/None", done: true },
-                  { id: "fil-type", title: "Multi-select place-type + labels", done: true },
-                  { id: "fil-sort-avg", title: "Sort by average score (nu vooral mét actieve filters)", done: true, badge: "Expo" },
-                  { id: "fil-sort-crit", title: "Sort by enabled criterion", done: true },
-                  { id: "fil-preview", title: "Live preview count in filter sheet", done: true },
+                  { id: "fil-city", title: "Pick many cities; All/None shortcut.", done: true },
+                  { id: "fil-type", title: "Pick many cuisine/place types.", done: true },
+                  { id: "fil-sort-avg", title: "Sort by average score (especially with filters on).", done: true, badge: "Added/fixed" },
+                  { id: "fil-sort-crit", title: "Sort by one rating row (Food, Service, …).", done: true },
+                  { id: "fil-preview", title: "Filter sheet shows how many results you’ll get.", done: true },
                 ],
               },
             ],
@@ -645,183 +704,183 @@
             id: "share-feed",
             title: "Share export (feed)",
             tasks: [
-              { id: "sh-pack", title: "Share gefilterde own reviews als .gustrashare", done: true, badge: "Expo" },
-              { id: "sh-name", title: "Prompt reviewer name indien ontbreekt", done: true, badge: "Expo" },
-              { id: "sh-photo", title: "Include reviewer name + profile photo", done: true, badge: "Expo" },
+              { id: "sh-pack", title: "Share your filtered reviews as a .gustrashare file. Example: filter Antwerp → share those only.", done: true, badge: "Added/fixed" },
+              { id: "sh-name", title: "Asks for your name before sharing if it’s empty.", done: true, badge: "Added/fixed" },
+              { id: "sh-photo", title: "Shared package includes your name and profile photo.", done: true, badge: "Added/fixed" },
             ],
           },
           {
             id: "add-review",
             title: "Add review flow",
             tasks: [
-              { id: "ar-chooser", title: "Chooser met 3 paden (nearby / map / manual)", done: true, badge: "Expo" },
-              { id: "ar-banner", title: "Selected-restaurant banner → Start Review", done: true, badge: "Expo" },
+              { id: "ar-chooser", title: "Add review: choose Nearby, Map, or Manual.", done: true, badge: "Added/fixed" },
+              { id: "ar-banner", title: "After picking a place, banner → Start Review.", done: true, badge: "Added/fixed" },
             ],
           },
           {
             id: "places",
             title: "Nearby / map / manual entry",
             tasks: [
-              { id: "pl-nearby", title: "Nearby list GPS + Places", done: true, badge: "Expo" },
-              { id: "pl-perm", title: "Location denied → Settings path", done: true, badge: "Expo" },
-              { id: "pl-dist", title: "Distance labels", done: true, badge: "Expo" },
-              { id: "pl-map", title: "Map search + pannable map + list", done: true, badge: "Expo" },
-              { id: "pl-area", title: "Search this area na map move", done: true, badge: "Expo" },
-              { id: "pl-select", title: "Tap pin / row om te selecteren", done: true, badge: "Expo" },
-              { id: "pl-manual", title: "Manual entry + Find on Google", done: true, badge: "Expo" },
-              { id: "pl-match", title: "RestaurantMatcher op bestaande records", done: true, badge: "Expo" },
+              { id: "pl-nearby", title: "Nearby list uses GPS + Google Places.", done: true, badge: "Added/fixed" },
+              { id: "pl-perm", title: "If location is off, we guide you to Settings.", done: true, badge: "Added/fixed" },
+              { id: "pl-dist", title: "Shows distance to each nearby place.", done: true, badge: "Added/fixed" },
+              { id: "pl-map", title: "Search on a map you can move, plus a list.", done: true, badge: "Added/fixed" },
+              { id: "pl-area", title: "After moving the map: Search this area.", done: true, badge: "Added/fixed" },
+              { id: "pl-select", title: "Tap a pin or row to select the restaurant.", done: true, badge: "Added/fixed" },
+              { id: "pl-manual", title: "Type a place yourself + Find on Google.", done: true, badge: "Added/fixed" },
+              { id: "pl-match", title: "Matches what you type to restaurants you already have.", done: true, badge: "Added/fixed" },
             ],
           },
           {
             id: "form",
             title: "Review form",
             tasks: [
-              { id: "rf-new", title: "New review / new visit / edit", done: true, badge: "Expo" },
-              { id: "rf-header", title: "Header + favorite + revisit banner", done: true, badge: "Expo" },
-              { id: "rf-date", title: "Visit date/time picker (niet in toekomst)", done: true, badge: "Expo" },
-              { id: "rf-stars", title: "Stars + per-criterion comments", done: true, badge: "Expo" },
-              { id: "rf-photos", title: "Camera / library + compress (batch remove = open gap)", done: true, badge: "Expo" },
-              { id: "rf-chooser-ui", title: "House-style full-screen photo source chooser", done: true, badge: "Expo" },
-              { id: "rf-ocr", title: "OCR index in searchable text", done: true, badge: "Expo" },
-              { id: "rf-save", title: "Save / delete / unsaved-changes guard", done: true, badge: "Expo" },
+              { id: "rf-new", title: "Supports new place, new visit, and edit.", done: true, badge: "Added/fixed" },
+              { id: "rf-header", title: "Header with favorite heart and revisit banner.", done: true, badge: "Added/fixed" },
+              { id: "rf-date", title: "Pick visit date/time (not in the future).", done: true, badge: "Added/fixed" },
+              { id: "rf-stars", title: "Stars per category + optional comments.", done: true, badge: "Added/fixed" },
+              { id: "rf-photos", title: "Camera/library photos, compressed. (Batch remove was a gap — now mostly done.)", done: true, badge: "Added/fixed" },
+              { id: "rf-chooser-ui", title: "Full-screen Camera vs Library chooser.", done: true, badge: "Added/fixed" },
+              { id: "rf-ocr", title: "Text from photos becomes searchable later.", done: true, badge: "Added/fixed" },
+              { id: "rf-save", title: "Save, delete, and warn about unsaved changes.", done: true, badge: "Added/fixed" },
             ],
           },
           {
             id: "detail",
             title: "Review & restaurant detail",
             tasks: [
-              { id: "rd-hero", title: "Hero photo pager + indicator", done: true, badge: "Expo" },
-              { id: "rd-body", title: "Criteria, comments, location, directions, map", done: true, badge: "Expo" },
-              { id: "rd-actions", title: "New visit + Edit + Reviewed by", done: true, badge: "Expo" },
-              { id: "rd-share", title: "Share package + email recommendation flow", done: true, badge: "Expo" },
-              { id: "rv-list", title: "Restaurant visits list + swipe delete", done: true, badge: "Expo" },
+              { id: "rd-hero", title: "Swipe hero photos with dots.", done: true, badge: "Added/fixed" },
+              { id: "rd-body", title: "Shows ratings, comments, address, directions, map.", done: true, badge: "Added/fixed" },
+              { id: "rd-actions", title: "Actions: new visit, edit, and who reviewed it.", done: true, badge: "Added/fixed" },
+              { id: "rd-share", title: "Share as Gustra file or pretty email recommendation.", done: true, badge: "Added/fixed" },
+              { id: "rv-list", title: "List of visits; swipe to delete one.", done: true, badge: "Added/fixed" },
             ],
           },
           {
             id: "photos",
             title: "Photo viewers",
             tasks: [
-              { id: "pv-review", title: "Full-screen review viewer (zoom/pan/chrome; Save to Photos = gap)", done: true, badge: "Expo" },
-              { id: "pv-share", title: "Share photo (share-icoon → system sheet)", done: true, badge: "Expo" },
-              { id: "pv-profile", title: "Reviewer profile photo viewer", done: true, badge: "Expo" },
-              { id: "pv-map", title: "Restaurant map viewer", done: true, badge: "Expo" },
+              { id: "pv-review", title: "Full-screen photo view with zoom (Save to Photos was a gap).", done: true, badge: "Added/fixed" },
+              { id: "pv-share", title: "Share one photo via the system share sheet.", done: true, badge: "Added/fixed" },
+              { id: "pv-profile", title: "Full-screen view of the reviewer’s profile photo.", done: true, badge: "Added/fixed" },
+              { id: "pv-map", title: "Map view for the restaurant location.", done: true, badge: "Added/fixed" },
             ],
           },
           {
             id: "map-passport",
             title: "My Map & Passport",
             tasks: [
-              { id: "mp-pins", title: "Map pins + fit camera + tap → detail (JS WebView, niet native SDK)", done: true, badge: "Expo" },
-              { id: "mp-loc", title: "User location dot", done: true, badge: "Expo" },
-              { id: "mp-friends", title: "Friends-reviews toggle op kaart (Expo-extra t.o.v. Swift)", done: true, badge: "Expo" },
-              { id: "pp-stats", title: "Passport overview / best / categories / cities", done: true, badge: "Expo" },
+              { id: "mp-pins", title: "Map pins; zoom to fit; tap opens detail (web map for now).", done: true, badge: "Added/fixed" },
+              { id: "mp-loc", title: "Blue/dot for your location on the map.", done: true, badge: "Added/fixed" },
+              { id: "mp-friends", title: "Map can show friend reviews too (extra vs old Swift).", done: true, badge: "Added/fixed" },
+              { id: "pp-stats", title: "My Gustra: overview, best places, categories, cities.", done: true, badge: "Added/fixed" },
             ],
           },
           {
             id: "settings",
             title: "Settings & criteria & profile",
             tasks: [
-              { id: "st-name", title: "Reviewer name + profile photo entry", done: true, badge: "Expo" },
-              { id: "st-criteria", title: "Edit criteria (standard + custom)", done: true, badge: "Expo" },
-              { id: "st-toggles", title: "Category display + data savings toggles", done: true, badge: "Expo" },
-              { id: "st-usage", title: "Local photos usage + API counters", done: true, badge: "Expo" },
-              { id: "st-crop", title: "Circular crop (pinch/pan/zoom) voor profile photo", done: true, badge: "Expo" },
+              { id: "st-name", title: "Set your name and profile photo.", done: true, badge: "Added/fixed" },
+              { id: "st-criteria", title: "Turn rating rows on/off; add custom ones.", done: true, badge: "Added/fixed" },
+              { id: "st-toggles", title: "Stars vs numbers; lower photo quality to save data.", done: true, badge: "Added/fixed" },
+              { id: "st-usage", title: "See how much photo storage and Google API use.", done: true, badge: "Added/fixed" },
+              { id: "st-crop", title: "Circle-crop your profile photo with pinch/zoom.", done: true, badge: "Added/fixed" },
             ],
           },
           {
             id: "backup",
             title: "Backup, restore & share import",
             tasks: [
-              { id: "bk-enc", title: "Encrypted backup wizard + export", done: true, badge: "Expo" },
-              { id: "bk-restore", title: "Restore merge/overwrite", done: true, badge: "Expo" },
-              { id: "si-picker", title: "Open .gustrashare via picker / deep link", done: true, badge: "Expo" },
-              { id: "si-sheet", title: "Import selection sheet", done: true, badge: "Expo" },
-              { id: "si-friends", title: "Na import landen op Friends tab", done: true, badge: "Expo" },
-              { id: "si-extension", title: "iOS Share Extension + App Group handoff", done: true, badge: "Expo" },
+              { id: "bk-enc", title: "Password-protected backup wizard.", done: true, badge: "Added/fixed" },
+              { id: "bk-restore", title: "Restore can merge with your data or replace everything.", done: true, badge: "Added/fixed" },
+              { id: "si-picker", title: "Open a friend’s .gustrashare from Files or a link.", done: true, badge: "Added/fixed" },
+              { id: "si-sheet", title: "Pick which shared reviews to import.", done: true, badge: "Added/fixed" },
+              { id: "si-friends", title: "After import, open the Friends tab.", done: true, badge: "Added/fixed" },
+              { id: "si-extension", title: "iOS Share Extension hands files into the app.", done: true, badge: "Added/fixed" },
             ],
           },
           {
             id: "platform",
             title: "Platform polish",
             tasks: [
-              { id: "pl-email", title: "Branded HTML email + snapshot JPEG", done: true, badge: "Expo" },
-              { id: "pl-dir", title: "Directions chooser (Apple/Google/Waze — Waze-gate = gap)", done: true, badge: "Expo" },
-              { id: "pl-types", title: "Place-type labels + startup backfill", done: true, badge: "Expo" },
-              { id: "pl-orphan", title: "Startup orphan photo cleanup", done: true, badge: "Expo" },
-              { id: "pl-haptics", title: "Haptics + swipe-dismiss overlays", done: true, badge: "Expo" },
-              { id: "pl-keyboard", title: "Global keyboard dismiss on tap outside", done: true, badge: "Expo" },
-              { id: "pl-android-ui", title: "Android: edge-to-edge + tonal surfaces + type ramp", done: true, badge: "Expo" },
+              { id: "pl-email", title: "Pretty branded email with a photo snapshot.", done: true, badge: "Added/fixed" },
+              { id: "pl-dir", title: "Pick Apple Maps / Google / Waze for directions.", done: true, badge: "Added/fixed" },
+              { id: "pl-types", title: "Friendly cuisine labels; fill missing types on startup.", done: true, badge: "Added/fixed" },
+              { id: "pl-orphan", title: "On launch, delete leftover photo files that belong to nothing.", done: true, badge: "Added/fixed" },
+              { id: "pl-haptics", title: "Light haptics; swipe down to dismiss overlays.", done: true, badge: "Added/fixed" },
+              { id: "pl-keyboard", title: "Tap outside text to close the keyboard.", done: true, badge: "Added/fixed" },
+              { id: "pl-android-ui", title: "Android visual polish (edge-to-edge, nicer surfaces).", done: true, badge: "Added/fixed" },
             ],
           },
         ],
       },
       {
         id: "features",
-        title: "Nieuwe features",
+        title: "New features",
         groups: [
           {
             id: "wine",
-            title: "Wijn zoeken & fles-scan",
+            title: "Wine search & bottle scan",
             tasks: [
-              { id: "wine-json", title: "Lokale data/wines.json met ~20 bekende wijnen (naam, omschrijving, score, prijs, winkels, gerechten)" },
-              { id: "wine-ui", title: "Zoekscherm met TextInput + FlatList (lokale filter)" },
-              { id: "wine-nav", title: "Route + entrypoint in navigatie (bijv. vanuit My Gustra / Settings)" },
-              { id: "wine-ocr", title: "Foto etiket → on-device OCR → zoekquery",
+              { id: "wine-json", title: "Local wine list (~20 known wines: name, notes, score, price, shops, food)." },
+              { id: "wine-ui", title: "Search screen: type to filter the local wine list." },
+              { id: "wine-nav", title: "Add a Wine screen entry (e.g. from My Gustra or Settings)." },
+              { id: "wine-ocr", title: "Photo of label → on-device text read → search. Example: snap a bottle → finds “Chianti 2019”.",
                 children: [
-                  { id: "wine-camera", title: "Camera / library picker voor flesfoto" },
-                  { id: "wine-ocr-parse", title: "OCR-tekst opschonen tot wijnnaam + vintage" },
+                  { id: "wine-camera", title: "Take or pick a bottle photo." },
+                  { id: "wine-ocr-parse", title: "Clean OCR text down to wine name + year." },
                 ],
               },
-              { id: "wine-barcode", title: "Optioneel: barcode → Open Food Facts (gratis echte API)" },
-              { id: "wine-ai", title: "‘Vraag AI’-knop als lokale miss → eenmalig ontbrekende velden ophalen",
+              { id: "wine-barcode", title: "Optional: barcode lookup via Open Food Facts (free)." },
+              { id: "wine-ai", title: "If local miss: Ask AI once to fill missing fields.",
                 children: [
-                  { id: "wine-ai-proxy", title: "Veilige serverless/proxy i.p.v. raw API-key in client" },
-                  { id: "wine-ai-merge", title: "AI-resultaat mergen in lokale state" },
+                  { id: "wine-ai-proxy", title: "Call AI via a safe server proxy (no API key in the app)." },
+                  { id: "wine-ai-merge", title: "Merge AI wine info into local data." },
                 ],
               },
-              { id: "wine-persist", title: "AI/OCR-resultaten bewaren (AsyncStorage) zodat je niet opnieuw betaalt" },
-              { id: "wine-disclaimer", title: "UI-disclaimer: prijs/winkels/score kunnen schattingen zijn" },
+              { id: "wine-persist", title: "Remember AI/OCR results so you don’t pay twice." },
+              { id: "wine-disclaimer", title: "Show a disclaimer: price/shops/score may be estimates." },
             ],
           },
           {
             id: "social",
-            title: "Samen delen",
+            title: "Sharing together",
             tasks: [
-              { id: "feat-shared-lib", title: "Shared library voor familie, vriendengroepen, …" },
+              { id: "feat-shared-lib", title: "Shared library for family/friend groups (future)." },
             ],
           },
           {
             id: "media",
-            title: "Media & overzichten",
+            title: "Media & overviews",
             tasks: [
-              { id: "feat-photo-cat", title: "Foto per categorie" },
-              { id: "feat-year", title: "Jaaroverzicht" },
+              { id: "feat-photo-cat", title: "Photos grouped by category (future)." },
+              { id: "feat-year", title: "Year in review overview (future)." },
             ],
           },
         ],
       },
       {
         id: "ideas",
-        title: "Ideeën",
+        title: "Ideas",
         groups: [
           {
             id: "platform-ideas",
             title: "Platform",
             tasks: [
-              { id: "idea-universal", title: "Universal build (Apple + Android)", done: true, badge: "Expo" },
-              { id: "idea-watch", title: "Apple Watch app" },
-              { id: "pl-nl", title: "Localization (English, Mandarin Chinese, Hindi, Spanish, French) — Swift heeft NL" },
-              { id: "nav-siri", title: "iOS Siri Shortcuts / App Intents (“Log Visit”)", badge: "Apple" },
-              { id: "fil-suggest", title: "Restaurant-name autocomplete suggestions (Swift FilterMatrix)" },
-              { id: "idea-filter-reset", title: "Optioneel: filters wissen bij verlaten feed-stack (Swift-gedrag)" },
-              { id: "idea-swipe-confirm", title: "Optioneel: swipe-delete zonder confirm (Swift delete meteen)" },
+              { id: "idea-universal", title: "One codebase for Apple + Android.", done: true, badge: "Added/fixed" },
+              { id: "idea-watch", title: "Apple Watch app (idea)." },
+              { id: "pl-nl", title: "More languages later (EN, Chinese, Hindi, Spanish, French). Swift already had Dutch." },
+              { id: "nav-siri", title: "Siri: “Log visit” shortcut (idea).", badge: "Apple" },
+              { id: "fil-suggest", title: "Suggest restaurant names while typing (like Swift)." },
+              { id: "idea-filter-reset", title: "Optional: clear filters when leaving the Reviews stack (Swift did this)." },
+              { id: "idea-swipe-confirm", title: "Optional: swipe-delete without confirm (Swift deleted immediately)." },
             ],
           },
           {
             id: "wine-ideas",
-            title: "Wijn (verder)",
+            title: "Wine (more)",
             tasks: [
-              { id: "idea-wine-order", title: "Wijn bestellen adhv screenshot van fles" },
+              { id: "idea-wine-order", title: "Order wine from a bottle screenshot (idea)." },
             ],
           },
         ],
@@ -853,7 +912,7 @@
     function formatDayTitle(isoDay) {
       const [y, m, d] = isoDay.split("-").map(Number);
       const date = new Date(y, m - 1, d);
-      return date.toLocaleDateString("nl-BE", {
+      return date.toLocaleDateString("en-GB", {
         day: "numeric",
         month: "short",
         year: "numeric",
@@ -1001,7 +1060,7 @@
         id,
         title,
         done: opts.done !== false,
-        badge: opts.badge || "Expo",
+        badge: opts.badge || "Added/fixed",
         date: isoDay,
       });
       if (opts.done !== false) checked[id] = true;
@@ -1083,15 +1142,20 @@
       row.appendChild(label);
       if (task.badge) {
         const b = document.createElement("span");
+        const raw = task.badge;
+        const label =
+          raw === "gap" || raw === "open" || raw === "Still open" ? "Still open" :
+          raw === "Expo" || raw === "Added/fixed" ? "Added/fixed" :
+          raw === "Plan" || raw === "Website" ? "Website" :
+          raw === "Apple" ? "Apple only" :
+          raw;
         const badgeClass =
-          task.badge === "gap" ? " gap" :
-          task.badge === "Apple" ? " apple" :
-          task.badge === "n/a" ? " na" : "";
+          label === "Still open" ? " gap" :
+          label === "Website" ? " website" :
+          label === "Apple only" ? " apple" :
+          raw === "n/a" ? " na" : "";
         b.className = "badge" + badgeClass;
-        b.textContent =
-          task.badge === "gap" ? "open" :
-          task.badge === "Apple" ? "Apple only" :
-          task.badge;
+        b.textContent = label;
         row.appendChild(b);
       } else {
         row.appendChild(document.createElement("span"));
@@ -1148,7 +1212,7 @@
       }
       const neu = document.createElement("option");
       neu.value = "__new__";
-      neu.textContent = "Nieuwe groep…";
+      neu.textContent = "New group…";
       sel.appendChild(neu);
     }
 
@@ -1205,10 +1269,10 @@
           body: JSON.stringify(body),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        msg.textContent = `Gesynchroniseerd met server · ${new Date().toLocaleTimeString("nl-BE")}`;
+        msg.textContent = `Synced with server · ${new Date().toLocaleTimeString("en-GB")}`;
         msg.className = "sync ok";
       } catch {
-        msg.textContent = "Lokaal bewaard (server-sync niet bereikbaar — normaal tot save-plan.php online staat).";
+        msg.textContent = "Saved on this device (server sync unavailable — normal until save-plan.php is online).";
         msg.className = "sync";
       }
     }
@@ -1243,7 +1307,7 @@
       if (!section) return;
 
       if (groupId === "__new__") {
-        const name = prompt("Naam van de nieuwe groep?");
+        const name = prompt("Name for the new group?");
         if (!name?.trim()) return;
         groupId = slug(name) + "-" + Date.now().toString(36);
         section.groups.push({ id: groupId, title: name.trim(), tasks: [] });
@@ -1309,7 +1373,7 @@
         renderAll();
         scheduleRemoteSave();
       } catch {
-        alert("Kon dit JSON-bestand niet lezen.");
+        alert("Could not read this JSON file.");
       }
       e.target.value = "";
     });

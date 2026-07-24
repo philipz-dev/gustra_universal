@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle, Theme } from '@/constants/Theme';
+import { i18n } from '@/i18n';
 import { Haptics } from '@/services/haptics';
 
 export type HouseAlertButton = {
@@ -38,7 +39,7 @@ function normalizeButtons(
   buttons?: HouseAlertButton[],
 ): HouseAlertButton[] {
   if (!buttons || buttons.length === 0) {
-    return [{ text: 'OK', style: 'default' }];
+    return [{ text: i18n.t('common.ok'), style: 'default' }];
   }
   return buttons;
 }
@@ -299,7 +300,8 @@ const styles = StyleSheet.create({
     backgroundColor: GustraColors.forestGreen,
   },
   actionDestructive: {
-    backgroundColor: GustraColors.ratingAvoid,
+    // Pastel wash — matches Remove Photos / sheet destructive (not system neon red).
+    backgroundColor: 'rgba(199, 71, 66, 0.16)',
   },
   actionLabel: {
     fontSize: 16,
@@ -309,7 +311,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   actionLabelOnDestructive: {
-    color: '#FFFFFF',
+    color: GustraColors.ratingAvoid,
   },
   cancelTextBtn: {
     alignItems: 'center',

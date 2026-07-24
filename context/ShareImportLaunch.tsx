@@ -14,8 +14,7 @@ import {
 import { AppState } from 'react-native';
 
 import { houseAlert } from '@/components/ui/HouseAlert';
-
-import type { ReviewOrigin } from '@/data/types';
+import { i18n } from '@/i18n';
 import type { SharePackage } from '@/services/share/ReviewShareService';
 import {
   consumeExpoShareHandoffFile,
@@ -41,11 +40,6 @@ const pendingPackageHolder: { current: SharePackage | null } = {
   current: null,
 };
 
-/** After a successful import, feed should select Friends' reviews. */
-const pendingFeedReviewSourceHolder: { current: ReviewOrigin | null } = {
-  current: null,
-};
-
 /** Read the package handed off for the selection screen. */
 export function takePendingSharePackage(): SharePackage | null {
   return pendingPackageHolder.current;
@@ -53,18 +47,6 @@ export function takePendingSharePackage(): SharePackage | null {
 
 export function clearPendingSharePackage(): void {
   pendingPackageHolder.current = null;
-}
-
-/** Ask the Reviews feed to select this source on next focus (post-import). */
-export function requestFeedReviewSource(source: ReviewOrigin): void {
-  pendingFeedReviewSourceHolder.current = source;
-}
-
-/** Consume a one-shot feed source request (or null). */
-export function consumePendingFeedReviewSource(): ReviewOrigin | null {
-  const next = pendingFeedReviewSourceHolder.current;
-  pendingFeedReviewSourceHolder.current = null;
-  return next;
 }
 
 export function ShareImportLaunchProvider({
@@ -94,8 +76,8 @@ export function ShareImportLaunchProvider({
             ? error.message
             : error instanceof Error
               ? error.message
-              : 'Could not read the shared reviews file.';
-        houseAlert('Error', message);
+              : i18n.t('alerts.import.readFailed');
+        houseAlert(i18n.t('common.error'), message);
       } finally {
         if (stagedUri) {
           await FileSystem.deleteAsync(stagedUri, { idempotent: true }).catch(
@@ -118,10 +100,10 @@ export function ShareImportLaunchProvider({
       await openSharePackageUri(handoff.uri, handoff.filename);
     } catch (error) {
       houseAlert(
-        'Error',
+        i18n.t('common.error'),
         error instanceof Error
           ? error.message
-          : 'Could not read the shared reviews file.',
+          : i18n.t('alerts.import.readFailed'),
       );
     }
   }, [openSharePackageUri]);
@@ -147,10 +129,10 @@ export function ShareImportLaunchProvider({
     } catch (error) {
       handlingRef.current = false;
       houseAlert(
-        'Error',
+        i18n.t('common.error'),
         error instanceof Error
           ? error.message
-          : 'Could not read the shared reviews file.',
+          : i18n.t('alerts.import.readFailed'),
       );
     }
   }, [consumeExpoShareHandoffIfNeeded, openLoadedPackage]);
@@ -188,18 +170,22 @@ export function ShareImportLaunchProvider({
       await openSharePackageUri(asset.uri, asset.name || null);
     } catch (error) {
       houseAlert(
-        'Error',
+        i18n.t('common.error'),
         error instanceof Error
           ? error.message
-          : 'Could not open the shared reviews file.',
+          : i18n.t('alerts.import.openFailed'),
       );
     }
   }, [openSharePackageUri]);
 
   useEffect(() => {
-    void Linking.getInitialURL().then((url) => {
-      void handleIncomingURL(url);
-    });
+    void Linking.getInitialURL()
+      .then((url) => {
+        void handleIncomingURL(url);
+      })
+      .catch(() => {
+        // Ignore — initial URL may be unavailable.
+      });
     const sub = Linking.addEventListener('url', ({ url }) => {
       void handleIncomingURL(url);
     });

@@ -15,6 +15,7 @@ import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle, Theme } from '@/constants/Theme';
 import { REVIEWER_MAX_NAME_LENGTH } from '@/context/ReviewerProfile';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 type ShareReviewerNameModalProps = {
   visible: boolean;
@@ -32,6 +33,7 @@ export function ShareReviewerNameModal({
   onCancel,
   onContinue,
 }: ShareReviewerNameModalProps) {
+  const { t } = useAppTranslation();
   const [draft, setDraft] = useState(initialName);
 
   useEffect(() => {
@@ -54,17 +56,15 @@ export function ShareReviewerNameModal({
         <View style={styles.sheet}>
           <View style={styles.handle} />
           <SerifText size={22} weight="semibold" style={styles.title}>
-            Your name
+            {t('share.nameSheet.title')}
           </SerifText>
-          <Text style={styles.footer}>
-            Your name is included when you share reviews.
-          </Text>
+          <Text style={styles.footer}>{t('share.nameSheet.body')}</Text>
           <TextInput
             value={draft}
             onChangeText={(text) =>
               setDraft(text.slice(0, REVIEWER_MAX_NAME_LENGTH))
             }
-            placeholder="Reviewer name"
+            placeholder={t('share.nameSheet.placeholder')}
             placeholderTextColor="rgba(35, 32, 26, 0.4)"
             style={styles.input}
             autoFocus
@@ -79,16 +79,18 @@ export function ShareReviewerNameModal({
           <View style={styles.actions}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Cancel"
+              accessibilityLabel={t('share.nameSheet.cancel')}
               onPress={onCancel}
               style={({ pressed }) => [
                 styles.cancelButton,
                 pressed && styles.pressed,
               ]}>
-              <Text style={styles.cancelLabel}>Cancel</Text>
+              <Text style={styles.cancelLabel}>
+                {t('share.nameSheet.cancel')}
+              </Text>
             </Pressable>
             <HousePrimaryButton
-              title="Continue"
+              title={t('share.nameSheet.continue')}
               disabled={!canContinue}
               onPress={() => {
                 if (canContinue) onContinue(trimmed);

@@ -33,16 +33,18 @@ import {
   type RestaurantDraft,
   type RestaurantSearchResult,
 } from '@/services/places';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 /**
  * Manual restaurant entry (Swift `ManualEntrySelectionView`).
  * Find on Google → pick match, or Continue manually without a map pin.
  */
 export default function ManualEntryScreen() {
+  const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const keyboardInset = useKeyboardBottomInset();
-  const { scrollRef, scrollInputIntoView } = useScrollInputIntoView();
+  const { scrollRef, scrollInputIntoView, onScroll } = useScrollInputIntoView();
   const nameRef = useRef<TextInput | null>(null);
   const cityRef = useRef<TextInput | null>(null);
   const countryRef = useRef<TextInput | null>(null);
@@ -113,7 +115,7 @@ export default function ManualEntryScreen() {
     // Local name-only / city search still needs GPS for a useful bias.
     if (!countryScoped && !location.coords) {
       setMatches([]);
-      setSearchError(location.error ?? 'Current location unavailable.');
+      setSearchError(location.error ?? t('alerts.location.unavailable'));
       setIsSearching(false);
       return;
     }
@@ -137,7 +139,7 @@ export default function ManualEntryScreen() {
       setSearchError(
         error instanceof Error
           ? error.message
-          : 'Could not reach the restaurant search service.',
+          : t('forms.manual.searchFailed'),
       );
       setIsSearching(false);
     }
@@ -159,7 +161,7 @@ export default function ManualEntryScreen() {
   return (
     <View style={styles.screen}>
       <HouseNavHeader
-        title="Manual entry"
+        title={t("forms.manual.title")}
         titleSize={Theme.navigation.secondaryTitleSize}
         showBack
         onBack={() => router.back()}
@@ -174,11 +176,14 @@ export default function ManualEntryScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         overScrollMode="never">
           <View style={styles.group}>
             <ClearableField
               inputRef={nameRef}
-              placeholder="Restaurant name"
+              placeholder={t("forms.manual.restaurantName")}
               value={name}
               onChangeText={setName}
               onFocus={() => scrollInputIntoView(nameRef.current)}
@@ -188,7 +193,7 @@ export default function ManualEntryScreen() {
             <View style={styles.fieldSep} />
             <ClearableField
               inputRef={cityRef}
-              placeholder="City"
+              placeholder={t("forms.manual.city")}
               value={city}
               onChangeText={setCity}
               onFocus={() => scrollInputIntoView(cityRef.current)}
@@ -197,7 +202,7 @@ export default function ManualEntryScreen() {
             <View style={styles.fieldSep} />
             <ClearableField
               inputRef={countryRef}
-              placeholder="Country"
+              placeholder={t("forms.manual.country")}
               value={country}
               onChangeText={setCountry}
               onFocus={() => scrollInputIntoView(countryRef.current)}
@@ -209,7 +214,7 @@ export default function ManualEntryScreen() {
           <View style={styles.group}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Find on Google"
+              accessibilityLabel={t("forms.manual.findOnGoogle")}
               disabled={!canProceed || isSearching}
               onPress={() => {
                 void searchMatches();
@@ -251,7 +256,7 @@ export default function ManualEntryScreen() {
                   searchHighlighted && styles.findLabelHighlighted,
                   !canProceed && styles.findLabelDisabled,
                 ]}>
-                Find on Google
+                {t('forms.manual.findOnGoogle')}
               </Text>
               {isSearching ? (
                 <ActivityIndicator
@@ -263,22 +268,22 @@ export default function ManualEntryScreen() {
             </Pressable>
           </View>
           <Text style={styles.footerHint}>
-            Search Google to add the address.
+            {t('forms.manual.searchHint')}
           </Text>
 
           {isSearching ? (
             <View style={styles.matchesBlock}>
-              <Text style={styles.sectionTitle}>Google matches</Text>
+              <Text style={styles.sectionTitle}>{t('forms.manual.googleMatches')}</Text>
               <View style={styles.loadingRow}>
                 <ActivityIndicator color={GustraColors.forestGreen} />
-                <Text style={styles.loadingText}>Loading restaurants…</Text>
+                <Text style={styles.loadingText}>{t('forms.manual.loading')}</Text>
               </View>
             </View>
           ) : null}
 
           {!isSearching && hasSearched ? (
             <View style={styles.matchesBlock}>
-              <Text style={styles.sectionTitle}>Google matches</Text>
+              <Text style={styles.sectionTitle}>{t('forms.manual.googleMatches')}</Text>
               {searchError ? (
                 <View style={styles.group}>
                   <Text style={styles.errorText}>{searchError}</Text>
@@ -291,12 +296,12 @@ export default function ManualEntryScreen() {
                       styles.tryAgain,
                       pressed && styles.pressed,
                     ]}>
-                    <Text style={styles.tryAgainLabel}>Try Again</Text>
+                    <Text style={styles.tryAgainLabel}>{t('common.tryAgain')}</Text>
                   </Pressable>
                 </View>
               ) : matches.length === 0 ? (
                 <View style={styles.group}>
-                  <Text style={styles.emptyText}>No match found on Google.</Text>
+                  <Text style={styles.emptyText}>{t('forms.manual.noMatch')}</Text>
                 </View>
               ) : (
                 <View style={styles.group}>
@@ -345,7 +350,7 @@ export default function ManualEntryScreen() {
           <View style={[styles.manualFooter, { paddingBottom: footerPad }]}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Continue manually"
+              accessibilityLabel={t("forms.manual.continueManually")}
               disabled={!canProceed}
               onPress={continueManually}
               style={({ pressed }) => [
@@ -379,12 +384,11 @@ export default function ManualEntryScreen() {
                   styles.continueLabel,
                   !canProceed && styles.continueLabelDisabled,
                 ]}>
-                Continue manually
+                {t('forms.manual.continueManually')}
               </Text>
             </Pressable>
             <Text style={styles.manualHint}>
-              Without a Google match this restaurant won&apos;t appear on your
-              map.
+              {t('forms.manual.manualMapHint')}
             </Text>
           </View>
         ) : null}
@@ -411,6 +415,7 @@ function ClearableField({
   returnKeyType?: 'next' | 'done';
   onSubmitEditing?: () => void;
 }) {
+  const { t } = useAppTranslation();
   return (
     <View style={styles.fieldRow}>
       <TextInput
@@ -430,7 +435,7 @@ function ClearableField({
       {value.length > 0 ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Clear"
+          accessibilityLabel={t('common.clear')}
           hitSlop={8}
           onPress={() => onChangeText('')}
           style={({ pressed }) => pressed && styles.pressed}>

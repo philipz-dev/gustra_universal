@@ -16,6 +16,7 @@ import {
   Type,
 } from '@/constants/Theme';
 import { satisfactionFromScore, type RestaurantVisitSummary } from '@/data/types';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { Haptics } from '@/services/haptics';
 
 type RestaurantFeedCardProps = {
@@ -38,6 +39,7 @@ export function RestaurantFeedCard({
   onFavoriteToggle,
   scoreOverride,
 }: RestaurantFeedCardProps) {
+  const { t } = useAppTranslation();
   const displayScore =
     typeof scoreOverride === 'number' ? scoreOverride : summary.averageScore;
   const level = satisfactionFromScore(displayScore);
@@ -71,7 +73,10 @@ export function RestaurantFeedCard({
         <Text style={styles.meta}>
           {summary.visitCount <= 1
             ? summary.lastVisitDate
-            : `${summary.visitCount} visits · ${summary.lastVisitDate}`}
+            : t('reviews.visitCount', {
+                count: summary.visitCount,
+                date: summary.lastVisitDate,
+              })}
         </Text>
         {summary.reviewerName ? (
           <Text style={styles.reviewer}>{summary.reviewerName}</Text>
@@ -116,7 +121,10 @@ const styles = StyleSheet.create({
     minHeight: Theme.size.hitTarget + Theme.spacing.cardPadding,
     backgroundColor: Theme.list.cardBackground,
     borderRadius: Theme.radius.xl,
-    ...Surface.raised,
+    // Avoid Android blanking: overflow+radius without elevation hides Text.
+    ...(Platform.OS === 'ios'
+      ? { overflow: 'hidden' as const, ...Surface.raised }
+      : { overflow: 'visible' as const, ...Surface.flat }),
   },
   main: {
     flex: 1,

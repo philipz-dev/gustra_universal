@@ -7,9 +7,10 @@ import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, bodyTextStyle } from '@/constants/Theme';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 type AddReviewOption = {
-  title: string;
+  titleKey: 'forms.addReview.nearby' | 'forms.addReview.mapSearch' | 'forms.addReview.manual';
   iosName: SFSymbol;
   androidName: keyof typeof MaterialIcons.glyphMap;
   /** Expo Router path when ready; omit for not-yet-wired options. */
@@ -19,19 +20,19 @@ type AddReviewOption = {
 /** Swift `AddReviewView` options. */
 const OPTIONS: AddReviewOption[] = [
   {
-    title: 'Show nearby restaurants',
+    titleKey: 'forms.addReview.nearby',
     iosName: 'location',
     androidName: 'location-on',
     href: '/nearby-restaurants',
   },
   {
-    title: 'Search on map',
+    titleKey: 'forms.addReview.mapSearch',
     iosName: 'map',
     androidName: 'map',
     href: '/map-search',
   },
   {
-    title: 'Manual entry',
+    titleKey: 'forms.addReview.manual',
     iosName: 'square.and.pencil',
     androidName: 'edit',
     href: '/manual-entry',
@@ -43,13 +44,14 @@ const OPTIONS: AddReviewOption[] = [
  * Pushed from the Reviews FAB — three entry paths, no behavior yet.
  */
 export default function AddReviewScreen() {
+  const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
   return (
     <View style={styles.screen}>
       <HouseNavHeader
-        title="Add Review"
+        title={t('forms.addReview.title')}
         titleSize={Theme.navigation.secondaryTitleSize}
         showBack
         onBack={() => router.back()}
@@ -64,18 +66,22 @@ export default function AddReviewScreen() {
           },
         ]}>
         <View style={styles.group}>
-          {OPTIONS.map((option, index) => (
-            <AddReviewRow
-              key={option.title}
-              option={option}
-              isLast={index === OPTIONS.length - 1}
-              onPress={() => {
-                if (option.href) {
-                  router.push(option.href);
-                }
-              }}
-            />
-          ))}
+          {OPTIONS.map((option, index) => {
+            const title = t(option.titleKey);
+            return (
+              <AddReviewRow
+                key={option.titleKey}
+                title={title}
+                option={option}
+                isLast={index === OPTIONS.length - 1}
+                onPress={() => {
+                  if (option.href) {
+                    router.push(option.href);
+                  }
+                }}
+              />
+            );
+          })}
         </View>
       </View>
     </View>
@@ -83,10 +89,12 @@ export default function AddReviewScreen() {
 }
 
 function AddReviewRow({
+  title,
   option,
   isLast,
   onPress,
 }: {
+  title: string;
   option: AddReviewOption;
   isLast: boolean;
   onPress: () => void;
@@ -94,7 +102,7 @@ function AddReviewRow({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={option.title}
+      accessibilityLabel={title}
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,
@@ -116,7 +124,7 @@ function AddReviewRow({
           style={styles.icon}
         />
       )}
-      <Text style={styles.rowTitle}>{option.title}</Text>
+      <Text style={styles.rowTitle}>{title}</Text>
       {Platform.OS === 'ios' ? (
         <SymbolView
           name="chevron.right"

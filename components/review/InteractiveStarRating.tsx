@@ -1,18 +1,20 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
-  type GestureResponderEvent,
 } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolView } from 'expo-symbols';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 
 import { GustraColors } from '@/constants/Colors';
 import { SERIF_FONT, Theme } from '@/constants/Theme';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { Haptics } from '@/services/haptics';
 import { RatingValue, ratingLabel } from '@/services/reviews/ratings';
 
@@ -22,13 +24,18 @@ const STAR_PATH =
 
 const STAR_SIZE = Theme.size.starEdit;
 const STAR_SPACING = 8;
-const SCRUB_COMMIT_DISTANCE = 12;
+/** Horizontal move before scrub activates (ScrollView / stack keep vertical). */
+const ACTIVE_OFFSET_X = 8;
+/** Vertical move cancels scrub so the form can scroll (Swift StarRatingView). */
+const FAIL_OFFSET_Y = 14;
 const STARS_WIDTH = STAR_SIZE * 5 + STAR_SPACING * 4;
 
 type InteractiveStarRatingProps = {
   /** Half-star steps 1–10, `0` unrated, `-1` N/A (Swift `RatingValue`). */
   rating: number;
   onChange: (rating: number) => void;
+  /** True while horizontal scrub is active — parent should lock ScrollView. */
+  onScrubbingChange?: (scrubbing: boolean) => void;
 };
 
 function StarIcon({ size, color }: { size: number; color: string }) {
@@ -54,19 +61,38 @@ function HalfStar({ size, fill }: { size: number; fill: number }) {
   );
 }
 
+function stepsFromLocalX(x: number): number {
+  const pitch = STAR_SIZE + STAR_SPACING;
+  const clampedX = Math.min(Math.max(x, 0), STARS_WIDTH);
+  let index = Math.floor(clampedX / pitch);
+  index = Math.min(index, 4);
+  const localX = clampedX - index * pitch;
+  const isHalf = localX < STAR_SIZE / 2;
+  return Math.min(
+    Math.max(index * 2 + (isHalf ? 1 : 2), 1),
+    RatingValue.maxSteps,
+  );
+}
+
 /**
  * Interactive half-star rating (Swift `StarRatingView`).
- * Tap or scrub horizontally; trash clears to N/A (`-1`).
+ * Tap or horizontal scrub; vertical movement fails to ScrollView.
+ * Trash clears to N/A (`-1`).
  */
 export function InteractiveStarRating({
   rating,
   onChange,
+  onScrubbingChange,
 }: InteractiveStarRatingProps) {
-  const isHorizontalScrub = useRef(false);
-  const rowOffsetX = useRef(0);
+  const { t } = useAppTranslation();
   const lastSteps = useRef(rating);
-  const startPageX = useRef(0);
-  const startPageY = useRef(0);
+  const scrubbingRef = useRef(false);
+  const ratingRef = useRef(rating);
+  ratingRef.current = rating;
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const onScrubbingChangeRef = useRef(onScrubbingChange);
+  onScrubbingChangeRef.current = onScrubbingChange;
 
   const displayRating = RatingValue.isStarRating(rating) ? rating : 0;
 
@@ -78,68 +104,47 @@ export function InteractiveStarRating({
     Haptics.prepare();
   }, []);
 
-  const stepsFromPageX = (pageX: number) => {
-    const x = pageX - rowOffsetX.current;
-    const pitch = STAR_SIZE + STAR_SPACING;
-    const clampedX = Math.min(Math.max(x, 0), STARS_WIDTH);
-    let index = Math.floor(clampedX / pitch);
-    index = Math.min(index, 4);
-    const localX = clampedX - index * pitch;
-    const isHalf = localX < STAR_SIZE / 2;
-    return Math.min(
-      Math.max(index * 2 + (isHalf ? 1 : 2), 1),
-      RatingValue.maxSteps,
-    );
-  };
-
-  const applySteps = (steps: number) => {
-    if (steps === lastSteps.current && RatingValue.isStarRating(rating)) return;
+  const applyFromX = useCallback((x: number) => {
+    const steps = stepsFromLocalX(x);
+    if (
+      steps === lastSteps.current &&
+      RatingValue.isStarRating(ratingRef.current)
+    ) {
+      return;
+    }
     lastSteps.current = steps;
     Haptics.selectionChanged();
-    onChange(steps);
-  };
+    onChangeRef.current(steps);
+  }, []);
 
-  const handleGrant = (event: GestureResponderEvent) => {
-    isHorizontalScrub.current = false;
-    startPageX.current = event.nativeEvent.pageX;
-    startPageY.current = event.nativeEvent.pageY;
-    event.currentTarget.measureInWindow((x) => {
-      rowOffsetX.current = x;
+  const setScrubbing = useCallback((active: boolean) => {
+    if (scrubbingRef.current === active) return;
+    scrubbingRef.current = active;
+    onScrubbingChangeRef.current?.(active);
+  }, []);
+
+  const gesture = useMemo(() => {
+    const pan = Gesture.Pan()
+      .activeOffsetX([-ACTIVE_OFFSET_X, ACTIVE_OFFSET_X])
+      .failOffsetY([-FAIL_OFFSET_Y, FAIL_OFFSET_Y])
+      .onStart(() => {
+        runOnJS(setScrubbing)(true);
+      })
+      .onUpdate((e) => {
+        runOnJS(applyFromX)(e.x);
+      })
+      .onFinalize(() => {
+        runOnJS(setScrubbing)(false);
+      });
+
+    const tap = Gesture.Tap().onEnd((e) => {
+      runOnJS(applyFromX)(e.x);
     });
-  };
 
-  const handleMove = (event: GestureResponderEvent) => {
-    const { pageX, pageY } = event.nativeEvent;
-    const dx = Math.abs(pageX - startPageX.current);
-    const dy = Math.abs(pageY - startPageY.current);
-
-    if (isHorizontalScrub.current) {
-      applySteps(stepsFromPageX(pageX));
-      return;
-    }
-
-    if (dx >= SCRUB_COMMIT_DISTANCE && dx > dy * 1.25) {
-      isHorizontalScrub.current = true;
-      applySteps(stepsFromPageX(pageX));
-    }
-  };
-
-  const handleRelease = (event: GestureResponderEvent) => {
-    const { pageX, pageY } = event.nativeEvent;
-    const dx = Math.abs(pageX - startPageX.current);
-    const dy = Math.abs(pageY - startPageY.current);
-    const wasScrub = isHorizontalScrub.current;
-    isHorizontalScrub.current = false;
-
-    if (wasScrub) {
-      applySteps(stepsFromPageX(pageX));
-      return;
-    }
-
-    if (dx < SCRUB_COMMIT_DISTANCE && dy < SCRUB_COMMIT_DISTANCE) {
-      applySteps(stepsFromPageX(pageX));
-    }
-  };
+    // Pan wins once horizontal intent is clear; otherwise tap rates.
+    // Vertical drags fail the pan so ScrollView can scroll.
+    return Gesture.Exclusive(pan, tap);
+  }, [applyFromX, setScrubbing]);
 
   const starFills = useMemo(
     () =>
@@ -152,40 +157,34 @@ export function InteractiveStarRating({
   return (
     <View style={styles.wrap}>
       <View style={styles.row}>
-        <View
-          style={[styles.stars, { width: STARS_WIDTH, height: STAR_SIZE }]}
-          onStartShouldSetResponder={() => true}
-          onMoveShouldSetResponder={() => true}
-          onResponderGrant={handleGrant}
-          onResponderMove={handleMove}
-          onResponderRelease={handleRelease}
-          onResponderTerminate={() => {
-            isHorizontalScrub.current = false;
-          }}
-          accessibilityRole="adjustable"
-          accessibilityLabel="Rating"
-          accessibilityValue={{
-            text: RatingValue.isStarRating(rating)
-              ? RatingValue.starValue(rating).toFixed(1)
-              : 'Not rated',
-          }}>
-          {starFills.map((fill, index) => (
-            <View
-              key={index}
-              style={{
-                width: STAR_SIZE,
-                height: STAR_SIZE,
-                marginRight: index < 4 ? STAR_SPACING : 0,
-              }}>
-              <HalfStar size={STAR_SIZE} fill={fill} />
-            </View>
-          ))}
-        </View>
+        <GestureDetector gesture={gesture}>
+          <View
+            style={[styles.stars, { width: STARS_WIDTH, height: STAR_SIZE }]}
+            accessibilityRole="adjustable"
+            accessibilityLabel={t('rating.a11y.rating')}
+            accessibilityValue={{
+              text: RatingValue.isStarRating(rating)
+                ? RatingValue.starValue(rating).toFixed(1)
+                : t('rating.labels.notRated'),
+            }}>
+            {starFills.map((fill, index) => (
+              <View
+                key={index}
+                style={{
+                  width: STAR_SIZE,
+                  height: STAR_SIZE,
+                  marginRight: index < 4 ? STAR_SPACING : 0,
+                }}>
+                <HalfStar size={STAR_SIZE} fill={fill} />
+              </View>
+            ))}
+          </View>
+        </GestureDetector>
 
         {RatingValue.isStarRating(rating) ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Clear rating"
+            accessibilityLabel={t('rating.a11y.clear')}
             hitSlop={8}
             onPress={() => {
               lastSteps.current = RatingValue.notApplicable;

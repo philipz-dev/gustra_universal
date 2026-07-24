@@ -12,7 +12,7 @@ import {
 
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewerProfile } from '@/context/ReviewerProfile';
-import { mockRestaurants, mockReviews } from '@/data/mockReviews';
+import { stripShippingSeedData } from '@/data/mockReviews';
 import type {
   CriterionRating,
   Restaurant,
@@ -21,6 +21,7 @@ import type {
   ReviewOrigin,
 } from '@/data/types';
 import { normalizeRestaurant, resolveReviewOrigin } from '@/data/types';
+import { formatAbbreviatedDate } from '@/i18n/formatDates';
 import {
   applyBackupPayload,
   criteriaSettingsFromPayload,
@@ -36,7 +37,11 @@ import {
   REVIEWER_PHOTO_BACKUP_KEY,
   type BackupImportMode,
 } from '@/services/backup/types';
-import { importSwiftLegacyData as runSwiftLegacyImport } from '@/services/migration/SwiftDataMigration';
+import {
+  ensureSwiftLegacyMigration,
+  importSwiftLegacyData as runSwiftLegacyImport,
+  resetSwiftLegacyMigrationStatus,
+} from '@/services/migration/SwiftDataMigration';
 import { findExistingRestaurant } from '@/services/places/RestaurantMatcher';
 import type { RestaurantDraft } from '@/services/places/types';
 import { deleteReviewPhotoFiles } from '@/services/reviews/photoStorage';
@@ -114,6 +119,13 @@ type ReviewsStoreValue = {
     restaurantCount: number;
     reviewCount: number;
     photosCopied: number;
+    mode: 'overwrite' | 'merge';
+  }>;
+  /** Auto-run once at launch; safe to call again (idempotent). */
+  ensureSwiftLegacyMigration: () => Promise<{
+    status: string;
+    message: string;
+    reviewCount: number;
   }>;
   /** Merge imported friends reviews from a `.gustrashare` package. */
   importSharePackage: (result: {
@@ -172,11 +184,7 @@ function applyDraftToRestaurant(
 const ReviewsStoreContext = createContext<ReviewsStoreValue | null>(null);
 
 function formatAbbreviated(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return formatAbbreviatedDate(iso);
 }
 
 function normalizeReview(review: Review, migrateLegacy = false): Review {
@@ -205,6 +213,7 @@ function normalizeReview(review: Review, migrateLegacy = false): Review {
     ...review,
     criteria,
     overallScore,
+    reviewedById: review.reviewedById?.trim() || undefined,
     reviewedByPhotoUrl: review.reviewedByPhotoUrl?.trim() || undefined,
     origin: resolveReviewOrigin(review),
     searchableText,
@@ -311,32 +320,79 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
             const normalizedRestaurants = parsed.restaurants.map((r) =>
               normalizeRestaurant(r as Restaurant),
             );
-            setRestaurants(normalizedRestaurants);
-            setReviews(normalizedReviews);
+            // Drop shipping demo seed; keep only user-created data.
+            const cleaned = stripShippingSeedData(
+              normalizedRestaurants,
+              normalizedReviews,
+            );
+            setRestaurants(cleaned.restaurants);
+            setReviews(cleaned.reviews);
             await persist({
-              restaurants: normalizedRestaurants,
-              reviews: normalizedReviews,
+              restaurants: cleaned.restaurants,
+              reviews: cleaned.reviews,
             });
             if (migrateLegacy) {
               await AsyncStorage.removeItem(LEGACY_STORAGE_KEY);
             }
+            if (!cancelled) setReady(true);
+            // Auto-recover Swift sandbox data after hydrate (iOS only).
+            void (async () => {
+              try {
+                const auto = await ensureSwiftLegacyMigration({
+                  currentRestaurants: cleaned.restaurants,
+                  currentReviews: cleaned.reviews,
+                });
+                if (auto.importResult && !cancelled) {
+                  const restaurants = auto.importResult.restaurants.map(
+                    normalizeRestaurant,
+                  );
+                  const reviews = auto.importResult.reviews.map((r) =>
+                    normalizeReview(r),
+                  );
+                  setRestaurants(restaurants);
+                  setReviews(reviews);
+                  await persist({ restaurants, reviews });
+                }
+              } catch {
+                // Non-fatal — Settings Recover remains available.
+              }
+            })();
             return;
           }
         }
+        // Fresh install / empty store — no demo seed.
         if (!cancelled) {
-          const seedRestaurants = mockRestaurants.map(normalizeRestaurant);
-          const seedReviews = mockReviews.map((r) => normalizeReview(r));
-          setRestaurants(seedRestaurants);
-          setReviews(seedReviews);
-          await persist({
-            restaurants: seedRestaurants,
-            reviews: seedReviews,
-          });
+          setRestaurants([]);
+          setReviews([]);
+          await persist({ restaurants: [], reviews: [] });
+          setReady(true);
+          void (async () => {
+            try {
+              const auto = await ensureSwiftLegacyMigration({
+                currentRestaurants: [],
+                currentReviews: [],
+              });
+              if (auto.importResult && !cancelled) {
+                const restaurants = auto.importResult.restaurants.map(
+                  normalizeRestaurant,
+                );
+                const reviews = auto.importResult.reviews.map((r) =>
+                  normalizeReview(r),
+                );
+                setRestaurants(restaurants);
+                setReviews(reviews);
+                await persist({ restaurants, reviews });
+              }
+            } catch {
+              // Non-fatal
+            }
+          })();
         }
       } catch {
         if (!cancelled) {
-          setRestaurants(mockRestaurants.map(normalizeRestaurant));
-          setReviews(mockReviews.map((r) => normalizeReview(r)));
+          setRestaurants([]);
+          setReviews([]);
+          setReady(true);
         }
       } finally {
         if (!cancelled) setReady(true);
@@ -382,6 +438,7 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
   const deleteRestaurantFromFeed = useCallback(
     async (summary: RestaurantVisitSummary) => {
       const reviewIds = new Set(summary.reviewIds);
+      const removed = reviews.filter((r) => reviewIds.has(r.id));
       const nextReviews = reviews.filter((r) => !reviewIds.has(r.id));
       const stillHasReviews = nextReviews.some(
         (r) => r.restaurantId === summary.restaurantId,
@@ -395,6 +452,23 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
         restaurants: nextRestaurants,
         reviews: nextReviews,
       });
+
+      const uris = removed.flatMap((r) => [
+        ...r.photoUrls,
+        ...(r.reviewedByPhotoUrl ? [r.reviewedByPhotoUrl] : []),
+      ]);
+      const restaurant = restaurants.find((r) => r.id === summary.restaurantId);
+      if (!stillHasReviews && restaurant?.photoUrl) {
+        uris.push(restaurant.photoUrl);
+      }
+      void deleteReviewPhotoFiles(uris);
+      // Catch any leftover keys still on disk after the direct deletes.
+      void import('@/services/photos/orphanCleanup').then(
+        ({ performStartupPhotoMaintenance }) =>
+          performStartupPhotoMaintenance(nextReviews, {
+            restaurants: nextRestaurants,
+          }),
+      );
     },
     [restaurants, reviews],
   );
@@ -457,7 +531,9 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
         '@/services/photos/orphanCleanup'
       );
       if (cancelled) return;
-      await performStartupPhotoMaintenance(reviewsRef.current);
+      await performStartupPhotoMaintenance(reviewsRef.current, {
+        restaurants: restaurantsRef.current,
+      });
     })().catch(() => {
       // Silent — disk cleanup must never block launch.
     });
@@ -630,7 +706,17 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
         reviews: nextReviews,
       });
 
-      void deleteReviewPhotoFiles(target.photoUrls);
+      const uris = [
+        ...target.photoUrls,
+        ...(target.reviewedByPhotoUrl ? [target.reviewedByPhotoUrl] : []),
+      ];
+      void deleteReviewPhotoFiles(uris);
+      void import('@/services/photos/orphanCleanup').then(
+        ({ performStartupPhotoMaintenance }) =>
+          performStartupPhotoMaintenance(nextReviews, {
+            restaurants: nextRestaurants,
+          }),
+      );
     },
     [restaurants, reviews],
   );
@@ -654,6 +740,7 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
         reviewerProfile: reviewerProfileToBackup({
           name: profileSnap.name,
           hasPhoto: Boolean(profileSnap.photoBase64),
+          authorId: profileSnap.authorId,
         }),
         criteriaSettings: criteriaSettingsToBackup(criteriaSnap),
       });
@@ -679,6 +766,7 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
         await applyProfileSnapshot({
           name: profile.profile.name,
           photoBase64: profile.photoBase64,
+          authorId: profile.profile.authorId ?? undefined,
         });
       }
 
@@ -696,7 +784,12 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const importSwiftLegacyData = useCallback(async () => {
-    const result = await runSwiftLegacyImport();
+    await resetSwiftLegacyMigrationStatus();
+    const result = await runSwiftLegacyImport({
+      currentRestaurants: restaurantsRef.current,
+      currentReviews: reviewsRef.current,
+      force: true,
+    });
     const restaurants = result.restaurants.map(normalizeRestaurant);
     const reviews = result.reviews.map((r) => normalizeReview(r));
     setRestaurants(restaurants);
@@ -706,6 +799,26 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       restaurantCount: result.restaurantCount,
       reviewCount: result.reviewCount,
       photosCopied: result.photosCopied,
+      mode: result.mode,
+    };
+  }, []);
+
+  const runEnsureSwiftLegacyMigration = useCallback(async () => {
+    const auto = await ensureSwiftLegacyMigration({
+      currentRestaurants: restaurantsRef.current,
+      currentReviews: reviewsRef.current,
+    });
+    if (auto.importResult) {
+      const restaurants = auto.importResult.restaurants.map(normalizeRestaurant);
+      const reviews = auto.importResult.reviews.map((r) => normalizeReview(r));
+      setRestaurants(restaurants);
+      setReviews(reviews);
+      await persist({ restaurants, reviews });
+    }
+    return {
+      status: auto.status,
+      message: auto.message,
+      reviewCount: auto.importResult?.reviewCount ?? 0,
     };
   }, []);
 
@@ -750,6 +863,7 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       createEncryptedBackup,
       importEncryptedBackup,
       importSwiftLegacyData,
+      ensureSwiftLegacyMigration: runEnsureSwiftLegacyMigration,
       importSharePackage,
     }),
     [
@@ -768,6 +882,7 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       createEncryptedBackup,
       importEncryptedBackup,
       importSwiftLegacyData,
+      runEnsureSwiftLegacyMigration,
       importSharePackage,
     ],
   );

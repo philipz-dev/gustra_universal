@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
+import { i18n } from '@/i18n';
 import { formatByteCount } from '@/services/backup/BackupService';
 
 export type PhotosDiskUsage = {
@@ -60,11 +61,10 @@ export async function getPhotosDiskUsage(): Promise<PhotosDiskUsage> {
   ]);
   const byteCount = photos.byteCount + profile.byteCount;
   const fileCount = photos.fileCount + profile.fileCount;
-  const photoWord = fileCount === 1 ? 'photo' : 'photos';
   return {
     byteCount,
     fileCount,
     formattedBytes: formatByteCount(byteCount),
-    subtitle: `${fileCount} ${photoWord} stored locally`,
+    subtitle: i18n.t('settings.storage.photosStored', { count: fileCount }),
   };
 }

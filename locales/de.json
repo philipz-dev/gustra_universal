@@ -1,0 +1,14 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "Gustra verwendet die Kamera für Profil- und Restaurantfotos.",
+    "NSPhotoLibraryUsageDescription": "Gustra verwendet deine Fotomediathek, um Bilder für Profil und Bewertungen zu importieren.",
+    "NSPhotoLibraryAddUsageDescription": "Gustra speichert Bewertungsfotos in der Mediathek, wenn du „In Fotos speichern“ wählst.",
+    "NSLocationWhenInUseUsageDescription": "Gustra verwendet deinen Standort, um Restaurants in der Nähe zu finden."
+  },
+  "android": {
+    "NSCameraUsageDescription": "Gustra verwendet die Kamera für Profil- und Restaurantfotos.",
+    "NSPhotoLibraryUsageDescription": "Gustra verwendet deine Fotomediathek, um Bilder für Profil und Bewertungen zu importieren.",
+    "NSPhotoLibraryAddUsageDescription": "Gustra speichert Bewertungsfotos in der Mediathek, wenn du „In Fotos speichern“ wählst.",
+    "NSLocationWhenInUseUsageDescription": "Gustra verwendet deinen Standort, um Restaurants in der Nähe zu finden."
+  }
+}

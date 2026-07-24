@@ -3,6 +3,7 @@ import { SymbolView } from 'expo-symbols';
 
 import { GustraColors } from '@/constants/Colors';
 import { Theme } from '@/constants/Theme';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 type FilterSearchBarProps = {
   value: string;
@@ -13,8 +14,10 @@ type FilterSearchBarProps = {
 export function FilterSearchBar({
   value,
   onChangeText,
-  placeholder = 'Search restaurants, comments, photos…',
+  placeholder,
 }: FilterSearchBarProps) {
+  const { t } = useAppTranslation();
+
   return (
     <View style={styles.wrap}>
       <View style={styles.field}>
@@ -26,7 +29,7 @@ export function FilterSearchBar({
         <TextInput
           value={value}
           onChangeText={onChangeText}
-          placeholder={placeholder}
+          placeholder={placeholder ?? t('reviews.searchPlaceholder')}
           placeholderTextColor="rgba(35, 32, 26, 0.4)"
           style={styles.input}
           selectionColor={GustraColors.forestGreen}

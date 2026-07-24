@@ -1,4 +1,5 @@
 import type { CriterionRating } from '@/data/types';
+import { i18n } from '@/i18n';
 
 /**
  * Rating storage in half-star steps (Swift `RatingValue`):
@@ -57,14 +58,16 @@ export function hasStarRating(criteria: CriterionRating[]): boolean {
 
 /** Labels for half-star steps (Swift `RatingLabels`). */
 export function ratingLabel(rating: number): string {
-  if (RatingValue.isNotApplicable(rating)) return 'N/A';
-  if (!RatingValue.isStarRating(rating)) return 'Not rated';
+  if (RatingValue.isNotApplicable(rating)) return i18n.t('rating.labels.na');
+  if (!RatingValue.isStarRating(rating)) {
+    return i18n.t('rating.labels.notRated');
+  }
   const stars = RatingValue.starValue(rating);
-  if (stars < 2) return 'Poor';
-  if (stars < 3) return 'Okay';
-  if (stars < 4) return 'Good';
-  if (stars < 5) return 'Great';
-  return 'Perfect';
+  if (stars < 2) return i18n.t('rating.labels.poor');
+  if (stars < 3) return i18n.t('rating.labels.okay');
+  if (stars < 4) return i18n.t('rating.labels.good');
+  if (stars < 5) return i18n.t('rating.labels.great');
+  return i18n.t('rating.labels.perfect');
 }
 
 /** Migrate a legacy Expo integer 1–5 rating to half-star steps (`×2`). */

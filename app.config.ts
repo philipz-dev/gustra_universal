@@ -152,6 +152,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       favicon: './assets/images/favicon.png',
     },
     locales: {
+      de: './locales/de.json',
+      es: './locales/es.json',
+      fr: './locales/fr.json',
+      it: './locales/it.json',
       nl: './locales/nl.json',
     },
     plugins: [
@@ -161,8 +165,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         'expo-localization',
         {
           supportedLocales: {
-            ios: ['en', 'nl'],
-            android: ['en', 'nl'],
+            ios: ['de', 'en', 'es', 'fr', 'it', 'nl'],
+            android: ['de', 'en', 'es', 'fr', 'it', 'nl'],
           },
         },
       ],

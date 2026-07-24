@@ -33,7 +33,10 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Theme.list.cardBackground,
     borderRadius: Theme.radius.lg,
-    overflow: 'hidden',
-    ...Surface.raised,
+    // iOS: clip elevation. Android: overflow+radius without elevation can
+    // blank child Text/controls — keep visible and flat (matches iOS look).
+    ...(Platform.OS === 'ios'
+      ? { overflow: 'hidden' as const, ...Surface.raised }
+      : { overflow: 'visible' as const, ...Surface.flat }),
   },
 });

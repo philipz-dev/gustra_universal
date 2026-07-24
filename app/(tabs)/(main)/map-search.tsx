@@ -35,12 +35,14 @@ import {
   type RestaurantDraft,
   type RestaurantSearchResult,
 } from '@/services/places';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 /**
  * Map restaurant search (Swift `MapSearchView`).
  * Uses Google Maps JavaScript API (works in Expo Go with our API key).
  */
 export default function MapSearchScreen() {
+  const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<GoogleMapsViewHandle>(null);
@@ -199,7 +201,7 @@ export default function MapSearchScreen() {
   return (
     <View style={styles.screen}>
       <HouseNavHeader
-        title="Search on map"
+        title={t("forms.mapSearch.title")}
         titleSize={Theme.navigation.secondaryTitleSize}
         showBack
         onBack={() => router.back()}
@@ -232,22 +234,24 @@ export default function MapSearchScreen() {
         {isLoading ? (
           <View style={styles.mapChip} pointerEvents="none">
             <ActivityIndicator color={GustraColors.forestGreen} size="small" />
-            <Text style={styles.mapChipText}>Loading restaurants…</Text>
+            <Text style={styles.mapChipText}>{t("forms.manual.loading")}</Text>
           </View>
         ) : null}
 
         {showSearchThisArea && !isLoading ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Search this area"
-            accessibilityHint="Search restaurants in the visible map area"
+            accessibilityLabel={t("forms.mapSearch.searchArea")}
+            accessibilityHint={t("forms.mapSearch.searchAreaHint")}
             onPress={searchThisArea}
             style={({ pressed }) => [
               styles.searchAreaButton,
               pressed && styles.searchAreaPressed,
             ]}>
             <MaterialIcons name="refresh" color="#FFFFFF" size={18} />
-            <Text style={styles.searchAreaLabel}>Search this area</Text>
+            <Text style={styles.searchAreaLabel}>
+              {t('forms.mapSearch.searchArea')}
+            </Text>
           </Pressable>
         ) : null}
       </View>
@@ -256,7 +260,7 @@ export default function MapSearchScreen() {
         <View style={styles.bannerPad}>
           <SelectedRestaurantBanner
             draft={selected}
-            actionTitle="Start Review"
+            actionTitle={t("forms.mapSearch.startReview")}
             onClear={clearSelection}
             onAction={() =>
               router.push({
@@ -287,12 +291,12 @@ export default function MapSearchScreen() {
             <View style={styles.loadingRow}>
               <ActivityIndicator color={GustraColors.forestGreen} />
               <Text style={styles.loadingText}>
-                Finding nearby restaurants…
+                {t("forms.nearby.finding")}
               </Text>
             </View>
           ) : (
             <Text style={styles.emptyHint}>
-              Move the map, then tap “Search this area”.
+              {t("forms.mapSearch.hint")}
             </Text>
           )
         }

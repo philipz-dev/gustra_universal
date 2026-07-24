@@ -80,7 +80,9 @@ const styles = StyleSheet.create({
     minHeight: Theme.size.hitTarget + Theme.spacing.cardPadding,
     backgroundColor: Theme.list.cardBackground,
     borderRadius: Theme.radius.xl,
-    ...Surface.raised,
+    ...(Platform.OS === 'ios'
+      ? { overflow: 'hidden' as const, ...Surface.raised }
+      : { overflow: 'visible' as const, ...Surface.flat }),
   },
   main: {
     flex: 1,

@@ -5,8 +5,11 @@ import { GustraTabBar } from '@/components/ui/GustraTabBar';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { GustraColors } from '@/constants/Colors';
 import { Theme } from '@/constants/Theme';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 export default function TabLayout() {
+  const { t } = useAppTranslation();
+
   return (
     <Tabs
       tabBar={(props) => <GustraTabBar {...props} />}
@@ -28,8 +31,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="(main)"
         options={{
-          title: 'Reviews',
-          tabBarLabel: 'Reviews',
+          title: t('tabs.reviews'),
+          tabBarLabel: t('tabs.reviews'),
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <SymbolView
@@ -47,8 +50,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="map"
         options={{
-          title: 'My map',
-          tabBarLabel: 'My map',
+          title: t('tabs.map'),
+          tabBarLabel: t('tabs.map'),
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <SymbolView
               name={{
@@ -65,8 +69,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="passport"
         options={{
-          title: 'My Gustra',
-          tabBarLabel: 'My Gustra',
+          title: t('tabs.passport'),
+          tabBarLabel: t('tabs.passport'),
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <SymbolView
               name={{
@@ -83,8 +88,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Settings',
-          tabBarLabel: 'Settings',
+          title: t('tabs.settings'),
+          tabBarLabel: t('tabs.settings'),
           tabBarIcon: ({ color, size }) => (
             <SymbolView
               name={{
@@ -103,10 +108,10 @@ export default function TabLayout() {
         name="edit-criteria"
         options={{
           href: null,
-          title: 'Edit review criteria',
+          title: t('tabs.editCriteria'),
           header: ({ navigation }) => (
             <HouseNavHeader
-              title="Edit review criteria"
+              title={t('tabs.editCriteria')}
               titleSize={Theme.navigation.secondaryTitleSize}
               showBack
               onBack={() => navigation.navigate('settings')}
@@ -118,7 +123,7 @@ export default function TabLayout() {
         name="reviewer-photo"
         options={{
           href: null,
-          title: 'Profile photo',
+          title: t('tabs.profilePhoto'),
           headerShown: false,
         }}
       />
@@ -126,7 +131,7 @@ export default function TabLayout() {
         name="backup-restore"
         options={{
           href: null,
-          title: 'Backup / Restore',
+          title: t('tabs.backupRestore'),
         }}
       />
     </Tabs>

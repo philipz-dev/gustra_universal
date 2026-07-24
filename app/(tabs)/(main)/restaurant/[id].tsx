@@ -16,6 +16,7 @@ import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import type { Review, ReviewOrigin } from '@/data/types';
 import { RatingValue } from '@/services/reviews/ratings';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 function parseOrigin(value: string | undefined): ReviewOrigin | undefined {
   if (value === 'own' || value === 'imported') return value;
@@ -31,6 +32,7 @@ function displayLocation(name: string, city: string, country: string): string {
  * Chronological visits for one restaurant (Swift `RestaurantVisitsView`).
  */
 export default function RestaurantVisitsScreen() {
+  const { t } = useAppTranslation();
   const { id, origin: originParam } = useLocalSearchParams<{
     id: string;
     origin?: string;
@@ -67,12 +69,12 @@ export default function RestaurantVisitsScreen() {
   const confirmDeleteVisit = useCallback(
     (review: Review) => {
       houseAlert(
-        'Delete Visit?',
-        'Deleting this visit will change the overall score for this restaurant.',
+        t('alerts.deleteVisit.title'),
+        t('alerts.deleteVisit.body'),
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: t('common.cancel'), style: 'cancel' },
           {
-            text: 'Delete',
+            text: t('common.delete'),
             style: 'destructive',
             onPress: () => {
               void (async () => {
@@ -94,21 +96,21 @@ export default function RestaurantVisitsScreen() {
         ],
       );
     },
-    [deleteReview, reviews, router],
+    [deleteReview, reviews, router, t],
   );
 
   return (
     <View style={styles.screen}>
       <HouseNavHeader
-        title={restaurant?.name ?? 'Restaurant'}
+        title={restaurant?.name ?? t('detail.restaurant.title')}
         titleSize={Theme.navigation.secondaryTitleSize}
         showBack
         onBack={() => router.back()}
       />
       {reviews.length === 0 || !restaurant ? (
         <HouseEmptyState
-          title="No visits"
-          description="This restaurant has no reviews yet."
+          title={t("detail.restaurant.noVisits")}
+          description={t("detail.restaurant.noReviews")}
           systemImage="fork.knife"
           androidImage="restaurant"
         />
@@ -139,12 +141,10 @@ export default function RestaurantVisitsScreen() {
                   </View>
                 ) : null}
                 <Text style={styles.visitCount}>
-                  {reviews.length === 1
-                    ? '1 visit'
-                    : `${reviews.length} visits`}
+                  {t('detail.restaurant.visitCount', { count: reviews.length })}
                 </Text>
               </View>
-              <Text style={styles.sectionLabel}>Visits</Text>
+              <Text style={styles.sectionLabel}>{t("detail.restaurant.visits")}</Text>
             </View>
           }
           renderItem={({ item }) => (

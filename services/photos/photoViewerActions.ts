@@ -1,6 +1,5 @@
 import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system/legacy';
-import { Asset, requestPermissionsAsync } from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 import { Platform, Share } from 'react-native';
 
@@ -41,19 +40,37 @@ async function presentSystemShare(
   localUri: string,
   dialogTitle: string,
 ): Promise<void> {
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(localUri, {
-      mimeType: 'image/jpeg',
-      dialogTitle,
-      UTI: 'public.jpeg',
-    });
-    return;
+  try {
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(localUri, {
+        mimeType: 'image/jpeg',
+        dialogTitle,
+        UTI: 'public.jpeg',
+      });
+      return;
+    }
+    if (Platform.OS === 'ios') {
+      await Share.share({ url: localUri });
+      return;
+    }
+    throw new Error('Sharing is not available on this device.');
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Sharing is not available')) {
+      throw error;
+    }
+    // User cancel / share sheet dismiss — treat as non-fatal when possible.
+    const message = error instanceof Error ? error.message.toLowerCase() : '';
+    if (
+      message.includes('cancel') ||
+      message.includes('dismiss') ||
+      message.includes('user did not share')
+    ) {
+      return;
+    }
+    throw error instanceof Error
+      ? error
+      : new Error('Could not share photo');
   }
-  if (Platform.OS === 'ios') {
-    await Share.share({ url: localUri });
-    return;
-  }
-  throw new Error('Sharing is not available on this device.');
 }
 
 export async function sharePhotoUri(uri: string): Promise<void> {
@@ -64,9 +81,21 @@ export async function sharePhotoUri(uri: string): Promise<void> {
 /** Save a photo into the device library (Swift `Save to Photos`, add-only). */
 export async function savePhotoUri(uri: string): Promise<void> {
   const local = await ensureLocalPhotoUri(uri);
-  const { status } = await requestPermissionsAsync(true);
+  // Lazy load: a top-level import crashes Expo Go when ExpoMediaLibraryNext
+  // is missing, which then makes review/[id] look like it has no default export.
+  let MediaLibrary: typeof import('expo-media-library');
+  try {
+    MediaLibrary = await import('expo-media-library');
+  } catch {
+    throw new Error('Saving to Photos is not available in this build.');
+  }
+  const { status } = await MediaLibrary.requestPermissionsAsync(true);
   if (status !== 'granted') {
     throw new Error('Photo access needed to save.');
   }
-  await Asset.create(local);
+  try {
+    await MediaLibrary.Asset.create(local);
+  } catch {
+    throw new Error('Could not save photo');
+  }
 }

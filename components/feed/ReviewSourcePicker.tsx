@@ -3,12 +3,14 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle } from '@/constants/Theme';
 import type { ReviewOrigin } from '@/data/types';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { Haptics } from '@/services/haptics';
 
-const OPTIONS: { value: ReviewOrigin; label: string }[] = [
-  { value: 'own', label: 'My reviews' },
-  { value: 'imported', label: "Friends' reviews" },
-];
+const OPTIONS: { value: ReviewOrigin; labelKey: 'reviews.source.mine' | 'reviews.source.friends' }[] =
+  [
+    { value: 'own', labelKey: 'reviews.source.mine' },
+    { value: 'imported', labelKey: 'reviews.source.friends' },
+  ];
 
 type ReviewSourcePickerProps = {
   value: ReviewOrigin;
@@ -17,6 +19,8 @@ type ReviewSourcePickerProps = {
 
 /** Segmented My / Friends control (Swift `reviewSourcePicker`). */
 export function ReviewSourcePicker({ value, onChange }: ReviewSourcePickerProps) {
+  const { t } = useAppTranslation();
+
   return (
     <View style={styles.wrap} accessibilityRole="tablist">
       <View style={styles.track}>
@@ -36,7 +40,7 @@ export function ReviewSourcePicker({ value, onChange }: ReviewSourcePickerProps)
               <Text
                 style={[styles.label, selected && styles.labelSelected]}
                 numberOfLines={1}>
-                {option.label}
+                {t(option.labelKey)}
               </Text>
             </Pressable>
           );

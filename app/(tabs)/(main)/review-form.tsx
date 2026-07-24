@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { NestableScrollContainer } from 'react-native-draggable-flatlist';
+import {
+  ActivityIndicator,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { houseAlert } from '@/components/ui/HouseAlert';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { SymbolView } from 'expo-symbols';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -31,6 +40,7 @@ import { useReviewsStore } from '@/context/ReviewsStore';
 import type { CriterionRating } from '@/data/types';
 import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
+import { safeOpenSettings } from '@/services/linking/safeLinking';
 import { extractTextFromImages } from '@/services/ocr/OCRService';
 import {
   draftAddressLine,
@@ -44,11 +54,18 @@ import {
   saveReviewPhoto,
 } from '@/services/reviews/photoStorage';
 import { RatingValue, hasStarRating } from '@/services/reviews/ratings';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { i18n } from '@/i18n';
+import {
+  activeIntlLocale,
+  formatAbbreviatedDate,
+  formatVisitDateTime,
+} from '@/i18n/formatDates';
 
 function openSettingsAlert(message: string) {
-  houseAlert('Permission needed', message, [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Open Settings', onPress: () => void Linking.openSettings() },
+  houseAlert(i18n.t('alerts.permission.needed'), message, [
+    { text: i18n.t('common.cancel'), style: 'cancel' },
+    { text: i18n.t('common.openSettings'), onPress: () => void safeOpenSettings() },
   ]);
 }
 
@@ -64,22 +81,11 @@ function parseDraftParam(raw: string | undefined): RestaurantDraft | null {
 }
 
 function formatVisitDate(date: Date): string {
-  return date.toLocaleString(undefined, {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  return formatVisitDateTime(date);
 }
 
 function formatShortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return formatAbbreviatedDate(iso);
 }
 
 function criterionIcon(id: string): {
@@ -102,22 +108,45 @@ function criterionIcon(id: string): {
   }
 }
 
+const GENERAL_COMMENT_KEY = '__general__';
+
+type EditBaseline = {
+  visitDateIso: string;
+  isFavorite: boolean;
+  generalComment: string;
+  criteriaState: Record<string, { rating: number; comment: string }>;
+  photoUrls: string[];
+  ocrText: string;
+};
+
 /**
  * Review / Edit form (Swift `ReviewFormView` + `ReviewFormViewModel`).
  * Params: `draft` (JSON), `reviewId` (edit), or `restaurantId` (new visit).
+ *
+ * New visit: autosave (Swift `handleDisappear`).
+ * Edit: explicit save via Done; Back with changes → discard confirm.
  */
 export default function ReviewFormScreen() {
+  const { t } = useAppTranslation();
   const params = useLocalSearchParams<{
     draft?: string;
     reviewId?: string;
     restaurantId?: string;
   }>();
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const keyboardInset = useKeyboardBottomInset();
-  const { scrollRef, scrollInputIntoView } = useScrollInputIntoView();
+  const {
+    scrollRef,
+    scrollInputIntoView,
+    onScroll,
+    clearFocusedInput,
+  } = useScrollInputIntoView();
   const commentInputRefs = useRef<Record<string, TextInput | null>>({});
   const generalCommentRef = useRef<TextInput | null>(null);
+  /** Only keep-visible while focused (Swift `ReviewFormCommentField.isFocused`). */
+  const focusedCommentKeyRef = useRef<string | null>(null);
   const { enabledCriteria, customCriteria } = useCriteriaSettings();
   const {
     ready,
@@ -132,6 +161,7 @@ export default function ReviewFormScreen() {
   const existingReview = params.reviewId
     ? getReview(params.reviewId)
     : undefined;
+  const isEdit = Boolean(existingReview);
 
   const initialDraft = useMemo(() => {
     if (existingReview) {
@@ -172,6 +202,14 @@ export default function ReviewFormScreen() {
   const [datePickerMode, setDatePickerMode] = useState<'date' | 'time'>('date');
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [didDelete, setDidDelete] = useState(false);
+  const [photoDragging, setPhotoDragging] = useState(false);
+  const [ratingScrubbing, setRatingScrubbing] = useState(false);
+
+  /** Stable key for OCR — ignore reorder-only changes. */
+  const photoSetKey = useMemo(
+    () => [...photoUrls].sort().join('\0'),
+    [photoUrls],
+  );
 
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didHydrate = useRef(false);
@@ -189,6 +227,12 @@ export default function ReviewFormScreen() {
   const schedulePersistRef = useRef<() => void>(() => undefined);
   /** Serialize form persists so buildInput sees reviewId from the previous upsert. */
   const persistChainRef = useRef(Promise.resolve());
+  const editBaselineRef = useRef<EditBaseline | null>(null);
+  const isEditRef = useRef(isEdit);
+  isEditRef.current = isEdit;
+  const isEditDirtyRef = useRef(false);
+  const allowLeaveRef = useRef(false);
+  didDeleteRef.current = didDelete;
 
   // Hydrate once store + route params are ready.
   useEffect(() => {
@@ -200,29 +244,45 @@ export default function ReviewFormScreen() {
     activeReviewIdRef.current = existingReview?.id;
 
     if (existingReview) {
-      setVisitDate(new Date(existingReview.date));
-      setGeneralComment(existingReview.generalComment);
-      setPhotoUrls([...existingReview.photoUrls]);
-      photoUrlsRef.current = [...existingReview.photoUrls];
-      setOcrIndexedText(existingReview.ocrText ?? '');
-      ocrIndexedTextRef.current = existingReview.ocrText ?? '';
+      const visitDateValue = new Date(existingReview.date);
+      const photoUrlsCopy = [...existingReview.photoUrls];
+      const ocrText = existingReview.ocrText ?? '';
       const map: Record<string, { rating: number; comment: string }> = {};
       for (const c of existingReview.criteria) {
         map[c.id] = { rating: c.rating, comment: c.comment };
       }
-      setCriteriaState(map);
       const restaurant = getRestaurant(existingReview.restaurantId);
-      setIsFavorite(Boolean(restaurant?.isFavorite));
+      const favorite = Boolean(restaurant?.isFavorite);
+
+      setVisitDate(visitDateValue);
+      setGeneralComment(existingReview.generalComment);
+      setPhotoUrls(photoUrlsCopy);
+      photoUrlsRef.current = photoUrlsCopy;
+      setOcrIndexedText(ocrText);
+      ocrIndexedTextRef.current = ocrText;
+      setCriteriaState(map);
+      setIsFavorite(favorite);
       persistedRef.current = true;
+      editBaselineRef.current = {
+        visitDateIso: visitDateValue.toISOString(),
+        isFavorite: favorite,
+        generalComment: existingReview.generalComment,
+        criteriaState: map,
+        photoUrls: photoUrlsCopy,
+        ocrText,
+      };
     } else {
       const match = findExistingRestaurant(initialDraft, restaurants);
       setIsFavorite(Boolean(match?.isFavorite));
       setVisitDate(new Date());
+      editBaselineRef.current = null;
     }
 
     requestAnimationFrame(() => {
       setInitialLoadComplete(true);
       initialLoadCompleteRef.current = true;
+      // Edit hydrate mounts multiline comments — stay at top (no keep-visible yet).
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
     });
   }, [existingReview, getRestaurant, initialDraft, ready, restaurants]);
 
@@ -347,6 +407,8 @@ export default function ReviewFormScreen() {
   );
 
   const schedulePersist = useCallback(() => {
+    // Edit mode: only Done writes — never background-autosave.
+    if (isEditRef.current) return;
     if (!initialLoadComplete || isSaving) return;
     if (persistTimer.current) clearTimeout(persistTimer.current);
     persistTimer.current = setTimeout(() => {
@@ -357,14 +419,55 @@ export default function ReviewFormScreen() {
   persistNowRef.current = persistNow;
   schedulePersistRef.current = schedulePersist;
 
+  const isEditDirty = useMemo(() => {
+    if (!isEdit || !editBaselineRef.current || !initialLoadComplete) {
+      return false;
+    }
+    const baseline = editBaselineRef.current;
+    if (visitDate.toISOString() !== baseline.visitDateIso) return true;
+    if (isFavorite !== baseline.isFavorite) return true;
+    if (generalComment !== baseline.generalComment) return true;
+    if (ocrIndexedText !== baseline.ocrText) return true;
+    if (photoUrls.length !== baseline.photoUrls.length) return true;
+    if (photoUrls.some((uri, index) => uri !== baseline.photoUrls[index])) {
+      return true;
+    }
+    for (const criterion of enabledCriteria) {
+      const current = criteriaState[criterion.id] ?? {
+        rating: 0,
+        comment: '',
+      };
+      const base = baseline.criteriaState[criterion.id] ?? {
+        rating: 0,
+        comment: '',
+      };
+      if (current.rating !== base.rating || current.comment !== base.comment) {
+        return true;
+      }
+    }
+    return false;
+  }, [
+    criteriaState,
+    enabledCriteria,
+    generalComment,
+    initialLoadComplete,
+    isEdit,
+    isFavorite,
+    ocrIndexedText,
+    photoUrls,
+    visitDate,
+  ]);
+  isEditDirtyRef.current = isEditDirty;
+
   // OCR index review photos into searchable text (Swift `indexPhotos`).
+  // Depend on photo *set*, not order — reorder must not re-index / jump UI.
   useEffect(() => {
     if (!initialLoadComplete) return;
     const generation = ++ocrIndexGeneration.current;
     let cancelled = false;
 
     const run = async () => {
-      if (photoUrls.length === 0) {
+      if (photoUrlsRef.current.length === 0) {
         if (ocrIndexedTextRef.current) {
           setOcrIndexedText('');
           ocrIndexedTextRef.current = '';
@@ -375,7 +478,7 @@ export default function ReviewFormScreen() {
       }
 
       setIsIndexingPhotos(true);
-      const text = await extractTextFromImages(photoUrls);
+      const text = await extractTextFromImages(photoUrlsRef.current);
       if (cancelled || generation !== ocrIndexGeneration.current) return;
       const next = text.trim();
       if (next !== ocrIndexedTextRef.current) {
@@ -390,12 +493,27 @@ export default function ReviewFormScreen() {
     return () => {
       cancelled = true;
     };
-  }, [initialLoadComplete, photoUrls]);
+  }, [initialLoadComplete, photoSetKey]);
 
-  // Autosave on leave (Swift `handleDisappear`) + cleanup never-persisted photos.
+  // New visit: autosave on leave (Swift `handleDisappear`).
+  // Edit: never autosave — Done saves; discard cleans newly added photos.
   useEffect(() => {
     return () => {
       if (persistTimer.current) clearTimeout(persistTimer.current);
+      if (isEditRef.current) {
+        if (
+          !allowLeaveRef.current &&
+          !didDeleteRef.current &&
+          editBaselineRef.current
+        ) {
+          const baselinePhotos = new Set(editBaselineRef.current.photoUrls);
+          const added = photoUrlsRef.current.filter(
+            (uri) => !baselinePhotos.has(uri),
+          );
+          if (added.length > 0) void deleteReviewPhotoFiles(added);
+        }
+        return;
+      }
       if (!didDeleteRef.current && initialLoadCompleteRef.current) {
         void persistNowRef.current(false);
       } else if (!persistedRef.current && photoUrlsRef.current.length > 0) {
@@ -405,11 +523,64 @@ export default function ReviewFormScreen() {
   }, []);
 
   const leaveToReviews = useCallback(() => {
+    allowLeaveRef.current = true;
     if (router.canDismiss()) {
       router.dismissAll();
     }
     router.navigate('/(tabs)/(main)');
   }, [router]);
+
+  const discardEditPhotos = useCallback(() => {
+    const baseline = editBaselineRef.current;
+    if (!baseline) return;
+    const baselinePhotos = new Set(baseline.photoUrls);
+    const added = photoUrlsRef.current.filter((uri) => !baselinePhotos.has(uri));
+    if (added.length > 0) void deleteReviewPhotoFiles(added);
+  }, []);
+
+  const promptDiscardEdits = useCallback(
+    (onDiscard: () => void) => {
+      Haptics.warning();
+      houseAlert(
+        t('alerts.reviewForm.discardEdits.title'),
+        t('alerts.reviewForm.discardEdits.body'),
+        [
+          {
+            text: t('alerts.reviewForm.discardEdits.keepEditing'),
+            style: 'cancel',
+          },
+          {
+            text: t('alerts.reviewForm.discardEdits.discard'),
+            style: 'destructive',
+            onPress: () => {
+              discardEditPhotos();
+              allowLeaveRef.current = true;
+              onDiscard();
+            },
+          },
+        ],
+      );
+    },
+    [discardEditPhotos, t],
+  );
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (event) => {
+      if (
+        !isEditRef.current ||
+        allowLeaveRef.current ||
+        didDeleteRef.current ||
+        !isEditDirtyRef.current
+      ) {
+        return;
+      }
+      event.preventDefault();
+      promptDiscardEdits(() => {
+        navigation.dispatch(event.data.action);
+      });
+    });
+    return unsubscribe;
+  }, [navigation, promptDiscardEdits]);
 
   const onDone = useCallback(async () => {
     if (isSaving || !showsDone) return;
@@ -417,20 +588,38 @@ export default function ReviewFormScreen() {
     const ok = await persistNow(true);
     if (!ok) {
       Haptics.warning();
-      houseAlert('Review', 'Add at least one star rating to finish.');
+      houseAlert(t('forms.review.title'), t('alerts.reviewForm.needStars'));
       return;
     }
     Haptics.success();
+    allowLeaveRef.current = true;
     leaveToReviews();
-  }, [isSaving, leaveToReviews, persistNow, showsDone]);
+  }, [isSaving, leaveToReviews, persistNow, showsDone, t]);
 
-  const onBack = useCallback(async () => {
+  const onBack = useCallback(() => {
     if (persistTimer.current) clearTimeout(persistTimer.current);
-    if (initialLoadComplete && !didDelete) {
-      await persistNow(false);
+    // Edit + dirty → beforeRemove shows discard sheet. Clean leave otherwise.
+    if (isEdit && isEditDirty) {
+      router.back();
+      return;
     }
+    if (!isEdit && initialLoadComplete && !didDelete) {
+      void persistNow(false).finally(() => {
+        allowLeaveRef.current = true;
+        router.back();
+      });
+      return;
+    }
+    allowLeaveRef.current = true;
     router.back();
-  }, [didDelete, initialLoadComplete, persistNow, router]);
+  }, [
+    didDelete,
+    initialLoadComplete,
+    isEdit,
+    isEditDirty,
+    persistNow,
+    router,
+  ]);
 
   const setCriterionRating = (id: string, rating: number) => {
     setCriteriaState((prev) => ({
@@ -460,12 +649,12 @@ export default function ReviewFormScreen() {
     if (selectedPhotosForRemoval.length === 0) return;
     const toRemove = [...selectedPhotosForRemoval];
     houseAlert(
-      'Remove Photos?',
-      'Selected photos will be permanently deleted. This cannot be undone.',
+      t('alerts.reviewForm.removePhotosTitle'),
+      t('alerts.reviewForm.removePhotosBody'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Remove',
+          text: t('common.remove'),
           style: 'destructive',
           onPress: () => {
             const removeSet = new Set(toRemove);
@@ -493,7 +682,7 @@ export default function ReviewFormScreen() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       openSettingsAlert(
-        'Photo library access is required to add review photos. Enable it in Settings.',
+        t('alerts.permission.photos'),
       );
       return;
     }
@@ -522,7 +711,7 @@ export default function ReviewFormScreen() {
       }
     } catch {
       Haptics.error();
-      houseAlert('Photos', 'Could not save one or more photos.');
+      houseAlert(t('forms.review.photos'), t('alerts.reviewForm.photosSaveFailed'));
     } finally {
       setIsImportingPhotos(false);
     }
@@ -532,7 +721,7 @@ export default function ReviewFormScreen() {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
       openSettingsAlert(
-        'Camera access is required to take review photos. Enable it in Settings.',
+        t('alerts.permission.camera'),
       );
       return;
     }
@@ -553,7 +742,7 @@ export default function ReviewFormScreen() {
       schedulePersist();
     } catch {
       Haptics.error();
-      houseAlert('Photos', 'Could not save the photo.');
+      houseAlert(t('forms.review.photos'), t('alerts.photos.saveFailed'));
     } finally {
       setIsImportingPhotos(false);
     }
@@ -565,10 +754,10 @@ export default function ReviewFormScreen() {
 
   const confirmDelete = () => {
     if (!activeReviewId && !existingReview) return;
-    houseAlert('Delete?', 'This review will be permanently removed.', [
-      { text: 'Cancel', style: 'cancel' },
+    houseAlert(t('alerts.reviewForm.deleteTitle'), t('alerts.reviewForm.deleteBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: () => {
           void (async () => {
@@ -585,19 +774,21 @@ export default function ReviewFormScreen() {
     ]);
   };
 
-  // Tab bar hides while the keyboard is up — drop its clearance and pad by keyboard height.
+  // Tab bar hides while the keyboard is up. iOS uses ScrollView keyboard insets;
+  // Android resize + manual pad when the inset reports a height.
   const bottomPad =
-    (keyboardInset > 0
-      ? keyboardInset + 24
-      : Theme.spacing.floatingTabBarClearance + insets.bottom + 24);
+    keyboardInset > 0
+      ? Platform.OS === 'ios'
+        ? 24
+        : keyboardInset + 24
+      : Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
   const addressLine = draft ? draftAddressLine(draft) : null;
-  const isEdit = Boolean(existingReview);
 
   if (!ready || !draft) {
     return (
       <View style={styles.screen}>
         <HouseNavHeader
-          title={isEdit ? 'Edit' : 'Review'}
+          title={isEdit ? t('forms.review.editTitle') : t('forms.review.title')}
           titleSize={Theme.navigation.secondaryTitleSize}
           showBack
           onBack={() => router.back()}
@@ -612,7 +803,7 @@ export default function ReviewFormScreen() {
   return (
     <View style={styles.screen}>
       <HouseNavHeader
-        title={isEdit ? 'Edit' : 'Review'}
+        title={isEdit ? t('forms.review.editTitle') : t('forms.review.title')}
         titleSize={Theme.navigation.secondaryTitleSize}
         showBack
         onBack={() => void onBack()}
@@ -621,7 +812,7 @@ export default function ReviewFormScreen() {
             <HouseToolbarIconButton
               iosName="checkmark"
               androidName="check"
-              accessibilityLabel="Done"
+              accessibilityLabel={t("forms.review.done")}
               disabled={isSaving}
               onPress={() => void onDone()}
             />
@@ -629,11 +820,14 @@ export default function ReviewFormScreen() {
         }
       />
 
-      <NestableScrollContainer
-        ref={scrollRef as never}
+      <ScrollView
+        ref={scrollRef}
+        scrollEnabled={!photoDragging && !ratingScrubbing}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
-        automaticallyAdjustKeyboardInsets={false}
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
         overScrollMode="never">
           <View style={styles.card}>
@@ -648,7 +842,7 @@ export default function ReviewFormScreen() {
                 favorite={isFavorite}
                 onToggle={(next) => {
                   setIsFavorite(next);
-                  if (initialLoadComplete) void persistNow(false);
+                  if (initialLoadComplete && !isEdit) void persistNow(false);
                 }}
               />
             </View>
@@ -657,21 +851,19 @@ export default function ReviewFormScreen() {
           {revisitCount > 0 ? (
             <View style={styles.card}>
               <Text style={styles.revisitTitle}>
-                {revisitCount === 1
-                  ? '1 other visit at this restaurant'
-                  : `${revisitCount} other visits at this restaurant`}
+                {t('forms.review.otherVisits', { count: revisitCount })}
               </Text>
               <View style={styles.revisitMeta}>
                 {lastVisitIso ? (
                   <Text style={styles.revisitMetaText}>
-                    Most recent {formatShortDate(lastVisitIso)}
+                    {t('forms.review.mostRecent', { date: formatShortDate(lastVisitIso) })}
                   </Text>
                 ) : null}
                 {revisitAverage > 0 ? (
                   <View style={styles.revisitScore}>
                     <FractionalStarRating score={revisitAverage} size={16} />
                     <Text style={styles.revisitMetaText}>
-                      {revisitAverage.toFixed(1)} avg
+                      {t('forms.review.avg', { score: revisitAverage.toFixed(1) })}
                     </Text>
                   </View>
                 ) : null}
@@ -680,10 +872,10 @@ export default function ReviewFormScreen() {
           ) : null}
 
           <View style={styles.card}>
-            <FormSectionTitle title="Visit date" />
+            <FormSectionTitle title={t("forms.review.visitDate")} />
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Visit date"
+              accessibilityLabel={t("forms.review.visitDate")}
               onPress={() => {
                 setDatePickerMode('date');
                 setShowDatePicker(true);
@@ -711,7 +903,7 @@ export default function ReviewFormScreen() {
           </View>
 
           <View style={styles.card}>
-            <FormSectionTitle title="Ratings" />
+            <FormSectionTitle title={t("forms.review.ratings")} />
             {enabledCriteria.map((criterion, offset) => {
               const icons = criterionIcon(criterion.id);
               const state = criteriaState[criterion.id] ?? {
@@ -747,6 +939,7 @@ export default function ReviewFormScreen() {
                         onChange={(rating) =>
                           setCriterionRating(criterion.id, rating)
                         }
+                        onScrubbingChange={setRatingScrubbing}
                       />
                       {RatingValue.isStarRating(state.rating) ? (
                         <TextInput
@@ -757,18 +950,28 @@ export default function ReviewFormScreen() {
                           onChangeText={(text) =>
                             setCriterionComment(criterion.id, text)
                           }
-                          onFocus={() =>
+                          onFocus={() => {
+                            focusedCommentKeyRef.current = criterion.id;
                             scrollInputIntoView(
                               commentInputRefs.current[criterion.id] ?? null,
-                            )
-                          }
-                          onContentSizeChange={() =>
+                            );
+                          }}
+                          onBlur={() => {
+                            if (focusedCommentKeyRef.current === criterion.id) {
+                              focusedCommentKeyRef.current = null;
+                            }
+                            clearFocusedInput();
+                          }}
+                          onContentSizeChange={() => {
+                            if (focusedCommentKeyRef.current !== criterion.id) {
+                              return;
+                            }
                             scrollInputIntoView(
                               commentInputRefs.current[criterion.id] ?? null,
                               90,
-                            )
-                          }
-                          placeholder="Optional comment"
+                            );
+                          }}
+                          placeholder={t("forms.review.optionalComment")}
                           placeholderTextColor="rgba(35, 32, 26, 0.4)"
                           multiline
                           style={styles.commentField}
@@ -782,7 +985,7 @@ export default function ReviewFormScreen() {
           </View>
 
           <View style={styles.card}>
-            <FormSectionTitle title="General comments" />
+            <FormSectionTitle title={t("forms.review.generalComments")} />
             <TextInput
               ref={generalCommentRef}
               value={generalComment}
@@ -790,11 +993,23 @@ export default function ReviewFormScreen() {
                 setGeneralComment(text);
                 schedulePersist();
               }}
-              onFocus={() => scrollInputIntoView(generalCommentRef.current)}
-              onContentSizeChange={() =>
-                scrollInputIntoView(generalCommentRef.current, 90)
-              }
-              placeholder="Optional comment"
+              onFocus={() => {
+                focusedCommentKeyRef.current = GENERAL_COMMENT_KEY;
+                scrollInputIntoView(generalCommentRef.current);
+              }}
+              onBlur={() => {
+                if (focusedCommentKeyRef.current === GENERAL_COMMENT_KEY) {
+                  focusedCommentKeyRef.current = null;
+                }
+                clearFocusedInput();
+              }}
+              onContentSizeChange={() => {
+                if (focusedCommentKeyRef.current !== GENERAL_COMMENT_KEY) {
+                  return;
+                }
+                scrollInputIntoView(generalCommentRef.current, 90);
+              }}
+              placeholder={t("forms.review.optionalComment")}
               placeholderTextColor="rgba(35, 32, 26, 0.4)"
               multiline
               style={[styles.commentField, styles.generalComment]}
@@ -802,7 +1017,7 @@ export default function ReviewFormScreen() {
           </View>
 
           <View style={styles.card}>
-            <FormSectionTitle title="Photos" />
+            <FormSectionTitle title={t("forms.review.photos")} />
             <ReorderablePhotoStrip
               photoUrls={photoUrls}
               selectedUris={selectedPhotosForRemoval}
@@ -814,12 +1029,13 @@ export default function ReviewFormScreen() {
               onToggleSelect={togglePhotoSelection}
               onAddPress={showPhotoSourcePicker}
               isImporting={isImportingPhotos}
+              onDraggingChange={setPhotoDragging}
             />
 
             {selectedPhotosForRemoval.length > 0 ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Remove Photos"
+                accessibilityLabel={t("forms.review.removePhotos")}
                 onPress={confirmRemoveSelectedPhotos}
                 style={({ pressed }) => [
                   styles.removePhotosBtn,
@@ -839,7 +1055,7 @@ export default function ReviewFormScreen() {
                     color={GustraColors.ratingAvoid}
                   />
                 )}
-                <Text style={styles.removePhotosLabel}>Remove Photos</Text>
+                <Text style={styles.removePhotosLabel}>{t('forms.review.removePhotos')}</Text>
               </Pressable>
             ) : null}
 
@@ -849,7 +1065,7 @@ export default function ReviewFormScreen() {
                   size="small"
                   color={GustraColors.forestGreen}
                 />
-                <Text style={styles.indexingLabel}>Indexing photo text…</Text>
+                <Text style={styles.indexingLabel}>{t('forms.review.indexing')}</Text>
               </View>
             ) : null}
           </View>
@@ -857,7 +1073,7 @@ export default function ReviewFormScreen() {
           {isEdit || activeReviewId ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Delete"
+              accessibilityLabel={t("forms.review.delete")}
               onPress={confirmDelete}
               style={({ pressed }) => [
                 styles.deleteBtn,
@@ -881,11 +1097,11 @@ export default function ReviewFormScreen() {
               )}
             </Pressable>
           ) : null}
-        </NestableScrollContainer>
+        </ScrollView>
 
       <PhotoSourceChooserModal
         visible={showPhotoSourceChooser}
-        title="Add Photos"
+        title={t("forms.review.addPhotos")}
         isImporting={isImportingPhotos}
         onClose={() => {
           if (!isImportingPhotos) setShowPhotoSourceChooser(false);
@@ -912,13 +1128,13 @@ export default function ReviewFormScreen() {
         onRequestClose={() => setShowDatePicker(false)}>
         <View style={[styles.dateModal, { paddingTop: insets.top }]}>
           <HouseNavHeader
-            title="Visit date"
+            title={t("forms.review.visitDate")}
             titleSize={Theme.navigation.secondaryTitleSize}
             right={
               <HouseToolbarIconButton
                 iosName="checkmark"
                 androidName="check"
-                accessibilityLabel="Done"
+                accessibilityLabel={t("forms.review.done")}
                 onPress={() => setShowDatePicker(false)}
               />
             }
@@ -937,12 +1153,14 @@ export default function ReviewFormScreen() {
                 }
                 if (!selected) return;
                 setVisitDate(selected);
-                if (initialLoadComplete) void persistNow(false);
+                if (initialLoadComplete && !isEdit) void persistNow(false);
               }}
             />
             {Platform.OS === 'ios' ? (
               <View style={styles.timeBlock}>
-                <Text style={styles.timeCaption}>Time</Text>
+                <Text style={styles.timeCaption}>
+                  {t('forms.review.time')}
+                </Text>
                 <DateTimePicker
                   value={visitDate}
                   mode="time"
@@ -953,7 +1171,7 @@ export default function ReviewFormScreen() {
                   onChange={(_, selected) => {
                     if (!selected) return;
                     setVisitDate(selected);
-                    if (initialLoadComplete) void persistNow(false);
+                    if (initialLoadComplete && !isEdit) void persistNow(false);
                   }}
                 />
               </View>
@@ -965,10 +1183,11 @@ export default function ReviewFormScreen() {
                 }}
                 style={styles.androidTimeBtn}>
                 <Text style={styles.dateLabel}>
-                  Set time ·{' '}
-                  {visitDate.toLocaleTimeString(undefined, {
-                    hour: 'numeric',
-                    minute: '2-digit',
+                  {t('forms.review.setTime', {
+                    time: visitDate.toLocaleTimeString(activeIntlLocale(), {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    }),
                   })}
                 </Text>
               </Pressable>

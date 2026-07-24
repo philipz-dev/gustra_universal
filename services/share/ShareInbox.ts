@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 
 import {
   SHARE_FILE_EXTENSION,
@@ -8,6 +9,47 @@ import {
 
 const PENDING_KEY = 'gustra.share.pendingShareImport';
 const FILENAME_KEY = 'gustra.share.pendingShareFilename';
+
+/**
+ * Stage a share package into Documents/ShareInbox.
+ *
+ * Android DocumentPicker cache URIs often reject `copyAsync` ("isn't readable").
+ * Prefer UTF-8 read/write there; use copyAsync on iOS / other local paths.
+ */
+async function copySharePackageToInbox(
+  sourceUri: string,
+  destination: string,
+): Promise<void> {
+  const preferReadWrite =
+    Platform.OS === 'android' ||
+    /DocumentPicker|content:\/\//i.test(sourceUri);
+
+  if (!preferReadWrite) {
+    try {
+      await FileSystem.copyAsync({ from: sourceUri, to: destination });
+      return;
+    } catch {
+      // Fall through — rare iOS / content-URI quirks.
+    }
+  }
+
+  try {
+    const raw = await FileSystem.readAsStringAsync(sourceUri, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+    await FileSystem.writeAsStringAsync(destination, raw, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+  } catch {
+    // Last resort: binary-safe path for odd encodings / SAF quirks.
+    const raw = await FileSystem.readAsStringAsync(sourceUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    await FileSystem.writeAsStringAsync(destination, raw, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  }
+}
 
 /**
  * Local share-file staging for picker / document open (Documents/ShareInbox/).
@@ -69,6 +111,9 @@ export const ShareInbox = {
   /**
    * Copy a share package into the inbox and mark it pending
    * (Swift `ShareInbox.stageShareFile`).
+   *
+   * On Android (esp. Expo Go), DocumentPicker cache URIs often fail
+   * `copyAsync` with "isn't readable" — fall back to UTF-8 read/write.
    */
   async stageShareFile(
     sourceUri: string,
@@ -96,7 +141,7 @@ export const ShareInbox = {
     const inbox = await this.ensureInbox();
     await this.clearInbox();
     const destination = `${inbox}${filename}`;
-    await FileSystem.copyAsync({ from: sourceUri, to: destination });
+    await copySharePackageToInbox(sourceUri, destination);
     await AsyncStorage.setItem(PENDING_KEY, 'true');
     await AsyncStorage.setItem(FILENAME_KEY, filename);
     return destination;

@@ -5,6 +5,10 @@ import type {
   ReviewOrigin,
 } from '@/data/types';
 import { resolveReviewOrigin } from '@/data/types';
+import {
+  formatAbbreviatedDate,
+  formatReviewDateTime,
+} from '@/i18n/formatDates';
 
 /** Curated Unsplash stills — dishes & dining interiors (w=800 for feed/detail). */
 const photos = {
@@ -278,11 +282,7 @@ export const mockReviews: Review[] = [
 ];
 
 function formatAbbreviated(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return formatAbbreviatedDate(iso);
 }
 
 export function getRestaurant(id: string): Restaurant | undefined {
@@ -347,11 +347,31 @@ export function getFeedSummaries(
 }
 
 export function formatReviewDate(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  return formatReviewDateTime(iso);
+}
+
+const SEED_RESTAURANT_IDS = new Set(mockRestaurants.map((r) => r.id));
+const SEED_REVIEW_IDS = new Set(mockReviews.map((r) => r.id));
+
+/**
+ * Remove the shipping demo seed. Keeps anything the user created
+ * (including restaurants still referenced by non-seed reviews).
+ */
+export function stripShippingSeedData(
+  restaurants: Restaurant[],
+  reviews: Review[],
+): { restaurants: Restaurant[]; reviews: Review[]; stripped: boolean } {
+  const nextReviews = reviews.filter((r) => !SEED_REVIEW_IDS.has(r.id));
+  const keptRestaurantIds = new Set(nextReviews.map((r) => r.restaurantId));
+  const nextRestaurants = restaurants.filter(
+    (r) => !SEED_RESTAURANT_IDS.has(r.id) || keptRestaurantIds.has(r.id),
+  );
+  const stripped =
+    nextReviews.length !== reviews.length ||
+    nextRestaurants.length !== restaurants.length;
+  return {
+    restaurants: nextRestaurants,
+    reviews: nextReviews,
+    stripped,
+  };
 }

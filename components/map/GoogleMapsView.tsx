@@ -35,14 +35,18 @@ type GoogleMapsViewProps = {
   markers: GoogleMapMarker[];
   showsUserLocation?: boolean;
   userLocation?: LatLng | null;
-  /** Fit camera to markers (+ optional user) after load / marker updates. */
+  /**
+   * Fit camera to markers (+ optional user) once when the map becomes ready
+   * (and when markers first appear). Does not re-fit on later marker updates
+   * so pan/zoom survives navigation.
+   */
   fitToMarkers?: boolean;
   /** Extra coordinate included in fit bounds (e.g. user). */
   fitIncludeCoordinate?: LatLng | null;
   /** Bottom map padding in CSS px (tab bar clearance). */
   mapPaddingBottom?: number;
   onReady?: () => void;
-  onIdle?: (center: LatLng, radiusMeters: number) => void;
+  onIdle?: (center: LatLng, radiusMeters: number, zoom: number) => void;
   onMarkerPress?: (id: string) => void;
   onMapPress?: () => void;
 };
@@ -73,6 +77,8 @@ export const GoogleMapsView = forwardRef<
 ) {
   const webRef = useRef<WebView>(null);
   const readyRef = useRef(false);
+  /** One-shot auto-fit so returning from a review does not reset the camera. */
+  const didAutoFitRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const markersRef = useRef(markers);
   markersRef.current = markers;
@@ -98,7 +104,13 @@ export const GoogleMapsView = forwardRef<
   );
 
   const inject = (js: string) => {
-    webRef.current?.injectJavaScript(`${js}; true;`);
+    try {
+      // Android loads injectJavaScript as a javascript: URL — bare `#` truncates
+      // the script (hex pin colors like #388C57 never reached the map).
+      webRef.current?.injectJavaScript(`${js.replace(/#/g, '\\u0023')}; true;`);
+    } catch {
+      // WebView may be unmounted mid-update — ignore.
+    }
   };
 
   const applyFit = () => {
@@ -111,9 +123,21 @@ export const GoogleMapsView = forwardRef<
     if (include) {
       points.push({ lat: include.latitude, lng: include.longitude });
     }
+    if (points.length === 0) return;
     inject(
       `window.__gustraFitBounds(${JSON.stringify(points)}, ${JSON.stringify(fitRef.current.mapPaddingBottom)})`,
     );
+    didAutoFitRef.current = true;
+  };
+
+  const applyFitOnce = () => {
+    if (didAutoFitRef.current) return;
+    if (!fitRef.current.fitToMarkers) {
+      // Caller restored camera via initialCenter/zoom — don't auto-fit later.
+      didAutoFitRef.current = true;
+      return;
+    }
+    applyFit();
   };
 
   useImperativeHandle(ref, () => ({
@@ -134,13 +158,14 @@ export const GoogleMapsView = forwardRef<
       inject(
         `window.__gustraFitBounds(${JSON.stringify(points)}, ${JSON.stringify(padding)})`,
       );
+      didAutoFitRef.current = true;
     },
   }));
 
   useEffect(() => {
     if (!readyRef.current) return;
     inject(`window.__gustraSetMarkers(${JSON.stringify(markers)})`);
-    applyFit();
+    applyFitOnce();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [markers]);
 
@@ -156,7 +181,7 @@ export const GoogleMapsView = forwardRef<
         lng: userLocation.longitude,
       })})`,
     );
-    applyFit();
+    applyFitOnce();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showsUserLocation, userLocation]);
 
@@ -168,6 +193,7 @@ export const GoogleMapsView = forwardRef<
         lat?: number;
         lng?: number;
         radius?: number;
+        zoom?: number;
         message?: string;
       };
       if (payload.type === 'error') {
@@ -190,7 +216,7 @@ export const GoogleMapsView = forwardRef<
             })})`,
           );
         }
-        applyFit();
+        applyFitOnce();
         onReady?.();
         return;
       }
@@ -198,6 +224,7 @@ export const GoogleMapsView = forwardRef<
         onIdle?.(
           { latitude: payload.lat, longitude: payload.lng },
           payload.radius ?? 2000,
+          typeof payload.zoom === 'number' ? payload.zoom : initialZoom,
         );
         return;
       }
@@ -296,14 +323,21 @@ function buildMapHtml(options: {
     }
 
     function pinIcon(color, selected) {
+      // Match Swift GMSMarker.markerImage(with:) — teardrop “flag” pin, not a circle.
       var scale = selected ? 1.55 : 1;
+      var w = Math.round(28 * scale);
+      var h = Math.round(40 * scale);
+      var fill = (color || FOREST).replace(/"/g, '');
+      var svg =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 28 40">' +
+        '<path fill="' + fill + '" stroke="#FFFFFF" stroke-width="1.75" ' +
+        'd="M14 1.25C7.55 1.25 2.25 6.55 2.25 13c0 8.6 10.35 21.05 11.15 21.95a1.1 1.1 0 0 0 1.6 0C15.8 34.05 25.75 21.6 25.75 13c0-6.45-5.3-11.75-11.75-11.75z"/>' +
+        '<circle fill="#FFFFFF" cx="14" cy="13" r="4.75"/>' +
+        '</svg>';
       return {
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: 10 * scale,
-        fillColor: color || FOREST,
-        fillOpacity: 1,
-        strokeColor: '#FFFFFF',
-        strokeWeight: 2,
+        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+        scaledSize: new google.maps.Size(w, h),
+        anchor: new google.maps.Point(w / 2, h),
       };
     }
 
@@ -409,6 +443,7 @@ function buildMapHtml(options: {
             type: 'idle',
             lat: c.lat(),
             lng: c.lng(),
+            zoom: map.getZoom(),
             radius: visibleRadiusMeters(),
           });
         });

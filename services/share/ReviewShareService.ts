@@ -25,12 +25,17 @@ export type ShareReviewBackup = Omit<ReviewBackup, 'date'> & {
   date: string;
 };
 
-/** Matches Swift `SharePackage`. */
+/** Matches Swift `SharePackage` (+ optional Expo `sharedById`). */
 export type SharePackage = {
   schemaVersion: number;
   appVersion: string;
   exportedAt: string;
   sharedBy: string;
+  /**
+   * Stable author UUID (Expo). Older Swift packages omit this — importers
+   * mint one id per package so all visits from that share stay grouped.
+   */
+  sharedById?: string | null;
   sharedByPhoto: string | null;
   restaurants: RestaurantBackup[];
   reviews: ShareReviewBackup[];
@@ -102,6 +107,7 @@ export function makeSharePackage(args: {
   reviews: Review[];
   restaurants: Restaurant[];
   sharedBy: string;
+  sharedById?: string | null;
   sharedByPhotoBase64?: string | null;
   appVersion?: string;
 }): SharePackage {
@@ -111,9 +117,16 @@ export function makeSharePackage(args: {
   const idMap = new Map<string, string>();
   const usedRestaurants = new Map<string, RestaurantBackup>();
   const reviews: ShareReviewBackup[] = [];
+  const sharedById =
+    args.sharedById?.trim() || Crypto.randomUUID();
 
   for (const review of args.reviews) {
-    reviews.push(reviewToShareBackup(review, idMap));
+    const shareReview = reviewToShareBackup(review, idMap);
+    // Own shares: stamp package author id onto each visit for the importer.
+    reviews.push({
+      ...shareReview,
+      reviewedById: shareReview.reviewedById?.trim() || sharedById,
+    });
     const restaurant = restaurantsById.get(review.restaurantId);
     if (restaurant) {
       const shareRestaurantId = mappedId(restaurant.id, idMap);
@@ -132,14 +145,18 @@ export function makeSharePackage(args: {
     Constants.nativeAppVersion ??
     '1.0.0';
 
+  // Keep structural keys before photo blobs so content sniffs (and humans)
+  // still see `"restaurants"` / `"reviews"` near the start of the file.
+  // Swift historically puts `sharedByPhoto` earlier; decoders ignore key order.
   return {
     schemaVersion: SHARE_SCHEMA_VERSION,
     appVersion,
     exportedAt: toShareIso8601(new Date()),
     sharedBy: args.sharedBy.trim(),
-    sharedByPhoto: args.sharedByPhotoBase64 ?? null,
+    sharedById,
     restaurants: [...usedRestaurants.values()],
     reviews,
+    sharedByPhoto: args.sharedByPhotoBase64 ?? null,
     photoFiles: {},
   };
 }
@@ -194,6 +211,7 @@ export async function shareReviewsPackage(args: {
   reviews: Review[];
   restaurants: Restaurant[];
   sharedBy: string;
+  sharedById?: string | null;
   sharedByPhotoBase64?: string | null;
 }): Promise<string> {
   if (args.reviews.length === 0) {

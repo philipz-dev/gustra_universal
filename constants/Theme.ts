@@ -145,10 +145,7 @@ export const Theme = {
     sectionHeaderSize: 13,
     rowMinHeight: Platform.OS === 'android' ? 48 : 44,
     separator: 'rgba(35, 32, 26, 0.1)',
-    cardBackground:
-      Platform.OS === 'android'
-        ? 'rgba(236, 227, 207, 0.72)'
-        : 'rgba(236, 227, 207, 0.55)',
+    cardBackground: 'rgba(236, 227, 207, 0.55)',
     androidRipple: 'rgba(36, 78, 57, 0.12)',
   },
 

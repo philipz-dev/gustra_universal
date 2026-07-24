@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -19,16 +18,19 @@ import { PhotoSourceChooserBody } from '@/components/ui/PhotoSourceChooser';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, bodyTextStyle } from '@/constants/Theme';
 import { useReviewerProfile } from '@/context/ReviewerProfile';
+import { safeOpenSettings } from '@/services/linking/safeLinking';
 import {
   renderCroppedSquare,
   type CropTransform,
   type ImageSize,
 } from '@/services/photos/circularCrop';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { i18n } from '@/i18n';
 
 function openSettingsAlert(message: string) {
-  houseAlert('Permission needed', message, [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Open Settings', onPress: () => void Linking.openSettings() },
+  houseAlert(i18n.t('alerts.permission.needed'), message, [
+    { text: i18n.t('common.cancel'), style: 'cancel' },
+    { text: i18n.t('common.openSettings'), onPress: () => void safeOpenSettings() },
   ]);
 }
 
@@ -37,6 +39,7 @@ function openSettingsAlert(message: string) {
  * Take / Import → circular pinch/pan crop → confirm (checkmark) or discard.
  */
 export default function ReviewerPhotoEditorScreen() {
+  const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
   const { hasPhoto, photoUri, setPhotoFromUri, clearPhoto } =
     useReviewerProfile();
@@ -84,7 +87,7 @@ export default function ReviewerPhotoEditorScreen() {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
       openSettingsAlert(
-        'Camera access is required to take a profile photo. Enable it in Settings.',
+        t('alerts.permission.camera'),
       );
       return;
     }
@@ -95,13 +98,13 @@ export default function ReviewerPhotoEditorScreen() {
     });
     if (result.canceled || !result.assets[0]?.uri) return;
     setDraft(result.assets[0].uri);
-  }, [setDraft]);
+  }, [setDraft, t]);
 
   const importPhoto = useCallback(async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       openSettingsAlert(
-        'Photo library access is required to import a profile photo. Enable it in Settings.',
+        t('alerts.permission.photos'),
       );
       return;
     }
@@ -112,7 +115,7 @@ export default function ReviewerPhotoEditorScreen() {
     });
     if (result.canceled || !result.assets[0]?.uri) return;
     setDraft(result.assets[0].uri);
-  }, [setDraft]);
+  }, [setDraft, t]);
 
   const markPendingDelete = useCallback(() => {
     setDraftUri(null);
@@ -135,7 +138,7 @@ export default function ReviewerPhotoEditorScreen() {
       if (draftUri) {
         const size = imageSizeRef.current;
         if (!size) {
-          houseAlert('Storage', 'Could not read the selected photo.');
+          houseAlert(t('alerts.profilePhoto.storageTitle'), t('settings.profilePhoto.readFailed'));
           return;
         }
         const cropped = await renderCroppedSquare({
@@ -154,20 +157,20 @@ export default function ReviewerPhotoEditorScreen() {
       }
     } catch (error) {
       houseAlert(
-        'Storage',
-        error instanceof Error ? error.message : 'Could not save the photo.',
+        t('alerts.profilePhoto.storageTitle'),
+        error instanceof Error ? error.message : t('alerts.profilePhoto.storageBody'),
       );
     } finally {
       setBusy(false);
     }
-  }, [busy, canConfirm, clearPhoto, draftUri, pendingDelete, setPhotoFromUri]);
+  }, [busy, canConfirm, clearPhoto, draftUri, pendingDelete, setPhotoFromUri, t]);
 
   return (
     <View style={[styles.screen, { paddingBottom: Math.max(insets.bottom, 16) }]}>
       <View style={[styles.toolbar, { paddingTop: Math.max(insets.top, 12) }]}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Close"
+          accessibilityLabel={t("common.close")}
           hitSlop={8}
           onPress={closeTapped}
           style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}>
@@ -180,7 +183,7 @@ export default function ReviewerPhotoEditorScreen() {
         {!showsSourceChooser ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Use Photo"
+            accessibilityLabel={t("settings.profilePhoto.usePhoto")}
             hitSlop={8}
             disabled={!canConfirm || busy}
             onPress={() => void confirm()}
@@ -212,7 +215,7 @@ export default function ReviewerPhotoEditorScreen() {
 
       {showsSourceChooser ? (
         <PhotoSourceChooserBody
-          title="Add a profile photo"
+          title={t("settings.profilePhoto.addTitle")}
           isImporting={busy}
           onTakePhoto={() => {
             if (!busy) void takePhoto();
@@ -237,7 +240,7 @@ export default function ReviewerPhotoEditorScreen() {
           ) : (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Add profile photo"
+              accessibilityLabel={t("settings.profilePhoto.addTitle")}
               onPress={() => setPickingSource(true)}
               style={styles.emptyCrop}>
               <SymbolView
@@ -249,7 +252,7 @@ export default function ReviewerPhotoEditorScreen() {
                 size={36}
                 tintColor={GustraColors.forestGreen}
               />
-              <Text style={styles.emptyCropLabel}>Take or import a photo</Text>
+              <Text style={styles.emptyCropLabel}>{t('settings.profilePhoto.takeOrImport')}</Text>
             </Pressable>
           )}
 
@@ -263,18 +266,18 @@ export default function ReviewerPhotoEditorScreen() {
                   styles.deleteButton,
                   pressed && styles.pressed,
                 ]}>
-                <Text style={styles.deleteLabel}>Delete Photo</Text>
+                <Text style={styles.deleteLabel}>{t('settings.profilePhoto.deletePhoto')}</Text>
               </Pressable>
             ) : (
               <View style={styles.bottomSpacer} />
             )}
             {pendingDelete ? (
               <Text style={styles.pendingDeleteHint}>
-                Photo will be removed when you confirm.
+                {t('settings.profilePhoto.pendingRemove')}
               </Text>
             ) : previewUri ? (
               <Text style={styles.pendingDeleteHint}>
-                Pinch to zoom · drag to reposition
+                {t('settings.profilePhoto.pinchHint')}
               </Text>
             ) : null}
           </View>

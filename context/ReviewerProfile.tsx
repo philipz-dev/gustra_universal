@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
   createContext,
@@ -14,6 +15,8 @@ import {
 export const REVIEWER_MAX_NAME_LENGTH = 20;
 
 const NAME_KEY = 'reviewerProfileName';
+/** Stable UUID for share packages (`sharedById`) — survives rename. */
+const AUTHOR_ID_KEY = 'reviewerProfileAuthorId';
 
 function photoDir(): string {
   const root = FileSystem.documentDirectory;
@@ -29,6 +32,8 @@ export type ReviewerProfileSnapshot = {
   name: string;
   /** Base64 JPEG bytes, or null when no photo. */
   photoBase64: string | null;
+  /** Stable author UUID for `.gustrashare` (`sharedById`). */
+  authorId?: string;
 };
 
 type ReviewerProfileValue = {
@@ -40,9 +45,13 @@ type ReviewerProfileValue = {
   /** File URI with cache-busting query for Image refresh. */
   photoUri: string | null;
   photoRevision: number;
+  /** Stable UUID used as `sharedById` when sharing reviews. */
+  authorId: string;
   updateName: (next: string) => void;
   setPhotoFromUri: (sourceUri: string) => Promise<void>;
   clearPhoto: () => Promise<void>;
+  /** Re-read Profile/reviewer.jpg from disk (fixes migration / desync). */
+  syncPhotoFromDisk: () => Promise<boolean>;
   getBackupSnapshot: () => Promise<ReviewerProfileSnapshot>;
   applyBackupSnapshot: (snapshot: ReviewerProfileSnapshot) => Promise<void>;
 };
@@ -61,24 +70,34 @@ export function ReviewerProfileProvider({ children }: { children: ReactNode }) {
   const [name, setName] = useState('');
   const [hasPhoto, setHasPhoto] = useState(false);
   const [photoRevision, setPhotoRevision] = useState(0);
+  const [authorId, setAuthorId] = useState('');
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const storedName = await AsyncStorage.getItem(NAME_KEY);
+        const [storedName, storedAuthorId] = await Promise.all([
+          AsyncStorage.getItem(NAME_KEY),
+          AsyncStorage.getItem(AUTHOR_ID_KEY),
+        ]);
         let photoExists = false;
         try {
           photoExists = (await FileSystem.getInfoAsync(photoPath())).exists;
         } catch {
           photoExists = false;
         }
+        let nextAuthorId = storedAuthorId?.trim() ?? '';
+        if (!nextAuthorId) {
+          nextAuthorId = Crypto.randomUUID();
+          await AsyncStorage.setItem(AUTHOR_ID_KEY, nextAuthorId);
+        }
         if (cancelled) return;
         if (storedName) {
           setName(storedName.trim().slice(0, REVIEWER_MAX_NAME_LENGTH));
         }
         setHasPhoto(photoExists);
+        setAuthorId(nextAuthorId);
       } finally {
         if (!cancelled) setReady(true);
       }
@@ -131,6 +150,18 @@ export function ReviewerProfileProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const syncPhotoFromDisk = useCallback(async (): Promise<boolean> => {
+    let exists = false;
+    try {
+      exists = (await FileSystem.getInfoAsync(photoPath())).exists;
+    } catch {
+      exists = false;
+    }
+    setHasPhoto(exists);
+    if (exists) setPhotoRevision((n) => n + 1);
+    return exists;
+  }, []);
+
   const getBackupSnapshot = useCallback(async (): Promise<ReviewerProfileSnapshot> => {
     let photoBase64: string | null = null;
     try {
@@ -144,11 +175,18 @@ export function ReviewerProfileProvider({ children }: { children: ReactNode }) {
     } catch {
       photoBase64 = null;
     }
+    let nextAuthorId = authorId.trim();
+    if (!nextAuthorId) {
+      nextAuthorId = Crypto.randomUUID();
+      setAuthorId(nextAuthorId);
+      await AsyncStorage.setItem(AUTHOR_ID_KEY, nextAuthorId);
+    }
     return {
       name: name.trim().slice(0, REVIEWER_MAX_NAME_LENGTH),
       photoBase64,
+      authorId: nextAuthorId,
     };
-  }, [name]);
+  }, [authorId, name]);
 
   const applyBackupSnapshot = useCallback(
     async (snapshot: ReviewerProfileSnapshot) => {
@@ -160,6 +198,12 @@ export function ReviewerProfileProvider({ children }: { children: ReactNode }) {
         await AsyncStorage.removeItem(NAME_KEY);
       } else {
         await AsyncStorage.setItem(NAME_KEY, nextName);
+      }
+
+      const incomingAuthorId = (snapshot.authorId ?? '').trim();
+      if (incomingAuthorId) {
+        setAuthorId(incomingAuthorId);
+        await AsyncStorage.setItem(AUTHOR_ID_KEY, incomingAuthorId);
       }
 
       if (snapshot.photoBase64) {
@@ -202,9 +246,11 @@ export function ReviewerProfileProvider({ children }: { children: ReactNode }) {
       hasPhoto,
       photoUri,
       photoRevision,
+      authorId,
       updateName,
       setPhotoFromUri,
       clearPhoto,
+      syncPhotoFromDisk,
       getBackupSnapshot,
       applyBackupSnapshot,
     }),
@@ -215,9 +261,11 @@ export function ReviewerProfileProvider({ children }: { children: ReactNode }) {
       hasPhoto,
       photoUri,
       photoRevision,
+      authorId,
       updateName,
       setPhotoFromUri,
       clearPhoto,
+      syncPhotoFromDisk,
       getBackupSnapshot,
       applyBackupSnapshot,
     ],

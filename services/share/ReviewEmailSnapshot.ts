@@ -4,6 +4,7 @@ import type {
 } from '@/components/share/ReviewEmailCardView';
 import { placeTypeDisplayName } from '@/constants/PlaceTypeLabels';
 import type { Restaurant, Review } from '@/data/types';
+import { formatAbbreviatedDate } from '@/i18n/formatDates';
 import { formatAddressLine } from '@/services/places/addressFormatting';
 import {
   overallScoreFromCriteria,
@@ -54,11 +55,7 @@ export function failEmailSnapshot(error: Error): void {
 }
 
 function formatVisitedDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return formatAbbreviatedDate(iso);
 }
 
 export function buildEmailCardProps(args: {

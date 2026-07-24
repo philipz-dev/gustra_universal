@@ -6,6 +6,7 @@ import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle, captionTextStyle, Theme } from '@/constants/Theme';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { Haptics } from '@/services/haptics';
 
 type SortCriterion = { id: string; title: string };
@@ -28,17 +29,19 @@ export function SortOptionsPanel({
   onSelect,
   onCancel,
 }: SortOptionsPanelProps) {
+  const { t } = useAppTranslation();
+
   return (
     <View style={styles.root}>
       <View style={styles.nav}>
         <HouseToolbarIconButton
           iosName="chevron.backward"
           androidName="arrow-back"
-          accessibilityLabel="Back"
+          accessibilityLabel={t('common.back')}
           onPress={onCancel}
         />
         <SerifText size={20} weight="semibold" style={styles.navTitle}>
-          Sort by
+          {t('filters.sortBy')}
         </SerifText>
         <View style={styles.navSpacer} />
       </View>
@@ -50,8 +53,8 @@ export function SortOptionsPanel({
         ]}
         keyboardShouldPersistTaps="handled">
         <SortRow
-          title="Average score"
-          subtitle="Default"
+          title={t('filters.sort.averageScore')}
+          subtitle={t('filters.default')}
           selected={draftSortKind.type === 'averageScore'}
           onPress={() => onSelect({ type: 'averageScore' })}
         />

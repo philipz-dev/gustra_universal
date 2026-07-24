@@ -1,0 +1,26 @@
+---
+description: Database/schema updates must stay backwards compatible with all prior Gustra versions
+alwaysApply: true
+---
+
+# Backwards-compatible data (mandatory)
+
+Future updates and builds **MUST** remain backwards compatible with data from **all previous Gustra versions** (Expo AsyncStorage store, encrypted `.gustra` backups, `.gustrashare` packages, and leftover Swift `default.store` where applicable).
+
+Years of user reviews must never become unreadable after an update.
+
+## Rules
+
+- **Never** ship a breaking change to on-device storage or backup/share schemas without a migration path that reads older formats.
+- Prefer **additive** schema changes (new optional fields) over renames/removals.
+- When changing shape: bump a version (`schemaVersion` / storage key) **and** keep loaders that accept every older version still in the wild.
+- Do **not** wipe, replace, or ignore unrecognized fields from older clients — preserve round-trip where possible.
+- Do **not** delete user data files (Swift store, photos, backups) as part of “cleanup” unless the user explicitly confirms a destructive action.
+- Before overwrite/migrate paths: keep AutoProtect / merge semantics; never silent data loss.
+- Treat TestFlight/Play/production builds the same: if a change can brick old installs, it is not shippable.
+
+## When editing
+
+Especially when touching: `context/ReviewsStore.tsx`, `services/backup/**`, `services/share/**`, `services/migration/**`, `data/types.ts`.
+
+If a change is not backwards compatible, stop and redesign (migration + dual-read) before implementing.

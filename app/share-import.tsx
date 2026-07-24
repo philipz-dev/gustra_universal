@@ -14,9 +14,9 @@ import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import {
   clearPendingSharePackage,
-  requestFeedReviewSource,
   takePendingSharePackage,
 } from '@/context/ShareImportLaunch';
+import { requestEnableFriendsFilter } from '@/context/pendingFriendsFilter';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import type { ShareReviewBackup } from '@/services/share/ReviewShareService';
 import {
@@ -24,11 +24,14 @@ import {
   overallScoreFromShareReview,
   ShareImportError,
 } from '@/services/share/ShareImportService';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { formatAbbreviatedDate } from '@/i18n/formatDates';
 
 /**
  * Share-package review picker (Swift `ShareImportSelectionView`).
  */
 export default function ShareImportScreen() {
+  const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { importSharePackage } = useReviewsStore();
@@ -59,9 +62,9 @@ export default function ShareImportScreen() {
 
   const navigationTitle = useMemo(() => {
     const name = packageData?.sharedBy.trim() ?? '';
-    if (!name) return 'Import Reviews';
-    return `Reviews from ${name}`;
-  }, [packageData]);
+    if (!name) return t('import.title');
+    return t('import.from', { name });
+  }, [packageData, t]);
 
   const dismiss = useCallback(() => {
     clearPendingSharePackage();
@@ -89,7 +92,7 @@ export default function ShareImportScreen() {
       const restaurant = restaurantsById.get(review.restaurantID);
       if (restaurant?.name) return restaurant.name;
     }
-    return 'Unknown Restaurant';
+    return t('import.unknownRestaurant');
   };
 
   const rowSubtitle = (review: ShareReviewBackup) => {
@@ -103,11 +106,7 @@ export default function ShareImportScreen() {
     const date = new Date(review.date);
     if (!Number.isNaN(date.getTime())) {
       parts.push(
-        date.toLocaleDateString(undefined, {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        }),
+        formatAbbreviatedDate(review.date),
       );
     }
     return parts.join(' · ');
@@ -123,17 +122,17 @@ export default function ShareImportScreen() {
       });
       await importSharePackage(result);
       clearPendingSharePackage();
-      // Land on Friends' reviews (parity gap `si-friends`).
-      requestFeedReviewSource('imported');
+      // Include friend's reviews after import (shared filter across tabs).
+      requestEnableFriendsFilter();
       router.replace('/(tabs)/(main)');
     } catch (error) {
       houseAlert(
-        'Error',
+        t('common.error'),
         error instanceof ShareImportError
           ? error.message
           : error instanceof Error
             ? error.message
-            : 'Could not import reviews.',
+            : t('alerts.import.importFailed'),
       );
     } finally {
       setIsImporting(false);
@@ -144,14 +143,14 @@ export default function ShareImportScreen() {
     return (
       <View style={styles.screen}>
         <HouseNavHeader
-          title="Import Reviews"
+          title={t("import.title")}
           titleSize={Theme.navigation.secondaryTitleSize}
           showBack
           onBack={dismiss}
         />
         <HouseEmptyState
-          title="No Reviews"
-          description="This shared file contains no reviews."
+          title={t("import.noReviews")}
+          description={t("import.noReviewsBody")}
           systemImage="square.and.arrow.down"
           androidImage="download"
         />
@@ -176,7 +175,7 @@ export default function ShareImportScreen() {
           <HouseToolbarIconButton
             iosName="xmark"
             androidName="close"
-            accessibilityLabel="Cancel"
+            accessibilityLabel={t("common.cancel")}
             onPress={dismiss}
           />
         }
@@ -184,8 +183,8 @@ export default function ShareImportScreen() {
 
       {packageData.reviews.length === 0 ? (
         <HouseEmptyState
-          title="No Reviews"
-          description="This shared file contains no reviews."
+          title={t("import.noReviews")}
+          description={t("import.noReviewsBody")}
           systemImage="square.and.arrow.down"
           androidImage="download"
         />
@@ -203,7 +202,7 @@ export default function ShareImportScreen() {
             if (item.kind === 'all') {
               return (
                 <CheckboxRow
-                  title={allSelected ? 'Select None' : 'Select All'}
+                  title={allSelected ? t('import.selectNone') : t('import.selectAll')}
                   isSelected={allSelected}
                   isBold
                   onPress={toggleSelectAll}
@@ -235,7 +234,7 @@ export default function ShareImportScreen() {
           {isImporting ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.importLabel}>Import</Text>
+            <Text style={styles.importLabel}>{t("common.import")}</Text>
           )}
         </Pressable>
       </View>

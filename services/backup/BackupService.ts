@@ -59,6 +59,57 @@ export function makeBackupFilename(date = new Date()): string {
   return `${name}.${BACKUP_FILE_EXTENSION}`;
 }
 
+/** AutoProtect JSON snapshots expire after this many days (user `.gustra` backups are kept). */
+export const AUTO_PROTECT_RETENTION_DAYS = 30;
+
+const AUTO_PROTECT_PREFIX = 'AutoProtect-';
+
+/**
+ * Delete AutoProtect-*.json snapshots older than {@link AUTO_PROTECT_RETENTION_DAYS}.
+ * Never touches encrypted `.gustra` backups or Swift source files.
+ * Always keeps the newest AutoProtect file if present.
+ */
+export async function pruneAutoProtectBackups(
+  retentionDays: number = AUTO_PROTECT_RETENTION_DAYS,
+): Promise<number> {
+  const dir = await ensureBackupsDir();
+  const names = await FileSystem.readDirectoryAsync(dir);
+  const cutoffMs = Date.now() - Math.max(1, retentionDays) * 24 * 60 * 60 * 1000;
+  const protect: { uri: string; modified: number }[] = [];
+
+  for (const name of names) {
+    if (!name.startsWith(AUTO_PROTECT_PREFIX)) continue;
+    if (!name.toLowerCase().endsWith('.json')) continue;
+    const uri = `${dir}${name}`;
+    try {
+      const info = await FileSystem.getInfoAsync(uri);
+      if (!info.exists || info.isDirectory) continue;
+      protect.push({
+        uri,
+        modified: info.modificationTime ? info.modificationTime * 1000 : 0,
+      });
+    } catch {
+      // skip
+    }
+  }
+
+  if (protect.length === 0) return 0;
+  protect.sort((a, b) => b.modified - a.modified);
+  const newestUri = protect[0]?.uri;
+  let deleted = 0;
+  for (const file of protect) {
+    if (file.uri === newestUri) continue;
+    if (file.modified > 0 && file.modified >= cutoffMs) continue;
+    try {
+      await FileSystem.deleteAsync(file.uri, { idempotent: true });
+      deleted += 1;
+    } catch {
+      // ignore
+    }
+  }
+  return deleted;
+}
+
 export async function listLocalBackups(): Promise<LocalBackupFile[]> {
   const dir = await ensureBackupsDir();
   const names = await FileSystem.readDirectoryAsync(dir);
@@ -174,7 +225,12 @@ export function decryptBackup(
   password: string,
 ): BackupPayload {
   const json = decryptBackupJson(data, password);
-  const payload = JSON.parse(json) as BackupPayload;
+  let payload: BackupPayload;
+  try {
+    payload = JSON.parse(json) as BackupPayload;
+  } catch {
+    throw new Error('Incorrect backup password.');
+  }
   if (!payload || typeof payload !== 'object' || !Array.isArray(payload.reviews)) {
     throw new Error('Incorrect backup password.');
   }

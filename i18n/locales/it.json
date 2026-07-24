@@ -1,0 +1,490 @@
+{
+  "common": {
+    "ok": "OK",
+    "cancel": "Annulla",
+    "delete": "Elimina",
+    "remove": "Rimuovi",
+    "done": "Fine",
+    "back": "Indietro",
+    "continue": "Continua",
+    "reset": "Reimposta",
+    "overwrite": "Sovrascrivi",
+    "recover": "Recupera",
+    "openSettings": "Apri Impostazioni",
+    "tryAgain": "Riprova",
+    "error": "Errore",
+    "close": "Chiudi",
+    "share": "Condividi",
+    "edit": "Modifica",
+    "none": "Nessuno",
+    "default": "Predefinito",
+    "selectAll": "Seleziona tutto",
+    "selectNone": "Deseleziona tutto",
+    "add": "Aggiungi",
+    "clear": "Cancella",
+    "import": "Importa"
+  },
+  "rating": {
+    "labels": {
+      "poor": "Scarso",
+      "okay": "Discreto",
+      "good": "Buono",
+      "great": "Ottimo",
+      "perfect": "Perfetto",
+      "na": "N/D",
+      "notRated": "Non valutato"
+    },
+    "a11y": {
+      "rating": "Valutazione",
+      "clear": "Cancella valutazione"
+    }
+  },
+  "tabs": {
+    "reviews": "Recensioni",
+    "map": "La mia mappa",
+    "passport": "Il mio Gustra",
+    "settings": "Impostazioni",
+    "editCriteria": "Modifica criteri di recensione",
+    "profilePhoto": "Foto profilo",
+    "backupRestore": "Backup / Ripristino"
+  },
+  "a11y": {
+    "importReviews": "Importa recensioni",
+    "share": "Condividi",
+    "filters": "Filtri",
+    "addReview": "Aggiungi recensione",
+    "myLocation": "La mia posizione",
+    "clearLocation": "Cancella filtro località",
+    "clearCuisine": "Cancella filtro cucina",
+    "clearFavorites": "Cancella filtro preferiti",
+    "clearFriends": "Cancella filtro recensioni amici",
+    "clearSort": "Cancella ordinamento",
+    "delete": "Elimina"
+  },
+  "reviews": {
+    "searchPlaceholder": "Cerca ristoranti, commenti, foto…",
+    "visitCount_one": "{{count}} visita · {{date}}",
+    "visitCount_other": "{{count}} visite · {{date}}",
+    "source": {
+      "mine": "Le mie recensioni",
+      "friends": "Recensioni degli amici"
+    },
+    "empty": {
+      "noMatchesTitle": "Nessun ristorante corrispondente",
+      "noMatchesBody": "Nessun ristorante corrisponde ai filtri attuali.",
+      "noMatchesShort": "Nessun risultato",
+      "noFriendsTitle": "Nessuna recensione di amici",
+      "noFriendsBody": "Importa le recensioni condivise dagli amici per vederle qui.",
+      "noReviewsTitle": "Ancora nessuna recensione",
+      "noReviewsBody": "Aggiungi la tua prima recensione per iniziare.",
+      "tryAnotherSearch": "Prova un altro ristorante, città, commento o testo da una foto.",
+      "noCriterionRating": "Nessun ristorante ha ancora un voto per questo criterio.",
+      "clearFilters": "Cancella filtri",
+      "importReviews": "Importa recensioni",
+      "addReview": "Aggiungi recensione"
+    }
+  },
+  "filters": {
+    "title": "Opzioni filtro",
+    "filters": "Filtri",
+    "none": "Nessuno",
+    "favorites": "Preferiti",
+    "friendsReviews": "Includi recensioni degli amici",
+    "location": "Località",
+    "cuisine": "Tipo di cucina",
+    "sortBy": "Ordina per",
+    "all": "Tutti",
+    "default": "Predefinito",
+    "reset": "Reimposta filtri",
+    "done": "Fine",
+    "choose": "Scegli {{title}}",
+    "selectAll": "Seleziona tutto",
+    "selectAllHint": "Seleziona tutte le opzioni",
+    "deselectAllHint": "Deseleziona tutte le opzioni",
+    "restaurantCount": "{{shown}} di {{total}} ristoranti",
+    "resultsCount": "{{shown}} di {{total}} risultati",
+    "emptyLocationTitle": "Ancora nessuna località",
+    "emptyLocationBody": "Le località compaiono quando le recensioni includono città o paese.",
+    "emptyCuisineTitle": "Ancora nessun tipo di cucina",
+    "emptyCuisineBody": "I tipi di cucina compaiono quando i ristoranti hanno categorie.",
+    "sort": {
+      "averageScore": "Voto medio",
+      "criterion": "Criterio"
+    },
+    "chips": {
+      "location": "Località",
+      "cuisine": "Tipo di cucina",
+      "favorites": "Preferiti",
+      "friends": "Recensioni amici incluse"
+    }
+  },
+  "map": {
+    "title": "La mia mappa",
+    "friendSuffix": "(amico)",
+    "empty": {
+      "noMatchesTitle": "Nessun risultato",
+      "noMatchesBody": "Nessun ristorante corrisponde ai filtri attuali.",
+      "noMemoriesTitle": "Ancora nessun ricordo sulla mappa",
+      "noMemoriesBody": "Aggiungi una recensione con posizione per vederla sulla mappa.",
+      "clearFilters": "Cancella filtri",
+      "addReview": "Aggiungi recensione"
+    }
+  },
+  "passport": {
+    "emptyTitle": "Ancora nessuna statistica",
+    "emptyBody": "Aggiungi recensioni per vedere i tuoi preferiti.",
+    "addReview": "Aggiungi recensione",
+    "overview": "Panoramica",
+    "totalReviews": "Recensioni totali",
+    "averageOverall": "Media complessiva",
+    "bestRestaurant": "Miglior ristorante",
+    "bestRestaurants": "Migliori ristoranti",
+    "categoryAverages": "Medie per criterio",
+    "topCities": "Città top",
+    "cityAverages": "Medie per città",
+    "noCityData": "Ancora nessun dato sulle città."
+  },
+  "settings": {
+    "language": "Lingua",
+    "languagePickerTitle": "Lingua",
+    "languageSystem": "Sistema",
+    "languageDutch": "Nederlands",
+    "languageEnglish": "English",
+    "languageItalian": "Italiano",
+    "sectionReviewer": "Recensore",
+    "sectionCriteria": "Criteri di recensione",
+    "sectionPassport": "Il mio Gustra",
+    "sectionStorage": "Archiviazione",
+    "sectionGoogle": "Utilizzo API Google",
+    "sectionLanguage": "Lingua",
+    "editCriteria": "Modifica criteri di recensione",
+    "dataSavings": "Risparmio dati per le foto",
+    "dataSavingsOn": "Risoluzione inferiore",
+    "dataSavingsOff": "Risoluzione superiore",
+    "photos": "Foto",
+    "importShared": "Importa recensioni condivise",
+    "importSharedSubtitle": "Apri un file .gustrashare",
+    "recoverPrevious": "Recupera dati Gustra precedenti",
+    "recoverScanSubtitle": "Cerca dati dell’app Swift su questo dispositivo",
+    "recoverScanning": "Scansione…",
+    "backupRestore": "Backup / Ripristino",
+    "mapsSdk": "Google Maps SDK",
+    "placesApi": "Places API",
+    "usageToday": "{{today}} oggi / {{allTime}} totali",
+    "resetCounters": "Azzera contatori",
+    "namePlaceholder": "Il tuo nome",
+    "nameA11y": "Nome del recensore",
+    "photoA11y": "Foto del recensore",
+    "editPhotoA11y": "Modifica foto profilo",
+    "addPhotoA11y": "Aggiungi foto profilo",
+    "clearNameA11y": "Cancella nome",
+    "languageValueSystem": "Sistema",
+    "languageValueDutch": "Nederlands",
+    "languageValueEnglish": "English",
+    "languageValueItalian": "Italiano",
+    "swiftScan": {
+      "found": "Database Swift trovato",
+      "dbCandidates": "{{count}} candidati DB",
+      "photos": "{{count}} foto",
+      "backups": "{{count}} file di backup",
+      "alreadyRecovered": "già recuperato",
+      "photosOnly": "{{count}} vecchie foto trovate, ma nessun database — le recensioni richiedono un backup .gustra o lo store Swift",
+      "backupsOnly": "{{count}} file di backup in Backups — usa Backup / Ripristino",
+      "unreadable": "{{count}} file DB trovati ma non leggibili come dati Gustra",
+      "none": "Nessun dato Swift precedente su questo dispositivo"
+    },
+    "passport": {
+      "showAsNumbers": "Mostra voti come numeri",
+      "showAsStars": "Mostra voti come stelle"
+    },
+    "storage": {
+      "photosStored_one": "{{count}} foto salvata in locale",
+      "photosStored_other": "{{count}} foto salvate in locale"
+    },
+    "criteria": {
+      "deleteTitle": "Elimina criterio",
+      "deleteBody": "Rimuovere “{{name}}”?",
+      "custom": "Personalizzato",
+      "footer": "I nomi personalizzati compaiono nelle nuove recensioni. I criteri disattivati sono nascosti in fase di voto."
+    },
+    "profilePhoto": {
+      "addTitle": "Aggiungi una foto profilo",
+      "usePhoto": "Usa foto",
+      "deletePhoto": "Elimina foto",
+      "takeOrImport": "Scatta o importa una foto",
+      "pendingRemove": "La foto verrà rimossa alla conferma.",
+      "pinchHint": "Pizzica per zoom · trascina per riposizionare",
+      "readFailed": "Impossibile leggere la foto selezionata."
+    },
+    "languageGerman": "Deutsch",
+    "languageSpanish": "Español",
+    "languageFrench": "Français",
+    "languageValueGerman": "Deutsch",
+    "languageValueSpanish": "Español",
+    "languageValueFrench": "Français"
+  },
+  "criteria": {
+    "food": "Cibo",
+    "drinks": "Bevande",
+    "service": "Servizio",
+    "atmosphere": "Atmosfera",
+    "valueForMoney": "Rapporto qualità-prezzo"
+  },
+  "forms": {
+    "addReview": {
+      "title": "Aggiungi recensione",
+      "nearby": "Mostra ristoranti vicini",
+      "mapSearch": "Cerca sulla mappa",
+      "manual": "Inserimento manuale"
+    },
+    "nearby": {
+      "startReview": "Inizia recensione",
+      "loadFailed": "Impossibile caricare i ristoranti vicini.",
+      "noNearby": "Nessun ristorante vicino trovato.",
+      "searchNearby": "Cerca nelle vicinanze",
+      "locationDenied": "Serve l’accesso alla posizione per trovare i ristoranti vicini.",
+      "servicesOff": "I servizi di localizzazione sembrano disattivati.",
+      "finding": "Ricerca ristoranti vicini…",
+      "sectionTitle": "Ristoranti vicini",
+      "tryMap": "Riprova oppure cerca sulla mappa.",
+      "searchFailed": "Impossibile raggiungere il servizio di ricerca ristoranti."
+    },
+    "mapSearch": {
+      "title": "Cerca sulla mappa",
+      "searchArea": "Cerca in quest’area",
+      "startReview": "Inizia recensione",
+      "hint": "Sposta la mappa, poi tocca Cerca in quest’area.",
+      "searchAreaHint": "Cerca ristoranti nell’area visibile della mappa"
+    },
+    "manual": {
+      "title": "Inserimento manuale",
+      "restaurantName": "Nome del ristorante",
+      "city": "Città",
+      "country": "Paese",
+      "findOnGoogle": "Trova su Google",
+      "searchHint": "Cerca su Google per aggiungere i dettagli, oppure continua manualmente.",
+      "googleMatches": "Corrispondenze Google",
+      "loading": "Caricamento ristoranti…",
+      "continueManually": "Continua manualmente",
+      "searchFailed": "Impossibile raggiungere il servizio di ricerca ristoranti.",
+      "noMatch": "Nessuna corrispondenza su Google.",
+      "manualMapHint": "Senza una corrispondenza Google questo ristorante non apparirà sulla mappa."
+    },
+    "review": {
+      "editTitle": "Modifica recensione",
+      "title": "Recensione",
+      "done": "Fine",
+      "visitDate": "Data della visita",
+      "ratings": "Valutazioni",
+      "generalComments": "Commenti generali",
+      "photos": "Foto",
+      "optionalComment": "Commento facoltativo",
+      "otherVisits_one": "{{count}} altra visita in questo ristorante",
+      "otherVisits_other": "{{count}} altre visite in questo ristorante",
+      "mostRecent": "Più recente {{date}}",
+      "addPhotos": "Aggiungi foto",
+      "delete": "Elimina",
+      "removePhotos": "Rimuovi foto",
+      "indexing": "Indicizzazione foto…",
+      "avg": "{{score}} media",
+      "time": "Ora",
+      "setTime": "Imposta ora · {{time}}"
+    },
+    "photos": {
+      "takePhoto": "Scatta foto",
+      "importPhoto": "Importa foto",
+      "adding": "Aggiunta foto…"
+    }
+  },
+  "detail": {
+    "review": {
+      "title": "Recensione",
+      "notFound": "Recensione non trovata",
+      "notFoundBody": "Questa recensione non è stata trovata.",
+      "generalComments": "Commenti generali",
+      "newVisit": "Nuova visita",
+      "edit": "Modifica",
+      "reviewedBy": "Recensito da {{name}}",
+      "share": "Condividi"
+    },
+    "options": {
+      "title": "Opzioni",
+      "a11y": "Opzioni",
+      "recordVisit": "Registra nuova visita",
+      "editReview": "Modifica recensione",
+      "cannotEditFriend": "Non puoi modificare la recensione di un amico",
+      "deleteReview": "Elimina recensione",
+      "shareSection": "Condividi"
+    },
+    "restaurant": {
+      "title": "Ristorante",
+      "noVisits": "Nessuna visita",
+      "noReviews": "Questo ristorante non ha ancora recensioni.",
+      "visitCount_one": "{{count}} visita",
+      "visitCount_other": "{{count}} visite",
+      "visits": "Visite"
+    },
+    "location": {
+      "title": "Località",
+      "unknown": "Posizione sconosciuta",
+      "getDirections": "Indicazioni",
+      "showMap": "Mostra mappa",
+      "call": "Chiama {{phone}}"
+    }
+  },
+  "directions": {
+    "title": "Indicazioni",
+    "noLocation": "Nessuna posizione mappa disponibile per questo posto.",
+    "appleMaps": "Apple Mappe",
+    "googleMaps": "Google Maps",
+    "waze": "Waze",
+    "maps": "Mappe",
+    "cancel": "Annulla",
+    "openFailed": "Impossibile aprire l’app mappe.",
+    "destination": "Destinazione"
+  },
+  "share": {
+    "chooser": {
+      "gustraFile": "Condividi file Gustra",
+      "gustraFileSubtitle": "Per amici con Gustra",
+      "visual": "Invia raccomandazione visuale",
+      "visualSubtitle": "Email con riepilogo e foto",
+      "cancel": "Annulla"
+    },
+    "nameSheet": {
+      "title": "Il tuo nome",
+      "body": "Aggiungi il tuo nome nelle Impostazioni prima di condividere.",
+      "placeholder": "Nome del recensore",
+      "cancel": "Annulla",
+      "continue": "Continua"
+    }
+  },
+  "import": {
+    "title": "Importa recensioni",
+    "from": "Recensioni di {{name}}",
+    "unknownRestaurant": "Ristorante sconosciuto",
+    "noReviews": "Nessuna recensione",
+    "noReviewsBody": "Questo file condiviso non contiene recensioni.",
+    "selectAll": "Seleziona tutto",
+    "selectNone": "Deseleziona tutto"
+  },
+  "backup": {
+    "encryptedTitle": "Backup crittografato",
+    "encryptedBody": "Crea un backup protetto da password delle tue recensioni, oppure ripristina da un backup precedente.",
+    "create": "Crea backup",
+    "restore": "Ripristina",
+    "restoreTitle": "Ripristina backup",
+    "password": "Password",
+    "confirmPassword": "Conferma password",
+    "continue": "Continua",
+    "whereTitle": "Dove salvare il backup?",
+    "saveLocally": "Salva in locale",
+    "share": "Condividi",
+    "noBackups": "Nessun backup trovato",
+    "noBackupsBody": "Nessun backup nella cartella Gustra Backups. Puoi comunque scegliere un file altrove.",
+    "gustraBackups": "Backup Gustra",
+    "chooseFromFiles": "Scegli dai File",
+    "merge": "Unisci ai dati attuali",
+    "overwrite": "Sovrascrivi i dati attuali",
+    "passwordHint": "Min. 7 caratteri, con almeno una lettera, un numero e un simbolo.",
+    "enterPassword": "Inserisci una password per il backup.",
+    "passwordTooShort": "La password deve avere almeno {{count}} caratteri.",
+    "passwordNeedsLetter": "La password deve includere almeno una lettera.",
+    "passwordNeedsNumber": "La password deve includere almeno un numero.",
+    "passwordNeedsSymbol": "La password deve includere almeno un simbolo.",
+    "passwordMismatch": "Le password non coincidono.",
+    "needReviewFirst": "Aggiungi almeno una recensione prima di creare un backup.",
+    "choosePasswordHint": "Scegli una password che ti servirà per ripristinare questo backup.",
+    "localFolderHint": "I backup locali sono nella cartella Backups dell’app su questo dispositivo.",
+    "enterRestorePassword": "Inserisci la password usata alla creazione di questo backup.",
+    "applyHow": "Come applicare questo backup?",
+    "mergeHint": "Mantieni i ristoranti esistenti e aggiungi o aggiorna elementi dal backup.",
+    "overwriteHint": "Sostituisci tutti i ristoranti e le recensioni con il backup.",
+    "encryptFailed": "Impossibile crittografare il file di backup.",
+    "shareFailed": "Impossibile condividere il backup.",
+    "readFailed": "Impossibile leggere il file di backup.",
+    "incorrectPassword": "Password del backup errata.",
+    "mergedSuccess": "Backup unito con successo.",
+    "restoredSuccess": "Backup ripristinato con successo.",
+    "fileSaved": "File di backup {{filename}} salvato",
+    "fileShared": "File di backup {{filename}} condiviso",
+    "deleteFailed": "Impossibile eliminare il file di backup."
+  },
+  "alerts": {
+    "deleteRestaurant": {
+      "title": "Eliminare il ristorante?",
+      "body": "Questo rimuove tutte le visite e le foto di questo ristorante."
+    },
+    "deleteVisit": {
+      "title": "Eliminare la visita?",
+      "body": "Questa visita e le sue foto verranno rimosse."
+    },
+    "share": {
+      "failed": "Impossibile condividere le recensioni.",
+      "reviewFailed": "Impossibile condividere questa recensione.",
+      "needName": "Aggiungi il tuo nome nelle Impostazioni prima di condividere."
+    },
+    "location": {
+      "deniedTitle": "Posizione richiesta",
+      "deniedBody": "Consenti l’accesso alla posizione nelle Impostazioni per mostrarti sulla mappa.",
+      "servicesTitle": "Servizi di localizzazione disattivati",
+      "servicesBody": "Attiva i servizi di localizzazione per usare la tua posizione sulla mappa.",
+      "unavailable": "Posizione attuale non disponibile."
+    },
+    "permission": {
+      "needed": "Autorizzazione richiesta",
+      "photos": "È richiesto l’accesso alla libreria foto.",
+      "camera": "È richiesto l’accesso alla fotocamera."
+    },
+    "reviewForm": {
+      "needStars": "Aggiungi almeno una valutazione a stelle per salvare questa recensione.",
+      "removePhotosTitle": "Rimuovere le foto?",
+      "removePhotosBody": "Le foto selezionate verranno rimosse da questa recensione.",
+      "photosSaveFailed": "Impossibile salvare le foto.",
+      "deleteTitle": "Eliminare?",
+      "deleteBody": "Questa recensione verrà eliminata.",
+      "discardEdits": {
+        "title": "Uscire senza salvare?",
+        "body": "Le modifiche a questa visita verranno eliminate.",
+        "keepEditing": "Continua a modificare",
+        "discard": "Elimina"
+      }
+    },
+    "recovery": {
+      "confirmTitle": "Recuperare le recensioni precedenti?",
+      "confirmBody": "Cerca su questo iPhone il vecchio database Swift (qualsiasi .store/.sqlite in Application Support, Documents, Library) e le foto. I dati Expo attuali vengono prima salvati automaticamente in Backups. I backup .gustra crittografati sono separati — usa Backup / Ripristino per quelli.",
+      "completeTitle": "Recupero completato",
+      "completeBody": "Importate {{reviewCount}} recensioni in {{restaurantCount}} ristoranti ({{photosCopied}} foto copiate, {{mode}}).",
+      "failedTitle": "Recupero non riuscito",
+      "failedBody": "Impossibile importare i dati Gustra precedenti."
+    },
+    "resetCounters": {
+      "title": "Azzerare i contatori?",
+      "body": "I contatori di utilizzo API Google di oggi e totali verranno azzerati su questo dispositivo."
+    },
+    "backup": {
+      "overwriteTitle": "Sovrascrivere i dati esistenti?",
+      "overwriteBody": "Le tue recensioni attuali verranno sostituite dal backup.",
+      "deleteFileTitle": "Eliminare il file di backup?",
+      "deleteFileBody": "Questo rimuove il backup selezionato da questo dispositivo."
+    },
+    "import": {
+      "readFailed": "Impossibile leggere il file condiviso.",
+      "openFailed": "Impossibile aprire il file condiviso.",
+      "importFailed": "Impossibile importare le recensioni."
+    },
+    "linking": {
+      "unableTitle": "Impossibile aprire",
+      "unableBody": "Questa app non è disponibile su questo dispositivo."
+    },
+    "photos": {
+      "saved": "Foto salvata",
+      "shareFailed": "Impossibile condividere la foto.",
+      "saveFailed": "Impossibile salvare la foto."
+    },
+    "profilePhoto": {
+      "storageTitle": "Archiviazione",
+      "storageBody": "Impossibile salvare la foto profilo."
+    }
+  }
+}

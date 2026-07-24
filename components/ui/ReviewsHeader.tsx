@@ -1,56 +1,43 @@
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { Haptics } from '@/services/haptics';
 
 type ReviewsHeaderProps = {
   title?: string;
-  /** Swift: only on My reviews (not Friends'). */
   showShare?: boolean;
   canShare?: boolean;
   sharing?: boolean;
   onShare?: () => void;
-  /** Import `.gustrashare` (shown on Friends' when share is hidden). */
-  showImport?: boolean;
-  onImport?: () => void;
-  /** Swift `canUseFilters` — hide when source has no reviews. */
   showFilter?: boolean;
   canFilter?: boolean;
-  /** Swift `isFilterActive` — gold icon. */
+  /** Gold icon when filters are active. */
   filterActive?: boolean;
   onFilter?: () => void;
 };
 
 /**
- * Reviews tab bar: share/import + filter around the shared fixed-height HouseNavHeader.
+ * Tab bar: share + filter around the shared fixed-height HouseNavHeader.
  */
 export function ReviewsHeader({
-  title = 'Reviews',
+  title,
   showShare = true,
   canShare = false,
   sharing = false,
   onShare,
-  showImport = false,
-  onImport,
   showFilter = true,
   canFilter = false,
   filterActive = false,
   onFilter,
 }: ReviewsHeaderProps) {
-  const left = showImport ? (
-    <HouseToolbarIconButton
-      iosName="square.and.arrow.down"
-      androidName="download"
-      accessibilityLabel="Import reviews"
-      onPress={() => {
-        Haptics.light();
-        onImport?.();
-      }}
-    />
-  ) : showShare ? (
+  const { t } = useAppTranslation();
+  const resolvedTitle = title ?? t('tabs.reviews');
+
+  const left = showShare ? (
     <HouseToolbarIconButton
       iosName="square.and.arrow.up"
       androidName="share"
-      accessibilityLabel="Share"
+      accessibilityLabel={t('a11y.share')}
       disabled={!canShare || sharing}
       onPress={() => {
         Haptics.light();
@@ -61,14 +48,14 @@ export function ReviewsHeader({
 
   return (
     <HouseNavHeader
-      title={title}
+      title={resolvedTitle}
       left={left}
       right={
         showFilter ? (
           <HouseToolbarIconButton
             iosName="line.3.horizontal.decrease"
             androidName="filter-list"
-            accessibilityLabel="Filters"
+            accessibilityLabel={t('a11y.filters')}
             disabled={!canFilter}
             emphasized={filterActive}
             onPress={() => {

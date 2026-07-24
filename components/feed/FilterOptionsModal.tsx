@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
   Modal,
@@ -22,9 +22,12 @@ import { SymbolView } from 'expo-symbols';
 
 import {
   DEFAULT_FEED_FILTER_STATE,
+  availableCitiesFromSummaries,
+  availablePrimaryTypesFromSummaries,
   feedFilterPreviewCount,
   hasFeedFilter,
   isAllSelection,
+  mergeSummariesByRestaurant,
   placeTypeSelectionSummary,
   selectionSummary,
   sortKindTitle,
@@ -41,6 +44,7 @@ import { placeTypeDisplayName } from '@/constants/PlaceTypeLabels';
 import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle, captionTextStyle, Theme } from '@/constants/Theme';
 import type { RestaurantVisitSummary } from '@/data/types';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { Haptics } from '@/services/haptics';
 
 type PanelRoute = 'location' | 'placeType' | 'sort';
@@ -55,6 +59,11 @@ type FilterOptionsModalProps = {
   sortCriteria: SortCriterion[];
   sourceSummaries: RestaurantVisitSummary[];
   filterOptions?: FeedFilterOptions;
+  /** My map: same filters, no Sort by (order is meaningless on the map). */
+  hideSort?: boolean;
+  /** Show “Include friend's reviews”; pair with friendSummaries. */
+  showFriendsFilter?: boolean;
+  friendSummaries?: RestaurantVisitSummary[];
   onApply: (next: FeedFilterState) => void;
   onReset: () => void;
   onClose: () => void;
@@ -76,10 +85,14 @@ export function FilterOptionsModal({
   sortCriteria,
   sourceSummaries,
   filterOptions,
+  hideSort = false,
+  showFriendsFilter = false,
+  friendSummaries = [],
   onApply,
   onReset,
   onClose,
 }: FilterOptionsModalProps) {
+  const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<FeedFilterState>(value);
   const [panelRoute, setPanelRoute] = useState<PanelRoute | null>(null);
@@ -94,6 +107,9 @@ export function FilterOptionsModal({
   // Seed width so the first push never starts at translateX from 0→real width.
   const sheetWidth = useSharedValue(Dimensions.get('window').width);
   const pushProgress = useSharedValue(0);
+  /** Keep route in a ref so pop-animation callbacks can ignore a re-push. */
+  const panelRouteRef = useRef(panelRoute);
+  panelRouteRef.current = panelRoute;
 
   const onStackLayout = (event: LayoutChangeEvent) => {
     const width = event.nativeEvent.layout.width;
@@ -103,13 +119,15 @@ export function FilterOptionsModal({
     }
   };
 
-  const clearActivePanel = useCallback(() => {
+  const finishPopAnimation = useCallback(() => {
+    // Second push can start before the pop callback runs — never unmount then.
+    if (panelRouteRef.current !== null) return;
     setActivePanel(null);
   }, []);
 
   const pushPanel = useCallback(
     (route: PanelRoute) => {
-      // Always mount + route together — panelRoute alone freezes (root pointerEvents
+      // Mount + route together — panelRoute alone freezes (root pointerEvents
       // none while no pushed page is rendered).
       cancelAnimation(pushProgress);
       setActivePanel(route);
@@ -157,9 +175,11 @@ export function FilterOptionsModal({
       0,
       { duration: NAV_DURATION_MS, easing: NAV_EASING },
       (finished) => {
-        // Always unmount so the UI cannot stick mid-push if the animation is interrupted.
-        runOnJS(clearActivePanel)();
-        void finished;
+        // Only clear when the pop actually completed. A cancelled pop (re-push
+        // mid-animation) used to call clearActivePanel and freeze the second open.
+        if (finished) {
+          runOnJS(finishPopAnimation)();
+        }
       },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -179,13 +199,39 @@ export function FilterOptionsModal({
   }));
 
   const isNoneSelected = draft.filters.length === 0;
+  const previewSummaries = useMemo(() => {
+    if (
+      showFriendsFilter &&
+      hasFeedFilter(draft, 'friends') &&
+      friendSummaries.length > 0
+    ) {
+      return mergeSummariesByRestaurant([sourceSummaries, friendSummaries]);
+    }
+    return sourceSummaries;
+  }, [draft, friendSummaries, showFriendsFilter, sourceSummaries]);
+
+  const citiesForPanels = useMemo(
+    () =>
+      showFriendsFilter
+        ? availableCitiesFromSummaries(previewSummaries)
+        : availableCities,
+    [availableCities, previewSummaries, showFriendsFilter],
+  );
+  const typesForPanels = useMemo(
+    () =>
+      showFriendsFilter
+        ? availablePrimaryTypesFromSummaries(previewSummaries)
+        : availablePrimaryTypes,
+    [availablePrimaryTypes, previewSummaries, showFriendsFilter],
+  );
+
   const locationSummary = selectionSummary(
     draft.locationCities,
-    availableCities,
+    citiesForPanels,
   );
   const placeTypeSummary = placeTypeSelectionSummary(
     draft.primaryTypes,
-    availablePrimaryTypes,
+    typesForPanels,
   );
   const currentSortTitle = sortKindTitle(
     draft.sortKind,
@@ -193,10 +239,10 @@ export function FilterOptionsModal({
   );
 
   const matchingCount = useMemo(
-    () => feedFilterPreviewCount(sourceSummaries, draft, filterOptions),
-    [draft, filterOptions, sourceSummaries],
+    () => feedFilterPreviewCount(previewSummaries, draft, filterOptions),
+    [draft, filterOptions, previewSummaries],
   );
-  const totalCount = sourceSummaries.length;
+  const totalCount = previewSummaries.length;
 
   const selectNone = () => {
     Haptics.selectionChanged();
@@ -208,14 +254,14 @@ export function FilterOptionsModal({
     if (route === 'location') {
       const cities =
         draft.locationCities.length === 0
-          ? [...availableCities]
+          ? [...citiesForPanels]
           : [...draft.locationCities];
       setLocationSnapshot(cities);
       setDraft((prev) => ({ ...prev, locationCities: cities }));
     } else {
       const types =
         draft.primaryTypes.length === 0
-          ? [...availablePrimaryTypes]
+          ? [...typesForPanels]
           : [...draft.primaryTypes];
       setPlaceTypeSnapshot(types);
       setDraft((prev) => ({ ...prev, primaryTypes: types }));
@@ -242,9 +288,9 @@ export function FilterOptionsModal({
     if (flag === 'location') {
       const cities =
         draft.locationCities.length === 0
-          ? [...availableCities]
+          ? [...citiesForPanels]
           : [...draft.locationCities];
-      if (isAllSelection(cities, availableCities)) {
+      if (isAllSelection(cities, citiesForPanels)) {
         // First enable → pick cities (Swift opens the location sheet).
         setLocationSnapshot(cities);
         setDraft((prev) => ({ ...prev, locationCities: cities }));
@@ -264,9 +310,9 @@ export function FilterOptionsModal({
     if (flag === 'placeType') {
       const types =
         draft.primaryTypes.length === 0
-          ? [...availablePrimaryTypes]
+          ? [...typesForPanels]
           : [...draft.primaryTypes];
-      if (isAllSelection(types, availablePrimaryTypes)) {
+      if (isAllSelection(types, typesForPanels)) {
         setPlaceTypeSnapshot(types);
         setDraft((prev) => ({ ...prev, primaryTypes: types }));
         pushPanel('placeType');
@@ -290,7 +336,7 @@ export function FilterOptionsModal({
 
   const confirmLocationDraft = () => {
     setDraft((prev) => {
-      const allSelected = isAllSelection(prev.locationCities, availableCities);
+      const allSelected = isAllSelection(prev.locationCities, citiesForPanels);
       const filters: FeedFilterFlag[] = allSelected
         ? prev.filters.filter((item) => item !== 'location')
         : prev.filters.includes('location')
@@ -305,7 +351,7 @@ export function FilterOptionsModal({
   const cancelLocationDraft = () => {
     if (locationSnapshot) {
       const cities = locationSnapshot;
-      const allSelected = isAllSelection(cities, availableCities);
+      const allSelected = isAllSelection(cities, citiesForPanels);
       setDraft((prev) => ({
         ...prev,
         locationCities: cities,
@@ -320,10 +366,7 @@ export function FilterOptionsModal({
 
   const confirmPlaceTypeDraft = () => {
     setDraft((prev) => {
-      const allSelected = isAllSelection(
-        prev.primaryTypes,
-        availablePrimaryTypes,
-      );
+      const allSelected = isAllSelection(prev.primaryTypes, typesForPanels);
       const filters: FeedFilterFlag[] = allSelected
         ? prev.filters.filter((item) => item !== 'placeType')
         : prev.filters.includes('placeType')
@@ -338,7 +381,7 @@ export function FilterOptionsModal({
   const cancelPlaceTypeDraft = () => {
     if (placeTypeSnapshot) {
       const types = placeTypeSnapshot;
-      const allSelected = isAllSelection(types, availablePrimaryTypes);
+      const allSelected = isAllSelection(types, typesForPanels);
       setDraft((prev) => ({
         ...prev,
         primaryTypes: types,
@@ -389,19 +432,19 @@ export function FilterOptionsModal({
               <HouseToolbarIconButton
                 iosName="xmark"
                 androidName="close"
-                accessibilityLabel="Reset filters"
+                accessibilityLabel={t('filters.reset')}
                 onPress={() => {
                   onReset();
                   onClose();
                 }}
               />
               <SerifText size={20} weight="semibold" style={styles.navTitle}>
-                Filter options
+                {t('filters.title')}
               </SerifText>
               <HouseToolbarIconButton
                 iosName="checkmark"
                 androidName="check"
-                accessibilityLabel="Done"
+                accessibilityLabel={t('filters.done')}
                 onPress={() => {
                   onApply(draft);
                   onClose();
@@ -416,66 +459,85 @@ export function FilterOptionsModal({
               ]}
               keyboardShouldPersistTaps="handled">
               <SerifText size={20} weight="semibold" style={styles.sectionTitle}>
-                Filters
+                {t('filters.filters')}
               </SerifText>
 
               <CheckboxRow
-                title="None"
+                title={t('filters.none')}
                 selected={isNoneSelected}
                 onPress={selectNone}
               />
               <CheckboxRow
-                title="Favorites"
+                title={t('filters.favorites')}
                 selected={hasFeedFilter(draft, 'favorites')}
                 onPress={() => toggleFilter('favorites')}
               />
+              {showFriendsFilter ? (
+                <CheckboxRow
+                  title={t('filters.friendsReviews')}
+                  selected={hasFeedFilter(draft, 'friends')}
+                  onPress={() => toggleFilter('friends')}
+                />
+              ) : null}
 
               <CompositeFilterRow
-                title="Location"
+                title={t('filters.location')}
                 summary={locationSummary}
                 selected={hasFeedFilter(draft, 'location')}
+                chooseHint={t('filters.choose', { title: t('filters.location') })}
                 onToggle={() => toggleFilter('location')}
                 onOpen={() => openMultiSelect('location')}
               />
               <CompositeFilterRow
-                title="Cuisine type"
+                title={t('filters.cuisine')}
                 summary={placeTypeSummary}
                 selected={hasFeedFilter(draft, 'placeType')}
+                chooseHint={t('filters.choose', { title: t('filters.cuisine') })}
                 onToggle={() => toggleFilter('placeType')}
                 onOpen={() => openMultiSelect('placeType')}
               />
 
-              <SerifText size={20} weight="semibold" style={styles.sectionTitle}>
-                Sort by
-              </SerifText>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Sort by"
-                accessibilityValue={{ text: currentSortTitle }}
-                onPress={openSortPanel}
-                style={({ pressed }) => [
-                  styles.sortRow,
-                  pressed && styles.pressed,
-                ]}>
-                <View style={styles.compositeText}>
-                  <Text style={styles.rowTitle}>{currentSortTitle}</Text>
-                  {draft.sortKind.type === 'averageScore' ? (
-                    <Text style={styles.rowSubtitle}>Default</Text>
-                  ) : null}
-                </View>
-                <SymbolView
-                  name={{
-                    ios: 'chevron.right',
-                    android: 'chevron_right',
-                    web: 'chevron_right',
-                  }}
-                  tintColor="rgba(35, 32, 26, 0.35)"
-                  size={16}
-                />
-              </Pressable>
+              {!hideSort ? (
+                <>
+                  <SerifText
+                    size={20}
+                    weight="semibold"
+                    style={styles.sectionTitle}>
+                    {t('filters.sortBy')}
+                  </SerifText>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('filters.sortBy')}
+                    accessibilityValue={{ text: currentSortTitle }}
+                    onPress={openSortPanel}
+                    style={({ pressed }) => [
+                      styles.sortRow,
+                      pressed && styles.pressed,
+                    ]}>
+                    <View style={styles.compositeText}>
+                      <Text style={styles.rowTitle}>{currentSortTitle}</Text>
+                      {draft.sortKind.type === 'averageScore' ? (
+                        <Text style={styles.rowSubtitle}>{t('filters.default')}</Text>
+                      ) : null}
+                    </View>
+                    <SymbolView
+                      name={{
+                        ios: 'chevron.right',
+                        android: 'chevron_right',
+                        web: 'chevron_right',
+                      }}
+                      tintColor="rgba(35, 32, 26, 0.35)"
+                      size={16}
+                    />
+                  </Pressable>
+                </>
+              ) : null}
 
               <Text style={styles.count}>
-                {matchingCount} of {totalCount} restaurants
+                {t('filters.restaurantCount', {
+                  shown: matchingCount,
+                  total: totalCount,
+                })}
               </Text>
             </ScrollView>
           </Animated.View>
@@ -485,10 +547,10 @@ export function FilterOptionsModal({
               style={[styles.page, styles.stackPage, pushedPageStyle]}
               pointerEvents={panelRoute === 'location' ? 'auto' : 'none'}>
               <MultiSelectFilterPanel
-                title="Location"
-                emptyTitle="No Locations Yet"
-                emptyDescription="Add reviews with a city to filter by location."
-                items={availableCities}
+                title={t('filters.location')}
+                emptyTitle={t('filters.emptyLocationTitle')}
+                emptyDescription={t('filters.emptyLocationBody')}
+                items={citiesForPanels}
                 selected={draft.locationCities}
                 bottomInset={insets.bottom}
                 onChangeSelected={(locationCities) =>
@@ -505,12 +567,12 @@ export function FilterOptionsModal({
               style={[styles.page, styles.stackPage, pushedPageStyle]}
               pointerEvents={panelRoute === 'placeType' ? 'auto' : 'none'}>
               <MultiSelectFilterPanel
-                title="Cuisine type"
-                emptyTitle="No Cuisine Types Yet"
-                emptyDescription="Add restaurants from the map or search to filter by cuisine type."
+                title={t('filters.cuisine')}
+                emptyTitle={t('filters.emptyCuisineTitle')}
+                emptyDescription={t('filters.emptyCuisineBody')}
                 emptySystemImage="fork.knife"
                 emptyAndroidImage="restaurant"
-                items={availablePrimaryTypes}
+                items={typesForPanels}
                 selected={draft.primaryTypes}
                 titleForItem={placeTypeDisplayName}
                 bottomInset={insets.bottom}
@@ -523,7 +585,7 @@ export function FilterOptionsModal({
             </Animated.View>
           ) : null}
 
-          {activePanel === 'sort' ? (
+          {activePanel === 'sort' && !hideSort ? (
             <Animated.View
               style={[styles.page, styles.stackPage, pushedPageStyle]}
               pointerEvents={panelRoute === 'sort' ? 'auto' : 'none'}>
@@ -583,12 +645,14 @@ function CompositeFilterRow({
   title,
   summary,
   selected,
+  chooseHint,
   onToggle,
   onOpen,
 }: {
   title: string;
   summary: string;
   selected: boolean;
+  chooseHint: string;
   onToggle: () => void;
   onOpen: () => void;
 }) {
@@ -604,7 +668,7 @@ function CompositeFilterRow({
       </Pressable>
       <Pressable
         accessibilityRole="button"
-        accessibilityHint={`Choose ${title.toLowerCase()}`}
+        accessibilityHint={chooseHint}
         accessibilityValue={{ text: summary }}
         onPress={onOpen}
         style={({ pressed }) => [

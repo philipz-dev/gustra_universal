@@ -1,41 +1,11 @@
-import {
-  ActionSheetIOS,
-  InteractionManager,
-  Linking,
-  Platform,
-} from 'react-native';
+import { ActionSheetIOS, InteractionManager, Linking, Platform } from 'react-native';
 
 import { houseAlert } from '@/components/ui/HouseAlert';
-
-/** Wait for a native Modal / ActionSheet to finish dismissing before presenting UI. */
-function afterPresentationSettles(work: () => void): void {
-  InteractionManager.runAfterInteractions(() => {
-    setTimeout(work, Platform.OS === 'ios' ? 320 : 50);
-  });
-}
-
-async function safeOpenURL(url: string): Promise<void> {
-  try {
-    // `canOpenURL` is unreliable / unnecessary for http(s); only gate custom schemes.
-    if (!/^https?:/i.test(url)) {
-      const supported = await Linking.canOpenURL(url);
-      if (!supported) {
-        afterPresentationSettles(() => {
-          houseAlert(
-            'Unable to open',
-            'This app is not available on this device.',
-          );
-        });
-        return;
-      }
-    }
-    await Linking.openURL(url);
-  } catch {
-    afterPresentationSettles(() => {
-      houseAlert('Unable to open', 'This app is not available on this device.');
-    });
-  }
-}
+import { i18n } from '@/i18n';
+import {
+  afterPresentationSettles,
+  safeOpenURL,
+} from '@/services/linking/safeLinking';
 
 function asCoord(value: number): number {
   const n = typeof value === 'number' ? value : Number(value);
@@ -60,7 +30,9 @@ export const DirectionsLauncher = {
     const lng = asCoord(longitude);
     if (!restaurantHasCoordinates(lat, lng)) return;
 
-    const label = encodeURIComponent(name.trim() || 'Destination');
+    const label = encodeURIComponent(
+      name.trim() || i18n.t('directions.destination'),
+    );
     const url =
       Platform.OS === 'ios'
         ? `https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d&q=${label}`
@@ -75,14 +47,8 @@ export const DirectionsLauncher = {
 
     const appURL = `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`;
     const webURL = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-    try {
-      if (await Linking.canOpenURL(appURL)) {
-        await Linking.openURL(appURL);
-        return;
-      }
-    } catch {
-      // Fall through to web.
-    }
+    const openedApp = await safeOpenURL(appURL, { alertOnFailure: false });
+    if (openedApp) return;
     await safeOpenURL(webURL);
   },
 
@@ -113,91 +79,102 @@ export type PresentDirectionsArgs = {
   latitude: number;
   longitude: number;
   /**
-   * When true, wait before presenting (caller is dismissing an RN Modal first).
+   * When true, wait longer before presenting (caller is dismissing an RN Modal).
    * Presenting ActionSheetIOS / another Modal while one is visible crashes iOS.
    */
   afterModalDismiss?: boolean;
 };
 
 async function showDirectionsChooser(args: PresentDirectionsArgs): Promise<void> {
-  const latitude = asCoord(args.latitude);
-  const longitude = asCoord(args.longitude);
-  const name = args.name?.trim() || 'Destination';
+  try {
+    const latitude = asCoord(args.latitude);
+    const longitude = asCoord(args.longitude);
+    const name = args.name?.trim() || i18n.t('directions.destination');
 
-  if (!restaurantHasCoordinates(latitude, longitude)) {
-    houseAlert('Get directions', 'No map location is available.');
-    return;
+    if (!restaurantHasCoordinates(latitude, longitude)) {
+      houseAlert(i18n.t('directions.title'), i18n.t('directions.noLocation'));
+      return;
+    }
+
+    // ActionSheetIOS can misbehave with very long messages.
+    const rawMessage = args.addressLine?.trim() || name;
+    const message =
+      rawMessage.length > 160 ? `${rawMessage.slice(0, 157)}…` : rawMessage;
+
+    const openApple = () => {
+      afterPresentationSettles(() => {
+        void DirectionsLauncher.openAppleMaps(name, latitude, longitude);
+      });
+    };
+    const openGoogle = () => {
+      afterPresentationSettles(() => {
+        void DirectionsLauncher.openGoogleMaps(latitude, longitude);
+      });
+    };
+    const openWaze = () => {
+      afterPresentationSettles(() => {
+        void DirectionsLauncher.openWaze(latitude, longitude);
+      });
+    };
+
+    // Swift `DirectionsLauncher.canOpenWaze` — omit Waze when not installed.
+    const wazeAvailable = await canOpenWaze();
+
+    if (Platform.OS === 'ios') {
+      const options = wazeAvailable
+        ? [
+            i18n.t('directions.appleMaps'),
+            i18n.t('directions.googleMaps'),
+            i18n.t('directions.waze'),
+            i18n.t('directions.cancel'),
+          ]
+        : [
+            i18n.t('directions.appleMaps'),
+            i18n.t('directions.googleMaps'),
+            i18n.t('directions.cancel'),
+          ];
+      const cancelButtonIndex = options.length - 1;
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title: i18n.t('directions.title'),
+          message,
+          options,
+          cancelButtonIndex,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 0) openApple();
+          else if (buttonIndex === 1) openGoogle();
+          else if (wazeAvailable && buttonIndex === 2) openWaze();
+        },
+      );
+      return;
+    }
+
+    houseAlert(i18n.t('directions.title'), message, [
+      { text: i18n.t('directions.maps'), onPress: openApple },
+      { text: i18n.t('directions.googleMaps'), onPress: openGoogle },
+      ...(wazeAvailable
+        ? [{ text: i18n.t('directions.waze'), onPress: openWaze }]
+        : []),
+      { text: i18n.t('directions.cancel'), style: 'cancel' as const },
+    ]);
+  } catch {
+    houseAlert(i18n.t('directions.title'), i18n.t('directions.openFailed'));
   }
-
-  // ActionSheetIOS can misbehave with very long messages.
-  const rawMessage = args.addressLine?.trim() || name;
-  const message =
-    rawMessage.length > 160 ? `${rawMessage.slice(0, 157)}…` : rawMessage;
-
-  const openApple = () => {
-    afterPresentationSettles(() => {
-      void DirectionsLauncher.openAppleMaps(name, latitude, longitude);
-    });
-  };
-  const openGoogle = () => {
-    afterPresentationSettles(() => {
-      void DirectionsLauncher.openGoogleMaps(latitude, longitude);
-    });
-  };
-  const openWaze = () => {
-    afterPresentationSettles(() => {
-      void DirectionsLauncher.openWaze(latitude, longitude);
-    });
-  };
-
-  // Swift `DirectionsLauncher.canOpenWaze` — omit Waze when not installed.
-  const wazeAvailable = await canOpenWaze();
-
-  if (Platform.OS === 'ios') {
-    const options = wazeAvailable
-      ? ['Apple Maps', 'Google Maps', 'Waze', 'Cancel']
-      : ['Apple Maps', 'Google Maps', 'Cancel'];
-    const cancelButtonIndex = options.length - 1;
-    ActionSheetIOS.showActionSheetWithOptions(
-      {
-        title: 'Get directions',
-        message,
-        options,
-        cancelButtonIndex,
-      },
-      (buttonIndex) => {
-        if (buttonIndex === 0) openApple();
-        else if (buttonIndex === 1) openGoogle();
-        else if (wazeAvailable && buttonIndex === 2) openWaze();
-      },
-    );
-    return;
-  }
-
-  const buttons = [
-    {
-      text: 'Maps',
-      onPress: openApple,
-    },
-    { text: 'Google Maps', onPress: openGoogle },
-    ...(wazeAvailable
-      ? [{ text: 'Waze', onPress: openWaze }]
-      : []),
-    { text: 'Cancel', style: 'cancel' as const },
-  ];
-  houseAlert('Get directions', message, buttons);
 }
 
 /**
  * Present map-app choices.
- * On iOS this uses `ActionSheetIOS` synchronously (Swift `confirmationDialog`).
+ * Always settles briefly first so we never race a dismissing Modal / sheet.
+ * `afterModalDismiss` uses a longer iOS delay after a full-screen map Modal.
  */
 export function presentDirectionsOptions(args: PresentDirectionsArgs): void {
-  if (args.afterModalDismiss) {
-    afterPresentationSettles(() => {
+  const delayMs =
+    args.afterModalDismiss && Platform.OS === 'ios' ? 480 : Platform.OS === 'ios' ? 320 : 50;
+
+  InteractionManager.runAfterInteractions(() => {
+    setTimeout(() => {
       void showDirectionsChooser(args);
-    });
-    return;
-  }
-  void showDirectionsChooser(args);
+    }, delayMs);
+  });
 }

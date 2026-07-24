@@ -1,3 +1,5 @@
+import { i18n } from '@/i18n';
+
 /** Rules for creating a Gustra backup password. */
 export const BACKUP_PASSWORD_MIN_LENGTH = 7;
 
@@ -16,21 +18,25 @@ export function isValidBackupPassword(password: string): boolean {
 }
 
 export function backupPasswordError(password: string): string | null {
-  if (!password) return 'Enter a backup password.';
+  if (!password) return i18n.t('backup.enterPassword');
   if (password.length < BACKUP_PASSWORD_MIN_LENGTH) {
-    return `Password must be at least ${BACKUP_PASSWORD_MIN_LENGTH} characters.`;
+    return i18n.t('backup.passwordTooShort', {
+      count: BACKUP_PASSWORD_MIN_LENGTH,
+    });
   }
   if (!HAS_LETTER.test(password)) {
-    return 'Password must include at least one letter.';
+    return i18n.t('backup.passwordNeedsLetter');
   }
   if (!HAS_DIGIT.test(password)) {
-    return 'Password must include at least one number.';
+    return i18n.t('backup.passwordNeedsNumber');
   }
   if (!HAS_SYMBOL.test(password)) {
-    return 'Password must include at least one symbol.';
+    return i18n.t('backup.passwordNeedsSymbol');
   }
   return null;
 }
 
-export const BACKUP_PASSWORD_HINT =
-  'Min. 7 characters, with at least one letter, number, and symbol.';
+/** Localized password policy hint for create-backup UI. */
+export function backupPasswordHint(): string {
+  return i18n.t('backup.passwordHint');
+}

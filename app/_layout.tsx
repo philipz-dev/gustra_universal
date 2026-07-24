@@ -32,12 +32,15 @@ import { GlobalKeyboardDismiss } from '@/components/ui/GlobalKeyboardDismiss';
 import { HouseAlertHost } from '@/components/ui/HouseAlert';
 import { GustraColors } from '@/constants/Colors';
 import { CriteriaSettingsProvider } from '@/context/CriteriaSettings';
+import { FeedFilterProvider } from '@/context/FeedFilterContext';
 import { GoogleApiTrackerProvider } from '@/context/GoogleApiTracker';
+import { LanguageSettingsProvider } from '@/context/LanguageSettings';
 import { PassportDisplaySettingsProvider } from '@/context/PassportDisplaySettings';
 import { PhotoQualitySettingsProvider } from '@/context/PhotoQualitySettings';
 import { ReviewerProfileProvider } from '@/context/ReviewerProfile';
 import { ReviewsStoreProvider } from '@/context/ReviewsStore';
 import { ShareImportLaunchProvider } from '@/context/ShareImportLaunch';
+import '@/i18n';
 import { lockAppPortraitOrientation } from '@/services/orientation/photoViewerOrientation';
 
 export {
@@ -103,40 +106,44 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={styles.root}>
-      <CriteriaSettingsProvider>
-        <PassportDisplaySettingsProvider>
-          <PhotoQualitySettingsProvider>
-            <GoogleApiTrackerProvider>
-              <ReviewerProfileProvider>
-                <ReviewsStoreProvider>
-                  <ShareImportLaunchProvider>
-                    <ThemeProvider value={GustraNavigationTheme}>
-                      <GlobalKeyboardDismiss>
-                        <View style={styles.root}>
-                          <StatusBar style="light" />
-                          <Stack screenOptions={{ headerShown: false }}>
-                            <Stack.Screen name="(tabs)" />
-                            <Stack.Screen
-                              name="share-import"
-                              options={{
-                                presentation: 'modal',
-                                animation: 'slide_from_bottom',
-                              }}
-                            />
-                          </Stack>
-                          <SwipeDismissOverlay />
-                          <ReviewEmailSnapshotHost />
-                          <HouseAlertHost />
-                        </View>
-                      </GlobalKeyboardDismiss>
-                    </ThemeProvider>
-                  </ShareImportLaunchProvider>
-                </ReviewsStoreProvider>
-              </ReviewerProfileProvider>
-            </GoogleApiTrackerProvider>
-          </PhotoQualitySettingsProvider>
-        </PassportDisplaySettingsProvider>
-      </CriteriaSettingsProvider>
+      <LanguageSettingsProvider>
+        <CriteriaSettingsProvider>
+          <PassportDisplaySettingsProvider>
+            <PhotoQualitySettingsProvider>
+              <GoogleApiTrackerProvider>
+                <ReviewerProfileProvider>
+                  <ReviewsStoreProvider>
+                    <FeedFilterProvider>
+                      <ShareImportLaunchProvider>
+                        <ThemeProvider value={GustraNavigationTheme}>
+                          <GlobalKeyboardDismiss>
+                            <View style={styles.root}>
+                              <StatusBar style="light" />
+                              <Stack screenOptions={{ headerShown: false }}>
+                                <Stack.Screen name="(tabs)" />
+                                <Stack.Screen
+                                  name="share-import"
+                                  options={{
+                                    presentation: 'modal',
+                                    animation: 'slide_from_bottom',
+                                  }}
+                                />
+                              </Stack>
+                              <SwipeDismissOverlay />
+                              <ReviewEmailSnapshotHost />
+                              <HouseAlertHost />
+                            </View>
+                          </GlobalKeyboardDismiss>
+                        </ThemeProvider>
+                      </ShareImportLaunchProvider>
+                    </FeedFilterProvider>
+                  </ReviewsStoreProvider>
+                </ReviewerProfileProvider>
+              </GoogleApiTrackerProvider>
+            </PhotoQualitySettingsProvider>
+          </PassportDisplaySettingsProvider>
+        </CriteriaSettingsProvider>
+      </LanguageSettingsProvider>
     </GestureHandlerRootView>
   );
 }

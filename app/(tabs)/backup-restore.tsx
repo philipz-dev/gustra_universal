@@ -24,11 +24,13 @@ import {
   shareBackupFile,
 } from '@/services/backup/BackupService';
 import {
-  BACKUP_PASSWORD_HINT,
   backupPasswordError,
+  backupPasswordHint,
   isValidBackupPassword,
 } from '@/services/backup/passwordPolicy';
 import type { BackupImportMode, LocalBackupFile } from '@/services/backup/types';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { activeIntlLocale } from '@/i18n/formatDates';
 
 type Step =
   | 'home'
@@ -38,19 +40,20 @@ type Step =
   | 'restorePassword'
   | 'restoreMode';
 
-function titleForStep(step: Step): string {
+function titleForStep(step: Step, t: (key: string) => string): string {
   switch (step) {
     case 'home':
-      return 'Backup / Restore';
+      return t('tabs.backupRestore');
     case 'createPassword':
     case 'createDestination':
-      return 'Create Backup';
+      return t('backup.create');
     default:
-      return 'Restore Backup';
+      return t('backup.restoreTitle');
   }
 }
 
 export default function EncryptedBackupScreen() {
+  const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { reviews, createEncryptedBackup, importEncryptedBackup } =
@@ -111,14 +114,14 @@ export default function EncryptedBackupScreen() {
     navigation.setOptions({
       header: () => (
         <HouseNavHeader
-          title={titleForStep(step)}
+          title={titleForStep(step, t)}
           titleSize={Theme.navigation.secondaryTitleSize}
           showBack
           onBack={goBack}
         />
       ),
     });
-  }, [goBack, navigation, step]);
+  }, [goBack, navigation, step, t]);
 
   const runBusy = async (fn: () => Promise<void>) => {
     setIsBusy(true);
@@ -136,7 +139,7 @@ export default function EncryptedBackupScreen() {
       return;
     }
     if (password !== passwordConfirm) {
-      setMessage('Passwords do not match.');
+      setMessage(t('backup.passwordMismatch'));
       return;
     }
     setMessage(null);
@@ -150,7 +153,7 @@ export default function EncryptedBackupScreen() {
         setMessage(
           error instanceof Error
             ? error.message
-            : 'Could not encrypt the backup file.',
+            : t('backup.encryptFailed'),
         );
       }
     });
@@ -164,7 +167,7 @@ export default function EncryptedBackupScreen() {
           pendingBytes,
           pendingFilename,
         );
-        setMessage(`Backup file ${filename} saved`);
+        setMessage(t('backup.fileSaved', { filename }));
         await refreshLocalBackups();
         setStep('home');
         setPassword('');
@@ -174,7 +177,7 @@ export default function EncryptedBackupScreen() {
         setMessage(
           error instanceof Error
             ? error.message
-            : 'Could not encrypt the backup file.',
+            : t('backup.encryptFailed'),
         );
       }
     });
@@ -184,14 +187,14 @@ export default function EncryptedBackupScreen() {
       if (!pendingBytes) return;
       try {
         const filename = await shareBackupFile(pendingBytes, pendingFilename);
-        setMessage(`Backup file ${filename} shared`);
+        setMessage(t('backup.fileShared', { filename }));
         setStep('home');
         setPassword('');
         setPasswordConfirm('');
         setPendingBytes(null);
       } catch (error) {
         setMessage(
-          error instanceof Error ? error.message : 'Could not share the backup.',
+          error instanceof Error ? error.message : t('backup.shareFailed'),
         );
       }
     });
@@ -205,7 +208,7 @@ export default function EncryptedBackupScreen() {
         setMessage(null);
         setStep('restorePassword');
       } catch {
-        setMessage('Could not read the backup file.');
+        setMessage(t('backup.readFailed'));
       }
     });
 
@@ -224,7 +227,7 @@ export default function EncryptedBackupScreen() {
         setMessage(null);
         setStep('restorePassword');
       } catch {
-        setMessage('Could not read the backup file.');
+        setMessage(t('backup.readFailed'));
       }
     });
 
@@ -236,7 +239,7 @@ export default function EncryptedBackupScreen() {
       setStep('restoreMode');
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : 'Incorrect backup password.',
+        error instanceof Error ? error.message : t('backup.incorrectPassword'),
       );
     }
   };
@@ -248,27 +251,27 @@ export default function EncryptedBackupScreen() {
         await importEncryptedBackup(pendingRestore, password, mode);
         setMessage(
           mode === 'merge'
-            ? 'Backup merged successfully.'
-            : 'Backup restored successfully.',
+            ? t('backup.mergedSuccess')
+            : t('backup.restoredSuccess'),
         );
         setPendingRestore(null);
         setPassword('');
         setStep('home');
       } catch (error) {
         setMessage(
-          error instanceof Error ? error.message : 'Incorrect backup password.',
+          error instanceof Error ? error.message : t('backup.incorrectPassword'),
         );
       }
     });
 
   const confirmOverwrite = () => {
     houseAlert(
-      'Overwrite existing data?',
-      'All current restaurants and reviews will be replaced by this backup. This cannot be undone.',
+      t('alerts.backup.overwriteTitle'),
+      t('alerts.backup.overwriteBody'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Overwrite',
+          text: t('common.overwrite'),
           style: 'destructive',
           onPress: () => performRestore('overwrite'),
         },
@@ -278,12 +281,12 @@ export default function EncryptedBackupScreen() {
 
   const confirmDeleteBackup = (file: LocalBackupFile) => {
     houseAlert(
-      'Delete backup file?',
-      `“${file.name}” will be permanently deleted. This cannot be undone.`,
+      t('alerts.backup.deleteFileTitle'),
+      t('alerts.backup.deleteFileBody'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: () =>
             void runBusy(async () => {
@@ -291,7 +294,7 @@ export default function EncryptedBackupScreen() {
                 await deleteLocalBackup(file.uri);
                 await refreshLocalBackups();
               } catch {
-                setMessage('Could not delete the backup file.');
+                setMessage(t('backup.deleteFailed'));
               }
             }),
         },
@@ -320,15 +323,14 @@ export default function EncryptedBackupScreen() {
               tintColor={GustraColors.forestGreen}
             />
             <SerifText size={24} weight="bold" style={styles.homeTitle}>
-              Encrypted Backup
+              {t('backup.encryptedTitle')}
             </SerifText>
             <Text style={styles.homeCopy}>
-              Save a password-protected copy of your restaurants and reviews, or
-              restore from an earlier backup.
+              {t('backup.encryptedBody')}
             </Text>
             <View style={styles.homeActions}>
               <HousePrimaryButton
-                title="Create Backup"
+                title={t("backup.create")}
                 disabled={!canCreate}
                 onPress={() => {
                   setPassword('');
@@ -338,7 +340,7 @@ export default function EncryptedBackupScreen() {
                 }}
               />
               <HousePrimaryButton
-                title="Restore"
+                title={t("backup.restore")}
                 onPress={() => {
                   setMessage(null);
                   setPassword('');
@@ -349,7 +351,7 @@ export default function EncryptedBackupScreen() {
             </View>
             {!canCreate ? (
               <Text style={styles.hint}>
-                Add at least one review before creating a backup.
+                {t('backup.needReviewFirst')}
               </Text>
             ) : null}
           </View>
@@ -357,7 +359,7 @@ export default function EncryptedBackupScreen() {
 
         {step === 'createPassword' ? (
           <View style={styles.form}>
-            <Text style={styles.fieldLabel}>Backup password</Text>
+            <Text style={styles.fieldLabel}>{t('backup.password')}</Text>
             <TextInput
               value={password}
               onChangeText={setPassword}
@@ -366,7 +368,7 @@ export default function EncryptedBackupScreen() {
               autoCapitalize="none"
               autoCorrect={false}
             />
-            <Text style={styles.fieldLabel}>Confirm password</Text>
+            <Text style={styles.fieldLabel}>{t('backup.confirmPassword')}</Text>
             <TextInput
               value={passwordConfirm}
               onChangeText={setPasswordConfirm}
@@ -376,11 +378,11 @@ export default function EncryptedBackupScreen() {
               autoCorrect={false}
             />
             <Text style={styles.footerHint}>
-              Choose a password you will need later to restore this backup.{'\n'}
-              {BACKUP_PASSWORD_HINT}
+              {t('backup.choosePasswordHint')}{'\n'}
+              {backupPasswordHint()}
             </Text>
             <HousePrimaryButton
-              title="Continue"
+              title={t("backup.continue")}
               disabled={!canContinueCreate}
               onPress={continueCreatePassword}
             />
@@ -389,13 +391,12 @@ export default function EncryptedBackupScreen() {
 
         {step === 'createDestination' ? (
           <View style={styles.form}>
-            <Text style={styles.sectionLead}>Where should this backup go?</Text>
+            <Text style={styles.sectionLead}>{t('backup.whereTitle')}</Text>
             <Text style={styles.footerHint}>
-              Local backups are stored in the app’s Backups folder on this
-              device.
+              {t('backup.localFolderHint')}
             </Text>
-            <HousePrimaryButton title="Save Locally" onPress={saveLocally} />
-            <HousePrimaryButton title="Share" onPress={shareBackup} />
+            <HousePrimaryButton title={t("backup.saveLocally")} onPress={saveLocally} />
+            <HousePrimaryButton title={t("backup.share")} onPress={shareBackup} />
           </View>
         ) : null}
 
@@ -403,15 +404,14 @@ export default function EncryptedBackupScreen() {
           <View style={styles.form}>
             {localBackups.length === 0 ? (
               <>
-                <Text style={styles.sectionLead}>No backups found</Text>
+                <Text style={styles.sectionLead}>{t('backup.noBackups')}</Text>
                 <Text style={styles.footerHint}>
-                  No backups found in the Gustra Backups folder. You can still
-                  choose a file from elsewhere.
+                  {t('backup.noBackupsBody')}
                 </Text>
               </>
             ) : (
               <>
-                <Text style={styles.sectionLead}>Gustra backups</Text>
+                <Text style={styles.sectionLead}>{t('backup.gustraBackups')}</Text>
                 {localBackups.map((file) => (
                   <View key={file.uri} style={styles.backupRow}>
                     <Pressable
@@ -424,8 +424,10 @@ export default function EncryptedBackupScreen() {
                         {file.name}
                       </Text>
                       <Text style={styles.backupMeta}>
-                        {new Date(file.modified).toLocaleString()} ·{' '}
-                        {formatByteCount(file.byteCount)}
+                        {new Date(file.modified).toLocaleString(
+                          activeIntlLocale(),
+                        )}{' '}
+                        · {formatByteCount(file.byteCount)}
                       </Text>
                     </Pressable>
                     <Pressable
@@ -448,7 +450,7 @@ export default function EncryptedBackupScreen() {
               </>
             )}
             <HousePrimaryButton
-              title="Choose from Files"
+              title={t("backup.chooseFromFiles")}
               onPress={chooseFromFiles}
             />
           </View>
@@ -456,7 +458,7 @@ export default function EncryptedBackupScreen() {
 
         {step === 'restorePassword' ? (
           <View style={styles.form}>
-            <Text style={styles.fieldLabel}>Backup password</Text>
+            <Text style={styles.fieldLabel}>{t('backup.password')}</Text>
             <TextInput
               value={password}
               onChangeText={setPassword}
@@ -466,10 +468,10 @@ export default function EncryptedBackupScreen() {
               autoCorrect={false}
             />
             <Text style={styles.footerHint}>
-              Enter the password used when this backup was created.
+              {t('backup.enterRestorePassword')}
             </Text>
             <HousePrimaryButton
-              title="Continue"
+              title={t("backup.continue")}
               disabled={!password}
               onPress={continueRestorePassword}
             />
@@ -479,14 +481,14 @@ export default function EncryptedBackupScreen() {
         {step === 'restoreMode' ? (
           <View style={styles.form}>
             <Text style={styles.sectionLead}>
-              How should this backup be applied?
+              {t('backup.applyHow')}
             </Text>
             <HousePrimaryButton
-              title="Merge with current data"
+              title={t("backup.merge")}
               onPress={() => performRestore('merge')}
             />
             <Text style={styles.footerHint}>
-              Keep existing restaurants and add or update items from the backup.
+              {t('backup.mergeHint')}
             </Text>
             <Pressable
               onPress={confirmOverwrite}
@@ -494,10 +496,10 @@ export default function EncryptedBackupScreen() {
                 styles.destructiveButton,
                 pressed && styles.pressed,
               ]}>
-              <Text style={styles.destructiveLabel}>Overwrite current data</Text>
+              <Text style={styles.destructiveLabel}>{t('backup.overwrite')}</Text>
             </Pressable>
             <Text style={styles.footerHint}>
-              Replace all restaurants and reviews with the backup.
+              {t('backup.overwriteHint')}
             </Text>
           </View>
         ) : null}

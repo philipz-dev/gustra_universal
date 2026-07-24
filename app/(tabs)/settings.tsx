@@ -6,6 +6,7 @@ import { SymbolView } from 'expo-symbols';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { LanguagePickerSheet } from '@/components/settings/LanguagePickerSheet';
 import { SettingsRow } from '@/components/settings/SettingsRow';
 import { SettingsSection } from '@/components/settings/SettingsSection';
 import { GustraSwitch } from '@/components/ui/GustraSwitch';
@@ -14,6 +15,7 @@ import { FractionalStarRating } from '@/components/ui/StarRating';
 import { GustraColors } from '@/constants/Colors';
 import { SERIF_FONT, Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useGoogleApiTracker } from '@/context/GoogleApiTracker';
+import { useLanguageSettings } from '@/context/LanguageSettings';
 import { usePassportDisplaySettings } from '@/context/PassportDisplaySettings';
 import { usePhotoQualitySettings } from '@/context/PhotoQualitySettings';
 import {
@@ -22,16 +24,44 @@ import {
 } from '@/context/ReviewerProfile';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import { useShareImportLaunch } from '@/context/ShareImportLaunch';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
+import type { LanguagePreference } from '@/i18n/resolveLanguage';
 import { getPhotosDiskUsage } from '@/services/photos/diskUsage';
 import { scanSwiftLegacyData } from '@/services/migration/SwiftDataMigration';
 
+function languagePreferenceLabel(
+  preference: LanguagePreference,
+  t: (key: string) => string,
+): string {
+  switch (preference) {
+    case 'de':
+      return t('settings.languageValueGerman');
+    case 'nl':
+      return t('settings.languageValueDutch');
+    case 'es':
+      return t('settings.languageValueSpanish');
+    case 'fr':
+      return t('settings.languageValueFrench');
+    case 'it':
+      return t('settings.languageValueItalian');
+    case 'en':
+      return t('settings.languageValueEnglish');
+    default:
+      return t('settings.languageValueSystem');
+  }
+}
+
 export default function SettingsScreen() {
+  const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
   const nameInputRef = useRef<TextInput>(null);
+  const { preference, setPreference } = useLanguageSettings();
+  const [languagePickerOpen, setLanguagePickerOpen] = useState(false);
   const {
     categoryAveragesStyle,
     categoryAveragesToggleTitle,
     toggleCategoryAveragesStyle,
+    ready: passportDisplayReady,
   } = usePassportDisplaySettings();
   const { isDataSavingsEnabled, setDataSavingsEnabled } =
     usePhotoQualitySettings();
@@ -42,11 +72,14 @@ export default function SettingsScreen() {
     placesTotal,
     resetAll: resetApiCounters,
   } = useGoogleApiTracker();
-  const { name, photoUri, updateName, ready } = useReviewerProfile();
-  const { reviews, importSwiftLegacyData } = useReviewsStore();
+  const { name, photoUri, hasPhoto, updateName, ready, syncPhotoFromDisk } =
+    useReviewerProfile();
+  const { reviews, restaurants, importSwiftLegacyData } = useReviewsStore();
   const { pickSharePackage } = useShareImportLaunch();
   const [reviewerNameDraft, setReviewerNameDraft] = useState('');
-  const [photosSubtitle, setPhotosSubtitle] = useState('0 photos stored locally');
+  const [photosSubtitle, setPhotosSubtitle] = useState(
+    t('settings.storage.photosStored', { count: 0 }),
+  );
   const [photosBytesLabel, setPhotosBytesLabel] = useState('0 B');
   const [swiftScanLabel, setSwiftScanLabel] = useState<string | null>(null);
 
@@ -56,14 +89,20 @@ export default function SettingsScreen() {
       const { performStartupPhotoMaintenance } = await import(
         '@/services/photos/orphanCleanup'
       );
-      await performStartupPhotoMaintenance(reviews);
+      // Wait for profile hydrate before deciding to delete reviewer.jpg.
+      // UI is source of truth once ready: no avatar ⇒ drop leftover profile file.
+      await performStartupPhotoMaintenance(reviews, {
+        restaurants,
+        keepProfilePhoto: !ready || hasPhoto,
+      });
+      await syncPhotoFromDisk();
     } catch {
       // ignore cleanup errors; still show usage
     }
     const usage = await getPhotosDiskUsage();
     setPhotosSubtitle(usage.subtitle);
     setPhotosBytesLabel(usage.formattedBytes);
-  }, [reviews]);
+  }, [hasPhoto, ready, restaurants, reviews, syncPhotoFromDisk]);
 
   useFocusEffect(
     useCallback(() => {
@@ -77,55 +116,80 @@ export default function SettingsScreen() {
           const scan = await scanSwiftLegacyData();
           if (scan.storeExists) {
             const bits = [
-              'Swift database found',
-              scan.photoCount > 0 ? `${scan.photoCount} photos` : null,
+              t('settings.swiftScan.found'),
+              scan.candidateStoreUris.length > 1
+                ? t('settings.swiftScan.dbCandidates', {
+                    count: scan.candidateStoreUris.length,
+                  })
+                : null,
+              scan.photoCount > 0
+                ? t('settings.swiftScan.photos', { count: scan.photoCount })
+                : null,
               scan.localBackupCount > 0
-                ? `${scan.localBackupCount} .gustra backup(s)`
+                ? t('settings.swiftScan.backups', {
+                    count: scan.localBackupCount,
+                  })
+                : null,
+              scan.migrationStatus === 'completed'
+                ? t('settings.swiftScan.alreadyRecovered')
                 : null,
             ].filter(Boolean);
             setSwiftScanLabel(bits.join(' · '));
-          } else if (scan.localBackupCount > 0) {
-            setSwiftScanLabel(
-              `${scan.localBackupCount} .gustra backup(s) in Backups — use Backup / Restore`,
-            );
           } else if (scan.photoCount > 0) {
             setSwiftScanLabel(
-              `${scan.photoCount} old photos found, but no database`,
+              t('settings.swiftScan.photosOnly', { count: scan.photoCount }),
+            );
+          } else if (scan.localBackupCount > 0) {
+            setSwiftScanLabel(
+              t('settings.swiftScan.backupsOnly', {
+                count: scan.localBackupCount,
+              }),
+            );
+          } else if (scan.candidateStoreUris.length > 0) {
+            setSwiftScanLabel(
+              t('settings.swiftScan.unreadable', {
+                count: scan.candidateStoreUris.length,
+              }),
             );
           } else {
-            setSwiftScanLabel('No previous Swift data found on this device');
+            setSwiftScanLabel(t('settings.swiftScan.none'));
           }
         } catch {
           setSwiftScanLabel(null);
         }
       })();
-    }, [refreshPhotosUsage]),
+    }, [refreshPhotosUsage, t]),
   );
 
   const confirmImportSwiftLegacy = () => {
     houseAlert(
-      'Recover previous reviews?',
-      'This looks for the old Swift database and photos still on this iPhone, then replaces the current demo/local reviews with that data. Encrypted .gustra backups are not opened here — use Backup / Restore for those.',
+      t('alerts.recovery.confirmTitle'),
+      t('alerts.recovery.confirmBody'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Recover',
+          text: t('common.recover'),
           style: 'destructive',
           onPress: () => {
             void (async () => {
               try {
                 const result = await importSwiftLegacyData();
                 houseAlert(
-                  'Recovery complete',
-                  `Imported ${result.reviewCount} reviews across ${result.restaurantCount} restaurants (${result.photosCopied} photos copied).`,
+                  t('alerts.recovery.completeTitle'),
+                  t('alerts.recovery.completeBody', {
+                    reviewCount: result.reviewCount,
+                    restaurantCount: result.restaurantCount,
+                    photosCopied: result.photosCopied,
+                    mode: result.mode,
+                  }),
                 );
                 void refreshPhotosUsage();
               } catch (error) {
                 houseAlert(
-                  'Recovery failed',
+                  t('alerts.recovery.failedTitle'),
                   error instanceof Error
                     ? error.message
-                    : 'Could not import previous Gustra data.',
+                    : t('alerts.recovery.failedBody'),
                 );
               }
             })();
@@ -160,12 +224,12 @@ export default function SettingsScreen() {
 
   const confirmResetCounters = () => {
     houseAlert(
-      'Reset counters?',
-      'Today and all-time Google API usage counters will be cleared on this device.',
+      t('alerts.resetCounters.title'),
+      t('alerts.resetCounters.body'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Reset',
+          text: t('common.reset'),
           style: 'destructive',
           onPress: () => void resetApiCounters(),
         },
@@ -186,12 +250,14 @@ export default function SettingsScreen() {
       overScrollMode="never"
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}>
-      <SettingsSection title="Reviewer">
+      <SettingsSection title={t('settings.sectionReviewer')}>
         <View style={styles.reviewerRow}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={
-              photoUri ? 'Edit profile photo' : 'Add profile photo'
+              photoUri
+                ? t('settings.editPhotoA11y')
+                : t('settings.addPhotoA11y')
             }
             onPress={() => router.push('/reviewer-photo')}
             style={({ pressed }) => [styles.avatar, pressed && styles.pressed]}>
@@ -214,10 +280,10 @@ export default function SettingsScreen() {
               ref={nameInputRef}
               value={reviewerNameDraft}
               onChangeText={onNameChange}
-              placeholder="Your name"
+              placeholder={t('settings.namePlaceholder')}
               placeholderTextColor="rgba(36, 78, 57, 0.45)"
               style={styles.nameInput}
-              accessibilityLabel="Reviewer name"
+              accessibilityLabel={t('settings.nameA11y')}
               maxLength={REVIEWER_MAX_NAME_LENGTH}
               autoCorrect={false}
               autoCapitalize="words"
@@ -230,7 +296,7 @@ export default function SettingsScreen() {
             {reviewerNameDraft.length > 0 ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Clear name"
+                accessibilityLabel={t('settings.clearNameA11y')}
                 hitSlop={8}
                 onPress={clearName}
                 style={({ pressed }) => [
@@ -252,21 +318,24 @@ export default function SettingsScreen() {
         </View>
       </SettingsSection>
 
-      <SettingsSection title="Review criteria">
+      <SettingsSection title={t('settings.sectionCriteria')}>
         <SettingsRow
-          title="Edit review criteria"
+          title={t('settings.editCriteria')}
           showChevron
           isLast
           onPress={() => router.push('/edit-criteria')}
         />
       </SettingsSection>
 
-      <SettingsSection title="My Gustra">
+      <SettingsSection title={t('settings.sectionPassport')}>
         <SettingsRow
           title={categoryAveragesToggleTitle}
           accent
           isLast
-          onPress={toggleCategoryAveragesStyle}
+          onPress={() => {
+            if (!passportDisplayReady) return;
+            toggleCategoryAveragesStyle();
+          }}
           style={styles.ratingToggleRow}
           trailing={
             <View style={styles.ratingExampleSlot}>
@@ -282,12 +351,14 @@ export default function SettingsScreen() {
         />
       </SettingsSection>
 
-      <SettingsSection title="Storage">
+      <SettingsSection title={t('settings.sectionStorage')}>
         <View style={[styles.rowPad, styles.rowBorder]}>
           <View style={styles.copy}>
-            <Text style={styles.rowTitle}>Data savings for photos</Text>
+            <Text style={styles.rowTitle}>{t('settings.dataSavings')}</Text>
             <Text style={styles.rowSubtitle}>
-              {isDataSavingsEnabled ? 'Lower resolution' : 'Higher resolution'}
+              {isDataSavingsEnabled
+                ? t('settings.dataSavingsOn')
+                : t('settings.dataSavingsOff')}
             </Text>
           </View>
           <GustraSwitch
@@ -297,7 +368,7 @@ export default function SettingsScreen() {
         </View>
         <View style={styles.rowPad}>
           <View style={styles.copy}>
-            <Text style={styles.rowTitle}>Photos</Text>
+            <Text style={styles.rowTitle}>{t('settings.photos')}</Text>
             <Text style={styles.rowSubtitle}>{photosSubtitle}</Text>
           </View>
           <Text style={styles.secondaryValue}>{photosBytesLabel}</Text>
@@ -306,8 +377,8 @@ export default function SettingsScreen() {
 
       <SettingsSection>
         <SettingsRow
-          title="Import shared reviews"
-          subtitle="Open a .gustrashare file from a friend"
+          title={t('settings.importShared')}
+          subtitle={t('settings.importSharedSubtitle')}
           showChevron
           onPress={() => {
             void pickSharePackage();
@@ -315,43 +386,63 @@ export default function SettingsScreen() {
         />
         {Platform.OS === 'ios' ? (
           <SettingsRow
-            title="Recover previous Gustra data"
-            subtitle={
-              swiftScanLabel ??
-              'Search this iPhone for the old Swift database and photos'
-            }
+            title={t('settings.recoverPrevious')}
+            subtitle={swiftScanLabel ?? t('settings.recoverScanSubtitle')}
             showChevron
             onPress={confirmImportSwiftLegacy}
           />
         ) : null}
         <SettingsRow
-          title="Backup / Restore"
+          title={t('settings.backupRestore')}
           showChevron
           isLast
           onPress={() => router.push('/backup-restore')}
         />
       </SettingsSection>
 
-      <SettingsSection title="Google API Usage">
+      <SettingsSection title={t('settings.sectionGoogle')}>
         <View style={[styles.apiRow, styles.rowBorder]}>
-          <Text style={styles.rowTitle}>Google Maps SDK</Text>
+          <Text style={styles.rowTitle}>{t('settings.mapsSdk')}</Text>
           <SerifText size={15} weight="semibold" style={styles.apiValue}>
-            {mapsToday} today / {mapsTotal} all-time
+            {t('settings.usageToday', {
+              today: mapsToday,
+              allTime: mapsTotal,
+            })}
           </SerifText>
         </View>
         <View style={[styles.apiRow, styles.rowBorder]}>
-          <Text style={styles.rowTitle}>Google Places API</Text>
+          <Text style={styles.rowTitle}>{t('settings.placesApi')}</Text>
           <SerifText size={15} weight="semibold" style={styles.apiValue}>
-            {placesToday} today / {placesTotal} all-time
+            {t('settings.usageToday', {
+              today: placesToday,
+              allTime: placesTotal,
+            })}
           </SerifText>
         </View>
         <SettingsRow
-          title="Reset counters"
+          title={t('settings.resetCounters')}
           destructive
           isLast
           onPress={confirmResetCounters}
         />
       </SettingsSection>
+
+      <SettingsSection title={t('settings.sectionLanguage')}>
+        <SettingsRow
+          title={t('settings.language')}
+          subtitle={languagePreferenceLabel(preference, t)}
+          showChevron
+          isLast
+          onPress={() => setLanguagePickerOpen(true)}
+        />
+      </SettingsSection>
+
+      <LanguagePickerSheet
+        visible={languagePickerOpen}
+        selected={preference}
+        onClose={() => setLanguagePickerOpen(false)}
+        onSelect={setPreference}
+      />
     </ScrollView>
   );
 }

@@ -3,9 +3,8 @@ import Svg, { Path } from 'react-native-svg';
 
 import { GustraColors } from '@/constants/Colors';
 import { SERIF_FONT } from '@/constants/Theme';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { RatingValue, ratingLabel } from '@/services/reviews/ratings';
-
-const EMPTY_GOLD = 'rgba(217, 162, 39, 0.35)';
 
 /**
  * Rounded 5-point star path in a 24×24 viewBox (SF Symbol–like proportions).
@@ -13,15 +12,27 @@ const EMPTY_GOLD = 'rgba(217, 162, 39, 0.35)';
 const STAR_PATH =
   'M12 2.2l2.55 6.2 6.7.55-5.1 4.45 1.55 6.5L12 16.3l-5.7 3.6 1.55-6.5-5.1-4.45 6.7-.55L12 2.2z';
 
+/** Stroke width in viewBox units for empty (outline) stars. */
+const OUTLINE_STROKE = 1.6;
+
 type StarIconProps = {
   size: number;
   color: string;
+  /** Stroke-only star (empty state). */
+  outlined?: boolean;
 };
 
-function StarIcon({ size, color }: StarIconProps) {
+function StarIcon({ size, color, outlined = false }: StarIconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Path d={STAR_PATH} fill={color} />
+      <Path
+        d={STAR_PATH}
+        fill={outlined ? 'none' : color}
+        stroke={outlined ? color : undefined}
+        strokeWidth={outlined ? OUTLINE_STROKE : undefined}
+        strokeLinejoin={outlined ? 'round' : undefined}
+        strokeLinecap={outlined ? 'round' : undefined}
+      />
     </Svg>
   );
 }
@@ -30,7 +41,7 @@ function FractionalStar({ fill, size }: { fill: number; size: number }) {
   return (
     <View style={{ width: size, height: size }}>
       <View style={styles.starBase}>
-        <StarIcon size={size} color={EMPTY_GOLD} />
+        <StarIcon size={size} color={GustraColors.gold} outlined />
       </View>
       {fill > 0 ? (
         <View style={[styles.clip, { width: size * fill, height: size }]}>
@@ -45,17 +56,20 @@ type FractionalStarRatingProps = {
   /** Average score on a 0–5 star scale. */
   score: number;
   size?: number;
+  /** Gap between stars (default 1). */
+  gap?: number;
 };
 
 /** 0–5 score with fractional fill — identical SVG glyphs on iOS and Android. */
 export function FractionalStarRating({
   score,
   size = 24,
+  gap = 1,
 }: FractionalStarRatingProps) {
   const clamped = Math.max(0, Math.min(5, score));
 
   return (
-    <View style={[styles.row, { height: size }]}>
+    <View style={[styles.row, { height: size, gap }]}>
       {Array.from({ length: 5 }, (_, index) => {
         const fill = Math.max(0, Math.min(1, clamped - index));
         return <FractionalStar key={index} fill={fill} size={size} />;
@@ -77,10 +91,12 @@ export function StaticStarRating({
   size = 22,
   showLabel = false,
 }: StaticStarRatingProps) {
+  const { t } = useAppTranslation();
+
   if (RatingValue.isNotApplicable(rating) || rating <= 0) {
     return (
       <View style={styles.na}>
-        <Text style={styles.naLabel}>N/A</Text>
+        <Text style={styles.naLabel}>{t('rating.labels.na')}</Text>
       </View>
     );
   }

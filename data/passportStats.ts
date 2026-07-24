@@ -8,6 +8,7 @@ export type BestRestaurantEntry = {
   restaurantId: string;
   title: string;
   reviewId: string;
+  average: number;
 };
 
 export type CriterionAverage = {
@@ -24,13 +25,14 @@ export type CityAverage = {
 export type PassportStats = {
   totalReviews: number;
   averageOverall: number;
-  bestScore: number | null;
   bestRestaurants: BestRestaurantEntry[];
   criterionAverages: CriterionAverage[];
   cityAverages: CityAverage[];
 };
 
 export type EnabledCriterion = { id: string; title: string };
+
+const TOP_N = 3;
 
 function displayLocation(name: string, city: string): string {
   if (city.trim()) return `${name}, ${city}`;
@@ -65,7 +67,7 @@ function criterionAveragesFromReviews(
     .filter((row): row is CriterionAverage => row !== null);
 }
 
-/** Personal passport stats (Swift CulinaryPassportView). */
+/** Passport stats over the (already filtered) review set. */
 export function getPassportStats(
   enabledCriteria: EnabledCriterion[],
   sourceReviews: Review[],
@@ -82,7 +84,6 @@ export function getPassportStats(
     return {
       totalReviews: 0,
       averageOverall: 0,
-      bestScore: null,
       bestRestaurants: [],
       criterionAverages: [],
       cityAverages: [],
@@ -97,36 +98,50 @@ export function getPassportStats(
   const averageOverall =
     scored.reduce((sum, r) => sum + r.score, 0) / scored.length;
 
-  const topScore = Math.max(...scored.map((r) => r.score));
-  const bestScore = topScore > 0 ? topScore : null;
-  const topRounded = bestScore != null ? Math.round(bestScore * 10) / 10 : null;
-
-  const newestByRestaurant = new Map<string, Review>();
-  if (topRounded != null) {
-    for (const { review, score } of scored) {
-      if (Math.round(score * 10) / 10 !== topRounded) continue;
-      if (!newestByRestaurant.has(review.restaurantId)) {
-        newestByRestaurant.set(review.restaurantId, review);
-      }
+  // Per-restaurant averages → top 3 (same ranking style as cities).
+  const restaurantBuckets = new Map<
+    string,
+    { scores: number[]; newestReviewId: string; newestAt: number }
+  >();
+  for (const { review, score } of scored) {
+    const at = +new Date(review.date);
+    const existing = restaurantBuckets.get(review.restaurantId);
+    if (!existing) {
+      restaurantBuckets.set(review.restaurantId, {
+        scores: [score],
+        newestReviewId: review.id,
+        newestAt: at,
+      });
+      continue;
+    }
+    existing.scores.push(score);
+    if (at > existing.newestAt) {
+      existing.newestAt = at;
+      existing.newestReviewId = review.id;
     }
   }
 
   const bestRestaurants: BestRestaurantEntry[] = Array.from(
-    newestByRestaurant.values(),
+    restaurantBuckets.entries(),
   )
-    .map((review) => {
-      const restaurant = restaurantById.get(review.restaurantId);
+    .map(([restaurantId, bucket]) => {
+      const restaurant = restaurantById.get(restaurantId);
       if (!restaurant) return null;
+      const average =
+        bucket.scores.reduce((a, b) => a + b, 0) / bucket.scores.length;
       return {
-        restaurantId: restaurant.id,
+        restaurantId,
         title: displayLocation(restaurant.name, restaurant.city),
-        reviewId: review.id,
+        reviewId: bucket.newestReviewId,
+        average,
       };
     })
     .filter((e): e is BestRestaurantEntry => e !== null)
-    .sort((a, b) =>
-      a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }),
-    );
+    .sort((a, b) => {
+      if (b.average !== a.average) return b.average - a.average;
+      return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+    })
+    .slice(0, TOP_N);
 
   const cityBuckets = new Map<string, number[]>();
   for (const { review, score } of scored) {
@@ -143,12 +158,15 @@ export function getPassportStats(
       city,
       average: scores.reduce((a, b) => a + b, 0) / scores.length,
     }))
-    .sort((a, b) => b.average - a.average);
+    .sort((a, b) => {
+      if (b.average !== a.average) return b.average - a.average;
+      return a.city.localeCompare(b.city, undefined, { sensitivity: 'base' });
+    })
+    .slice(0, TOP_N);
 
   return {
     totalReviews,
     averageOverall,
-    bestScore: topRounded,
     bestRestaurants,
     criterionAverages: criterionAveragesFromReviews(reviews, enabledCriteria),
     cityAverages,

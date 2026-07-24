@@ -23,11 +23,12 @@ import {
   registerOpenSwipeable,
   updateOpenSwipeableFrame,
 } from '@/components/feed/openSwipeable';
+import { GustraColors } from '@/constants/Colors';
 import { captionTextStyle, Theme } from '@/constants/Theme';
 import { Haptics } from '@/services/haptics';
 
-/** iOS system destructive red (Swift `.tint(.red)` on swipeActions). */
-const IOS_DESTRUCTIVE_RED = '#FF3B30';
+/** House destructive — muted avoid red (not iOS system neon). */
+const DESTRUCTIVE_RED = GustraColors.ratingAvoid;
 const ACTION_WIDTH = Platform.OS === 'ios' ? 74 : 80;
 
 type FeedSwipeDeleteProps = {
@@ -143,7 +144,15 @@ export function FeedSwipeDelete({
       overshootRight={false}
       overshootFriction={8}
       enableTrackpadTwoFingerGesture
-      containerStyle={styles.container}
+      containerStyle={[
+        styles.container,
+        { borderRadius: cornerRadius },
+      ]}
+      childrenContainerStyle={
+        Platform.OS === 'android'
+          ? [styles.childrenAndroid, { borderRadius: cornerRadius }]
+          : undefined
+      }
       onSwipeableOpen={() => {
         setIsOpen(true);
         Haptics.selectionChanged();
@@ -178,10 +187,16 @@ export function FeedSwipeDelete({
 const styles = StyleSheet.create({
   container: {
     overflow: 'hidden',
+    backgroundColor: 'transparent',
+  },
+  /** Avoid Android elevation “mat” outside the rounded card. */
+  childrenAndroid: {
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
   },
   deleteAction: {
     width: ACTION_WIDTH,
-    backgroundColor: IOS_DESTRUCTIVE_RED,
+    backgroundColor: DESTRUCTIVE_RED,
     justifyContent: 'center',
   },
   deleteAnimWrap: {

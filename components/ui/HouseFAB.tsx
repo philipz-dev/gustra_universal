@@ -1,54 +1,52 @@
-import { type PressableProps, StyleSheet, Pressable } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  type PressableProps,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolView } from 'expo-symbols';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from 'react-native-reanimated';
 
 import { GustraColors } from '@/constants/Colors';
 import { Theme } from '@/constants/Theme';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { Haptics } from '@/services/haptics';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+type HouseFABProps = Omit<PressableProps, 'style'> & {
+  style?: StyleProp<ViewStyle>;
+};
 
-const PRESS_SPRING = { damping: 18, stiffness: 220 };
-
-type HouseFABProps = PressableProps;
-
+/**
+ * Floating add-review button. Plain Pressable (no Reanimated) — animated
+ * `style` callbacks were dropping absolute layout on some devices.
+ */
 export function HouseFAB({ style, onPress, ...rest }: HouseFABProps) {
-  const scale = useSharedValue(1);
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
+  const { t } = useAppTranslation();
 
   return (
-    <AnimatedPressable
+    <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Add review"
-      onPressIn={() => {
-        scale.value = withSpring(0.9, PRESS_SPRING);
-      }}
-      onPressOut={() => {
-        scale.value = withSpring(1, PRESS_SPRING);
-      }}
+      accessibilityLabel={t('a11y.addReview')}
+      hitSlop={8}
       onPress={(e) => {
         Haptics.light();
         if (typeof onPress === 'function') onPress(e);
       }}
-      style={(state) => [
+      style={({ pressed }) => [
         styles.fab,
         Theme.fabShadow,
-        animatedStyle,
-        typeof style === 'function' ? style(state) : style,
+        style,
+        pressed && styles.pressed,
       ]}
       {...rest}>
-      <SymbolView
-        name={{ ios: 'plus', android: 'add', web: 'add' }}
-        tintColor="#FFFFFF"
-        size={28}
-      />
-    </AnimatedPressable>
+      {Platform.OS === 'ios' ? (
+        <SymbolView name="plus" tintColor="#FFFFFF" size={28} />
+      ) : (
+        <MaterialIcons name="add" size={30} color="#FFFFFF" />
+      )}
+    </Pressable>
   );
 }
 
@@ -63,5 +61,11 @@ const styles = StyleSheet.create({
     backgroundColor: GustraColors.forestGreen,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 100,
+    elevation: 16,
+  },
+  pressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.94 }],
   },
 });

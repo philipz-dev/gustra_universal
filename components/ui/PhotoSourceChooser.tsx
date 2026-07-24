@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HousePrimaryButton } from '@/components/ui/HousePrimaryButton';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, bodyTextStyle } from '@/constants/Theme';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 type PhotoSourceChooserBodyProps = {
   title: string;
@@ -30,10 +31,12 @@ export function PhotoSourceChooserBody({
   onTakePhoto,
   onImportPhoto,
 }: PhotoSourceChooserBodyProps) {
+  const { t } = useAppTranslation();
+  const addingLabel = t('forms.photos.adding');
   return (
     <View
       style={styles.body}
-      accessibilityLabel={isImporting ? 'Adding photos…' : title}>
+      accessibilityLabel={isImporting ? addingLabel : title}>
       <View style={styles.iconCircle}>
         {isImporting ? (
           <ActivityIndicator color={GustraColors.forestGreen} size="large" />
@@ -51,21 +54,26 @@ export function PhotoSourceChooserBody({
       </View>
 
       {isImporting ? (
-        <Text style={styles.importingLabel}>Adding photos…</Text>
+        <Text style={styles.importingLabel}>{addingLabel}</Text>
       ) : (
         <>
           <Text style={styles.title}>{title}</Text>
           <View style={styles.actions}>
-            <HousePrimaryButton title="Take Photo" onPress={onTakePhoto} />
+            <HousePrimaryButton
+              title={t('forms.photos.takePhoto')}
+              onPress={onTakePhoto}
+            />
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Import Photo"
+              accessibilityLabel={t('forms.photos.importPhoto')}
               onPress={onImportPhoto}
               style={({ pressed }) => [
                 styles.secondaryButton,
                 pressed && styles.pressed,
               ]}>
-              <Text style={styles.secondaryLabel}>Import Photo</Text>
+              <Text style={styles.secondaryLabel}>
+                {t('forms.photos.importPhoto')}
+              </Text>
             </Pressable>
           </View>
         </>
@@ -90,6 +98,7 @@ export function PhotoSourceChooserModal({
   onTakePhoto,
   onImportPhoto,
 }: PhotoSourceChooserModalProps) {
+  const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
 
   return (
@@ -111,7 +120,7 @@ export function PhotoSourceChooserModal({
         <View style={styles.toolbar}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Close"
+            accessibilityLabel={t('common.close')}
             hitSlop={8}
             disabled={isImporting}
             onPress={onClose}

@@ -1,11 +1,13 @@
-import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
 import { Theme } from '@/constants/Theme';
 import type { Restaurant } from '@/data/types';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { restaurantHasCoordinates } from '@/services/directions/DirectionsLauncher';
+import { safeOpenURL } from '@/services/linking/safeLinking';
 
 type LocationBlockProps = {
   restaurant: Restaurant;
@@ -23,6 +25,7 @@ export function LocationBlock({
   onDirections,
   onOpenMap,
 }: LocationBlockProps) {
+  const { t } = useAppTranslation();
   const phoneURL = restaurant.phone ? phoneTelURL(restaurant.phone) : null;
   const hasCoords = restaurantHasCoordinates(
     restaurant.latitude,
@@ -31,12 +34,12 @@ export function LocationBlock({
   const locationText =
     [restaurant.address, restaurant.city, restaurant.country]
       .filter(Boolean)
-      .join(', ') || 'Unknown location';
+      .join(', ') || t('detail.location.unknown');
 
   return (
     <View style={styles.section}>
       <SerifText size={20} weight="bold" style={styles.title}>
-        Location
+        {t('detail.location.title')}
       </SerifText>
       <View style={styles.row}>
         <View style={styles.copy}>
@@ -44,7 +47,7 @@ export function LocationBlock({
             onPress={hasCoords ? onDirections : undefined}
             disabled={!hasCoords}
             accessibilityRole="button"
-            accessibilityHint="Get directions"
+            accessibilityHint={t('detail.location.getDirections')}
             style={styles.locationRow}>
             <SymbolView
               name={{
@@ -70,8 +73,12 @@ export function LocationBlock({
             phoneURL ? (
               <Pressable
                 accessibilityRole="link"
-                accessibilityLabel={`Call ${restaurant.phone}`}
-                onPress={() => void Linking.openURL(phoneURL)}
+                accessibilityLabel={t('detail.location.call', {
+                  phone: restaurant.phone,
+                })}
+                onPress={() => {
+                  void safeOpenURL(phoneURL);
+                }}
                 style={styles.phoneRow}>
                 <SymbolView
                   name={{
@@ -94,7 +101,7 @@ export function LocationBlock({
           <Pressable
             onPress={onOpenMap ?? onDirections}
             accessibilityRole="button"
-            accessibilityLabel="Show map"
+            accessibilityLabel={t('detail.location.showMap')}
             style={styles.mapThumb}>
             <SymbolView
               name={{ ios: 'map.fill', android: 'map', web: 'map' }}

@@ -30,12 +30,14 @@ import {
   type RestaurantDraft,
   type RestaurantSearchResult,
 } from '@/services/places';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 /**
  * Nearby restaurant picker (Swift `NearbyRestaurantSelectionView`).
  * Selecting a place shows the Start Review banner; review form comes later.
  */
 export default function NearbyRestaurantsScreen() {
+  const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatListType<RestaurantSearchResult>>(null);
@@ -55,7 +57,7 @@ export default function NearbyRestaurantsScreen() {
     if (!location.coords) {
       setIsLoading(false);
       setShowOpenSettings(location.isAuthorizationDenied);
-      setErrorMessage(location.error ?? 'Current location unavailable.');
+      setErrorMessage(location.error ?? t('alerts.location.unavailable'));
       return;
     }
 
@@ -68,10 +70,10 @@ export default function NearbyRestaurantsScreen() {
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : 'Could not reach the restaurant search service.',
+          : t('forms.nearby.searchFailed'),
       );
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadNearby();
@@ -108,7 +110,7 @@ export default function NearbyRestaurantsScreen() {
         <View style={styles.bannerPad}>
           <SelectedRestaurantBanner
             draft={selected}
-            actionTitle="Start Review"
+            actionTitle={t("forms.nearby.startReview")}
             onAction={() =>
               router.push({
                 pathname: '/review-form',
@@ -122,16 +124,16 @@ export default function NearbyRestaurantsScreen() {
       {isLoading ? (
         <View style={styles.loadingRow}>
           <ActivityIndicator color={GustraColors.forestGreen} />
-          <Text style={styles.loadingText}>Finding nearby restaurants…</Text>
+          <Text style={styles.loadingText}>{t("forms.nearby.finding")}</Text>
         </View>
       ) : errorMessage ? (
         <View style={styles.flexFill}>
           <HouseEmptyState
-            title="Couldn't load nearby places"
+            title={t("forms.nearby.loadFailed")}
             description={errorMessage}
             systemImage="location.slash"
             androidImage="location_off"
-            actionTitle={showOpenSettings ? 'Open Settings' : 'Try Again'}
+            actionTitle={showOpenSettings ? t('common.openSettings') : t('common.tryAgain')}
             onAction={() => {
               if (showOpenSettings) {
                 openSystemSettings();
@@ -144,11 +146,11 @@ export default function NearbyRestaurantsScreen() {
       ) : results.length === 0 ? (
         <View style={styles.flexFill}>
           <HouseEmptyState
-            title="No nearby restaurants found."
-            description="Try again or search on the map instead."
+            title={t("forms.nearby.noNearby")}
+            description={t("forms.nearby.tryMap")}
             systemImage="mappin.and.ellipse"
             androidImage="place"
-            actionTitle="Search Nearby"
+            actionTitle={t("forms.nearby.searchNearby")}
             onAction={() => {
               void loadNearby();
             }}
@@ -163,7 +165,7 @@ export default function NearbyRestaurantsScreen() {
           overScrollMode="never"
           contentContainerStyle={[styles.list, { paddingBottom: bottomPad }]}
           ListHeaderComponent={
-            <Text style={styles.sectionTitle}>Nearby Restaurants</Text>
+            <Text style={styles.sectionTitle}>{t("forms.nearby.sectionTitle")}</Text>
           }
           ItemSeparatorComponent={() => <View style={styles.sep} />}
           onScrollToIndexFailed={({ index }) => {

@@ -21,16 +21,16 @@ import { LocationBlock } from '@/components/detail/LocationBlock';
 import { ProfilePhotoViewer } from '@/components/detail/ProfilePhotoViewer';
 import { RestaurantMapViewer } from '@/components/detail/RestaurantMapViewer';
 import { ReviewPhotoViewer } from '@/components/detail/ReviewPhotoViewer';
+import {
+  ReviewOptionsSheet,
+  type ReviewOptionsAction,
+} from '@/components/detail/ReviewOptionsSheet';
 import type { ShareDestination } from '@/components/detail/ShareReviewChooser';
 import { PreparingRecommendationOverlay } from '@/components/share/PreparingRecommendationOverlay';
 import {
   ShareFlowSheet,
   type ShareFlowStep,
 } from '@/components/share/ShareFlowSheet';
-import {
-  HousePrimaryButton,
-  HousePrimaryButtonRow,
-} from '@/components/ui/HousePrimaryButton';
 import { FavoriteHeartButton } from '@/components/ui/FavoriteHeartButton';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
@@ -42,24 +42,39 @@ import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewerProfile } from '@/context/ReviewerProfile';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import { formatReviewDate } from '@/data/mockReviews';
+import {
+  resolveReviewOrigin,
+  resolveReviewerAvatarUri,
+} from '@/data/types';
 import { presentDirectionsOptions } from '@/services/directions/DirectionsLauncher';
+import { Haptics } from '@/services/haptics';
 import { shareReviewAsEmail } from '@/services/share/ReviewEmailShare';
 import { shareReviewsPackage } from '@/services/share/ReviewShareService';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 function afterSheetDismiss(work: () => void): void {
   setTimeout(work, Platform.OS === 'ios' ? 360 : 60);
 }
 
 export default function ReviewDetailScreen() {
+  const { t } = useAppTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { getRestaurant, getReview, setRestaurantFavorite, restaurants } =
-    useReviewsStore();
+  const {
+    getRestaurant,
+    getReview,
+    setRestaurantFavorite,
+    restaurants,
+    deleteReview,
+  } = useReviewsStore();
   const { hasName, name, photoUri, getBackupSnapshot, updateName } =
     useReviewerProfile();
   const review = getReview(id);
   const restaurant = review ? getRestaurant(review.restaurantId) : undefined;
+  const isFriendReview = review
+    ? resolveReviewOrigin(review) === 'imported'
+    : false;
 
   const { enabledCriteria } = useCriteriaSettings();
   const enabledIds = new Set(enabledCriteria.map((c) => c.id));
@@ -67,6 +82,7 @@ export default function ReviewDetailScreen() {
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [showReviewerPhoto, setShowReviewerPhoto] = useState(false);
   const [showMap, setShowMap] = useState(false);
+  const [optionsVisible, setOptionsVisible] = useState(false);
   const [shareStep, setShareStep] = useState<ShareFlowStep | null>(null);
   const [pendingShare, setPendingShare] = useState<ShareDestination | null>(
     null,
@@ -77,12 +93,9 @@ export default function ReviewDetailScreen() {
   const bottomPad =
     Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
 
-  const reviewerPhotoUri =
-    review?.reviewedByPhotoUrl?.trim() ||
-    (review?.origin === 'own' && review.reviewedBy.trim() ? photoUri : null) ||
-    null;
-
-  const canShare = Boolean(review && !sharing);
+  const reviewerPhotoUri = review
+    ? resolveReviewerAvatarUri(review, photoUri)
+    : null;
 
   const closeShareFlow = useCallback(() => {
     setShareStep(null);
@@ -103,13 +116,14 @@ export default function ReviewDetailScreen() {
         const profile = await getBackupSnapshot();
         const sharedBy = (sharedByOverride ?? profile.name).trim();
         if (!sharedBy) {
-          throw new Error('Your name is included when you share reviews.');
+          throw new Error(t('share.nameSheet.body'));
         }
         if (destination === 'gustraPackage') {
           await shareReviewsPackage({
             reviews: [review],
             restaurants,
             sharedBy,
+            sharedById: profile.authorId,
             sharedByPhotoBase64: profile.photoBase64,
           });
         } else {
@@ -124,10 +138,10 @@ export default function ReviewDetailScreen() {
         }
       } catch (error) {
         houseAlert(
-          'Error',
+          t('common.error'),
           error instanceof Error
             ? error.message
-            : 'Could not share this review.',
+            : t('alerts.share.reviewFailed'),
         );
       } finally {
         setPreparingEmail(false);
@@ -142,6 +156,7 @@ export default function ReviewDetailScreen() {
       restaurants,
       restaurant,
       review,
+      t,
     ],
   );
 
@@ -201,6 +216,72 @@ export default function ReviewDetailScreen() {
     [pendingSharedBy, runShare],
   );
 
+  const confirmDeleteReview = useCallback(() => {
+    if (!review) return;
+    houseAlert(
+      t('alerts.deleteVisit.title'),
+      t('alerts.deleteVisit.body'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.delete'),
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              await deleteReview(review.id);
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(tabs)/(main)');
+              }
+            })();
+          },
+        },
+      ],
+    );
+  }, [deleteReview, review, router, t]);
+
+  const onOptionsAction = useCallback(
+    (action: ReviewOptionsAction) => {
+      if (!review || !restaurant) return;
+      setOptionsVisible(false);
+      afterSheetDismiss(() => {
+        switch (action) {
+          case 'recordVisit':
+            router.push({
+              pathname: '/review-form',
+              params: { restaurantId: restaurant.id },
+            });
+            break;
+          case 'edit':
+            if (isFriendReview) return;
+            router.push({
+              pathname: '/review-form',
+              params: { reviewId: review.id },
+            });
+            break;
+          case 'shareGustra':
+            onSelectDestination('gustraPackage');
+            break;
+          case 'shareVisual':
+            onSelectDestination('email');
+            break;
+          case 'delete':
+            confirmDeleteReview();
+            break;
+        }
+      });
+    },
+    [
+      confirmDeleteReview,
+      isFriendReview,
+      onSelectDestination,
+      restaurant,
+      review,
+      router,
+    ],
+  );
+
   const addressLine = restaurant
     ? [restaurant.address, restaurant.city, restaurant.country]
         .filter(Boolean)
@@ -209,18 +290,21 @@ export default function ReviewDetailScreen() {
 
   const header = (
     <HouseNavHeader
-      title="Review"
+      title={t('detail.review.title')}
       titleSize={Theme.navigation.secondaryTitleSize}
       showBack
       onBack={() => router.back()}
       right={
-        canShare ? (
+        review ? (
           <HouseToolbarIconButton
-            iosName="square.and.arrow.up"
-            androidName="share"
-            accessibilityLabel="Share"
+            iosName="ellipsis"
+            androidName="more-vert"
+            accessibilityLabel={t('detail.options.a11y')}
             disabled={sharing}
-            onPress={() => setShareStep('chooser')}
+            onPress={() => {
+              Haptics.selectionChanged();
+              setOptionsVisible(true);
+            }}
           />
         ) : null
       }
@@ -232,8 +316,8 @@ export default function ReviewDetailScreen() {
       <View style={styles.screen}>
         {header}
         <HouseEmptyState
-          title="Review not found"
-          description="This memory is not in the mock data set."
+          title={t("detail.review.notFound")}
+          description={t("detail.review.notFoundBody")}
         />
       </View>
     );
@@ -286,7 +370,7 @@ export default function ReviewDetailScreen() {
           {review.generalComment ? (
             <View style={styles.section}>
               <SerifText size={20} weight="bold" style={styles.sectionTitle}>
-                General comments
+                {t('detail.review.generalComments')}
               </SerifText>
               <CommentChip text={review.generalComment} />
             </View>
@@ -305,39 +389,13 @@ export default function ReviewDetailScreen() {
             onOpenMap={() => setShowMap(true)}
           />
 
-          <View style={styles.actions}>
-            <View style={styles.divider} />
-            <HousePrimaryButtonRow>
-              <HousePrimaryButton
-                flex
-                title="New visit"
-                onPress={() =>
-                  router.push({
-                    pathname: '/review-form',
-                    params: { restaurantId: restaurant.id },
-                  })
-                }
-              />
-              <HousePrimaryButton
-                flex
-                title="Edit"
-                onPress={() =>
-                  router.push({
-                    pathname: '/review-form',
-                    params: { reviewId: review.id },
-                  })
-                }
-              />
-            </HousePrimaryButtonRow>
-          </View>
-
           {review.reviewedBy ? (
             <View style={styles.reviewedBy}>
               {reviewerPhotoUri ? (
                 <Pressable
                   onPress={() => setShowReviewerPhoto(true)}
                   accessibilityRole="imagebutton"
-                  accessibilityLabel="Profile photo">
+                  accessibilityLabel={t("settings.photoA11y")}>
                   <Image
                     source={{ uri: reviewerPhotoUri }}
                     style={styles.avatarImage}
@@ -351,7 +409,7 @@ export default function ReviewDetailScreen() {
                 </View>
               )}
               <Text style={styles.reviewedByLabel}>
-                Reviewed by {review.reviewedBy}
+                {t('detail.review.reviewedBy', { name: review.reviewedBy })}
               </Text>
             </View>
           ) : null}
@@ -378,6 +436,13 @@ export default function ReviewDetailScreen() {
         visible={showMap}
         restaurant={restaurant}
         onClose={() => setShowMap(false)}
+      />
+
+      <ReviewOptionsSheet
+        visible={optionsVisible}
+        isFriendReview={isFriendReview}
+        onClose={() => setOptionsVisible(false)}
+        onAction={onOptionsAction}
       />
 
       <ShareFlowSheet
@@ -431,9 +496,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: GustraColors.ink,
-  },
-  actions: {
-    gap: 16,
   },
   reviewedBy: {
     flexDirection: 'row',

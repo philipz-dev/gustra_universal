@@ -118,6 +118,7 @@ export function reviewToBackup(review: Review): ReviewBackup {
     photoPaths,
     isNeverAgain: false,
     reviewedBy: review.reviewedBy || null,
+    reviewedById: review.reviewedById?.trim() || null,
     reviewedByPhotoPath: review.reviewedByPhotoUrl
       ? backupPhotoKey(review.reviewedByPhotoUrl)
       : null,
@@ -276,6 +277,8 @@ export function backupReviewToApp(
     criteria,
     photoUrls,
     reviewedBy: item.reviewedBy ?? previous?.reviewedBy ?? '',
+    reviewedById:
+      item.reviewedById?.trim() || previous?.reviewedById?.trim() || undefined,
     reviewedByPhotoUrl,
     overallScore,
     origin: originFromBackup(item, previous),
@@ -335,9 +338,11 @@ export function criteriaSettingsToBackup(args: {
 export function reviewerProfileToBackup(args: {
   name: string;
   hasPhoto: boolean;
+  authorId?: string | null;
 }): ReviewerProfileBackup {
   return {
     name: args.name.trim(),
     photoFileName: args.hasPhoto ? REVIEWER_PHOTO_BACKUP_KEY : null,
+    authorId: args.authorId?.trim() || null,
   };
 }

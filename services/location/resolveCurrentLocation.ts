@@ -1,7 +1,8 @@
-import { Linking, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 
 import type { LatLng } from '@/services/places/types';
+import { safeOpenSettings } from '@/services/linking/safeLinking';
 
 export type ResolvedLocation = {
   coords: LatLng | null;
@@ -135,5 +136,5 @@ export async function resolveCurrentLocation(): Promise<ResolvedLocation> {
 
 /** Swift `LocationService.openSystemSettings`. */
 export function openSystemSettings(): void {
-  void Linking.openSettings();
+  void safeOpenSettings();
 }

@@ -74,8 +74,15 @@ export type Review = {
   photoUrls: string[];
   reviewedBy: string;
   /**
+   * Stable author identity (UUID). Distinguishes people with the same display
+   * name across shares. Set on import from package `sharedById` (or per-review).
+   * Absent on older data — use `reviewerFilterKey()` for grouping.
+   */
+  reviewedById?: string;
+  /**
    * Local/remote URI for the reviewer avatar (Swift `reviewedByPhotoPath`).
-   * Empty when unknown — detail falls back to letter or owner profile photo.
+   * Empty when unknown — detail uses a letter avatar (never the device profile
+   * photo for imported friends).
    */
   reviewedByPhotoUrl?: string;
   overallScore: number;
@@ -101,6 +108,44 @@ export function resolveReviewOrigin(
     return review.origin;
   }
   return review.reviewedBy.trim() ? 'imported' : 'own';
+}
+
+/**
+ * Avatar URI for review detail.
+ * Friends: only `reviewedByPhotoUrl`. Never fall back to the device profile photo.
+ * Own visits with a display name: optional owner profile photo.
+ */
+export function resolveReviewerAvatarUri(
+  review: Pick<
+    Review,
+    'origin' | 'reviewedBy' | 'reviewedByPhotoUrl'
+  >,
+  ownerProfilePhotoUri?: string | null,
+): string | null {
+  const embedded = review.reviewedByPhotoUrl?.trim();
+  if (embedded) return embedded;
+  if (
+    resolveReviewOrigin(review) === 'own' &&
+    review.reviewedBy.trim() &&
+    ownerProfilePhotoUri?.trim()
+  ) {
+    return ownerProfilePhotoUri.trim();
+  }
+  return null;
+}
+
+/**
+ * Stable key for filtering / grouping reviewers (same display name ≠ same person).
+ * Prefer `reviewedById`; legacy falls back to name + photo URI.
+ */
+export function reviewerFilterKey(
+  review: Pick<Review, 'reviewedBy' | 'reviewedById' | 'reviewedByPhotoUrl'>,
+): string {
+  const id = review.reviewedById?.trim();
+  if (id) return `id:${id}`;
+  const name = review.reviewedBy.trim().toLowerCase();
+  const photo = (review.reviewedByPhotoUrl ?? '').trim();
+  return `legacy:${name}\u0000${photo}`;
 }
 
 export type RestaurantVisitSummary = {

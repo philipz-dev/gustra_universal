@@ -1,6 +1,6 @@
+import { useRef } from 'react';
 import { ActivityIndicator, Image, Platform, StyleSheet, Text, View } from 'react-native';
-import {
-  NestableDraggableFlatList,
+import DraggableFlatList, {
   ScaleDecorator,
   type RenderItemParams,
 } from 'react-native-draggable-flatlist';
@@ -24,12 +24,15 @@ type ReorderablePhotoStripProps = {
   onToggleSelect: (uri: string) => void;
   onAddPress: () => void;
   isImporting?: boolean;
+  /** Parent form should disable vertical scroll while dragging. */
+  onDraggingChange?: (dragging: boolean) => void;
 };
 
 /**
  * Horizontal photo strip: tap to select (batch remove), long-press to reorder.
- * Uses RNGH `TouchableOpacity` (not RN `Pressable`) so iOS does not cancel
- * the drag when the item becomes active — a common NestableDraggableFlatList bug.
+ *
+ * Uses plain `DraggableFlatList` (not Nestable*): Nestable assumes vertical
+ * nested lists and auto-scrolls the parent form wildly on horizontal drag.
  */
 export function ReorderablePhotoStrip({
   photoUrls,
@@ -38,8 +41,11 @@ export function ReorderablePhotoStrip({
   onToggleSelect,
   onAddPress,
   isImporting = false,
+  onDraggingChange,
 }: ReorderablePhotoStripProps) {
   const selected = new Set(selectedUris);
+  /** Skip the press that can follow a completed long-press drag. */
+  const skipNextPressRef = useRef(false);
 
   const renderItem = ({ item, drag, isActive, getIndex }: RenderItemParams<string>) => {
     const index = getIndex() ?? 0;
@@ -47,21 +53,24 @@ export function ReorderablePhotoStrip({
     const isSelected = selected.has(item);
 
     return (
-      // Fixed cell width — without this, horizontal DraggableFlatList
-      // stretches each item across most of the row.
       <View style={styles.cell}>
-        <ScaleDecorator activeScale={1.05}>
+        <ScaleDecorator activeScale={1.06}>
           <View style={[styles.thumbWrap, isActive && styles.thumbActive]}>
             <TouchableOpacity
               onPress={() => {
+                if (skipNextPressRef.current) {
+                  skipNextPressRef.current = false;
+                  return;
+                }
                 Haptics.selectionChanged();
                 onToggleSelect(item);
               }}
               onLongPress={() => {
+                skipNextPressRef.current = true;
                 Haptics.light();
                 drag();
               }}
-              delayLongPress={180}
+              delayLongPress={220}
               // Do NOT disable while active — that cancels the pan on iOS.
               activeOpacity={0.92}
               accessibilityRole="image"
@@ -74,10 +83,7 @@ export function ReorderablePhotoStrip({
               style={styles.thumbHit}>
               <Image source={{ uri: item }} style={styles.thumb} resizeMode="cover" />
               {isSelected ? (
-                <View
-                  style={styles.selectedRing}
-                  pointerEvents="none"
-                />
+                <View style={styles.selectedRing} pointerEvents="none" />
               ) : null}
               {isCover ? (
                 <View style={styles.coverBadge} pointerEvents="none">
@@ -117,20 +123,26 @@ export function ReorderablePhotoStrip({
             : 'Tap to select for removal'}
         </Text>
       ) : null}
-      <NestableDraggableFlatList
+      <DraggableFlatList
         horizontal
         data={photoUrls}
         keyExtractor={(item) => item}
-        onDragBegin={() => Haptics.selectionChanged()}
+        onDragBegin={() => {
+          onDraggingChange?.(true);
+          Haptics.selectionChanged();
+        }}
         onDragEnd={({ data }) => {
+          onDraggingChange?.(false);
           onReorder(data);
           Haptics.light();
         }}
+        onPlaceholderIndexChange={() => {
+          // Keep skip flag set for the duration of a drag session.
+          skipNextPressRef.current = true;
+        }}
         renderItem={renderItem}
         showsHorizontalScrollIndicator={false}
-        // Small distance after long-press so outer NestableScrollContainer
-        // does not steal the pan on iOS.
-        activationDistance={8}
+        activationDistance={10}
         dragItemOverflow
         autoscrollSpeed={120}
         autoscrollThreshold={40}
@@ -179,13 +191,14 @@ const styles = StyleSheet.create({
     color: 'rgba(35, 32, 26, 0.5)',
   },
   list: {
-    minHeight: PHOTO_SIZE + 4,
+    minHeight: PHOTO_SIZE + 8,
+    overflow: 'visible',
   },
   listContent: {
     alignItems: 'center',
     paddingTop: 4,
     paddingRight: 4,
-    paddingBottom: 2,
+    paddingBottom: 4,
   },
   cell: {
     width: CELL_WIDTH,

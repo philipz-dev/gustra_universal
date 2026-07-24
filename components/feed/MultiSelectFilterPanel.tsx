@@ -7,6 +7,7 @@ import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle, Theme } from '@/constants/Theme';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { Haptics } from '@/services/haptics';
 
 type EmptySystemImage = NonNullable<
@@ -32,6 +33,20 @@ export type MultiSelectFilterPanelProps = {
   onCancel: () => void;
 };
 
+function CheckboxIcon({ checked }: { checked: boolean }) {
+  return (
+    <SymbolView
+      name={{
+        ios: checked ? 'checkmark.square.fill' : 'square',
+        android: checked ? 'check_box' : 'check_box_outline_blank',
+        web: checked ? 'check_box' : 'check_box_outline_blank',
+      }}
+      tintColor={checked ? GustraColors.forestGreen : 'rgba(35, 32, 26, 0.35)'}
+      size={24}
+    />
+  );
+}
+
 /**
  * In-sheet multi-select (Swift `MultiSelectFilterSheet` content).
  * Pushed inside Filter options — no second Modal.
@@ -50,7 +65,9 @@ export function MultiSelectFilterPanel({
   onConfirm,
   onCancel,
 }: MultiSelectFilterPanelProps) {
+  const { t } = useAppTranslation();
   const selectedSet = new Set(selected);
+  const selectAllOn = items.length > 0 && selected.length === items.length;
 
   const toggle = (item: string) => {
     Haptics.selectionChanged();
@@ -61,13 +78,18 @@ export function MultiSelectFilterPanel({
     }
   };
 
+  const toggleSelectAll = () => {
+    Haptics.selectionChanged();
+    onChangeSelected(selectAllOn ? [] : [...items]);
+  };
+
   return (
     <View style={styles.root}>
       <View style={styles.nav}>
         <HouseToolbarIconButton
           iosName="chevron.backward"
           androidName="arrow-back"
-          accessibilityLabel="Back"
+          accessibilityLabel={t('common.back')}
           onPress={onCancel}
         />
         <SerifText size={20} weight="semibold" style={styles.navTitle}>
@@ -76,7 +98,7 @@ export function MultiSelectFilterPanel({
         <HouseToolbarIconButton
           iosName="checkmark"
           androidName="check"
-          accessibilityLabel="Done"
+          accessibilityLabel={t('filters.done')}
           onPress={onConfirm}
         />
       </View>
@@ -95,6 +117,23 @@ export function MultiSelectFilterPanel({
             { paddingBottom: 24 + bottomInset },
           ]}
           keyboardShouldPersistTaps="handled">
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: selectAllOn }}
+            accessibilityLabel={t('filters.selectAll')}
+            accessibilityHint={
+              selectAllOn
+                ? t('filters.deselectAllHint')
+                : t('filters.selectAllHint')
+            }
+            onPress={toggleSelectAll}
+            style={({ pressed }) => [
+              styles.selectAllRow,
+              pressed && styles.pressed,
+            ]}>
+            <CheckboxIcon checked={selectAllOn} />
+          </Pressable>
+
           {items.map((item) => {
             const isSelected = selectedSet.has(item);
             return (
@@ -104,24 +143,8 @@ export function MultiSelectFilterPanel({
                 accessibilityState={{ checked: isSelected }}
                 onPress={() => toggle(item)}
                 style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
-                <SymbolView
-                  name={{
-                    ios: isSelected ? 'checkmark.square.fill' : 'square',
-                    android: isSelected
-                      ? 'check_box'
-                      : 'check_box_outline_blank',
-                    web: isSelected
-                      ? 'check_box'
-                      : 'check_box_outline_blank',
-                  }}
-                  tintColor={
-                    isSelected
-                      ? GustraColors.forestGreen
-                      : 'rgba(35, 32, 26, 0.35)'
-                  }
-                  size={24}
-                />
-                  <Text style={styles.rowLabel}>{titleForItem(item)}</Text>
+                <CheckboxIcon checked={isSelected} />
+                <Text style={styles.rowLabel}>{titleForItem(item)}</Text>
               </Pressable>
             );
           })}
@@ -151,8 +174,15 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingHorizontal: Theme.spacing.listRowHorizontal,
-    paddingTop: 16,
+    paddingTop: 12,
     gap: 8,
+  },
+  selectAllRow: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(236, 227, 207, 0.45)',
+    borderRadius: Theme.radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
   row: {
     flexDirection: 'row',

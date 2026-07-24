@@ -43,6 +43,8 @@ export type ReviewBackup = {
   photoPaths: string[];
   isNeverAgain: boolean;
   reviewedBy?: string | null;
+  /** Stable author UUID (Expo extension — ignored by older Swift). */
+  reviewedById?: string | null;
   reviewedByPhotoPath?: string | null;
   origin?: string | null;
 };
@@ -52,6 +54,8 @@ export type ReviewerProfileBackup = {
   name: string;
   /** Key in `photoFiles`, when present. */
   photoFileName?: string | null;
+  /** Stable author UUID used when sharing (Expo extension). */
+  authorId?: string | null;
 };
 
 export type CustomCriterionBackup = {

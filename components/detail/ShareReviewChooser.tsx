@@ -5,6 +5,7 @@ import { SymbolView } from 'expo-symbols';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
 import { Theme } from '@/constants/Theme';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 export type ShareDestination = 'gustraPackage' | 'email';
 
@@ -22,6 +23,7 @@ export function ShareReviewChooser({
   onClose,
   onSelect,
 }: ShareReviewChooserProps) {
+  const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
 
   return (
@@ -36,12 +38,12 @@ export function ShareReviewChooser({
           <View style={styles.handle} />
           <View style={styles.header}>
             <SerifText size={22} weight="semibold" style={styles.title}>
-              Share
+              {t('common.share')}
             </SerifText>
             <Pressable
               onPress={onClose}
               accessibilityRole="button"
-              accessibilityLabel="Cancel"
+              accessibilityLabel={t('share.chooser.cancel')}
               hitSlop={12}
               style={styles.closeBtn}>
               <SymbolView
@@ -53,15 +55,15 @@ export function ShareReviewChooser({
           </View>
 
           <ChooserRow
-            title="Share Gustra file"
-            subtitle="To import in the Gustra app"
+            title={t('share.chooser.gustraFile')}
+            subtitle={t('share.chooser.gustraFileSubtitle')}
             iosName="doc.badge.arrow.up"
-            androidName="upload-file"
+            androidName="upload_file"
             onPress={() => onSelect('gustraPackage')}
           />
           <ChooserRow
-            title="Send visual recommendation"
-            subtitle="Readable review for email or message"
+            title={t('share.chooser.visual')}
+            subtitle={t('share.chooser.visualSubtitle')}
             iosName="envelope.fill"
             androidName="email"
             onPress={() => onSelect('email')}

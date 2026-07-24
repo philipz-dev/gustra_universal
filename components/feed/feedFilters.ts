@@ -1,8 +1,14 @@
 import { placeTypeDisplayName, sortedPlaceTypes } from '@/constants/PlaceTypeLabels';
 import type { RestaurantVisitSummary } from '@/data/types';
+import { i18n } from '@/i18n';
 
 /** Combinable feed filters. Empty = “None” (Swift `FeedFilterFlag`). */
-export type FeedFilterFlag = 'favorites' | 'location' | 'placeType';
+export type FeedFilterFlag =
+  | 'favorites'
+  | 'location'
+  | 'placeType'
+  /** Include imported/friend reviews (additive to own). */
+  | 'friends';
 
 /** Swift `FeedSortKind`. */
 export type FeedSortKind =
@@ -32,6 +38,13 @@ export const DEFAULT_FEED_FILTER_STATE: FeedFilterState = {
   primaryTypes: [],
 };
 
+/** Flags that affect restaurant matching (not map friend-pin inclusion). */
+const RESTAURANT_FILTER_FLAGS: FeedFilterFlag[] = [
+  'favorites',
+  'location',
+  'placeType',
+];
+
 export function isFeedFilterActive(state: FeedFilterState): boolean {
   return (
     state.filters.length > 0 || state.sortKind.type !== 'averageScore'
@@ -43,6 +56,53 @@ export function hasFeedFilter(
   flag: FeedFilterFlag,
 ): boolean {
   return state.filters.includes(flag);
+}
+
+/** Merge restaurant visit summaries by restaurant id (own + friends on My map). */
+export function mergeSummariesByRestaurant(
+  lists: RestaurantVisitSummary[][],
+): RestaurantVisitSummary[] {
+  const byId = new Map<string, RestaurantVisitSummary>();
+  for (const list of lists) {
+    for (const summary of list) {
+      const existing = byId.get(summary.restaurantId);
+      if (!existing) {
+        byId.set(summary.restaurantId, summary);
+        continue;
+      }
+      const reviewIds = [
+        ...new Set([...existing.reviewIds, ...summary.reviewIds]),
+      ];
+      byId.set(summary.restaurantId, {
+        ...existing,
+        reviewIds,
+        visitCount: reviewIds.length,
+        averageScore:
+          (existing.averageScore * existing.visitCount +
+            summary.averageScore * summary.visitCount) /
+          (existing.visitCount + summary.visitCount),
+        isFavorite: existing.isFavorite || summary.isFavorite,
+        lastVisitAt: Math.max(existing.lastVisitAt, summary.lastVisitAt),
+        lastVisitDate:
+          existing.lastVisitAt >= summary.lastVisitAt
+            ? existing.lastVisitDate
+            : summary.lastVisitDate,
+      });
+    }
+  }
+  return [...byId.values()];
+}
+
+/** Drop the map-only `friends` flag before restaurant matching. */
+export function restaurantFilterState(
+  state: FeedFilterState,
+): FeedFilterState {
+  return {
+    ...state,
+    filters: state.filters.filter((flag) =>
+      RESTAURANT_FILTER_FLAGS.includes(flag),
+    ),
+  };
 }
 
 export function availableCitiesFromSummaries(
@@ -84,7 +144,7 @@ export function selectionSummary(
   allItems: string[],
   titleForItem: (item: string) => string = (item) => item,
 ): string {
-  if (isAllSelection(selected, allItems)) return 'All';
+  if (isAllSelection(selected, allItems)) return i18n.t('filters.all');
   return allItems
     .filter((item) => selected.includes(item))
     .map(titleForItem)
@@ -95,8 +155,8 @@ export function sortKindTitle(
   sortKind: FeedSortKind,
   criterionTitleFor?: (criterionId: string) => string,
 ): string {
-  if (sortKind.type === 'averageScore') return 'Average score';
-  return criterionTitleFor?.(sortKind.criterionId) ?? 'Criterion';
+  if (sortKind.type === 'averageScore') return i18n.t('filters.sort.averageScore');
+  return criterionTitleFor?.(sortKind.criterionId) ?? i18n.t('filters.sort.criterion');
 }
 
 export function placeTypeSelectionSummary(
@@ -152,35 +212,39 @@ export function applyFeedFilters(
   options: FeedFilterOptions = {},
 ): RestaurantVisitSummary[] {
   let next = summaries;
+  const restaurantState = restaurantFilterState(state);
 
-  if (hasFeedFilter(state, 'favorites')) {
+  if (hasFeedFilter(restaurantState, 'favorites')) {
     next = next.filter((summary) => summary.isFavorite);
   }
 
-  if (hasFeedFilter(state, 'location')) {
-    if (state.locationCities.length === 0) {
+  if (hasFeedFilter(restaurantState, 'location')) {
+    if (restaurantState.locationCities.length === 0) {
       next = [];
     } else {
-      const cities = new Set(state.locationCities);
+      const cities = new Set(restaurantState.locationCities);
       next = next.filter((summary) => cities.has(summary.city.trim()));
     }
   }
 
-  if (hasFeedFilter(state, 'placeType')) {
-    if (state.primaryTypes.length === 0) {
+  if (hasFeedFilter(restaurantState, 'placeType')) {
+    if (restaurantState.primaryTypes.length === 0) {
       next = [];
     } else {
-      const types = new Set(state.primaryTypes);
+      const types = new Set(restaurantState.primaryTypes);
       next = next.filter((summary) =>
         types.has((summary.primaryType ?? '').trim()),
       );
     }
   }
 
-  if (state.sortKind.type === 'criterion' && options.criterionAverageFor) {
+  if (
+    restaurantState.sortKind.type === 'criterion' &&
+    options.criterionAverageFor
+  ) {
     next = rankByCriterion(
       next,
-      state.sortKind.criterionId,
+      restaurantState.sortKind.criterionId,
       options.criterionAverageFor,
     );
   } else {

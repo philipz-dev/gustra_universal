@@ -8,7 +8,6 @@ import {
   View,
 } from 'react-native';
 
-import { houseAlert } from '@/components/ui/HouseAlert';
 import {
   Gesture,
   GestureDetector,
@@ -30,6 +29,7 @@ import {
 } from '@/components/detail/photoViewer/PhotoViewerChrome';
 import { ZoomablePhoto } from '@/components/detail/photoViewer/ZoomablePhoto';
 import { PhotoViewerStyle } from '@/constants/PhotoViewerStyle';
+import { alertOverModal } from '@/services/linking/safeLinking';
 import {
   lockAppPortraitOrientation,
   unlockPhotoViewerOrientation,
@@ -126,7 +126,7 @@ export function ReviewPhotoViewer({
     try {
       await sharePhotoUri(uri);
     } catch (error) {
-      houseAlert(
+      alertOverModal(
         'Error',
         error instanceof Error ? error.message : 'Could not share photo',
       );
@@ -141,9 +141,9 @@ export function ReviewPhotoViewer({
     setBusy(true);
     try {
       await savePhotoUri(uri);
-      houseAlert('Photo saved');
+      alertOverModal('Photo saved');
     } catch (error) {
-      houseAlert(
+      alertOverModal(
         'Error',
         error instanceof Error ? error.message : 'Could not save photo',
       );

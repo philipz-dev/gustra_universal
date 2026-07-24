@@ -9,6 +9,7 @@ import {
 import { placeTypeDisplayName } from '@/constants/PlaceTypeLabels';
 import { GustraColors } from '@/constants/Colors';
 import { captionTextStyle, Theme } from '@/constants/Theme';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { Haptics } from '@/services/haptics';
 
 type ActiveFilterSummaryProps = {
@@ -29,25 +30,33 @@ export function ActiveFilterSummary({
   criterionTitleFor,
   onChange,
 }: ActiveFilterSummaryProps) {
+  const { t } = useAppTranslation();
   const showSort = state.sortKind.type !== 'averageScore';
   const showFavorites = hasFeedFilter(state, 'favorites');
+  const showFriends = hasFeedFilter(state, 'friends');
   const showLocation = hasFeedFilter(state, 'location');
   const showPlaceType = hasFeedFilter(state, 'placeType');
 
-  if (!showSort && !showFavorites && !showLocation && !showPlaceType) {
+  if (
+    !showSort &&
+    !showFavorites &&
+    !showFriends &&
+    !showLocation &&
+    !showPlaceType
+  ) {
     return null;
   }
 
   const locationTitle =
     state.locationCities.length === 0
-      ? 'Location'
+      ? t('filters.chips.location')
       : [...state.locationCities]
           .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
           .join(' · ');
 
   const placeTypeTitle =
     state.primaryTypes.length === 0
-      ? 'Cuisine type'
+      ? t('filters.chips.cuisine')
       : [...state.primaryTypes]
           .sort((a, b) =>
             placeTypeDisplayName(a).localeCompare(
@@ -72,7 +81,7 @@ export function ActiveFilterSummary({
             title={sortKindTitle(state.sortKind, criterionTitleFor)}
             iosName="arrow.up.arrow.down"
             androidName="swap_vert"
-            accessibilityHint="Clear sort"
+            accessibilityHint={t('a11y.clearSort')}
             onPress={() =>
               clear({ ...state, sortKind: { type: 'averageScore' } })
             }
@@ -82,21 +91,39 @@ export function ActiveFilterSummary({
         )}
         <Text
           style={styles.count}
-          accessibilityLabel={`${visibleResultCount} of ${totalResultCount} results`}>
+          accessibilityLabel={t('filters.resultsCount', {
+            shown: visibleResultCount,
+            total: totalResultCount,
+          })}>
           {visibleResultCount}/{totalResultCount}
         </Text>
       </View>
 
       {showFavorites ? (
         <Chip
-          title="Favorites"
+          title={t('filters.chips.favorites')}
           iosName="heart.fill"
           androidName="favorite"
-          accessibilityHint="Clear favorites filter"
+          accessibilityHint={t('a11y.clearFavorites')}
           onPress={() =>
             clear({
               ...state,
               filters: state.filters.filter((flag) => flag !== 'favorites'),
+            })
+          }
+        />
+      ) : null}
+
+      {showFriends ? (
+        <Chip
+          title={t('filters.chips.friends')}
+          iosName="person.2.fill"
+          androidName="group"
+          accessibilityHint={t('a11y.clearFriends')}
+          onPress={() =>
+            clear({
+              ...state,
+              filters: state.filters.filter((flag) => flag !== 'friends'),
             })
           }
         />
@@ -107,7 +134,7 @@ export function ActiveFilterSummary({
           title={locationTitle}
           iosName="mappin.and.ellipse"
           androidName="place"
-          accessibilityHint="Clear location filter"
+          accessibilityHint={t('a11y.clearLocation')}
           onPress={() =>
             clear({
               ...state,
@@ -123,7 +150,7 @@ export function ActiveFilterSummary({
           title={placeTypeTitle}
           iosName="fork.knife"
           androidName="restaurant"
-          accessibilityHint="Clear cuisine type filter"
+          accessibilityHint={t('a11y.clearCuisine')}
           onPress={() =>
             clear({
               ...state,

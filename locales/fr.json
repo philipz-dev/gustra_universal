@@ -1,0 +1,14 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "Gustra utilise l’appareil photo pour les photos de profil et les avis de restaurants.",
+    "NSPhotoLibraryUsageDescription": "Gustra utilise votre photothèque pour importer des images pour le profil et les avis.",
+    "NSPhotoLibraryAddUsageDescription": "Gustra enregistre les photos d’avis dans la photothèque lorsque vous choisissez Enregistrer dans Photos.",
+    "NSLocationWhenInUseUsageDescription": "Gustra utilise votre position pour trouver des restaurants à proximité."
+  },
+  "android": {
+    "NSCameraUsageDescription": "Gustra utilise l’appareil photo pour les photos de profil et les avis de restaurants.",
+    "NSPhotoLibraryUsageDescription": "Gustra utilise votre photothèque pour importer des images pour le profil et les avis.",
+    "NSPhotoLibraryAddUsageDescription": "Gustra enregistre les photos d’avis dans la photothèque lorsque vous choisissez Enregistrer dans Photos.",
+    "NSLocationWhenInUseUsageDescription": "Gustra utilise votre position pour trouver des restaurants à proximité."
+  }
+}

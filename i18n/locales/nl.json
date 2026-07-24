@@ -1,0 +1,490 @@
+{
+  "common": {
+    "ok": "OK",
+    "cancel": "Annuleren",
+    "delete": "Verwijderen",
+    "remove": "Verwijderen",
+    "done": "Klaar",
+    "back": "Terug",
+    "continue": "Doorgaan",
+    "reset": "Resetten",
+    "overwrite": "Overschrijven",
+    "recover": "Herstellen",
+    "openSettings": "Open Instellingen",
+    "tryAgain": "Opnieuw proberen",
+    "error": "Fout",
+    "close": "Sluiten",
+    "share": "Delen",
+    "edit": "Bewerken",
+    "none": "Geen",
+    "default": "Standaard",
+    "selectAll": "Alles selecteren",
+    "selectNone": "Niets selecteren",
+    "add": "Toevoegen",
+    "clear": "Wissen",
+    "import": "Importeren"
+  },
+  "rating": {
+    "labels": {
+      "poor": "Slecht",
+      "okay": "Matig",
+      "good": "Goed",
+      "great": "Zeer goed",
+      "perfect": "Perfect",
+      "na": "n.v.t.",
+      "notRated": "Niet beoordeeld"
+    },
+    "a11y": {
+      "rating": "Beoordeling",
+      "clear": "Beoordeling wissen"
+    }
+  },
+  "tabs": {
+    "reviews": "Reviews",
+    "map": "Mijn kaart",
+    "passport": "Mijn Gustra",
+    "settings": "Instellingen",
+    "editCriteria": "Reviewcriteria bewerken",
+    "profilePhoto": "Profielfoto",
+    "backupRestore": "Back-up / Herstellen"
+  },
+  "a11y": {
+    "importReviews": "Reviews importeren",
+    "share": "Delen",
+    "filters": "Filters",
+    "addReview": "Review toevoegen",
+    "myLocation": "Mijn locatie",
+    "clearLocation": "Locatiefilter wissen",
+    "clearCuisine": "Keukenfilter wissen",
+    "clearFavorites": "Favorietenfilter wissen",
+    "clearFriends": "Filter vriendenreviews wissen",
+    "clearSort": "Sortering wissen",
+    "delete": "Verwijderen"
+  },
+  "reviews": {
+    "searchPlaceholder": "Zoek restaurants, reacties, foto’s…",
+    "visitCount_one": "{{count}} bezoek · {{date}}",
+    "visitCount_other": "{{count}} bezoeken · {{date}}",
+    "source": {
+      "mine": "Mijn reviews",
+      "friends": "Reviews van vrienden"
+    },
+    "empty": {
+      "noMatchesTitle": "Geen restaurants gevonden",
+      "noMatchesBody": "Geen restaurants komen overeen met je huidige filters.",
+      "noMatchesShort": "Geen resultaten",
+      "noFriendsTitle": "Geen reviews van vrienden",
+      "noFriendsBody": "Importeer gedeelde reviews van vrienden om ze hier te zien.",
+      "noReviewsTitle": "Nog geen reviews",
+      "noReviewsBody": "Voeg je eerste restaurantreview toe om te beginnen.",
+      "tryAnotherSearch": "Probeer een andere restaurantnaam, stad, reactie of tekst van een foto.",
+      "noCriterionRating": "Nog geen restaurants met een score voor dit criterium.",
+      "clearFilters": "Filters wissen",
+      "importReviews": "Reviews importeren",
+      "addReview": "Review toevoegen"
+    }
+  },
+  "filters": {
+    "title": "Filteropties",
+    "filters": "Filters",
+    "none": "Geen",
+    "favorites": "Favorieten",
+    "friendsReviews": "Reviews van vrienden meenemen",
+    "location": "Locatie",
+    "cuisine": "Type keuken",
+    "sortBy": "Sorteren op",
+    "all": "Alles",
+    "default": "Standaard",
+    "reset": "Filters resetten",
+    "done": "Klaar",
+    "choose": "Kies {{title}}",
+    "selectAll": "Alles selecteren",
+    "selectAllHint": "Alle opties selecteren",
+    "deselectAllHint": "Alle opties deselecteren",
+    "restaurantCount": "{{shown}} van {{total}} restaurants",
+    "resultsCount": "{{shown}} van {{total}} resultaten",
+    "emptyLocationTitle": "Nog geen locaties",
+    "emptyLocationBody": "Locaties verschijnen wanneer je reviews een stad of land bevatten.",
+    "emptyCuisineTitle": "Nog geen keukentypes",
+    "emptyCuisineBody": "Keukentypes verschijnen wanneer restaurants categorieën hebben.",
+    "sort": {
+      "averageScore": "Gemiddelde score",
+      "criterion": "Criterium"
+    },
+    "chips": {
+      "location": "Locatie",
+      "cuisine": "Type keuken",
+      "favorites": "Favorieten",
+      "friends": "Inclusief vriendenreviews"
+    }
+  },
+  "map": {
+    "title": "Mijn kaart",
+    "friendSuffix": "(vriend)",
+    "empty": {
+      "noMatchesTitle": "Geen resultaten",
+      "noMatchesBody": "Geen restaurants komen overeen met je huidige filters.",
+      "noMemoriesTitle": "Nog geen kaartherinneringen",
+      "noMemoriesBody": "Voeg een review met locatie toe om die op je kaart te zien.",
+      "clearFilters": "Filters wissen",
+      "addReview": "Review toevoegen"
+    }
+  },
+  "passport": {
+    "emptyTitle": "Nog geen reviews",
+    "emptyBody": "Je proefpaspoort vult zich naarmate je restaurantreviews toevoegt.",
+    "addReview": "Review toevoegen",
+    "overview": "Overzicht",
+    "totalReviews": "Totaal reviews",
+    "averageOverall": "Gemiddelde totaal",
+    "bestRestaurant": "Beste restaurant",
+    "bestRestaurants": "Beste restaurants",
+    "categoryAverages": "Categoriegemiddelden",
+    "topCities": "Topsteden",
+    "cityAverages": "Topsteden",
+    "noCityData": "Nog geen stadsgegevens."
+  },
+  "settings": {
+    "language": "Taal",
+    "languagePickerTitle": "Taal",
+    "languageSystem": "Systeem",
+    "languageDutch": "Nederlands",
+    "languageEnglish": "English",
+    "languageItalian": "Italiano",
+    "sectionReviewer": "Reviewer",
+    "sectionCriteria": "Reviewcriteria",
+    "sectionPassport": "Mijn Gustra",
+    "sectionStorage": "Opslag",
+    "sectionGoogle": "Google API-gebruik",
+    "sectionLanguage": "Taal",
+    "editCriteria": "Reviewcriteria bewerken",
+    "dataSavings": "Databesparing voor foto’s",
+    "dataSavingsOn": "Lagere resolutie",
+    "dataSavingsOff": "Hogere resolutie",
+    "photos": "Foto’s",
+    "importShared": "Gedeelde reviews importeren",
+    "importSharedSubtitle": "Open een .gustrashare-bestand van een vriend",
+    "recoverPrevious": "Vorige Gustra-gegevens herstellen",
+    "recoverScanSubtitle": "Zoek op deze iPhone naar de oude Swift-database en foto’s",
+    "recoverScanning": "Scannen…",
+    "backupRestore": "Back-up / Herstellen",
+    "mapsSdk": "Google Maps SDK",
+    "placesApi": "Places API",
+    "usageToday": "{{today}} vandaag / {{allTime}} totaal",
+    "resetCounters": "Tellers resetten",
+    "namePlaceholder": "Jouw naam",
+    "nameA11y": "Naam van de reviewer",
+    "photoA11y": "Profielfoto",
+    "editPhotoA11y": "Profielfoto bewerken",
+    "addPhotoA11y": "Profielfoto toevoegen",
+    "clearNameA11y": "Naam wissen",
+    "languageValueSystem": "Systeem",
+    "languageValueDutch": "Nederlands",
+    "languageValueEnglish": "English",
+    "languageValueItalian": "Italiano",
+    "swiftScan": {
+      "found": "Swift-database gevonden",
+      "dbCandidates": "{{count}} DB-kandidaten",
+      "photos": "{{count}} foto’s",
+      "backups": "{{count}} back-upbestand(en)",
+      "alreadyRecovered": "al hersteld",
+      "photosOnly": "{{count}} oude foto’s gevonden, maar geen database — reviews hebben een .gustra-back-up of de Swift-store nodig",
+      "backupsOnly": "{{count}} back-upbestand(en) in Backups — gebruik Back-up / Herstellen",
+      "unreadable": "{{count}} DB-bestand(en) gevonden maar niet leesbaar als Gustra-gegevens",
+      "none": "Geen eerdere Swift-gegevens gevonden op dit apparaat"
+    },
+    "passport": {
+      "showAsNumbers": "Toon scores als cijfers",
+      "showAsStars": "Toon scores als sterren"
+    },
+    "storage": {
+      "photosStored_one": "{{count}} foto lokaal opgeslagen",
+      "photosStored_other": "{{count}} foto’s lokaal opgeslagen"
+    },
+    "criteria": {
+      "deleteTitle": "Criterium verwijderen",
+      "deleteBody": "“{{name}}” verwijderen?",
+      "custom": "Aangepast",
+      "footer": "Aangepaste namen verschijnen bij nieuwe reviews. Uitgeschakelde criteria zijn verborgen bij beoordelen."
+    },
+    "profilePhoto": {
+      "addTitle": "Voeg een profielfoto toe",
+      "usePhoto": "Foto gebruiken",
+      "deletePhoto": "Foto verwijderen",
+      "takeOrImport": "Maak of importeer een foto",
+      "pendingRemove": "De foto wordt verwijderd wanneer je bevestigt.",
+      "pinchHint": "Knijp om te zoomen · sleep om te verplaatsen",
+      "readFailed": "Kon de geselecteerde foto niet lezen."
+    },
+    "languageGerman": "Deutsch",
+    "languageSpanish": "Español",
+    "languageFrench": "Français",
+    "languageValueGerman": "Deutsch",
+    "languageValueSpanish": "Español",
+    "languageValueFrench": "Français"
+  },
+  "criteria": {
+    "food": "Eten",
+    "drinks": "Dranken",
+    "service": "Service",
+    "atmosphere": "Sfeer",
+    "valueForMoney": "Prijs-kwaliteit"
+  },
+  "forms": {
+    "addReview": {
+      "title": "Review toevoegen",
+      "nearby": "Toon restaurants in de buurt",
+      "mapSearch": "Zoeken op kaart",
+      "manual": "Handmatig invoeren"
+    },
+    "nearby": {
+      "startReview": "Review starten",
+      "loadFailed": "Kon restaurants in de buurt niet laden.",
+      "noNearby": "Geen restaurants in de buurt gevonden.",
+      "searchNearby": "Zoek in de buurt",
+      "locationDenied": "Locatietoegang is nodig om restaurants in de buurt te vinden.",
+      "servicesOff": "Locatievoorzieningen lijken uit te staan.",
+      "finding": "Restaurants in de buurt zoeken…",
+      "sectionTitle": "Restaurants in de buurt",
+      "tryMap": "Probeer opnieuw of zoek op de kaart.",
+      "searchFailed": "Kon de restaurantzoekdienst niet bereiken."
+    },
+    "mapSearch": {
+      "title": "Zoeken op kaart",
+      "searchArea": "Zoek in dit gebied",
+      "startReview": "Review starten",
+      "hint": "Verplaats de kaart en tik op Zoek in dit gebied.",
+      "searchAreaHint": "Zoek restaurants in het zichtbare kaartgebied"
+    },
+    "manual": {
+      "title": "Handmatig invoeren",
+      "restaurantName": "Restaurantnaam",
+      "city": "Stad",
+      "country": "Land",
+      "findOnGoogle": "Zoek op Google",
+      "searchHint": "Zoek op Google om plaatsgegevens toe te voegen, of ga handmatig verder.",
+      "googleMatches": "Google-resultaten",
+      "loading": "Restaurants laden…",
+      "continueManually": "Handmatig doorgaan",
+      "searchFailed": "Kon de restaurantzoekdienst niet bereiken.",
+      "noMatch": "Geen match gevonden op Google.",
+      "manualMapHint": "Zonder Google-match verschijnt dit restaurant niet op je kaart."
+    },
+    "review": {
+      "editTitle": "Bewerken",
+      "title": "Review",
+      "done": "Klaar",
+      "visitDate": "Bezoekdatum",
+      "ratings": "Scores",
+      "generalComments": "Algemene opmerkingen",
+      "photos": "Foto’s",
+      "optionalComment": "Optionele opmerking",
+      "otherVisits_one": "{{count}} ander bezoek bij dit restaurant",
+      "otherVisits_other": "{{count}} andere bezoeken bij dit restaurant",
+      "mostRecent": "Meest recent {{date}}",
+      "addPhotos": "Foto’s toevoegen",
+      "delete": "Verwijderen",
+      "removePhotos": "Foto’s verwijderen",
+      "indexing": "Fototekst indexeren…",
+      "avg": "{{score}} gem.",
+      "time": "Tijd",
+      "setTime": "Tijd instellen · {{time}}"
+    },
+    "photos": {
+      "takePhoto": "Foto maken",
+      "importPhoto": "Foto importeren",
+      "adding": "Foto’s toevoegen…"
+    }
+  },
+  "detail": {
+    "review": {
+      "title": "Review",
+      "notFound": "Review niet gevonden",
+      "notFoundBody": "Deze review kon niet worden gevonden.",
+      "generalComments": "Algemene opmerkingen",
+      "newVisit": "Nieuw bezoek",
+      "edit": "Bewerken",
+      "reviewedBy": "Beoordeeld door {{name}}",
+      "share": "Delen"
+    },
+    "options": {
+      "title": "Options",
+      "a11y": "Opties",
+      "recordVisit": "Nieuw bezoek vastleggen",
+      "editReview": "Review bewerken",
+      "cannotEditFriend": "Je kunt een review van een vriend niet bewerken",
+      "deleteReview": "Review verwijderen",
+      "shareSection": "Delen"
+    },
+    "restaurant": {
+      "title": "Restaurant",
+      "noVisits": "Geen bezoeken",
+      "noReviews": "Dit restaurant heeft nog geen reviews.",
+      "visitCount_one": "{{count}} bezoek",
+      "visitCount_other": "{{count}} bezoeken",
+      "visits": "Bezoeken"
+    },
+    "location": {
+      "title": "Locatie",
+      "unknown": "Onbekende locatie",
+      "getDirections": "Routebeschrijving",
+      "showMap": "Toon kaart",
+      "call": "Bel {{phone}}"
+    }
+  },
+  "directions": {
+    "title": "Routebeschrijving",
+    "noLocation": "Er is geen kaartlocatie beschikbaar voor deze plaats.",
+    "appleMaps": "Apple Kaarten",
+    "googleMaps": "Google Maps",
+    "waze": "Waze",
+    "maps": "Kaarten",
+    "cancel": "Annuleren",
+    "openFailed": "Kon de kaarten-app niet openen.",
+    "destination": "Bestemming"
+  },
+  "share": {
+    "chooser": {
+      "gustraFile": "Gustra-bestand delen",
+      "gustraFileSubtitle": "Vrienden kunnen dit in Gustra importeren",
+      "visual": "Visuele aanbeveling sturen",
+      "visualSubtitle": "Een deelbare afbeelding van deze review",
+      "cancel": "Annuleren"
+    },
+    "nameSheet": {
+      "title": "Jouw naam",
+      "body": "Je naam wordt meegenomen wanneer je reviews deelt met vrienden.",
+      "placeholder": "Naam van de reviewer",
+      "cancel": "Annuleren",
+      "continue": "Doorgaan"
+    }
+  },
+  "import": {
+    "title": "Reviews importeren",
+    "from": "Reviews van {{name}}",
+    "unknownRestaurant": "Onbekend restaurant",
+    "noReviews": "Geen reviews",
+    "noReviewsBody": "Dit gedeelde bestand bevat geen reviews.",
+    "selectAll": "Alles selecteren",
+    "selectNone": "Niets selecteren"
+  },
+  "backup": {
+    "encryptedTitle": "Versleutelde back-up",
+    "encryptedBody": "Maak een met wachtwoord beveiligde back-up van je reviews, of herstel vanaf een eerdere back-up.",
+    "create": "Back-up maken",
+    "restore": "Herstellen",
+    "restoreTitle": "Back-up herstellen",
+    "password": "Wachtwoord",
+    "confirmPassword": "Bevestig wachtwoord",
+    "continue": "Doorgaan",
+    "whereTitle": "Waar moet de back-up naartoe?",
+    "saveLocally": "Lokaal opslaan",
+    "share": "Delen",
+    "noBackups": "Geen back-ups gevonden",
+    "noBackupsBody": "Geen back-ups gevonden in de Gustra Back-ups-map. Je kunt nog steeds een bestand elders kiezen.",
+    "gustraBackups": "Gustra-back-ups",
+    "chooseFromFiles": "Kies uit Bestanden",
+    "merge": "Samenvoegen met huidige gegevens",
+    "overwrite": "Huidige gegevens overschrijven",
+    "passwordHint": "Min. 7 tekens, met minstens één letter, cijfer en symbool.",
+    "enterPassword": "Voer een back-upwachtwoord in.",
+    "passwordTooShort": "Wachtwoord moet minstens {{count}} tekens zijn.",
+    "passwordNeedsLetter": "Wachtwoord moet minstens één letter bevatten.",
+    "passwordNeedsNumber": "Wachtwoord moet minstens één cijfer bevatten.",
+    "passwordNeedsSymbol": "Wachtwoord moet minstens één symbool bevatten.",
+    "passwordMismatch": "Wachtwoorden komen niet overeen.",
+    "needReviewFirst": "Voeg minstens één review toe voordat je een back-up maakt.",
+    "choosePasswordHint": "Kies een wachtwoord dat je later nodig hebt om deze back-up te herstellen.",
+    "localFolderHint": "Lokale back-ups worden opgeslagen in de Back-ups-map van de app op dit apparaat.",
+    "enterRestorePassword": "Voer het wachtwoord in dat bij het maken van deze back-up is gebruikt.",
+    "applyHow": "Hoe moet deze back-up worden toegepast?",
+    "mergeHint": "Behoud bestaande restaurants en voeg items uit de back-up toe of werk ze bij.",
+    "overwriteHint": "Vervang alle restaurants en reviews door de back-up.",
+    "encryptFailed": "Kon het back-upbestand niet versleutelen.",
+    "shareFailed": "Kon de back-up niet delen.",
+    "readFailed": "Kon het back-upbestand niet lezen.",
+    "incorrectPassword": "Onjuist back-upwachtwoord.",
+    "mergedSuccess": "Back-up succesvol samengevoegd.",
+    "restoredSuccess": "Back-up succesvol hersteld.",
+    "fileSaved": "Back-upbestand {{filename}} opgeslagen",
+    "fileShared": "Back-upbestand {{filename}} gedeeld",
+    "deleteFailed": "Kon het back-upbestand niet verwijderen."
+  },
+  "alerts": {
+    "deleteRestaurant": {
+      "title": "Restaurant verwijderen?",
+      "body": "Dit verwijdert alle bezoeken en foto’s van dit restaurant."
+    },
+    "deleteVisit": {
+      "title": "Bezoek verwijderen?",
+      "body": "Dit bezoek en de foto’s ervan worden verwijderd."
+    },
+    "share": {
+      "failed": "Kon reviews niet delen.",
+      "reviewFailed": "Kon deze review niet delen.",
+      "needName": "Voeg je naam toe in Instellingen voordat je reviews deelt."
+    },
+    "location": {
+      "deniedTitle": "Locatie nodig",
+      "deniedBody": "Sta locatietoegang toe in Instellingen om je positie op de kaart te tonen.",
+      "servicesTitle": "Locatievoorzieningen uit",
+      "servicesBody": "Schakel Locatievoorzieningen in om je positie op de kaart te gebruiken.",
+      "unavailable": "Huidige locatie niet beschikbaar."
+    },
+    "permission": {
+      "needed": "Toestemming nodig",
+      "photos": "Toegang tot de fotobibliotheek is vereist.",
+      "camera": "Toegang tot de camera is vereist."
+    },
+    "reviewForm": {
+      "needStars": "Voeg minstens één sterscore toe om deze review op te slaan.",
+      "removePhotosTitle": "Foto’s verwijderen?",
+      "removePhotosBody": "Geselecteerde foto’s worden uit deze review verwijderd.",
+      "photosSaveFailed": "Kon foto’s niet opslaan.",
+      "deleteTitle": "Verwijderen?",
+      "deleteBody": "Deze review wordt verwijderd.",
+      "discardEdits": {
+        "title": "Vertrekken zonder op te slaan?",
+        "body": "Je wijzigingen aan dit bezoek gaan verloren.",
+        "keepEditing": "Blijven bewerken",
+        "discard": "Verwerpen"
+      }
+    },
+    "recovery": {
+      "confirmTitle": "Vorige reviews herstellen?",
+      "confirmBody": "Scant deze iPhone op de oude Swift-database (elke .store/.sqlite onder Application Support, Documents, Library) en foto’s. Huidige Expo-gegevens worden eerst automatisch opgeslagen in Backups. Versleutelde .gustra-back-ups zijn apart — gebruik daarvoor Back-up / Herstellen.",
+      "completeTitle": "Herstel voltooid",
+      "completeBody": "{{reviewCount}} reviews geïmporteerd over {{restaurantCount}} restaurants ({{photosCopied}} foto’s gekopieerd, {{mode}}).",
+      "failedTitle": "Herstel mislukt",
+      "failedBody": "Kon vorige Gustra-gegevens niet importeren."
+    },
+    "resetCounters": {
+      "title": "Tellers resetten?",
+      "body": "De tellers voor Google API-gebruik van vandaag en totaal worden op dit apparaat gewist."
+    },
+    "backup": {
+      "overwriteTitle": "Bestaande gegevens overschrijven?",
+      "overwriteBody": "Je huidige reviews worden vervangen door de back-up.",
+      "deleteFileTitle": "Back-upbestand verwijderen?",
+      "deleteFileBody": "Dit verwijdert de geselecteerde back-up van dit apparaat."
+    },
+    "import": {
+      "readFailed": "Kon het deelbestand niet lezen.",
+      "openFailed": "Kon het deelbestand niet openen.",
+      "importFailed": "Kon reviews niet importeren."
+    },
+    "linking": {
+      "unableTitle": "Kan niet openen",
+      "unableBody": "Deze app is niet beschikbaar op dit apparaat."
+    },
+    "photos": {
+      "saved": "Foto opgeslagen",
+      "shareFailed": "Kon foto niet delen.",
+      "saveFailed": "Kon foto niet opslaan."
+    },
+    "profilePhoto": {
+      "storageTitle": "Opslag",
+      "storageBody": "Kon de profielfoto niet opslaan."
+    }
+  }
+}

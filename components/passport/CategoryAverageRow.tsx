@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
@@ -6,11 +6,16 @@ import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle } from '@/constants/Theme';
 import type { CategoryAveragesDisplayStyle } from '@/context/PassportDisplaySettings';
 
+/** Android reads smaller at the same pt size; bump + tighter gap for passport. */
+const STAR_SIZE = Platform.OS === 'android' ? 26 : 20;
+const STAR_GAP = Platform.OS === 'android' ? -2 : 0;
 
 type CategoryAverageRowProps = {
   title: string;
   average: number;
   style: CategoryAveragesDisplayStyle;
+  /** 1-based rank prefix (City Averages). */
+  rank?: number;
 };
 
 /** Matches Swift passport category row: numbers or fractional stars. */
@@ -18,14 +23,22 @@ export function CategoryAverageRow({
   title,
   average,
   style,
+  rank,
 }: CategoryAverageRowProps) {
+  const label = typeof rank === 'number' ? `${rank}. ${title}` : title;
   return (
     <View
       style={styles.row}
-      accessibilityLabel={`${title}, ${average.toFixed(1)} of 5`}>
-      <Text style={styles.title}>{title}</Text>
+      accessibilityLabel={`${label}, ${average.toFixed(1)} of 5`}>
+      <Text style={styles.title} numberOfLines={2}>
+        {label}
+      </Text>
       {style === 'stars' ? (
-        <FractionalStarRating score={average} size={18} />
+        <FractionalStarRating
+          score={average}
+          size={STAR_SIZE}
+          gap={STAR_GAP}
+        />
       ) : (
         <SerifText size={17} weight="semibold" style={styles.value}>
           {`${average.toFixed(1)}/5`}

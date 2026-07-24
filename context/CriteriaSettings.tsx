@@ -8,8 +8,11 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 
-/** Matches Swift `RatingCategory.standardCases`. */
+import { i18n } from '@/i18n';
+
+/** Matches Swift `RatingCategory.standardCases`. English titles are storage fallbacks. */
 export const STANDARD_CRITERIA = [
   { id: 'food', title: 'Food' },
   { id: 'drinks', title: 'Drinks' },
@@ -17,6 +20,26 @@ export const STANDARD_CRITERIA = [
   { id: 'setting', title: 'Atmosphere' },
   { id: 'valueForMoney', title: 'Value for Money' },
 ] as const;
+
+/** Localized display title for a standard criterion id. */
+export function standardCriterionDisplayTitle(id: string): string {
+  switch (id) {
+    case 'food':
+      return i18n.t('criteria.food');
+    case 'drinks':
+      return i18n.t('criteria.drinks');
+    case 'service':
+      return i18n.t('criteria.service');
+    case 'setting':
+      return i18n.t('criteria.atmosphere');
+    case 'valueForMoney':
+      return i18n.t('criteria.valueForMoney');
+    default:
+      return (
+        STANDARD_CRITERIA.find((c) => c.id === id)?.title ?? id
+      );
+  }
+}
 
 export type StandardCriterionId = (typeof STANDARD_CRITERIA)[number]['id'];
 
@@ -58,6 +81,7 @@ function newId(): string {
 }
 
 export function CriteriaSettingsProvider({ children }: { children: ReactNode }) {
+  const { i18n: i18nInstance } = useTranslation();
   const [disabledStandardIds, setDisabledStandardIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -199,12 +223,15 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
   const enabledCriteria = useMemo(() => {
     const standard = STANDARD_CRITERIA.filter(
       (c) => !disabledStandardIds.has(c.id),
-    ).map((c) => ({ id: c.id, title: c.title }));
+    ).map((c) => ({
+      id: c.id,
+      title: standardCriterionDisplayTitle(c.id),
+    }));
     const custom = customCriteria
       .filter((c) => c.isEnabled)
       .map((c) => ({ id: c.id, title: c.name }));
     return [...standard, ...custom];
-  }, [customCriteria, disabledStandardIds]);
+  }, [customCriteria, disabledStandardIds, i18nInstance.language]);
 
   const getBackupSnapshot = useCallback(
     (): CriteriaSettingsSnapshot => ({

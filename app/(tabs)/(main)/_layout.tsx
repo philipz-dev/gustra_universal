@@ -47,7 +47,10 @@ export default function ReviewsStackLayout() {
         <JsStack.Screen name="nearby-restaurants" />
         <JsStack.Screen name="map-search" />
         <JsStack.Screen name="manual-entry" />
-        <JsStack.Screen name="review-form" />
+        <JsStack.Screen
+          name="review-form"
+          options={{ gestureEnabled: false }}
+        />
         <JsStack.Screen name="restaurant/[id]" />
         <JsStack.Screen name="review/[id]" />
       </JsStack>
@@ -69,7 +72,13 @@ export default function ReviewsStackLayout() {
       <Stack.Screen name="nearby-restaurants" />
       <Stack.Screen name="map-search" />
       <Stack.Screen name="manual-entry" />
-      <Stack.Screen name="review-form" />
+      <Stack.Screen
+        name="review-form"
+        options={{
+          gestureEnabled: false,
+          fullScreenGestureEnabled: false,
+        }}
+      />
       <Stack.Screen name="restaurant/[id]" />
       <Stack.Screen name="review/[id]" />
     </Stack>

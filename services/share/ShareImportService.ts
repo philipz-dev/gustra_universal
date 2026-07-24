@@ -19,6 +19,11 @@ import { rebuildSearchableText } from '@/services/reviews/searchableText';
 /** Matches Swift `ReviewerProfile.maxNameLength`. */
 const REVIEWER_MAX_NAME_LENGTH = 20;
 
+function uriLooksLikeGustraShareFilename(uri: string): boolean {
+  const clean = uri.split('?')[0]?.split('#')[0] ?? uri;
+  return clean.toLowerCase().endsWith(`.${SHARE_FILE_EXTENSION}`);
+}
+
 export class ShareImportError extends Error {
   constructor(message: string) {
     super(message);
@@ -152,10 +157,19 @@ export async function loadSharePackage(uri: string): Promise<SharePackage> {
     const raw = await FileSystem.readAsStringAsync(uri, {
       encoding: FileSystem.EncodingType.UTF8,
     });
-    if (!peekLooksLikeSharePackage(raw)) {
+    // Known extension → trust and validate via parse/shape (no byte-window sniff).
+    // Otherwise sniff identity markers only — never require `reviews`/`restaurants`
+    // in a size-capped prefix (Swift puts a large `sharedByPhoto` before them).
+    const namedPackage = uriLooksLikeGustraShareFilename(uri);
+    if (!namedPackage && !peekLooksLikeSharePackage(raw)) {
       throw new ShareImportError('This is not a Gustra share file.');
     }
-    const parsed = JSON.parse(raw) as SharePackage;
+    let parsed: SharePackage;
+    try {
+      parsed = JSON.parse(raw) as SharePackage;
+    } catch {
+      throw new ShareImportError('This is not a Gustra share file.');
+    }
     if (
       !parsed ||
       typeof parsed !== 'object' ||
@@ -169,6 +183,10 @@ export async function loadSharePackage(uri: string): Promise<SharePackage> {
       appVersion: parsed.appVersion ?? '1.0',
       exportedAt: parsed.exportedAt ?? new Date().toISOString(),
       sharedBy: typeof parsed.sharedBy === 'string' ? parsed.sharedBy : '',
+      sharedById:
+        typeof parsed.sharedById === 'string' && parsed.sharedById.trim()
+          ? parsed.sharedById.trim()
+          : null,
       sharedByPhoto: parsed.sharedByPhoto ?? null,
       restaurants: parsed.restaurants,
       reviews: parsed.reviews,
@@ -182,27 +200,39 @@ export async function loadSharePackage(uri: string): Promise<SharePackage> {
 
 /**
  * Cheap content sniff for WhatsApp/Mail rewrites (`.json` / no extension).
- * Avoids full parse when the Share Extension sees arbitrary JSON.
+ *
+ * Only checks identity keys that always appear near the start of a Gustra
+ * package (`schemaVersion` + `sharedBy`), even when Swift places a multi‑MB
+ * `sharedByPhoto` base64 before `restaurants` / `reviews`. Shape is validated
+ * after `JSON.parse` in `loadSharePackage`.
  */
 export function peekLooksLikeSharePackage(raw: string): boolean {
-  // Strip UTF-8 BOM if messaging apps re-saved the file.
-  const head = raw.replace(/^\uFEFF/, '').slice(0, 4096).trimStart();
-  if (!head.startsWith('{')) return false;
-  return (
-    head.includes('"reviews"') &&
-    head.includes('"restaurants"') &&
-    (head.includes('"schemaVersion"') || head.includes('"sharedBy"'))
-  );
+  const text = raw.replace(/^\uFEFF/, '').trimStart();
+  if (!text.startsWith('{')) return false;
+  // Identity fields sit before any photo blobs in both Swift and Expo order.
+  const head = text.slice(0, 4096);
+  return head.includes('"schemaVersion"') && head.includes('"sharedBy"');
 }
 
 export async function uriLooksLikeSharePackage(uri: string): Promise<boolean> {
+  if (uriLooksLikeGustraShareFilename(uri)) return true;
   try {
+    // Only the head is needed for identity sniff.
     const raw = await FileSystem.readAsStringAsync(uri, {
       encoding: FileSystem.EncodingType.UTF8,
+      length: 4096,
+      position: 0,
     });
     return peekLooksLikeSharePackage(raw);
   } catch {
-    return false;
+    try {
+      const raw = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      return peekLooksLikeSharePackage(raw);
+    } catch {
+      return false;
+    }
   }
 }
 
@@ -290,6 +320,9 @@ export async function importSelectedShareReviews(args: {
   }
 
   const sharedByTrimmed = args.package.sharedBy.trim();
+  /** One id for this package when `sharedById` is missing (legacy Swift/Expo). */
+  const packageAuthorId =
+    args.package.sharedById?.trim() || Crypto.randomUUID();
   const reviews: Review[] = [];
 
   for (const backup of selectedReviews) {
@@ -311,6 +344,9 @@ export async function importSelectedShareReviews(args: {
     ) {
       reviewedByPhotoFilename = sharedByPhotoPath ?? '';
     }
+
+    const perReviewAuthorId = backup.reviewedById?.trim();
+    const reviewedById = perReviewAuthorId || packageAuthorId;
 
     const restaurant = backup.restaurantID
       ? restaurantIdMap.get(backup.restaurantID)
@@ -334,6 +370,7 @@ export async function importSelectedShareReviews(args: {
       criteria,
       photoUrls,
       reviewedBy,
+      reviewedById,
       reviewedByPhotoUrl: reviewedByPhotoFilename
         ? localPhotoUri(reviewedByPhotoFilename)
         : undefined,

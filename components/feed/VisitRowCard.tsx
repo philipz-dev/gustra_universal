@@ -6,14 +6,11 @@ import { FractionalStarRating } from '@/components/ui/StarRating';
 import { GustraColors } from '@/constants/Colors';
 import { listPressedStyle, Surface, Theme } from '@/constants/Theme';
 import type { Review } from '@/data/types';
+import { formatLongDate } from '@/i18n/formatDates';
 import { Haptics } from '@/services/haptics';
 
 function formatVisitDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  return formatLongDate(iso);
 }
 
 type VisitRowCardProps = {
@@ -81,7 +78,9 @@ const styles = StyleSheet.create({
     minHeight: Theme.size.hitTarget,
     backgroundColor: Theme.list.cardBackground,
     borderRadius: Theme.radius.xl,
-    ...Surface.raised,
+    ...(Platform.OS === 'ios'
+      ? { overflow: 'hidden' as const, ...Surface.raised }
+      : { overflow: 'visible' as const, ...Surface.flat }),
   },
   main: {
     flex: 1,

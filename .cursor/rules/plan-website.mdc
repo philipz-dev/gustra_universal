@@ -7,10 +7,10 @@ alwaysApply: true
 
 When you complete (or substantially ship) work in this repo:
 
-1. **Parity checklist** — if a matching task exists in `roadmap/plan/index.html`, mark it `done: true` (and `badge: "Expo"` for Expo parity).
+1. **Parity checklist** — if a matching task exists in `roadmap/plan/index.html`, mark it `done: true` (and `badge: "Added/fixed"` for app work; use `badge: "Website"` for plan-site-only changes; open parity gaps keep `badge: "gap"` → shown as Still open).
 2. **New tab (required)** — also log the addition under the `new` section, in today’s date group (`id: new-YYYY-MM-DD`, title via `nl-BE` date). Prefer editing `DEFAULT_SECTIONS` so `mergeDefaultsIntoSections()` picks it up for all clients:
    ```js
-   { id: "chg-YYYYMMDD-short-slug", title: "Korte omschrijving", done: true, badge: "Expo", date: "YYYY-MM-DD" }
+   { id: "chg-YYYYMMDD-short-slug", title: "Korte omschrijving", done: true, badge: "Added/fixed", date: "YYYY-MM-DD" }
    ```
    Newest day groups stay on top; newest tasks first within the day.
 3. **Deploy without waiting for the user to ask:**

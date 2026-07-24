@@ -11,10 +11,13 @@ import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import {
   CUSTOM_CRITERION_MAX_NAME_LENGTH,
   STANDARD_CRITERIA,
+  standardCriterionDisplayTitle,
   useCriteriaSettings,
 } from '@/context/CriteriaSettings';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 export default function EditCriteriaScreen() {
+  const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
   const {
     customCriteria,
@@ -32,14 +35,18 @@ export default function EditCriteriaScreen() {
   };
 
   const confirmDelete = (id: string, name: string) => {
-    houseAlert('Delete criterion', `Remove “${name}”?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => deleteCustomCriterion(id),
-      },
-    ]);
+    houseAlert(
+      t('settings.criteria.deleteTitle'),
+      t('settings.criteria.deleteBody', { name }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.delete'),
+          style: 'destructive',
+          onPress: () => deleteCustomCriterion(id),
+        },
+      ],
+    );
   };
 
   return (
@@ -66,7 +73,9 @@ export default function EditCriteriaScreen() {
                   ? styles.rowBorder
                   : null,
               ]}>
-              <Text style={styles.rowTitle}>{criterion.title}</Text>
+              <Text style={styles.rowTitle}>
+                {standardCriterionDisplayTitle(criterion.id)}
+              </Text>
               <GustraSwitch
                 value={isStandardEnabled(criterion.id)}
                 onValueChange={(value) =>
@@ -85,7 +94,7 @@ export default function EditCriteriaScreen() {
               </Text>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Delete ${criterion.name}`}
+                accessibilityLabel={`${t('common.delete')} ${criterion.name}`}
                 hitSlop={8}
                 onPress={() => confirmDelete(criterion.id, criterion.name)}
                 style={({ pressed }) => pressed && styles.pressed}>
@@ -108,7 +117,7 @@ export default function EditCriteriaScreen() {
               onChangeText={(text) =>
                 setNewCustomName(text.slice(0, CUSTOM_CRITERION_MAX_NAME_LENGTH))
               }
-              placeholder="Custom"
+              placeholder={t('settings.criteria.custom')}
               placeholderTextColor="rgba(35, 32, 26, 0.4)"
               style={styles.input}
               returnKeyType="done"
@@ -123,15 +132,13 @@ export default function EditCriteriaScreen() {
                   styles.addButton,
                   pressed && styles.pressed,
                 ]}>
-                <Text style={styles.addLabel}>Add</Text>
+                <Text style={styles.addLabel}>{t('common.add')}</Text>
               </Pressable>
             ) : null}
           </View>
         </View>
 
-        <Text style={styles.footer}>
-          {`Custom names can be up to ${CUSTOM_CRITERION_MAX_NAME_LENGTH} characters. Disabled criteria are hidden when writing and viewing reviews.`}
-        </Text>
+        <Text style={styles.footer}>{t('settings.criteria.footer')}</Text>
       </ScrollView>
     </View>
   );
