@@ -383,8 +383,7 @@
       <a href="#features">New features</a>
       <a href="#ideas">Ideas</a>
       <a href="#add">Add</a>
-      <a href="#compile-ios">TestFlight</a>
-      <a href="#compile-android">Play Internal</a>
+      <a href="#compile-store">Tester builds</a>
       <a href="#deploy-web">Web</a>
     </nav>
 
@@ -435,33 +434,25 @@
 
     <hr class="page-rule" />
 
-    <section class="panel howto" id="compile-ios">
-      <h2>Build for iPhone (TestFlight)</h2>
-      <p class="section-meta"><strong>How to run</strong></p>
-      <p class="section-meta" style="margin-top:0.35rem"><code>npm run deploy:ios</code></p>
-      <p class="section-meta" style="margin-top:1rem"><strong>What it does</strong></p>
+    <section class="panel howto" id="compile-store">
+      <h2>Upload for testers (TestFlight / Play Internal)</h2>
+      <p class="section-meta">Only for <strong>testers</strong> — not an App Store or Play Store public release.</p>
+      <ul class="howto-list">
+        <li><strong>iOS</strong> → TestFlight</li>
+        <li><strong>Android</strong> → Play Internal testing track</li>
+      </ul>
+      <p class="section-meta" style="margin-top:1rem"><strong>How to run</strong></p>
+      <p class="section-meta" style="margin-top:0.35rem"><code>npm run deploy</code> &nbsp;(or <code>deploy:ios</code> / <code>deploy:android</code>)</p>
+      <p class="section-meta" style="margin-top:1rem"><strong>What the script asks</strong></p>
       <ol class="howto-list">
-        <li><code>ios.buildNumber</code> in <code>app.config.ts</code> +1</li>
-        <li><code>EAS_SKIP_AUTO_FINGERPRINT=1 npx eas-cli build</code> production + auto-submit (TestFlight)</li>
-        <li>On success: commit the buildNumber bump</li>
-        <li>On failure: put buildNumber back (no commit)</li>
+        <li>Platform: <code>1</code> iOS / <code>2</code> Android / <code>3</code> both</li>
+        <li>Paste “what to test” notes (end with an empty line) — saved in the git commit; paste into TestFlight manually if you want</li>
+        <li>Shows a summary of what upload would do</li>
+        <li>Upload? <code>1</code> = Yes, <code>2</code> = No — ask twice (double confirm)</li>
       </ol>
-    </section>
-
-    <hr class="page-rule" />
-
-    <section class="panel howto" id="compile-android">
-      <h2>Build for Android (Play Internal testing)</h2>
-      <p class="section-meta"><strong>How to run</strong></p>
-      <p class="section-meta" style="margin-top:0.35rem"><code>npm run deploy:android</code></p>
-      <p class="section-meta" style="margin-top:1rem"><strong>What it does</strong></p>
-      <ol class="howto-list">
-        <li><code>android.versionCode</code> in <code>app.config.ts</code> +1</li>
-        <li><code>EAS_SKIP_AUTO_FINGERPRINT=1 npx eas-cli build</code> production AAB + auto-submit to Play track <code>internal</code></li>
-        <li>On success: commit the versionCode bump</li>
-        <li>On failure: put versionCode back (no commit)</li>
-      </ol>
-      <p class="section-meta" style="margin-top:1rem">First time: link a Google Service Account JSON in EAS (Play Console → Users and permissions).</p>
+      <p class="section-meta" style="margin-top:1rem">After both Yes: bump → EAS → TestFlight / Play Internal → git commit. Failure reverts the bump.</p>
+      <p class="section-meta" style="margin-top:0.35rem">Optional: <code>npm run deploy -- --go</code> jumps to the double Yes/No.</p>
+      <p class="section-meta" style="margin-top:1rem">This never submits a public App Store / Play production release.</p>
     </section>
 
     <hr class="page-rule" />
@@ -502,6 +493,14 @@
             id: "new-2026-07-24",
             title: "24 Jul 2026",
             tasks: [
+              { id: "chg-20260724-build20-keep-bump", title: "iOS buildNumber set to 20 (EAS build in progress). Deploy no longer reverts bump on submit failure; no Enterprise --what-to-test.", done: true, badge: "Added/fixed", date: "2026-07-24" },
+              { id: "chg-20260724-deploy-no-what-to-test", title: "Deploy iOS: drop EAS --what-to-test (Enterprise-only changelog); notes stay in git commit / paste into TestFlight.", done: true, badge: "Added/fixed", date: "2026-07-24" },
+              { id: "chg-20260724-deploy-confirm-12", title: "Deploy confirm simplified: same 1=Yes / 2=No menu twice (no more typing ja/upload).", done: true, badge: "Added/fixed", date: "2026-07-24" },
+              { id: "chg-20260724-deploy-double-confirm", title: "Deploy script: after the summary you can still upload for testers (double confirm: ja → upload).", done: true, badge: "Added/fixed", date: "2026-07-24" },
+              { id: "chg-20260724-deploy-menu-fix", title: "Deploy script: platform menu was invisible (stdout swallowed); clearer tester-upload intro.", done: true, badge: "Added/fixed", date: "2026-07-24" },
+              { id: "chg-20260724-plan-tester-upload", title: "Plan site: one “Upload for testers” howto (TestFlight / Play Internal only; no public store release). Confirm word is upload.", done: true, badge: "Website", date: "2026-07-24" },
+              { id: "chg-20260724-plan-deploy-howto", title: "Plan site: store build howto updated (dry-run default, paste notes, type publiceer, --go).", done: true, badge: "Website", date: "2026-07-24" },
+              { id: "chg-20260724-deploy-interactive", title: "Interactive store deploy: choose iOS/Android/both, paste release notes, dry-run by default (--go to publish).", done: true, badge: "Added/fixed", date: "2026-07-24" },
               { id: "chg-20260724-share-file-icon-android", title: "Android: Share Gustra file icon shows again (was missing). Example: Options → Share → file icon next to Gustra file.", done: true, badge: "Added/fixed", date: "2026-07-24" },
               { id: "chg-20260724-plan-badges", title: "Plan badges renamed: Added/fixed, Website, Still open (clearer labels).", done: true, badge: "Website", date: "2026-07-24" },
               { id: "chg-20260724-plan-no-strike", title: "Plan site: checked items no longer use strikethrough (easier to read).", done: true, badge: "Website", date: "2026-07-24" },

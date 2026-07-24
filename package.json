@@ -66,6 +66,7 @@
     "android:apk": "expo prebuild --platform android --clean && cd android && ./gradlew assembleDebug",
     "android:eas:preview": "eas build --platform android --profile preview",
     "android:eas:dev": "eas build --platform android --profile development",
+    "deploy": "bash scripts/deploy-store.sh",
     "deploy:ios": "bash scripts/deploy-ios-testflight.sh",
     "deploy:android": "bash scripts/deploy-android-internal.sh",
     "deploy:web": "python3 scripts/deploy-webversion.py",
