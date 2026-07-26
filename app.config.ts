@@ -12,8 +12,13 @@ function googleApiKey(): string {
   );
 }
 
+function geminiApiKey(): string {
+  return process.env.EXPO_PUBLIC_GEMINI_API_KEY?.trim() || '';
+}
+
 export default ({ config }: ConfigContext): ExpoConfig => {
   const key = googleApiKey();
+  const geminiKey = geminiApiKey();
 
   // `newArchEnabled` is valid Expo config; ExpoConfig typings lag behind SDK 57.
   return {
@@ -37,7 +42,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       supportsTablet: true,
       // Must match the existing App Store Connect / Swift app.
       bundleIdentifier: 'com.philip.gustra',
-      buildNumber: '22',
+      buildNumber: '23',
       entitlements: {
         'com.apple.security.application-groups': ['group.com.philip.gustra'],
       },
@@ -255,6 +260,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     extra: {
       googleApiKey: key,
       googlePlacesApiKey: key,
+      geminiApiKey: geminiKey,
       eas: {
         projectId: 'b149ff2c-d2c0-4105-99eb-c9ba14608290',
       },
