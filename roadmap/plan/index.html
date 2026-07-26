@@ -382,6 +382,7 @@
       <a href="#parity">Swift parity</a>
       <a href="#features">New features</a>
       <a href="#ideas">Ideas</a>
+      <a href="#hig">Apple look (HIG)</a>
       <a href="#add">Add</a>
       <a href="#compile-store">Tester builds</a>
       <a href="#deploy-web">Web</a>
@@ -410,6 +411,28 @@
       <h2>Ideas</h2>
       <p class="section-meta">Backlog / experiments — counts in “everything together”, not in Swift-parity %.</p>
       <div id="ideasRoot"></div>
+    </section>
+
+    <section class="panel howto" id="hig">
+      <h2>Apple look (HIG) — simple words</h2>
+      <p class="section-meta"><strong>What is HIG?</strong></p>
+      <p class="section-meta" style="margin-top:0.35rem">HIG = Apple’s rulebook for how iPhone apps should feel. Buttons, menus, swipe, alerts — so the app feels “at home” on an iPhone.</p>
+      <p class="section-meta" style="margin-top:1rem"><strong>Why it matters</strong></p>
+      <p class="section-meta" style="margin-top:0.35rem">Apple’s editors like apps that feel native. That helps for App Store stories (like App of the Day). It is not a promise — you also need a good story and a nice product page.</p>
+      <p class="section-meta" style="margin-top:1rem"><strong>Gustra’s big “oops” moments (what to change)</strong></p>
+      <ol class="howto-list">
+        <li><strong>Alerts</strong> — we use our own popups instead of the normal iPhone ones.</li>
+        <li><strong>Menus</strong> — Options / Share / Take photo use custom sheets instead of the system menu from the bottom.</li>
+        <li><strong>Swipe to delete</strong> — our own swipe, not the normal list swipe.</li>
+        <li><strong>Green top bar everywhere</strong> — fine for brand, but less “standard iPhone”. Keep the look; fix the menus first.</li>
+        <li><strong>Bigger text / VoiceOver</strong> — make the app easier for everyone (Apple cares a lot).</li>
+      </ol>
+      <p class="section-meta" style="margin-top:1rem"><strong>Do first (safe)</strong></p>
+      <p class="section-meta" style="margin-top:0.35rem">System menus for Take/Import, Options, and Share.</p>
+      <p class="section-meta" style="margin-top:1rem"><strong>Do later</strong></p>
+      <p class="section-meta" style="margin-top:0.35rem">Swipe, accessibility (bigger text / VoiceOver).</p>
+      <p class="section-meta" style="margin-top:1rem"><strong>Keep</strong></p>
+      <p class="section-meta" style="margin-top:0.35rem">Forest green House look (nav, stars, cream). Brand is good — only the system menus/alerts/swipe should feel more like iPhone.</p>
     </section>
 
     <section class="panel" id="add">
@@ -507,9 +530,29 @@
         title: "New",
         groups: [
           {
+            id: "new-2026-07-26",
+            title: "26 Jul 2026",
+            tasks: [
+              { id: "chg-20260726-share-email-copy", title: "Share option copy: “Share review via email” / nice card subtitle (NL: Deel review via e-mail).", done: true, badge: "Expo", date: "2026-07-26" },
+              { id: "chg-20260726-passport-stars-default", title: "My Gustra: “Show ratings as stars” is on by default (saved preference still wins).", done: true, badge: "Expo", date: "2026-07-26" },
+              { id: "chg-20260726-map-options-i18n", title: "Review map icon only opens in-app map (no directions prompt). Options sheet title localized (e.g. Opties).", done: true, badge: "Expo", date: "2026-07-26" },
+              { id: "chg-20260726-photo-date-i18n", title: "Photo viewer: remove separate Save (use Share). Visit-date banner uses normal title size. Photo-strip hints are translated.", done: true, badge: "Expo", date: "2026-07-26" },
+              { id: "chg-20260726-share-import-dedupe", title: "Friend share import: re-importing the same visit updates it (more photos) instead of duplicating. Existing duplicates are cleaned up on launch.", done: true, badge: "Expo", date: "2026-07-26" },
+              { id: "chg-20260726-review-photo-limit", title: "Review detail: no empty fork/knife photo placeholder. Max 12 photos; hide Take/Import at 12; warn if you try to add more.", done: true, badge: "Expo", date: "2026-07-26" },
+              { id: "chg-20260726-swipe-delete-ios", title: "Swipe-to-delete: iOS system red, stronger haptics, long swipe flies the card away then asks to confirm.", done: true, badge: "Expo", date: "2026-07-26" },
+              { id: "chg-20260726-map-pin-legend", title: "Map pins: green = my reviews, blue = friends (no more score traffic lights). Collapsible legend on the map. Review list score dots removed.", done: true, badge: "Expo", date: "2026-07-26" },
+              { id: "chg-20260726-wine-gemini", title: "Drinks Scan uses Gemini Vision (optimized photo): wine fiche + food pairing; open from review via wineglass; first-time upload notice; Settings Gemini counter.", done: true, badge: "Expo", date: "2026-07-26" },
+              { id: "chg-20260726-plan-hig", title: "Plan site: simple “Apple look (HIG)” section — what HIG is, Gustra’s big oops moments, what to fix first.", done: true, badge: "Website", date: "2026-07-26" },
+              { id: "chg-20260726-label-crop-crash", title: "Fix TestFlight crash (SIGABRT) in wine label crop: stable Reanimated gestures / runOnJS (DisplayLink worklet abort).", done: true, badge: "Expo", date: "2026-07-26" },
+            ],
+          },
+          {
             id: "new-2026-07-24",
             title: "24 Jul 2026",
             tasks: [
+              { id: "chg-20260724-wine-scan-back", title: "Wine label Scan: back chevron instead of Cancel.", done: true, badge: "Expo", date: "2026-07-24" },
+              { id: "chg-20260724-photo-cover-sync", title: "Take/Import same green buttons; detail empty/broken photo shows fork.knife like Reviews; feed thumb updates after delete or new cover. Example: remove cover → Reviews shows the next photo or the empty icon.", done: true, badge: "Expo", date: "2026-07-24" },
+              { id: "chg-20260724-wine-label-scan", title: "Drinks → Scan wine label: photo → crop → on-device OCR; result screen shows the OCR text, then fills Drinks (+ cropped photo). Example: Scan → Read label → see “Chianti Classico 2019”.", done: true, badge: "Expo", date: "2026-07-24" },
               { id: "chg-20260724-github-richer", title: "gustra.net/github enriched: plan What’s new + commit file stats (GitHub alone had almost no Releases/PRs).", done: true, badge: "Website", date: "2026-07-24" },
               { id: "chg-20260724-github-site", title: "gustra.net/github — public log from GitHub Releases + useful commits (npm run deploy:github).", done: true, badge: "Website", date: "2026-07-24" },
               { id: "chg-20260724-deploy-no-notes", title: "Deploy script no longer asks for tester notes (EAS What to Test needs Enterprise).", done: true, badge: "Added/fixed", date: "2026-07-24" },
@@ -845,17 +888,17 @@
               { id: "wine-json", title: "Local wine list (~20 known wines: name, notes, score, price, shops, food)." },
               { id: "wine-ui", title: "Search screen: type to filter the local wine list." },
               { id: "wine-nav", title: "Add a Wine screen entry (e.g. from My Gustra or Settings)." },
-              { id: "wine-ocr", title: "Photo of label → on-device text read → search. Example: snap a bottle → finds “Chianti 2019”.",
+              { id: "wine-ocr", title: "Photo of label → Vision identify → wine fiche (name, type, region, vintage, grapes, alcohol, food pairing).", done: true, badge: "Expo",
                 children: [
-                  { id: "wine-camera", title: "Take or pick a bottle photo." },
-                  { id: "wine-ocr-parse", title: "Clean OCR text down to wine name + year." },
+                  { id: "wine-camera", title: "Take or pick a bottle photo (Drinks → Scan → crop).", done: true, badge: "Expo" },
+                  { id: "wine-ocr-parse", title: "Gemini Vision JSON fiche; open from review via wineglass; no icon if no match.", done: true, badge: "Expo" },
                 ],
               },
               { id: "wine-barcode", title: "Optional: barcode lookup via Open Food Facts (free)." },
               { id: "wine-ai", title: "If local miss: Ask AI once to fill missing fields.",
                 children: [
                   { id: "wine-ai-proxy", title: "Call AI via a safe server proxy (no API key in the app)." },
-                  { id: "wine-ai-merge", title: "Merge AI wine info into local data." },
+                  { id: "wine-ai-merge", title: "Merge AI wine info into local data / review.wineLabel.", done: true, badge: "Expo" },
                 ],
               },
               { id: "wine-persist", title: "Remember AI/OCR results so you don’t pay twice." },

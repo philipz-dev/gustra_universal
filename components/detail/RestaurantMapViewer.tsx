@@ -7,7 +7,7 @@ import { GoogleMapsView } from '@/components/map/GoogleMapsView';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
 import type { Restaurant } from '@/data/types';
-import { presentDirectionsOptions } from '@/services/directions/DirectionsLauncher';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { resolveCurrentLocation } from '@/services/location/resolveCurrentLocation';
 import type { LatLng } from '@/services/places';
 
@@ -25,6 +25,7 @@ export function RestaurantMapViewer({
   restaurant,
   onClose,
 }: RestaurantMapViewerProps) {
+  const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const addressLine = [restaurant.address, restaurant.city, restaurant.country]
@@ -60,7 +61,7 @@ export function RestaurantMapViewer({
           <Pressable
             onPress={onClose}
             accessibilityRole="button"
-            accessibilityLabel="Close"
+            accessibilityLabel={t('common.close')}
             hitSlop={12}
             style={styles.closeBtn}>
             <SymbolView
@@ -98,22 +99,7 @@ export function RestaurantMapViewer({
           />
         </View>
 
-        <Pressable
-          style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}
-          onPress={() => {
-            // Dismiss the map Modal first — ActionSheetIOS / houseAlert Modal
-            // presented on top of an RN Modal crashes iOS intermittently.
-            onClose();
-            presentDirectionsOptions({
-              name: restaurant.name,
-              addressLine,
-              latitude: restaurant.latitude,
-              longitude: restaurant.longitude,
-              afterModalDismiss: true,
-            });
-          }}
-          accessibilityRole="button"
-          accessibilityLabel="Get directions">
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.footerCopy}>
             <SerifText size={18} weight="semibold" style={styles.name}>
               {restaurant.name}
@@ -124,16 +110,7 @@ export function RestaurantMapViewer({
               </Text>
             ) : null}
           </View>
-          <SymbolView
-            name={{
-              ios: 'arrow.triangle.turn.up.right.diamond.fill',
-              android: 'directions',
-              web: 'directions',
-            }}
-            tintColor={GustraColors.forestGreen}
-            size={22}
-          />
-        </Pressable>
+        </View>
       </View>
     </Modal>
   );

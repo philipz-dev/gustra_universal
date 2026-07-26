@@ -108,12 +108,14 @@ const styles = StyleSheet.create({
   sideRight: {
     right: 8,
     alignItems: 'flex-end',
+    width: undefined,
+    maxWidth: 120,
   },
   titleWrap: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 52,
+    paddingHorizontal: 96,
     overflow: 'visible',
   },
   title: {

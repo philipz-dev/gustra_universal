@@ -51,6 +51,8 @@ export default function ReviewsStackLayout() {
           name="review-form"
           options={{ gestureEnabled: false }}
         />
+        <JsStack.Screen name="wine-label-scan" />
+        <JsStack.Screen name="wine-label-fiche" />
         <JsStack.Screen name="restaurant/[id]" />
         <JsStack.Screen name="review/[id]" />
       </JsStack>
@@ -79,6 +81,8 @@ export default function ReviewsStackLayout() {
           fullScreenGestureEnabled: false,
         }}
       />
+      <Stack.Screen name="wine-label-scan" />
+      <Stack.Screen name="wine-label-fiche" />
       <Stack.Screen name="restaurant/[id]" />
       <Stack.Screen name="review/[id]" />
     </Stack>

@@ -72,7 +72,7 @@ type TopBarProps = {
   showTitle?: boolean;
 };
 
-/** Top gradient + close / save / share. */
+/** Top gradient + close / share (save via the system share sheet). */
 export function PhotoViewerTopBar({
   onClose,
   onShare,

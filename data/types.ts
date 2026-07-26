@@ -3,6 +3,19 @@ export type SatisfactionLevel = 'excellent' | 'neutral' | 'avoid';
 /** Matches Swift `ReviewOrigin`. */
 export type ReviewOrigin = 'own' | 'imported';
 
+/** Structured wine-label fiche (Gemini Vision); optional on older reviews. */
+export type WineLabelFiche = {
+  labelPhotoUri: string;
+  nameAndEstate: string;
+  typeStyle?: string;
+  countryRegion?: string;
+  vintage?: string | null;
+  grapes?: string | null;
+  alcoholPercent?: number | null;
+  foodPairings?: string | null;
+  analyzedAt?: string;
+};
+
 export type CriterionRating = {
   id: string;
   title: string;
@@ -98,6 +111,16 @@ export type Review = {
    * without re-running Vision/ML Kit.
    */
   ocrText?: string;
+  /**
+   * Gemini wine-label fiche (additive). Absent on older reviews / no match.
+   */
+  wineLabel?: WineLabelFiche | null;
+  /**
+   * Original review id from a `.gustrashare` package (friend's UUID).
+   * Used to upsert on re-import instead of creating duplicates. Absent on
+   * older imports / own reviews.
+   */
+  sourceReviewId?: string;
 };
 
 /** Legacy backfill: non-empty `reviewedBy` ⇒ imported (Swift migrate). */

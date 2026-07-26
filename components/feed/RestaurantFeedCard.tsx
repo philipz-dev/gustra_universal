@@ -3,7 +3,6 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { FeedSwipeDelete } from '@/components/feed/FeedSwipeDelete';
 import { RestaurantThumb } from '@/components/feed/RestaurantThumb';
 import { FavoriteHeartButton } from '@/components/ui/FavoriteHeartButton';
-import { SatisfactionDot } from '@/components/ui/SatisfactionDot';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
 import { GustraColors } from '@/constants/Colors';
@@ -15,7 +14,7 @@ import {
   Theme,
   Type,
 } from '@/constants/Theme';
-import { satisfactionFromScore, type RestaurantVisitSummary } from '@/data/types';
+import type { RestaurantVisitSummary } from '@/data/types';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { Haptics } from '@/services/haptics';
 
@@ -42,7 +41,6 @@ export function RestaurantFeedCard({
   const { t } = useAppTranslation();
   const displayScore =
     typeof scoreOverride === 'number' ? scoreOverride : summary.averageScore;
-  const level = satisfactionFromScore(displayScore);
 
   const card = (
     <Pressable
@@ -85,12 +83,9 @@ export function RestaurantFeedCard({
 
       <View style={styles.trailing}>
         {displayScore > 0 ? (
-          <>
-            <SerifText size={20} weight="bold" style={styles.score}>
-              {displayScore.toFixed(1)}
-            </SerifText>
-            <SatisfactionDot level={level} />
-          </>
+          <SerifText size={20} weight="bold" style={styles.score}>
+            {displayScore.toFixed(1)}
+          </SerifText>
         ) : null}
         <FavoriteHeartButton
           favorite={summary.isFavorite}

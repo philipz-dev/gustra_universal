@@ -40,8 +40,16 @@ export function isOcrAvailable(): boolean {
   }
 }
 
+type ExtractOptions = {
+  /** When false, keep line breaks (wine label display). Default: collapse. */
+  collapseWhitespace?: boolean;
+};
+
 /** Extract text from a single local image URI. */
-export async function extractTextFromImage(imageUri: string): Promise<string> {
+export async function extractTextFromImage(
+  imageUri: string,
+  options?: ExtractOptions,
+): Promise<string> {
   const uri = imageUri.trim();
   if (!uri) return '';
 
@@ -50,7 +58,11 @@ export async function extractTextFromImage(imageUri: string): Promise<string> {
 
   try {
     const result = await recognize(uri);
-    return (result?.text ?? '').replace(/\s+/g, ' ').trim();
+    const text = result?.text ?? '';
+    if (options?.collapseWhitespace === false) {
+      return text.replace(/\r\n/g, '\n').trim();
+    }
+    return text.replace(/\s+/g, ' ').trim();
   } catch {
     return '';
   }

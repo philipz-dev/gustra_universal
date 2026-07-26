@@ -34,7 +34,7 @@ import {
   lockAppPortraitOrientation,
   unlockPhotoViewerOrientation,
 } from '@/services/orientation/photoViewerOrientation';
-import { sharePhotoUri, savePhotoUri } from '@/services/photos/photoViewerActions';
+import { sharePhotoUri } from '@/services/photos/photoViewerActions';
 
 type ReviewPhotoViewerProps = {
   visible: boolean;
@@ -129,23 +129,6 @@ export function ReviewPhotoViewer({
       alertOverModal(
         'Error',
         error instanceof Error ? error.message : 'Could not share photo',
-      );
-    } finally {
-      setBusy(false);
-    }
-  }, [busy, index, uris]);
-
-  const handleSave = useCallback(async () => {
-    const uri = uris[index];
-    if (!uri || busy) return;
-    setBusy(true);
-    try {
-      await savePhotoUri(uri);
-      alertOverModal('Photo saved');
-    } catch (error) {
-      alertOverModal(
-        'Error',
-        error instanceof Error ? error.message : 'Could not save photo',
       );
     } finally {
       setBusy(false);
@@ -298,7 +281,6 @@ export function ReviewPhotoViewer({
           <PhotoViewerTopBar
             onClose={close}
             onShare={() => void handleShare()}
-            onSave={() => void handleSave()}
           />
 
           <PhotoViewerCountPill

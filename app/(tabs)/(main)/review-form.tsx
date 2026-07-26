@@ -13,7 +13,12 @@ import {
 
 import { houseAlert } from '@/components/ui/HouseAlert';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import {
+  useFocusEffect,
+  useLocalSearchParams,
+  useNavigation,
+  useRouter,
+} from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { SymbolView } from 'expo-symbols';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -42,6 +47,12 @@ import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
 import { safeOpenSettings } from '@/services/linking/safeLinking';
 import { extractTextFromImages } from '@/services/ocr/OCRService';
+import {
+  MAX_REVIEW_PHOTOS,
+  remainingReviewPhotoSlots,
+} from '@/services/reviews/photoLimits';
+import type { WineLabelFiche } from '@/data/types';
+import { takePendingWineLabelResult } from '@/services/wine/pendingWineLabelResult';
 import {
   draftAddressLine,
   findExistingRestaurant,
@@ -117,6 +128,7 @@ type EditBaseline = {
   criteriaState: Record<string, { rating: number; comment: string }>;
   photoUrls: string[];
   ocrText: string;
+  wineLabel: WineLabelFiche | null;
 };
 
 /**
@@ -188,6 +200,11 @@ export default function ReviewFormScreen() {
   const [selectedPhotosForRemoval, setSelectedPhotosForRemoval] = useState<
     string[]
   >([]);
+  const [wineLabel, setWineLabel] = useState<WineLabelFiche | null>(
+    () => existingReview?.wineLabel ?? null,
+  );
+  const wineLabelRef = useRef(wineLabel);
+  wineLabelRef.current = wineLabel;
   const [activeReviewId, setActiveReviewId] = useState<string | undefined>();
   /** Synced immediately on upsert so Done/unmount cannot create a second review. */
   const activeReviewIdRef = useRef<string | undefined>(undefined);
@@ -247,6 +264,7 @@ export default function ReviewFormScreen() {
       const visitDateValue = new Date(existingReview.date);
       const photoUrlsCopy = [...existingReview.photoUrls];
       const ocrText = existingReview.ocrText ?? '';
+      const wineLabelCopy = existingReview.wineLabel ?? null;
       const map: Record<string, { rating: number; comment: string }> = {};
       for (const c of existingReview.criteria) {
         map[c.id] = { rating: c.rating, comment: c.comment };
@@ -258,6 +276,8 @@ export default function ReviewFormScreen() {
       setGeneralComment(existingReview.generalComment);
       setPhotoUrls(photoUrlsCopy);
       photoUrlsRef.current = photoUrlsCopy;
+      setWineLabel(wineLabelCopy);
+      wineLabelRef.current = wineLabelCopy;
       setOcrIndexedText(ocrText);
       ocrIndexedTextRef.current = ocrText;
       setCriteriaState(map);
@@ -270,6 +290,7 @@ export default function ReviewFormScreen() {
         criteriaState: map,
         photoUrls: photoUrlsCopy,
         ocrText,
+        wineLabel: wineLabelCopy,
       };
     } else {
       const match = findExistingRestaurant(initialDraft, restaurants);
@@ -347,6 +368,7 @@ export default function ReviewFormScreen() {
       // Prefer ref so reorder/remove in the same tick persist the latest order.
       photoUrls: photoUrlsRef.current,
       ocrText: ocrIndexedText,
+      wineLabel: wineLabelRef.current,
       customCriterionNames,
     };
   }, [
@@ -645,6 +667,62 @@ export default function ReviewFormScreen() {
     schedulePersist();
   };
 
+  useFocusEffect(
+    useCallback(() => {
+      const pending = takePendingWineLabelResult();
+      if (!pending) return;
+      const comment = pending.drinksComment.trim();
+      if (comment) {
+        setCriteriaState((prev) => {
+          const current = prev.drinks ?? {
+            rating: RatingValue.unrated,
+            comment: '',
+          };
+          return {
+            ...prev,
+            drinks: {
+              rating: current.rating,
+              comment,
+            },
+          };
+        });
+      }
+      if (
+        pending.croppedUri &&
+        !photoUrlsRef.current.includes(pending.croppedUri)
+      ) {
+        if (remainingReviewPhotoSlots(photoUrlsRef.current.length) <= 0) {
+          houseAlert(
+            t('alerts.reviewForm.photoLimitTitle'),
+            t('alerts.reviewForm.photoLimitBody', { max: MAX_REVIEW_PHOTOS }),
+          );
+        } else {
+          const croppedUri = pending.croppedUri;
+          setPhotoUrls((prev) => {
+            if (prev.includes(croppedUri)) return prev;
+            if (remainingReviewPhotoSlots(prev.length) <= 0) return prev;
+            const next = [...prev, croppedUri];
+            photoUrlsRef.current = next;
+            return next;
+          });
+        }
+      }
+      if (pending.wineLabel) {
+        setWineLabel(pending.wineLabel);
+        wineLabelRef.current = pending.wineLabel;
+      }
+      if (pending.ocrText.trim()) {
+        setOcrIndexedText((prev) => {
+          const next = [prev, pending.ocrText].filter(Boolean).join(' ').trim();
+          ocrIndexedTextRef.current = next;
+          return next;
+        });
+      }
+      schedulePersistRef.current();
+      Haptics.success();
+    }, []),
+  );
+
   const confirmRemoveSelectedPhotos = () => {
     if (selectedPhotosForRemoval.length === 0) return;
     const toRemove = [...selectedPhotosForRemoval];
@@ -678,7 +756,19 @@ export default function ReviewFormScreen() {
     );
   };
 
+  const warnPhotoLimit = useCallback(() => {
+    houseAlert(
+      t('alerts.reviewForm.photoLimitTitle'),
+      t('alerts.reviewForm.photoLimitBody', { max: MAX_REVIEW_PHOTOS }),
+    );
+  }, [t]);
+
   const importFromLibrary = async () => {
+    const slots = remainingReviewPhotoSlots(photoUrlsRef.current.length);
+    if (slots <= 0) {
+      warnPhotoLimit();
+      return;
+    }
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       openSettingsAlert(
@@ -690,20 +780,25 @@ export default function ReviewFormScreen() {
       mediaTypes: ['images'],
       allowsMultipleSelection: true,
       quality: 1,
-      selectionLimit: 10,
+      selectionLimit: slots,
     });
     if (result.canceled || result.assets.length === 0) return;
+    const assets = result.assets.slice(0, slots);
+    if (result.assets.length > slots) {
+      warnPhotoLimit();
+    }
     setIsImportingPhotos(true);
     try {
       const saved: string[] = [];
-      for (const asset of result.assets) {
+      for (const asset of assets) {
         if (!asset.uri) continue;
         saved.push(await saveReviewPhoto(asset.uri));
       }
       if (saved.length) {
         Haptics.light();
         setPhotoUrls((prev) => {
-          const next = [...prev, ...saved];
+          const room = remainingReviewPhotoSlots(prev.length);
+          const next = [...prev, ...saved.slice(0, room)];
           photoUrlsRef.current = next;
           return next;
         });
@@ -718,6 +813,10 @@ export default function ReviewFormScreen() {
   };
 
   const takePhoto = async () => {
+    if (remainingReviewPhotoSlots(photoUrlsRef.current.length) <= 0) {
+      warnPhotoLimit();
+      return;
+    }
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
       openSettingsAlert(
@@ -730,11 +829,16 @@ export default function ReviewFormScreen() {
       quality: 1,
     });
     if (result.canceled || !result.assets[0]?.uri) return;
+    if (remainingReviewPhotoSlots(photoUrlsRef.current.length) <= 0) {
+      warnPhotoLimit();
+      return;
+    }
     setIsImportingPhotos(true);
     try {
       const uri = await saveReviewPhoto(result.assets[0].uri);
       Haptics.light();
       setPhotoUrls((prev) => {
+        if (remainingReviewPhotoSlots(prev.length) <= 0) return prev;
         const next = [...prev, uri];
         photoUrlsRef.current = next;
         return next;
@@ -749,6 +853,10 @@ export default function ReviewFormScreen() {
   };
 
   const showPhotoSourcePicker = () => {
+    if (remainingReviewPhotoSlots(photoUrlsRef.current.length) <= 0) {
+      warnPhotoLimit();
+      return;
+    }
     setShowPhotoSourceChooser(true);
   };
 
@@ -931,9 +1039,43 @@ export default function ReviewFormScreen() {
                       )}
                     </View>
                     <View style={styles.criterionBody}>
-                      <SerifText style={styles.criterionTitle}>
-                        {criterion.title}
-                      </SerifText>
+                      <View style={styles.criterionTitleRow}>
+                        <SerifText style={styles.criterionTitle}>
+                          {criterion.title}
+                        </SerifText>
+                        {criterion.id === 'drinks' ? (
+                          <Pressable
+                            onPress={() => {
+                              Haptics.selectionChanged();
+                              router.push('/wine-label-scan');
+                            }}
+                            hitSlop={8}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('wineScan.scanButtonA11y')}
+                            style={({ pressed }) => [
+                              styles.wineScanChip,
+                              pressed && styles.wineScanChipPressed,
+                            ]}>
+                            {Platform.OS === 'ios' ? (
+                              <SymbolView
+                                name="camera.viewfinder"
+                                size={14}
+                                tintColor={GustraColors.forestGreen}
+                                weight="semibold"
+                              />
+                            ) : (
+                              <MaterialIcons
+                                name="document-scanner"
+                                size={16}
+                                color={GustraColors.forestGreen}
+                              />
+                            )}
+                            <Text style={styles.wineScanChipText}>
+                              {t('wineScan.scanButton')}
+                            </Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
                       <InteractiveStarRating
                         rating={state.rating}
                         onChange={(rating) =>
@@ -941,7 +1083,9 @@ export default function ReviewFormScreen() {
                         }
                         onScrubbingChange={setRatingScrubbing}
                       />
-                      {RatingValue.isStarRating(state.rating) ? (
+                      {RatingValue.isStarRating(state.rating) ||
+                      (criterion.id === 'drinks' &&
+                        state.comment.trim().length > 0) ? (
                         <TextInput
                           ref={(node) => {
                             commentInputRefs.current[criterion.id] = node;
@@ -971,7 +1115,11 @@ export default function ReviewFormScreen() {
                               90,
                             );
                           }}
-                          placeholder={t("forms.review.optionalComment")}
+                          placeholder={
+                            criterion.id === 'drinks'
+                              ? t('wineScan.drinksCommentPlaceholder')
+                              : t('forms.review.optionalComment')
+                          }
                           placeholderTextColor="rgba(35, 32, 26, 0.4)"
                           multiline
                           style={styles.commentField}
@@ -1029,6 +1177,7 @@ export default function ReviewFormScreen() {
               onToggleSelect={togglePhotoSelection}
               onAddPress={showPhotoSourcePicker}
               isImporting={isImportingPhotos}
+              canAddPhotos={photoUrls.length < MAX_REVIEW_PHOTOS}
               onDraggingChange={setPhotoDragging}
             />
 
@@ -1126,10 +1275,9 @@ export default function ReviewFormScreen() {
         animationType="slide"
         presentationStyle="pageSheet"
         onRequestClose={() => setShowDatePicker(false)}>
-        <View style={[styles.dateModal, { paddingTop: insets.top }]}>
+        <View style={styles.dateModal}>
           <HouseNavHeader
             title={t("forms.review.visitDate")}
-            titleSize={Theme.navigation.secondaryTitleSize}
             right={
               <HouseToolbarIconButton
                 iosName="checkmark"
@@ -1319,9 +1467,34 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 8,
   },
+  criterionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
   criterionTitle: {
+    flex: 1,
     fontSize: 16,
     color: GustraColors.ink,
+  },
+  wineScanChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(36, 78, 57, 0.12)',
+  },
+  wineScanChipPressed: {
+    opacity: 0.7,
+  },
+  wineScanChipText: {
+    ...captionTextStyle,
+    fontSize: 13,
+    fontWeight: '700',
+    color: GustraColors.forestGreen,
   },
   commentField: {
     ...bodyTextStyle,

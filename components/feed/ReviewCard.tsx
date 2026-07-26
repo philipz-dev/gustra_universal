@@ -1,7 +1,6 @@
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { RestaurantThumb } from '@/components/feed/RestaurantThumb';
-import { SatisfactionDot } from '@/components/ui/SatisfactionDot';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
 import { GustraColors } from '@/constants/Colors';
@@ -15,7 +14,7 @@ import {
 } from '@/constants/Theme';
 
 import { formatReviewDate } from '@/data/mockReviews';
-import { satisfactionFromScore, type Review } from '@/data/types';
+import type { Review } from '@/data/types';
 import { Haptics } from '@/services/haptics';
 
 type ReviewCardProps = {
@@ -33,7 +32,6 @@ export function ReviewCard({
   photoUrl,
   onPress,
 }: ReviewCardProps) {
-  const level = satisfactionFromScore(review.overallScore);
   const uri = review.photoUrls[0] ?? photoUrl;
 
   return (
@@ -65,7 +63,6 @@ export function ReviewCard({
         <SerifText size={20} weight="bold" style={styles.score}>
           {review.overallScore.toFixed(1)}
         </SerifText>
-        <SatisfactionDot level={level} />
       </View>
     </Pressable>
   );

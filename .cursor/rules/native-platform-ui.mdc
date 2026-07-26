@@ -1,0 +1,30 @@
+---
+description: Prefer native iOS/Android platform UI and system patterns over custom cross-platform widgets
+globs: "{app,components}/**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Native platform UI first (Gustra)
+
+When adding or rewriting interactive UI (lists, sheets, menus, date pickers, share, permissions, haptics, swipe actions, navigation chrome):
+
+## Prefer (in order)
+
+1. **React Native / Expo platform APIs** that map to system UI  
+   (e.g. `ActionSheetIOS` / Android dialogs, `DateTimePicker` display modes, system share, `expo-symbols` SF Symbols on iOS + Material icons on Android, keyboard insets on iOS).
+2. **Platform-specific branches** (`Platform.OS === 'ios' | 'android'`) so each OS feels native — not one custom control forced on both.
+3. Well-supported libs that wrap **native** controls (not JS-only recreations), when RN/Expo has no built-in.
+
+## Avoid
+
+- Custom gesture/animation widgets that reinvent system patterns (swipe-to-delete, context menus, pull-to-refresh, alert sheets) unless House design **explicitly** requires a branded look.
+- One identical “fake native” control for iOS and Android when the platforms differ (e.g. trailing swipe delete vs Material dismiss/overflow).
+
+## Exceptions
+
+- Gustra **House** chrome already standardized (forest nav bar, cream surfaces, custom star rating, branded alerts) — keep those consistent; do not replace with stock iOS nav that breaks the app shell.
+- Document the exception in the PR/checklist when you knowingly ship custom instead of system.
+
+## Before implementing
+
+Ask: “Is there an Expo/RN/system API for this on iOS and on Android?” If yes, use it (with platform split). Only then build custom.

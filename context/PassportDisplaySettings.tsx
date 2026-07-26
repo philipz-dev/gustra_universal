@@ -17,7 +17,7 @@ export type CategoryAveragesDisplayStyle = 'numbers' | 'stars';
 const STORAGE_KEY = 'passportCategoryAveragesDisplayStyle';
 
 /** Survives provider remounts / Fast Refresh so stars preference is not lost. */
-let cachedStyle: CategoryAveragesDisplayStyle = 'numbers';
+let cachedStyle: CategoryAveragesDisplayStyle = 'stars';
 let hydrated = false;
 let hydratePromise: Promise<CategoryAveragesDisplayStyle> | null = null;
 

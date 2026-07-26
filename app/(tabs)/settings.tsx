@@ -70,6 +70,8 @@ export default function SettingsScreen() {
     mapsTotal,
     placesToday,
     placesTotal,
+    geminiToday,
+    geminiTotal,
     resetAll: resetApiCounters,
   } = useGoogleApiTracker();
   const { name, photoUri, hasPhoto, updateName, ready, syncPhotoFromDisk } =
@@ -416,6 +418,15 @@ export default function SettingsScreen() {
             {t('settings.usageToday', {
               today: placesToday,
               allTime: placesTotal,
+            })}
+          </SerifText>
+        </View>
+        <View style={[styles.apiRow, styles.rowBorder]}>
+          <Text style={styles.rowTitle}>{t('settings.geminiApi')}</Text>
+          <SerifText size={15} weight="semibold" style={styles.apiValue}>
+            {t('settings.usageToday', {
+              today: geminiToday,
+              allTime: geminiTotal,
             })}
           </SerifText>
         </View>

@@ -1,8 +1,8 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-07-24T16:23:12Z
+Generated: 2026-07-26T13:12:21Z
 Root: /Users/philipzvar/Desktop/gustra_universal
-Files: 180
+Files: 193
 ================================================================================
 
 ================================================================================
@@ -107,6 +107,8 @@ export default function ReviewsStackLayout() {
           name="review-form"
           options={{ gestureEnabled: false }}
         />
+        <JsStack.Screen name="wine-label-scan" />
+        <JsStack.Screen name="wine-label-fiche" />
         <JsStack.Screen name="restaurant/[id]" />
         <JsStack.Screen name="review/[id]" />
       </JsStack>
@@ -135,6 +137,8 @@ export default function ReviewsStackLayout() {
           fullScreenGestureEnabled: false,
         }}
       />
+      <Stack.Screen name="wine-label-scan" />
+      <Stack.Screen name="wine-label-fiche" />
       <Stack.Screen name="restaurant/[id]" />
       <Stack.Screen name="review/[id]" />
     </Stack>
@@ -2365,6 +2369,7 @@ import { Haptics } from '@/services/haptics';
 import { shareReviewAsEmail } from '@/services/share/ReviewEmailShare';
 import { shareReviewsPackage } from '@/services/share/ReviewShareService';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { hasWineLabelMatch } from '@/services/wine/wineLabelTypes';
 
 function afterSheetDismiss(work: () => void): void {
   setTimeout(work, Platform.OS === 'ios' ? 360 : 60);
@@ -2386,6 +2391,8 @@ export default function ReviewDetailScreen() {
     useReviewerProfile();
   const review = getReview(id);
   const restaurant = review ? getRestaurant(review.restaurantId) : undefined;
+  const photoUris =
+    review?.photoUrls.map((u) => u.trim()).filter(Boolean) ?? [];
   const isFriendReview = review
     ? resolveReviewOrigin(review) === 'imported'
     : false;
@@ -2602,6 +2609,8 @@ export default function ReviewDetailScreen() {
         .join(', ')
     : '';
 
+  const showWineFiche = hasWineLabelMatch(review?.wineLabel);
+
   const header = (
     <HouseNavHeader
       title={t('detail.review.title')}
@@ -2610,16 +2619,32 @@ export default function ReviewDetailScreen() {
       onBack={() => router.back()}
       right={
         review ? (
-          <HouseToolbarIconButton
-            iosName="ellipsis"
-            androidName="more-vert"
-            accessibilityLabel={t('detail.options.a11y')}
-            disabled={sharing}
-            onPress={() => {
-              Haptics.selectionChanged();
-              setOptionsVisible(true);
-            }}
-          />
+          <View style={styles.headerActions}>
+            {showWineFiche ? (
+              <HouseToolbarIconButton
+                iosName="wineglass"
+                androidName="local-bar"
+                accessibilityLabel={t('wineScan.fiche.openA11y')}
+                onPress={() => {
+                  Haptics.selectionChanged();
+                  router.push({
+                    pathname: '/wine-label-fiche',
+                    params: { reviewId: review.id },
+                  });
+                }}
+              />
+            ) : null}
+            <HouseToolbarIconButton
+              iosName="ellipsis"
+              androidName="more-vert"
+              accessibilityLabel={t('detail.options.a11y')}
+              disabled={sharing}
+              onPress={() => {
+                Haptics.selectionChanged();
+                setOptionsVisible(true);
+              }}
+            />
+          </View>
         ) : null
       }
     />
@@ -2644,18 +2669,21 @@ export default function ReviewDetailScreen() {
         contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]}
         overScrollMode="never"
         nestedScrollEnabled>
-        {review.photoUrls.length > 0 ? (
-          <HeroPhotoPager
-            key={review.photoUrls.join('|')}
-            uris={review.photoUrls}
-            index={Math.min(photoIndex, review.photoUrls.length - 1)}
-            onIndexChange={setPhotoIndex}
-            onPressPhoto={(index) => {
-              setPhotoIndex(index);
-              setShowPhotoViewer(true);
-            }}
-          />
-        ) : null}
+        <HeroPhotoPager
+          key={photoUris.join('|') || 'empty'}
+          uris={photoUris}
+          index={
+            photoUris.length > 0
+              ? Math.min(photoIndex, photoUris.length - 1)
+              : 0
+          }
+          onIndexChange={setPhotoIndex}
+          onPressPhoto={(index) => {
+            if (photoUris.length === 0) return;
+            setPhotoIndex(index);
+            setShowPhotoViewer(true);
+          }}
+        />
 
         <View style={styles.content}>
           <View style={styles.header}>
@@ -2732,9 +2760,9 @@ export default function ReviewDetailScreen() {
       </ScrollView>
 
       <ReviewPhotoViewer
-        visible={showPhotoViewer}
-        uris={review.photoUrls}
-        index={photoIndex}
+        visible={showPhotoViewer && photoUris.length > 0}
+        uris={photoUris}
+        index={Math.min(photoIndex, Math.max(photoUris.length - 1, 0))}
         onIndexChange={setPhotoIndex}
         onClose={() => setShowPhotoViewer(false)}
       />
@@ -2784,6 +2812,10 @@ const styles = StyleSheet.create({
   content: {
     padding: Theme.spacing.detailContent,
     gap: Theme.spacing.detailSection,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   header: {
     gap: 4,
@@ -2861,7 +2893,12 @@ import {
 
 import { houseAlert } from '@/components/ui/HouseAlert';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import {
+  useFocusEffect,
+  useLocalSearchParams,
+  useNavigation,
+  useRouter,
+} from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { SymbolView } from 'expo-symbols';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -2890,6 +2927,12 @@ import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
 import { safeOpenSettings } from '@/services/linking/safeLinking';
 import { extractTextFromImages } from '@/services/ocr/OCRService';
+import {
+  MAX_REVIEW_PHOTOS,
+  remainingReviewPhotoSlots,
+} from '@/services/reviews/photoLimits';
+import type { WineLabelFiche } from '@/data/types';
+import { takePendingWineLabelResult } from '@/services/wine/pendingWineLabelResult';
 import {
   draftAddressLine,
   findExistingRestaurant,
@@ -2965,6 +3008,7 @@ type EditBaseline = {
   criteriaState: Record<string, { rating: number; comment: string }>;
   photoUrls: string[];
   ocrText: string;
+  wineLabel: WineLabelFiche | null;
 };
 
 /**
@@ -3036,6 +3080,11 @@ export default function ReviewFormScreen() {
   const [selectedPhotosForRemoval, setSelectedPhotosForRemoval] = useState<
     string[]
   >([]);
+  const [wineLabel, setWineLabel] = useState<WineLabelFiche | null>(
+    () => existingReview?.wineLabel ?? null,
+  );
+  const wineLabelRef = useRef(wineLabel);
+  wineLabelRef.current = wineLabel;
   const [activeReviewId, setActiveReviewId] = useState<string | undefined>();
   /** Synced immediately on upsert so Done/unmount cannot create a second review. */
   const activeReviewIdRef = useRef<string | undefined>(undefined);
@@ -3095,6 +3144,7 @@ export default function ReviewFormScreen() {
       const visitDateValue = new Date(existingReview.date);
       const photoUrlsCopy = [...existingReview.photoUrls];
       const ocrText = existingReview.ocrText ?? '';
+      const wineLabelCopy = existingReview.wineLabel ?? null;
       const map: Record<string, { rating: number; comment: string }> = {};
       for (const c of existingReview.criteria) {
         map[c.id] = { rating: c.rating, comment: c.comment };
@@ -3106,6 +3156,8 @@ export default function ReviewFormScreen() {
       setGeneralComment(existingReview.generalComment);
       setPhotoUrls(photoUrlsCopy);
       photoUrlsRef.current = photoUrlsCopy;
+      setWineLabel(wineLabelCopy);
+      wineLabelRef.current = wineLabelCopy;
       setOcrIndexedText(ocrText);
       ocrIndexedTextRef.current = ocrText;
       setCriteriaState(map);
@@ -3118,6 +3170,7 @@ export default function ReviewFormScreen() {
         criteriaState: map,
         photoUrls: photoUrlsCopy,
         ocrText,
+        wineLabel: wineLabelCopy,
       };
     } else {
       const match = findExistingRestaurant(initialDraft, restaurants);
@@ -3195,6 +3248,7 @@ export default function ReviewFormScreen() {
       // Prefer ref so reorder/remove in the same tick persist the latest order.
       photoUrls: photoUrlsRef.current,
       ocrText: ocrIndexedText,
+      wineLabel: wineLabelRef.current,
       customCriterionNames,
     };
   }, [
@@ -3493,6 +3547,62 @@ export default function ReviewFormScreen() {
     schedulePersist();
   };
 
+  useFocusEffect(
+    useCallback(() => {
+      const pending = takePendingWineLabelResult();
+      if (!pending) return;
+      const comment = pending.drinksComment.trim();
+      if (comment) {
+        setCriteriaState((prev) => {
+          const current = prev.drinks ?? {
+            rating: RatingValue.unrated,
+            comment: '',
+          };
+          return {
+            ...prev,
+            drinks: {
+              rating: current.rating,
+              comment,
+            },
+          };
+        });
+      }
+      if (
+        pending.croppedUri &&
+        !photoUrlsRef.current.includes(pending.croppedUri)
+      ) {
+        if (remainingReviewPhotoSlots(photoUrlsRef.current.length) <= 0) {
+          houseAlert(
+            t('alerts.reviewForm.photoLimitTitle'),
+            t('alerts.reviewForm.photoLimitBody', { max: MAX_REVIEW_PHOTOS }),
+          );
+        } else {
+          const croppedUri = pending.croppedUri;
+          setPhotoUrls((prev) => {
+            if (prev.includes(croppedUri)) return prev;
+            if (remainingReviewPhotoSlots(prev.length) <= 0) return prev;
+            const next = [...prev, croppedUri];
+            photoUrlsRef.current = next;
+            return next;
+          });
+        }
+      }
+      if (pending.wineLabel) {
+        setWineLabel(pending.wineLabel);
+        wineLabelRef.current = pending.wineLabel;
+      }
+      if (pending.ocrText.trim()) {
+        setOcrIndexedText((prev) => {
+          const next = [prev, pending.ocrText].filter(Boolean).join(' ').trim();
+          ocrIndexedTextRef.current = next;
+          return next;
+        });
+      }
+      schedulePersistRef.current();
+      Haptics.success();
+    }, []),
+  );
+
   const confirmRemoveSelectedPhotos = () => {
     if (selectedPhotosForRemoval.length === 0) return;
     const toRemove = [...selectedPhotosForRemoval];
@@ -3526,7 +3636,19 @@ export default function ReviewFormScreen() {
     );
   };
 
+  const warnPhotoLimit = useCallback(() => {
+    houseAlert(
+      t('alerts.reviewForm.photoLimitTitle'),
+      t('alerts.reviewForm.photoLimitBody', { max: MAX_REVIEW_PHOTOS }),
+    );
+  }, [t]);
+
   const importFromLibrary = async () => {
+    const slots = remainingReviewPhotoSlots(photoUrlsRef.current.length);
+    if (slots <= 0) {
+      warnPhotoLimit();
+      return;
+    }
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       openSettingsAlert(
@@ -3538,20 +3660,25 @@ export default function ReviewFormScreen() {
       mediaTypes: ['images'],
       allowsMultipleSelection: true,
       quality: 1,
-      selectionLimit: 10,
+      selectionLimit: slots,
     });
     if (result.canceled || result.assets.length === 0) return;
+    const assets = result.assets.slice(0, slots);
+    if (result.assets.length > slots) {
+      warnPhotoLimit();
+    }
     setIsImportingPhotos(true);
     try {
       const saved: string[] = [];
-      for (const asset of result.assets) {
+      for (const asset of assets) {
         if (!asset.uri) continue;
         saved.push(await saveReviewPhoto(asset.uri));
       }
       if (saved.length) {
         Haptics.light();
         setPhotoUrls((prev) => {
-          const next = [...prev, ...saved];
+          const room = remainingReviewPhotoSlots(prev.length);
+          const next = [...prev, ...saved.slice(0, room)];
           photoUrlsRef.current = next;
           return next;
         });
@@ -3566,6 +3693,10 @@ export default function ReviewFormScreen() {
   };
 
   const takePhoto = async () => {
+    if (remainingReviewPhotoSlots(photoUrlsRef.current.length) <= 0) {
+      warnPhotoLimit();
+      return;
+    }
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
       openSettingsAlert(
@@ -3578,11 +3709,16 @@ export default function ReviewFormScreen() {
       quality: 1,
     });
     if (result.canceled || !result.assets[0]?.uri) return;
+    if (remainingReviewPhotoSlots(photoUrlsRef.current.length) <= 0) {
+      warnPhotoLimit();
+      return;
+    }
     setIsImportingPhotos(true);
     try {
       const uri = await saveReviewPhoto(result.assets[0].uri);
       Haptics.light();
       setPhotoUrls((prev) => {
+        if (remainingReviewPhotoSlots(prev.length) <= 0) return prev;
         const next = [...prev, uri];
         photoUrlsRef.current = next;
         return next;
@@ -3597,6 +3733,10 @@ export default function ReviewFormScreen() {
   };
 
   const showPhotoSourcePicker = () => {
+    if (remainingReviewPhotoSlots(photoUrlsRef.current.length) <= 0) {
+      warnPhotoLimit();
+      return;
+    }
     setShowPhotoSourceChooser(true);
   };
 
@@ -3779,9 +3919,43 @@ export default function ReviewFormScreen() {
                       )}
                     </View>
                     <View style={styles.criterionBody}>
-                      <SerifText style={styles.criterionTitle}>
-                        {criterion.title}
-                      </SerifText>
+                      <View style={styles.criterionTitleRow}>
+                        <SerifText style={styles.criterionTitle}>
+                          {criterion.title}
+                        </SerifText>
+                        {criterion.id === 'drinks' ? (
+                          <Pressable
+                            onPress={() => {
+                              Haptics.selectionChanged();
+                              router.push('/wine-label-scan');
+                            }}
+                            hitSlop={8}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('wineScan.scanButtonA11y')}
+                            style={({ pressed }) => [
+                              styles.wineScanChip,
+                              pressed && styles.wineScanChipPressed,
+                            ]}>
+                            {Platform.OS === 'ios' ? (
+                              <SymbolView
+                                name="camera.viewfinder"
+                                size={14}
+                                tintColor={GustraColors.forestGreen}
+                                weight="semibold"
+                              />
+                            ) : (
+                              <MaterialIcons
+                                name="document-scanner"
+                                size={16}
+                                color={GustraColors.forestGreen}
+                              />
+                            )}
+                            <Text style={styles.wineScanChipText}>
+                              {t('wineScan.scanButton')}
+                            </Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
                       <InteractiveStarRating
                         rating={state.rating}
                         onChange={(rating) =>
@@ -3789,7 +3963,9 @@ export default function ReviewFormScreen() {
                         }
                         onScrubbingChange={setRatingScrubbing}
                       />
-                      {RatingValue.isStarRating(state.rating) ? (
+                      {RatingValue.isStarRating(state.rating) ||
+                      (criterion.id === 'drinks' &&
+                        state.comment.trim().length > 0) ? (
                         <TextInput
                           ref={(node) => {
                             commentInputRefs.current[criterion.id] = node;
@@ -3819,7 +3995,11 @@ export default function ReviewFormScreen() {
                               90,
                             );
                           }}
-                          placeholder={t("forms.review.optionalComment")}
+                          placeholder={
+                            criterion.id === 'drinks'
+                              ? t('wineScan.drinksCommentPlaceholder')
+                              : t('forms.review.optionalComment')
+                          }
                           placeholderTextColor="rgba(35, 32, 26, 0.4)"
                           multiline
                           style={styles.commentField}
@@ -3877,6 +4057,7 @@ export default function ReviewFormScreen() {
               onToggleSelect={togglePhotoSelection}
               onAddPress={showPhotoSourcePicker}
               isImporting={isImportingPhotos}
+              canAddPhotos={photoUrls.length < MAX_REVIEW_PHOTOS}
               onDraggingChange={setPhotoDragging}
             />
 
@@ -3974,10 +4155,9 @@ export default function ReviewFormScreen() {
         animationType="slide"
         presentationStyle="pageSheet"
         onRequestClose={() => setShowDatePicker(false)}>
-        <View style={[styles.dateModal, { paddingTop: insets.top }]}>
+        <View style={styles.dateModal}>
           <HouseNavHeader
             title={t("forms.review.visitDate")}
-            titleSize={Theme.navigation.secondaryTitleSize}
             right={
               <HouseToolbarIconButton
                 iosName="checkmark"
@@ -4167,9 +4347,34 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 8,
   },
+  criterionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
   criterionTitle: {
+    flex: 1,
     fontSize: 16,
     color: GustraColors.ink,
+  },
+  wineScanChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(36, 78, 57, 0.12)',
+  },
+  wineScanChipPressed: {
+    opacity: 0.7,
+  },
+  wineScanChipText: {
+    ...captionTextStyle,
+    fontSize: 13,
+    fontWeight: '700',
+    color: GustraColors.forestGreen,
   },
   commentField: {
     ...bodyTextStyle,
@@ -4251,6 +4456,525 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: Theme.radius.md,
     backgroundColor: GustraColors.bubble,
+  },
+});
+
+
+================================================================================
+FILE: app/(tabs)/(main)/wine-label-fiche.tsx
+================================================================================
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { WineLabelFicheView } from '@/components/wine/WineLabelFicheView';
+import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
+import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
+import { GustraColors } from '@/constants/Colors';
+import { Theme } from '@/constants/Theme';
+import { useReviewsStore } from '@/context/ReviewsStore';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { hasWineLabelMatch } from '@/services/wine/wineLabelTypes';
+
+/**
+ * Full wine fiche from a saved review (Gemini Vision result).
+ */
+export default function WineLabelFicheScreen() {
+  const { t } = useAppTranslation();
+  const { reviewId } = useLocalSearchParams<{ reviewId: string }>();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { getReview } = useReviewsStore();
+  const review = getReview(reviewId);
+  const fiche = review?.wineLabel;
+  const bottomPad =
+    Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
+
+  return (
+    <View style={styles.screen}>
+      <HouseNavHeader
+        title={t('wineScan.fiche.title')}
+        showBack
+        onBack={() => router.back()}
+      />
+      {!hasWineLabelMatch(fiche) ? (
+        <HouseEmptyState
+          title={t('wineScan.noMatchTitle')}
+          description={t('wineScan.noMatchBody')}
+        />
+      ) : (
+        <ScrollView
+          contentContainerStyle={[styles.pad, { paddingBottom: bottomPad }]}
+          overScrollMode="never">
+          <WineLabelFicheView fiche={fiche} />
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: GustraColors.cream,
+  },
+  pad: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+});
+
+
+================================================================================
+FILE: app/(tabs)/(main)/wine-label-scan.tsx
+================================================================================
+import { useCallback, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import { SymbolView } from 'expo-symbols';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { LabelCropCanvas } from '@/components/wine/LabelCropCanvas';
+import { WineLabelFicheView } from '@/components/wine/WineLabelFicheView';
+import { houseAlert } from '@/components/ui/HouseAlert';
+import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
+import { PhotoSourceChooserBody } from '@/components/ui/PhotoSourceChooser';
+import { SerifText } from '@/components/ui/SerifText';
+import { GustraColors } from '@/constants/Colors';
+import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
+import type { WineLabelFiche } from '@/data/types';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { GeminiAPIConfig } from '@/constants/GeminiAPIConfig';
+import { safeOpenSettings } from '@/services/linking/safeLinking';
+import {
+  renderCroppedLabel,
+  type CropTransform,
+  type ImageSize,
+  type LabelCropViewport,
+} from '@/services/photos/labelCrop';
+import { saveReviewPhoto } from '@/services/reviews/photoStorage';
+import { identifyWineLabel } from '@/services/wine/identifyWineLabel';
+import { setPendingWineLabelResult } from '@/services/wine/pendingWineLabelResult';
+import {
+  hasSeenWineVisionUploadNotice,
+  markWineVisionUploadNoticeSeen,
+} from '@/services/wine/wineVisionConsent';
+import { formatWineLabelDrinksComment } from '@/services/wine/wineLabelTypes';
+
+type Step = 'pick' | 'crop' | 'result';
+
+/**
+ * Drinks → Scan wine label: photo → crop → Gemini Vision → fiche → use in Drinks.
+ */
+export default function WineLabelScanScreen() {
+  const { t } = useAppTranslation();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+
+  const [step, setStep] = useState<Step>('pick');
+  const [draftUri, setDraftUri] = useState<string | null>(null);
+  const [labelPhotoUri, setLabelPhotoUri] = useState<string | null>(null);
+  const [fiche, setFiche] = useState<WineLabelFiche | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const imageSizeRef = useRef<ImageSize | null>(null);
+  const transformRef = useRef<CropTransform>({
+    scale: 1,
+    offsetX: 0,
+    offsetY: 0,
+  });
+  const viewportRef = useRef<LabelCropViewport>({ width: 280, height: 400 });
+
+  const openSettingsAlert = useCallback(
+    (message: string) => {
+      houseAlert(t('alerts.permission.needed'), message, [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.openSettings'),
+          onPress: () => void safeOpenSettings(),
+        },
+      ]);
+    },
+    [t],
+  );
+
+  const setDraft = useCallback((uri: string) => {
+    imageSizeRef.current = null;
+    transformRef.current = { scale: 1, offsetX: 0, offsetY: 0 };
+    setDraftUri(uri);
+    setLabelPhotoUri(null);
+    setFiche(null);
+    setStep('crop');
+  }, []);
+
+  const takePhoto = useCallback(async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      openSettingsAlert(t('alerts.permission.camera'));
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 1,
+    });
+    if (result.canceled || !result.assets[0]?.uri) return;
+    setDraft(result.assets[0].uri);
+  }, [openSettingsAlert, setDraft, t]);
+
+  const importPhoto = useCallback(async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      openSettingsAlert(t('alerts.permission.photos'));
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: false,
+      quality: 1,
+    });
+    if (result.canceled || !result.assets[0]?.uri) return;
+    setDraft(result.assets[0].uri);
+  }, [openSettingsAlert, setDraft, t]);
+
+  const ensureUploadNotice = useCallback(async (): Promise<boolean> => {
+    if (await hasSeenWineVisionUploadNotice()) return true;
+    return new Promise((resolve) => {
+      houseAlert(
+        t('wineScan.uploadNoticeTitle'),
+        t('wineScan.uploadNoticeBody'),
+        [
+          {
+            text: t('common.cancel'),
+            style: 'cancel',
+            onPress: () => resolve(false),
+          },
+          {
+            text: t('wineScan.uploadNoticeContinue'),
+            onPress: () => {
+              void markWineVisionUploadNoticeSeen().then(() => resolve(true));
+            },
+          },
+        ],
+      );
+    });
+  }, [t]);
+
+  const runCropAndAnalyze = useCallback(async () => {
+    if (!draftUri || !imageSizeRef.current) return;
+    if (!GeminiAPIConfig.isConfigured) {
+      houseAlert(t('common.error'), t('wineScan.missingKeyBody'));
+      return;
+    }
+    const ok = await ensureUploadNotice();
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      const cropped = await renderCroppedLabel({
+        uri: draftUri,
+        image: imageSizeRef.current,
+        viewport: viewportRef.current,
+        transform: transformRef.current,
+      });
+      const savedCrop = await saveReviewPhoto(cropped);
+
+      // One Vision call on the original draft (optimized inside identifyWineLabel).
+      const result = await identifyWineLabel(draftUri);
+      if (!result.fiche) {
+        setLabelPhotoUri(savedCrop);
+        setFiche(null);
+        setStep('result');
+        houseAlert(t('wineScan.noMatchTitle'), t('wineScan.noMatchBody'));
+        return;
+      }
+
+      const labelSaved = await saveReviewPhoto(result.optimizedUri);
+      const nextFiche: WineLabelFiche = {
+        ...result.fiche,
+        labelPhotoUri: labelSaved,
+      };
+      setLabelPhotoUri(labelSaved);
+      setFiche(nextFiche);
+      setStep('result');
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : t('wineScan.failedBody');
+      houseAlert(t('common.error'), message);
+    } finally {
+      setBusy(false);
+    }
+  }, [draftUri, ensureUploadNotice, t]);
+
+  const useInDrinks = useCallback(() => {
+    if (!fiche) {
+      router.back();
+      return;
+    }
+    const comment = formatWineLabelDrinksComment(fiche);
+    setPendingWineLabelResult({
+      drinksComment: comment,
+      ocrText: comment,
+      croppedUri: labelPhotoUri ?? fiche.labelPhotoUri,
+      wineLabel: fiche,
+    });
+    router.back();
+  }, [fiche, labelPhotoUri, router]);
+
+  const bottomPad = insets.bottom + 20;
+
+  return (
+    <View style={styles.screen}>
+      <HouseNavHeader
+        title={t('wineScan.title')}
+        showBack
+        onBack={() => router.back()}
+        right={
+          step === 'crop' ? (
+            <Pressable
+              onPress={() => void runCropAndAnalyze()}
+              disabled={busy || !draftUri}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel={t('wineScan.readLabel')}
+              style={styles.headerBtn}>
+              {busy ? (
+                <ActivityIndicator color={GustraColors.gold} />
+              ) : (
+                <Text style={[styles.headerBtnText, styles.headerBtnEmph]}>
+                  {t('wineScan.readLabel')}
+                </Text>
+              )}
+            </Pressable>
+          ) : null
+        }
+      />
+
+      {step === 'pick' ? (
+        <ScrollView
+          contentContainerStyle={[styles.pickPad, { paddingBottom: bottomPad }]}
+          overScrollMode="never">
+          <SerifText size={22} weight="semibold" style={styles.lead}>
+            {t('wineScan.lead')}
+          </SerifText>
+          <Text style={styles.hint}>{t('wineScan.hintVision')}</Text>
+          <View style={styles.chooserCard}>
+            <PhotoSourceChooserBody
+              title={t('wineScan.chooserTitle')}
+              onTakePhoto={() => void takePhoto()}
+              onImportPhoto={() => void importPhoto()}
+            />
+          </View>
+        </ScrollView>
+      ) : null}
+
+      {step === 'crop' && draftUri ? (
+        <View style={[styles.cropStage, { paddingBottom: bottomPad }]}>
+          <Text style={styles.cropHint}>{t('wineScan.cropHint')}</Text>
+          <LabelCropCanvas
+            uri={draftUri}
+            accessibilityLabel={t('wineScan.cropA11y')}
+            onImageSize={(size) => {
+              imageSizeRef.current = size;
+            }}
+            onTransformChange={(transform, viewport) => {
+              transformRef.current = transform;
+              viewportRef.current = viewport;
+            }}
+          />
+          <Pressable
+            onPress={() => {
+              setDraftUri(null);
+              setStep('pick');
+            }}
+            style={styles.secondaryBtn}>
+            <Text style={styles.secondaryBtnText}>{t('wineScan.retake')}</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {step === 'result' ? (
+        <ScrollView
+          contentContainerStyle={[
+            styles.resultPad,
+            { paddingBottom: bottomPad },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          overScrollMode="never">
+          {fiche ? (
+            <>
+              <WineLabelFicheView fiche={fiche} />
+              <Pressable
+                onPress={useInDrinks}
+                style={({ pressed }) => [
+                  styles.primaryBtn,
+                  pressed && styles.primaryBtnPressed,
+                ]}
+                accessibilityRole="button">
+                {Platform.OS === 'ios' ? (
+                  <SymbolView
+                    name="wineglass"
+                    size={18}
+                    tintColor="#FFFFFF"
+                    weight="semibold"
+                  />
+                ) : (
+                  <MaterialIcons name="local-bar" size={20} color="#FFFFFF" />
+                )}
+                <Text style={styles.primaryBtnText}>
+                  {t('wineScan.useInDrinks')}
+                </Text>
+              </Pressable>
+            </>
+          ) : (
+            <Text style={styles.noMatch}>{t('wineScan.noMatchBody')}</Text>
+          )}
+
+          <Pressable
+            onPress={() => {
+              setFiche(null);
+              setLabelPhotoUri(null);
+              setStep('crop');
+            }}
+            style={styles.secondaryBtn}>
+            <Text style={styles.secondaryBtnText}>{t('wineScan.adjustCrop')}</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              setDraftUri(null);
+              setLabelPhotoUri(null);
+              setFiche(null);
+              setStep('pick');
+            }}
+            style={styles.secondaryBtn}>
+            <Text style={styles.secondaryBtnText}>{t('wineScan.retake')}</Text>
+          </Pressable>
+        </ScrollView>
+      ) : null}
+
+      {busy ? (
+        <View style={styles.busyOverlay} pointerEvents="auto">
+          <ActivityIndicator size="large" color={GustraColors.forestGreen} />
+          <Text style={styles.busyText}>{t('wineScan.analyzing')}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: GustraColors.cream,
+  },
+  headerBtn: {
+    minWidth: 64,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  headerBtnText: {
+    ...bodyTextStyle,
+    fontSize: 17,
+    color: '#FFFFFF',
+  },
+  headerBtnEmph: {
+    fontWeight: '700',
+    color: GustraColors.gold,
+  },
+  pickPad: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    gap: 12,
+  },
+  lead: {
+    color: GustraColors.ink,
+  },
+  hint: {
+    ...bodyTextStyle,
+    color: 'rgba(35, 32, 26, 0.62)',
+    marginBottom: 8,
+  },
+  chooserCard: {
+    backgroundColor: 'rgba(236, 227, 207, 0.55)',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  cropStage: {
+    flex: 1,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  cropHint: {
+    ...captionTextStyle,
+    textAlign: 'center',
+    color: 'rgba(35, 32, 26, 0.6)',
+    marginTop: 8,
+  },
+  resultPad: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    gap: 10,
+  },
+  noMatch: {
+    ...bodyTextStyle,
+    color: 'rgba(35, 32, 26, 0.55)',
+    textAlign: 'center',
+    marginVertical: 24,
+  },
+  primaryBtn: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: GustraColors.forestGreen,
+    borderRadius: 14,
+    paddingVertical: 14,
+  },
+  primaryBtnPressed: {
+    opacity: 0.88,
+  },
+  primaryBtnText: {
+    ...bodyTextStyle,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  secondaryBtn: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  secondaryBtnText: {
+    ...bodyTextStyle,
+    fontSize: 16,
+    fontWeight: '600',
+    color: GustraColors.forestGreen,
+  },
+  busyOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(245, 238, 221, 0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  busyText: {
+    ...bodyTextStyle,
+    color: GustraColors.forestGreen,
+    fontWeight: '600',
   },
 });
 
@@ -5360,13 +6084,7 @@ import {
   bodyTextStyle,
   captionTextStyle,
 } from '@/constants/Theme';
-import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
-import {
-  satisfactionFromScore,
-  type Review,
-  type SatisfactionLevel,
-} from '@/data/types';
 import { Haptics } from '@/services/haptics';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { useSharedRestaurantFilters } from '@/hooks/useSharedRestaurantFilters';
@@ -5375,16 +6093,11 @@ import {
   resolveCurrentLocation,
 } from '@/services/location/resolveCurrentLocation';
 import { FALLBACK_MAP_CENTER, type LatLng } from '@/services/places';
-import { overallScoreFromCriteria } from '@/services/reviews/ratings';
 
-const LEVEL_COLOR: Record<SatisfactionLevel, string> = {
-  excellent: GustraColors.ratingExcellent,
-  neutral: GustraColors.ratingNeutral,
-  avoid: GustraColors.ratingAvoid,
-};
-
-/** Distinct purple pin color for friends' reviews. */
-const FRIENDS_PIN_COLOR = '#7B5EA7';
+/** Own reviews — brand green. */
+const OWN_PIN_COLOR = GustraColors.forestGreen;
+/** Friends' reviews — contrasting blue (not satisfaction traffic-light). */
+const FRIENDS_PIN_COLOR = '#2F6FED';
 
 /** Survives push/pop to review detail so Back restores the same map view. */
 type MemoriesMapCamera = { center: LatLng; zoom: number };
@@ -5394,7 +6107,6 @@ type MapPin = {
   reviewId: string;
   name: string;
   coordinate: LatLng;
-  level: SatisfactionLevel;
   isFriend: boolean;
 };
 
@@ -5406,14 +6118,8 @@ function hasCoordinates(lat: number, lng: number): boolean {
   );
 }
 
-function scoreForEnabled(review: Review, enabledIds: Set<string>): number {
-  return overallScoreFromCriteria(
-    review.criteria.filter((c) => enabledIds.has(c.id)),
-  );
-}
-
 /**
- * My map — pins colored by satisfaction (Swift `MemoriesMapView`).
+ * My map — pins by ownership (own = green, friends = blue).
  * Same shared filter state as Reviews / My Gustra (Sort by ignored here).
  */
 export default function MemoriesMapScreen() {
@@ -5421,7 +6127,6 @@ export default function MemoriesMapScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { reviews, getRestaurant, ready } = useReviewsStore();
-  const { enabledCriteria } = useCriteriaSettings();
   const {
     filterState,
     setFilterState,
@@ -5443,15 +6148,11 @@ export default function MemoriesMapScreen() {
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [locating, setLocating] = useState(false);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [legendExpanded, setLegendExpanded] = useState(false);
   const mapRef = useRef<GoogleMapsViewHandle>(null);
   const pendingFitRef = useRef(false);
   /** Snapshot at mount — module cache may update while this screen is mounted. */
   const restoredCameraRef = useRef(savedMemoriesMapCamera);
-
-  const enabledIds = useMemo(
-    () => new Set(enabledCriteria.map((c) => c.id)),
-    [enabledCriteria],
-  );
 
   const allowedRestaurantIds = useMemo(
     () => new Set(filteredSummaries.map((s) => s.restaurantId)),
@@ -5476,7 +6177,6 @@ export default function MemoriesMapScreen() {
         if (!hasCoordinates(restaurant.latitude, restaurant.longitude)) {
           return [];
         }
-        const score = scoreForEnabled(review, enabledIds);
         return [
           {
             reviewId: review.id,
@@ -5485,19 +6185,11 @@ export default function MemoriesMapScreen() {
               latitude: restaurant.latitude,
               longitude: restaurant.longitude,
             },
-            level: satisfactionFromScore(score),
             isFriend: review.origin === 'imported',
           },
         ];
       });
-  }, [
-    allowedRestaurantIds,
-    enabledIds,
-    getRestaurant,
-    includeFriends,
-    ready,
-    reviews,
-  ]);
+  }, [allowedRestaurantIds, getRestaurant, includeFriends, ready, reviews]);
 
   const markers = useMemo(
     (): GoogleMapMarker[] =>
@@ -5507,7 +6199,7 @@ export default function MemoriesMapScreen() {
         title: pin.isFriend
           ? `${pin.name} ${t('map.friendSuffix')}`
           : pin.name,
-        color: pin.isFriend ? FRIENDS_PIN_COLOR : LEVEL_COLOR[pin.level],
+        color: pin.isFriend ? FRIENDS_PIN_COLOR : OWN_PIN_COLOR,
       })),
     [pins, t],
   );
@@ -5676,6 +6368,59 @@ export default function MemoriesMapScreen() {
           }}
         />
 
+        <View style={styles.legendWrap} pointerEvents="box-none">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: legendExpanded }}
+            accessibilityLabel={t('a11y.mapLegend')}
+            onPress={() => {
+              Haptics.selectionChanged();
+              setLegendExpanded((v) => !v);
+            }}
+            style={({ pressed }) => [
+              styles.legendCard,
+              pressed && styles.pressed,
+            ]}>
+            <View style={styles.legendHeader}>
+              <Text style={styles.legendTitle}>{t('map.legend.title')}</Text>
+              {Platform.OS === 'ios' ? (
+                <SymbolView
+                  name={legendExpanded ? 'chevron.up' : 'chevron.down'}
+                  size={12}
+                  tintColor="rgba(35, 32, 26, 0.55)"
+                />
+              ) : (
+                <MaterialIcons
+                  name={legendExpanded ? 'expand-less' : 'expand-more'}
+                  size={18}
+                  color="rgba(35, 32, 26, 0.55)"
+                />
+              )}
+            </View>
+            {legendExpanded ? (
+              <View style={styles.legendRows}>
+                <View style={styles.legendRow}>
+                  <View
+                    style={[styles.legendDot, { backgroundColor: OWN_PIN_COLOR }]}
+                  />
+                  <Text style={styles.legendLabel}>{t('map.legend.own')}</Text>
+                </View>
+                <View style={styles.legendRow}>
+                  <View
+                    style={[
+                      styles.legendDot,
+                      { backgroundColor: FRIENDS_PIN_COLOR },
+                    ]}
+                  />
+                  <Text style={styles.legendLabel}>
+                    {t('map.legend.friends')}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+          </Pressable>
+        </View>
+
         <View
           style={[styles.mapControls, { bottom: bottomPad + 12 }]}
           pointerEvents="box-none">
@@ -5787,6 +6532,58 @@ const styles = StyleSheet.create({
   },
   mapBody: {
     flex: 1,
+  },
+  legendWrap: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    zIndex: 2,
+    maxWidth: 220,
+  },
+  legendCard: {
+    backgroundColor: 'rgba(245, 238, 221, 0.96)',
+    borderRadius: Theme.radius.md,
+    borderWidth: 1.5,
+    borderColor: 'rgba(36, 78, 57, 0.28)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  legendHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  legendTitle: {
+    ...captionTextStyle,
+    fontSize: 13,
+    fontWeight: '600',
+    color: GustraColors.ink,
+  },
+  legendRows: {
+    gap: 6,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  legendLabel: {
+    ...captionTextStyle,
+    fontSize: 12,
+    color: 'rgba(35, 32, 26, 0.75)',
+    flexShrink: 1,
   },
   mapControls: {
     position: 'absolute',
@@ -6585,6 +7382,8 @@ export default function SettingsScreen() {
     mapsTotal,
     placesToday,
     placesTotal,
+    geminiToday,
+    geminiTotal,
     resetAll: resetApiCounters,
   } = useGoogleApiTracker();
   const { name, photoUri, hasPhoto, updateName, ready, syncPhotoFromDisk } =
@@ -6931,6 +7730,15 @@ export default function SettingsScreen() {
             {t('settings.usageToday', {
               today: placesToday,
               allTime: placesTotal,
+            })}
+          </SerifText>
+        </View>
+        <View style={[styles.apiRow, styles.rowBorder]}>
+          <Text style={styles.rowTitle}>{t('settings.geminiApi')}</Text>
+          <SerifText size={15} weight="semibold" style={styles.apiValue}>
+            {t('settings.usageToday', {
+              today: geminiToday,
+              allTime: geminiTotal,
             })}
           </SerifText>
         </View>
@@ -7371,7 +8179,7 @@ export default function ShareImportScreen() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { importSharePackage } = useReviewsStore();
+  const { importSharePackage, reviews, restaurants } = useReviewsStore();
   const { enabledCriteria } = useCriteriaSettings();
   const packageData = useMemo(() => takePendingSharePackage(), []);
 
@@ -7456,6 +8264,8 @@ export default function ShareImportScreen() {
       const result = await importSelectedShareReviews({
         reviewIds: [...selectedIds],
         package: packageData,
+        existingReviews: reviews,
+        existingRestaurants: restaurants,
       });
       await importSharePackage(result);
       clearPendingSharePackage();
@@ -7693,8 +8503,13 @@ function googleApiKey(): string {
   );
 }
 
+function geminiApiKey(): string {
+  return process.env.EXPO_PUBLIC_GEMINI_API_KEY?.trim() || '';
+}
+
 export default ({ config }: ConfigContext): ExpoConfig => {
   const key = googleApiKey();
+  const geminiKey = geminiApiKey();
 
   // `newArchEnabled` is valid Expo config; ExpoConfig typings lag behind SDK 57.
   return {
@@ -7718,7 +8533,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       supportsTablet: true,
       // Must match the existing App Store Connect / Swift app.
       bundleIdentifier: 'com.philip.gustra',
-      buildNumber: '21',
+      buildNumber: '23',
       entitlements: {
         'com.apple.security.application-groups': ['group.com.philip.gustra'],
       },
@@ -7936,6 +8751,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     extra: {
       googleApiKey: key,
       googlePlacesApiKey: key,
+      geminiApiKey: geminiKey,
       eas: {
         projectId: 'b149ff2c-d2c0-4105-99eb-c9ba14608290',
       },
@@ -8135,7 +8951,7 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: components/detail/HeroPhotoPager.tsx
 ================================================================================
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
   Image,
@@ -8164,7 +8980,7 @@ type HeroPhotoPagerProps = {
 /**
  * Horizontal review hero pager (Swift `ReviewDetailView.heroPhoto`).
  * Aspect-fit in a fixed 220pt canvas via `resizeMode="contain"` — no crop.
- * Avoid Image.getSize + nested frames (broke display on some devices).
+ * No photos (or only broken URIs) → render nothing (no fork.knife placeholder).
  */
 export function HeroPhotoPager({
   uris,
@@ -8173,13 +8989,48 @@ export function HeroPhotoPager({
   onPressPhoto,
 }: HeroPhotoPagerProps) {
   const pageWidth = useRef(Dimensions.get('window').width).current;
+  const trimmed = useMemo(
+    () => uris.map((u) => u.trim()).filter(Boolean),
+    [uris],
+  );
+  const [failed, setFailed] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    setFailed((prev) => {
+      const next = new Set<string>();
+      for (const uri of prev) {
+        if (trimmed.includes(uri)) next.add(uri);
+      }
+      return next.size === prev.size ? prev : next;
+    });
+  }, [trimmed]);
+
+  const pages = useMemo(
+    () => trimmed.filter((uri) => !failed.has(uri)),
+    [trimmed, failed],
+  );
+
+  const markFailed = useCallback((uri: string) => {
+    setFailed((prev) => {
+      if (prev.has(uri)) return prev;
+      const next = new Set(prev);
+      next.add(uri);
+      return next;
+    });
+  }, []);
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const next = Math.round(e.nativeEvent.contentOffset.x / pageWidth);
-    if (next !== index && next >= 0 && next < uris.length) {
+    if (next !== index && next >= 0 && next < pages.length) {
       onIndexChange(next);
     }
   };
+
+  if (pages.length === 0) {
+    return null;
+  }
+
+  const safeIndex = Math.min(Math.max(index, 0), pages.length - 1);
 
   return (
     <View style={styles.heroBlock}>
@@ -8194,19 +9045,20 @@ export function HeroPhotoPager({
         scrollEventThrottle={16}
         decelerationRate="fast"
         style={styles.heroScroll}>
-        {uris.map((uri, photoIndex) => (
+        {pages.map((uri, photoIndex) => (
           <HeroPage
             key={`${uri}-${photoIndex}`}
             uri={uri}
             width={pageWidth}
-            label={`Photo ${photoIndex + 1} of ${uris.length}`}
+            label={`Photo ${photoIndex + 1} of ${pages.length}`}
             onPress={() => onPressPhoto(photoIndex)}
+            onError={() => markFailed(uri)}
           />
         ))}
       </ScrollView>
-      {uris.length > 1 ? (
+      {pages.length > 1 ? (
         <Text style={styles.pageIndicator}>
-          {index + 1} / {uris.length}
+          {safeIndex + 1} / {pages.length}
         </Text>
       ) : null}
     </View>
@@ -8218,21 +9070,33 @@ function HeroPage({
   width,
   label,
   onPress,
+  onError,
 }: {
   uri: string;
   width: number;
   label: string;
   onPress: () => void;
+  onError: () => void;
 }) {
   const canvasW = Math.max(1, width - HERO_H_PAD * 2);
   const canvasH = Math.max(1, HERO_H - 8);
-  const [failed, setFailed] = useState(false);
+  const onPressRef = useRef(onPress);
+  onPressRef.current = onPress;
 
-  const tap = Gesture.Tap()
-    .maxDistance(12)
-    .onEnd(() => {
-      runOnJS(onPress)();
-    });
+  const handlePress = useCallback(() => {
+    onPressRef.current();
+  }, []);
+
+  const tap = useMemo(
+    () =>
+      Gesture.Tap()
+        .maxDistance(12)
+        .onEnd(() => {
+          'worklet';
+          runOnJS(handlePress)();
+        }),
+    [handlePress],
+  );
 
   return (
     <GestureDetector gesture={tap}>
@@ -8242,16 +9106,13 @@ function HeroPage({
         accessibilityLabel={label}
         collapsable={false}>
         <View style={[styles.heroFrame, { width: canvasW, height: canvasH }]}>
-          {failed ? (
-            <View style={styles.failed} />
-          ) : (
-            <Image
-              source={{ uri }}
-              style={{ width: canvasW, height: canvasH }}
-              resizeMode="contain"
-              onError={() => setFailed(true)}
-            />
-          )}
+          <Image
+            key={uri}
+            source={{ uri }}
+            style={{ width: canvasW, height: canvasH }}
+            resizeMode="contain"
+            onError={onError}
+          />
         </View>
       </View>
     </GestureDetector>
@@ -8281,10 +9142,6 @@ const styles = StyleSheet.create({
     backgroundColor: GustraColors.bubble,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  failed: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(36, 78, 57, 0.12)',
   },
   pageIndicator: {
     alignSelf: 'center',
@@ -8504,7 +9361,7 @@ import {
   lockAppPortraitOrientation,
   unlockPhotoViewerOrientation,
 } from '@/services/orientation/photoViewerOrientation';
-import { sharePhotoUri, savePhotoUri } from '@/services/photos/photoViewerActions';
+import { sharePhotoUri } from '@/services/photos/photoViewerActions';
 
 type ProfilePhotoViewerProps = {
   visible: boolean;
@@ -8550,22 +9407,6 @@ export function ProfilePhotoViewer({
       alertOverModal(
         'Error',
         error instanceof Error ? error.message : 'Could not share photo',
-      );
-    } finally {
-      setBusy(false);
-    }
-  }, [busy, uri]);
-
-  const handleSave = useCallback(async () => {
-    if (!uri || busy) return;
-    setBusy(true);
-    try {
-      await savePhotoUri(uri);
-      alertOverModal('Photo saved');
-    } catch (error) {
-      alertOverModal(
-        'Error',
-        error instanceof Error ? error.message : 'Could not save photo',
       );
     } finally {
       setBusy(false);
@@ -8635,7 +9476,6 @@ export function ProfilePhotoViewer({
           <PhotoViewerTopBar
             onClose={close}
             onShare={() => void handleShare()}
-            onSave={() => void handleSave()}
           />
 
           <PhotoViewerCountPill
@@ -8671,7 +9511,7 @@ import { GoogleMapsView } from '@/components/map/GoogleMapsView';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
 import type { Restaurant } from '@/data/types';
-import { presentDirectionsOptions } from '@/services/directions/DirectionsLauncher';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { resolveCurrentLocation } from '@/services/location/resolveCurrentLocation';
 import type { LatLng } from '@/services/places';
 
@@ -8689,6 +9529,7 @@ export function RestaurantMapViewer({
   restaurant,
   onClose,
 }: RestaurantMapViewerProps) {
+  const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const addressLine = [restaurant.address, restaurant.city, restaurant.country]
@@ -8724,7 +9565,7 @@ export function RestaurantMapViewer({
           <Pressable
             onPress={onClose}
             accessibilityRole="button"
-            accessibilityLabel="Close"
+            accessibilityLabel={t('common.close')}
             hitSlop={12}
             style={styles.closeBtn}>
             <SymbolView
@@ -8762,22 +9603,7 @@ export function RestaurantMapViewer({
           />
         </View>
 
-        <Pressable
-          style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}
-          onPress={() => {
-            // Dismiss the map Modal first — ActionSheetIOS / houseAlert Modal
-            // presented on top of an RN Modal crashes iOS intermittently.
-            onClose();
-            presentDirectionsOptions({
-              name: restaurant.name,
-              addressLine,
-              latitude: restaurant.latitude,
-              longitude: restaurant.longitude,
-              afterModalDismiss: true,
-            });
-          }}
-          accessibilityRole="button"
-          accessibilityLabel="Get directions">
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.footerCopy}>
             <SerifText size={18} weight="semibold" style={styles.name}>
               {restaurant.name}
@@ -8788,16 +9614,7 @@ export function RestaurantMapViewer({
               </Text>
             ) : null}
           </View>
-          <SymbolView
-            name={{
-              ios: 'arrow.triangle.turn.up.right.diamond.fill',
-              android: 'directions',
-              web: 'directions',
-            }}
-            tintColor={GustraColors.forestGreen}
-            size={22}
-          />
-        </Pressable>
+        </View>
       </View>
     </Modal>
   );
@@ -9199,7 +10016,7 @@ import {
   lockAppPortraitOrientation,
   unlockPhotoViewerOrientation,
 } from '@/services/orientation/photoViewerOrientation';
-import { sharePhotoUri, savePhotoUri } from '@/services/photos/photoViewerActions';
+import { sharePhotoUri } from '@/services/photos/photoViewerActions';
 
 type ReviewPhotoViewerProps = {
   visible: boolean;
@@ -9294,23 +10111,6 @@ export function ReviewPhotoViewer({
       alertOverModal(
         'Error',
         error instanceof Error ? error.message : 'Could not share photo',
-      );
-    } finally {
-      setBusy(false);
-    }
-  }, [busy, index, uris]);
-
-  const handleSave = useCallback(async () => {
-    const uri = uris[index];
-    if (!uri || busy) return;
-    setBusy(true);
-    try {
-      await savePhotoUri(uri);
-      alertOverModal('Photo saved');
-    } catch (error) {
-      alertOverModal(
-        'Error',
-        error instanceof Error ? error.message : 'Could not save photo',
       );
     } finally {
       setBusy(false);
@@ -9463,7 +10263,6 @@ export function ReviewPhotoViewer({
           <PhotoViewerTopBar
             onClose={close}
             onShare={() => void handleShare()}
-            onSave={() => void handleSave()}
           />
 
           <PhotoViewerCountPill
@@ -9763,7 +10562,7 @@ type TopBarProps = {
   showTitle?: boolean;
 };
 
-/** Top gradient + close / save / share. */
+/** Top gradient + close / share (save via the system share sheet). */
 export function PhotoViewerTopBar({
   onClose,
   onShare,
@@ -10408,13 +11207,20 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: components/feed/FeedSwipeDelete.tsx
 ================================================================================
-import { useRef, useState, type ReactNode, type RefObject } from 'react';
+import {
+  useCallback,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import {
   Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
+  type LayoutChangeEvent,
 } from 'react-native';
 import ReanimatedSwipeable, {
   type SwipeableMethods,
@@ -10423,7 +11229,9 @@ import { SymbolView } from 'expo-symbols';
 import Animated, {
   Extrapolation,
   interpolate,
+  runOnJS,
   type SharedValue,
+  useAnimatedReaction,
   useAnimatedStyle,
 } from 'react-native-reanimated';
 
@@ -10433,13 +11241,16 @@ import {
   registerOpenSwipeable,
   updateOpenSwipeableFrame,
 } from '@/components/feed/openSwipeable';
-import { GustraColors } from '@/constants/Colors';
 import { captionTextStyle, Theme } from '@/constants/Theme';
 import { Haptics } from '@/services/haptics';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 
-/** House destructive — muted avoid red (not iOS system neon). */
-const DESTRUCTIVE_RED = GustraColors.ratingAvoid;
+/** iOS system destructive red (UIColor.systemRed light). */
+const IOS_DESTRUCTIVE_RED = '#FF3B30';
+/** Peek / threshold width — past this on release, row commits full swipe. */
 const ACTION_WIDTH = Platform.OS === 'ios' ? 74 : 80;
+/** Release past this fraction of the row → full swipe delete. */
+const FULL_SWIPE_FRACTION = 0.38;
 
 type FeedSwipeDeleteProps = {
   id: string;
@@ -10451,36 +11262,49 @@ type FeedSwipeDeleteProps = {
 
 type RightActionsProps = {
   progress: SharedValue<number>;
+  translation: SharedValue<number>;
+  rowWidth: number;
   cornerRadius: number;
   isOpen: boolean;
   onMeasure: () => void;
+  onPassFullThreshold: (passed: boolean) => void;
   deleteRef: RefObject<View | null>;
+  deleteLabel: string;
 };
 
 function RightDeleteActions({
   progress,
+  translation,
+  rowWidth,
   cornerRadius,
   isOpen,
   onMeasure,
+  onPassFullThreshold,
   deleteRef,
+  deleteLabel,
 }: RightActionsProps) {
+  const panelWidth = rowWidth > 0 ? rowWidth : ACTION_WIDTH;
+  const thresholdPx = Math.max(ACTION_WIDTH, panelWidth * FULL_SWIPE_FRACTION);
+
+  useAnimatedReaction(
+    () => -translation.value,
+    (drag, prev) => {
+      const passed = drag >= thresholdPx;
+      const wasPassed = (prev ?? 0) >= thresholdPx;
+      if (passed !== wasPassed) {
+        runOnJS(onPassFullThreshold)(passed);
+      }
+    },
+    [thresholdPx, onPassFullThreshold],
+  );
+
   const animStyle = useAnimatedStyle(() => ({
     opacity: interpolate(
       progress.value,
-      [0, 0.35, 1],
-      [0, 0.55, 1],
+      [0, 0.2, 1],
+      [0, 0.7, 1],
       Extrapolation.CLAMP,
     ),
-    transform: [
-      {
-        scale: interpolate(
-          progress.value,
-          [0, 1],
-          [0.88, 1],
-          Extrapolation.CLAMP,
-        ),
-      },
-    ],
   }));
 
   return (
@@ -10493,6 +11317,7 @@ function RightDeleteActions({
       style={[
         styles.deleteAction,
         {
+          width: panelWidth,
           borderTopRightRadius: cornerRadius,
           borderBottomRightRadius: cornerRadius,
         },
@@ -10500,8 +11325,9 @@ function RightDeleteActions({
       <Animated.View style={[styles.deleteAnimWrap, animStyle]}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Delete"
+          accessibilityLabel={deleteLabel}
           onPress={() => {
+            Haptics.warning();
             performOpenSwipeableDelete();
           }}
           style={({ pressed }) => [
@@ -10517,7 +11343,7 @@ function RightDeleteActions({
             tintColor="#FFFFFF"
             size={22}
           />
-          <Text style={styles.deleteLabel}>Delete</Text>
+          <Text style={styles.deleteLabel}>{deleteLabel}</Text>
         </Pressable>
       </Animated.View>
     </View>
@@ -10525,8 +11351,8 @@ function RightDeleteActions({
 }
 
 /**
- * Swipe-delete via ReanimatedSwipeable — closer to UIKit List swipeActions
- * (`allowsFullSwipe: false`, system red, progress-driven reveal, open haptic).
+ * Swipe-delete via ReanimatedSwipeable — iOS system red, open/commit haptics,
+ * full-swipe past ~38% of the row commits delete (card flies off, then confirm).
  */
 export function FeedSwipeDelete({
   id,
@@ -10534,63 +11360,104 @@ export function FeedSwipeDelete({
   children,
   cornerRadius = Theme.radius.xl,
 }: FeedSwipeDeleteProps) {
+  const { t } = useAppTranslation();
   const swipeableRef = useRef<SwipeableMethods>(null);
   const deleteRef = useRef<View>(null);
+  const onDeleteRef = useRef(onDelete);
+  onDeleteRef.current = onDelete;
+  const fullSwipeCommittedRef = useRef(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [rowWidth, setRowWidth] = useState(0);
 
-  const measureDeleteFrame = () => {
+  const deleteLabel = t('common.delete');
+  /** Release past ~delete-button width → snap fully open (card flies off). */
+  const rightThreshold = ACTION_WIDTH * 0.65;
+
+  const measureDeleteFrame = useCallback(() => {
     deleteRef.current?.measureInWindow((x, y, width, height) => {
       if (width <= 0 || height <= 0) return;
       updateOpenSwipeableFrame(id, { x, y, width, height });
     });
-  };
+  }, [id]);
+
+  const onPassFullThreshold = useCallback((passed: boolean) => {
+    if (passed) {
+      Haptics.medium();
+    }
+  }, []);
+
+  const triggerDeleteFromFullSwipe = useCallback(() => {
+    if (fullSwipeCommittedRef.current) return;
+    fullSwipeCommittedRef.current = true;
+    Haptics.warning();
+    // Bring the row back under the confirm alert; Cancel restores the card.
+    swipeableRef.current?.close();
+    onDeleteRef.current();
+  }, []);
+
+  const onRowLayout = useCallback((event: LayoutChangeEvent) => {
+    const width = Math.round(event.nativeEvent.layout.width);
+    if (width > 0) setRowWidth(width);
+  }, []);
 
   return (
-    <ReanimatedSwipeable
-      ref={swipeableRef}
-      friction={1}
-      rightThreshold={36}
-      dragOffsetFromRightEdge={16}
-      overshootRight={false}
-      overshootFriction={8}
-      enableTrackpadTwoFingerGesture
-      containerStyle={[
-        styles.container,
-        { borderRadius: cornerRadius },
-      ]}
-      childrenContainerStyle={
-        Platform.OS === 'android'
-          ? [styles.childrenAndroid, { borderRadius: cornerRadius }]
-          : undefined
-      }
-      onSwipeableOpen={() => {
-        setIsOpen(true);
-        Haptics.selectionChanged();
-        registerOpenSwipeable({
-          id,
-          close: () => swipeableRef.current?.close(),
-          onDelete,
-          deleteFrame: null,
-        });
-        requestAnimationFrame(() => {
-          measureDeleteFrame();
-        });
-      }}
-      onSwipeableClose={() => {
-        clearOpenSwipeable(id);
-        setIsOpen(false);
-      }}
-      renderRightActions={(progress) => (
-        <RightDeleteActions
-          progress={progress}
-          cornerRadius={cornerRadius}
-          isOpen={isOpen}
-          onMeasure={measureDeleteFrame}
-          deleteRef={deleteRef}
-        />
-      )}>
-      {children}
-    </ReanimatedSwipeable>
+    <View onLayout={onRowLayout}>
+      <ReanimatedSwipeable
+        ref={swipeableRef}
+        friction={1}
+        rightThreshold={rightThreshold}
+        dragOffsetFromRightEdge={16}
+        overshootRight={false}
+        overshootFriction={8}
+        enableTrackpadTwoFingerGesture
+        containerStyle={[
+          styles.container,
+          { borderRadius: cornerRadius },
+        ]}
+        childrenContainerStyle={
+          Platform.OS === 'android'
+            ? [styles.childrenAndroid, { borderRadius: cornerRadius }]
+            : undefined
+        }
+        onSwipeableOpenStartDrag={() => {
+          fullSwipeCommittedRef.current = false;
+          Haptics.selectionChanged();
+        }}
+        onSwipeableOpen={() => {
+          setIsOpen(true);
+          registerOpenSwipeable({
+            id,
+            close: () => swipeableRef.current?.close(),
+            onDelete: () => onDeleteRef.current(),
+            deleteFrame: null,
+          });
+          requestAnimationFrame(() => {
+            measureDeleteFrame();
+          });
+          // Full-width actions: open == committed full swipe → confirm delete.
+          triggerDeleteFromFullSwipe();
+        }}
+        onSwipeableClose={() => {
+          clearOpenSwipeable(id);
+          setIsOpen(false);
+          fullSwipeCommittedRef.current = false;
+        }}
+        renderRightActions={(progress, translation) => (
+          <RightDeleteActions
+            progress={progress}
+            translation={translation}
+            rowWidth={rowWidth}
+            cornerRadius={cornerRadius}
+            isOpen={isOpen}
+            onMeasure={measureDeleteFrame}
+            onPassFullThreshold={onPassFullThreshold}
+            deleteRef={deleteRef}
+            deleteLabel={deleteLabel}
+          />
+        )}>
+        {children}
+      </ReanimatedSwipeable>
+    </View>
   );
 }
 
@@ -10605,12 +11472,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   deleteAction: {
-    width: ACTION_WIDTH,
-    backgroundColor: DESTRUCTIVE_RED,
+    backgroundColor: IOS_DESTRUCTIVE_RED,
     justifyContent: 'center',
+    alignItems: 'flex-end',
   },
   deleteAnimWrap: {
-    flex: 1,
+    width: ACTION_WIDTH,
+    height: '100%',
   },
   deletePressable: {
     flex: 1,
@@ -11732,7 +12600,6 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { FeedSwipeDelete } from '@/components/feed/FeedSwipeDelete';
 import { RestaurantThumb } from '@/components/feed/RestaurantThumb';
 import { FavoriteHeartButton } from '@/components/ui/FavoriteHeartButton';
-import { SatisfactionDot } from '@/components/ui/SatisfactionDot';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
 import { GustraColors } from '@/constants/Colors';
@@ -11744,7 +12611,7 @@ import {
   Theme,
   Type,
 } from '@/constants/Theme';
-import { satisfactionFromScore, type RestaurantVisitSummary } from '@/data/types';
+import type { RestaurantVisitSummary } from '@/data/types';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { Haptics } from '@/services/haptics';
 
@@ -11771,7 +12638,6 @@ export function RestaurantFeedCard({
   const { t } = useAppTranslation();
   const displayScore =
     typeof scoreOverride === 'number' ? scoreOverride : summary.averageScore;
-  const level = satisfactionFromScore(displayScore);
 
   const card = (
     <Pressable
@@ -11814,12 +12680,9 @@ export function RestaurantFeedCard({
 
       <View style={styles.trailing}>
         {displayScore > 0 ? (
-          <>
-            <SerifText size={20} weight="bold" style={styles.score}>
-              {displayScore.toFixed(1)}
-            </SerifText>
-            <SatisfactionDot level={level} />
-          </>
+          <SerifText size={20} weight="bold" style={styles.score}>
+            {displayScore.toFixed(1)}
+          </SerifText>
         ) : null}
         <FavoriteHeartButton
           favorite={summary.isFavorite}
@@ -11893,10 +12756,13 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: components/feed/RestaurantThumb.tsx
 ================================================================================
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
-import { SymbolView } from 'expo-symbols';
 
+import {
+  PHOTO_PLACEHOLDER_BG,
+  PhotoPlaceholder,
+} from '@/components/ui/PhotoPlaceholder';
 import { Theme } from '@/constants/Theme';
 
 type RestaurantThumbProps = {
@@ -11904,16 +12770,19 @@ type RestaurantThumbProps = {
   size?: number;
 };
 
-/** Matches Swift feed placeholder: forestGreen @ 12% fill + forestGreen fork.knife. */
-const PLACEHOLDER_BG = 'rgba(36, 78, 57, 0.12)';
-
 /** 64×64 feed thumbnail — dish/interior photo with fork.knife fallback. */
 export function RestaurantThumb({
   uri,
   size = Theme.size.thumbnail,
 }: RestaurantThumbProps) {
   const [failed, setFailed] = useState(false);
-  const showImage = Boolean(uri) && !failed;
+  const trimmed = uri?.trim() ?? '';
+
+  useEffect(() => {
+    setFailed(false);
+  }, [trimmed]);
+
+  const showImage = trimmed.length > 0 && !failed;
 
   return (
     <View
@@ -11923,23 +12792,19 @@ export function RestaurantThumb({
           width: size,
           height: size,
           borderRadius: Theme.radius.md,
-          backgroundColor: showImage ? Theme.colors.bubble : PLACEHOLDER_BG,
+          backgroundColor: showImage ? Theme.colors.bubble : PHOTO_PLACEHOLDER_BG,
         },
       ]}>
       {showImage ? (
         <Image
-          source={{ uri }}
+          key={trimmed}
+          source={{ uri: trimmed }}
           style={styles.image}
           resizeMode="cover"
           onError={() => setFailed(true)}
         />
       ) : (
-        <SymbolView
-          // Material `local_dining` ≈ SF `fork.knife` (not the `restaurant` glyph).
-          name={{ ios: 'fork.knife', android: 'local_dining', web: 'restaurant' }}
-          tintColor={Theme.colors.forestGreen}
-          size={size * 0.4}
-        />
+        <PhotoPlaceholder iconSize={size * 0.4} />
       )}
     </View>
   );
@@ -11964,7 +12829,6 @@ FILE: components/feed/ReviewCard.tsx
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { RestaurantThumb } from '@/components/feed/RestaurantThumb';
-import { SatisfactionDot } from '@/components/ui/SatisfactionDot';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
 import { GustraColors } from '@/constants/Colors';
@@ -11978,7 +12842,7 @@ import {
 } from '@/constants/Theme';
 
 import { formatReviewDate } from '@/data/mockReviews';
-import { satisfactionFromScore, type Review } from '@/data/types';
+import type { Review } from '@/data/types';
 import { Haptics } from '@/services/haptics';
 
 type ReviewCardProps = {
@@ -11996,7 +12860,6 @@ export function ReviewCard({
   photoUrl,
   onPress,
 }: ReviewCardProps) {
-  const level = satisfactionFromScore(review.overallScore);
   const uri = review.photoUrls[0] ?? photoUrl;
 
   return (
@@ -12028,7 +12891,6 @@ export function ReviewCard({
         <SerifText size={20} weight="bold" style={styles.score}>
           {review.overallScore.toFixed(1)}
         </SerifText>
-        <SatisfactionDot level={level} />
       </View>
     </Pressable>
   );
@@ -14093,6 +14955,7 @@ import { SymbolView } from 'expo-symbols';
 
 import { GustraColors } from '@/constants/Colors';
 import { captionTextStyle, Theme } from '@/constants/Theme';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { Haptics } from '@/services/haptics';
 
 const PHOTO_SIZE = 72;
@@ -14107,6 +14970,8 @@ type ReorderablePhotoStripProps = {
   onToggleSelect: (uri: string) => void;
   onAddPress: () => void;
   isImporting?: boolean;
+  /** When false, the + / Take·Import entry is hidden (e.g. at max photos). */
+  canAddPhotos?: boolean;
   /** Parent form should disable vertical scroll while dragging. */
   onDraggingChange?: (dragging: boolean) => void;
 };
@@ -14124,8 +14989,10 @@ export function ReorderablePhotoStrip({
   onToggleSelect,
   onAddPress,
   isImporting = false,
+  canAddPhotos = true,
   onDraggingChange,
 }: ReorderablePhotoStripProps) {
+  const { t } = useAppTranslation();
   const selected = new Set(selectedUris);
   /** Skip the press that can follow a completed long-press drag. */
   const skipNextPressRef = useRef(false);
@@ -14160,8 +15027,8 @@ export function ReorderablePhotoStrip({
               accessibilityState={{ selected: isSelected }}
               accessibilityLabel={
                 isCover
-                  ? 'Cover photo. Tap to select, long-press to reorder.'
-                  : 'Photo. Tap to select, long-press to reorder.'
+                  ? t('forms.review.photoStrip.a11yCover')
+                  : t('forms.review.photoStrip.a11yPhoto')
               }
               style={styles.thumbHit}>
               <Image source={{ uri: item }} style={styles.thumb} resizeMode="cover" />
@@ -14170,7 +15037,9 @@ export function ReorderablePhotoStrip({
               ) : null}
               {isCover ? (
                 <View style={styles.coverBadge} pointerEvents="none">
-                  <Text style={styles.coverBadgeText}>Cover</Text>
+                  <Text style={styles.coverBadgeText}>
+                    {t('forms.review.photoStrip.cover')}
+                  </Text>
                 </View>
               ) : null}
               {isSelected ? (
@@ -14202,8 +15071,8 @@ export function ReorderablePhotoStrip({
       {photoUrls.length > 0 ? (
         <Text style={styles.hint}>
           {photoUrls.length > 1
-            ? 'Tap to select · long-press to reorder · first is Cover'
-            : 'Tap to select for removal'}
+            ? t('forms.review.photoStrip.hintReorder')
+            : t('forms.review.photoStrip.hintSelect')}
         </Text>
       ) : null}
       <DraggableFlatList
@@ -14238,26 +15107,28 @@ export function ReorderablePhotoStrip({
         containerStyle={styles.list}
         contentContainerStyle={styles.listContent}
         ListFooterComponent={
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Add Photos"
-            onPress={onAddPress}
-            disabled={isImporting}
-            activeOpacity={0.7}
-            style={styles.addPhoto}>
-            {isImporting ? (
-              <ActivityIndicator color={GustraColors.forestGreen} />
-            ) : Platform.OS === 'ios' ? (
-              <SymbolView
-                name="plus"
-                size={28}
-                tintColor={GustraColors.forestGreen}
-                weight="semibold"
-              />
-            ) : (
-              <MaterialIcons name="add" size={30} color={GustraColors.forestGreen} />
-            )}
-          </TouchableOpacity>
+          canAddPhotos ? (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={t('forms.review.addPhotos')}
+              onPress={onAddPress}
+              disabled={isImporting}
+              activeOpacity={0.7}
+              style={styles.addPhoto}>
+              {isImporting ? (
+                <ActivityIndicator color={GustraColors.forestGreen} />
+              ) : Platform.OS === 'ios' ? (
+                <SymbolView
+                  name="plus"
+                  size={28}
+                  tintColor={GustraColors.forestGreen}
+                  weight="semibold"
+                />
+              ) : (
+                <MaterialIcons name="add" size={30} color={GustraColors.forestGreen} />
+              )}
+            </TouchableOpacity>
+          ) : null
         }
       />
     </View>
@@ -16009,6 +16880,7 @@ import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle, Theme } from '@/constants/Theme';
 import { REVIEWER_MAX_NAME_LENGTH } from '@/context/ReviewerProfile';
 import type { ShareDestination } from '@/components/detail/ShareReviewChooser';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 const MESSAGE_MAX = 280;
 
@@ -16103,16 +16975,17 @@ function ChooserStep({
   onClose: () => void;
   onSelect: (destination: ShareDestination) => void;
 }) {
+  const { t } = useAppTranslation();
   return (
     <>
       <View style={styles.header}>
         <SerifText size={22} weight="semibold" style={styles.title}>
-          Share
+          {t('common.share')}
         </SerifText>
         <Pressable
           onPress={onClose}
           accessibilityRole="button"
-          accessibilityLabel="Cancel"
+          accessibilityLabel={t('common.cancel')}
           hitSlop={12}
           style={styles.iconButton}>
           <SymbolView
@@ -16124,15 +16997,15 @@ function ChooserStep({
       </View>
 
       <ChooserRow
-        title="Share Gustra file"
-        subtitle="To import in the Gustra app"
+        title={t('share.chooser.gustraFile')}
+        subtitle={t('share.chooser.gustraFileSubtitle')}
         iosName="doc.badge.arrow.up"
         androidName="upload-file"
         onPress={() => onSelect('gustraPackage')}
       />
       <ChooserRow
-        title="Send visual recommendation"
-        subtitle="Readable review for email or message"
+        title={t('share.chooser.visual')}
+        subtitle={t('share.chooser.visualSubtitle')}
         iosName="envelope.fill"
         androidName="email"
         onPress={() => onSelect('email')}
@@ -17703,12 +18576,14 @@ const styles = StyleSheet.create({
   sideRight: {
     right: 8,
     alignItems: 'flex-end',
+    width: undefined,
+    maxWidth: 120,
   },
   titleWrap: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 52,
+    paddingHorizontal: 96,
     overflow: 'visible',
   },
   title: {
@@ -17871,6 +18746,50 @@ const styles = StyleSheet.create({
 
 
 ================================================================================
+FILE: components/ui/PhotoPlaceholder.tsx
+================================================================================
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { SymbolView } from 'expo-symbols';
+
+import { Theme } from '@/constants/Theme';
+
+/** Matches Swift feed placeholder: forestGreen @ 12% fill + forestGreen fork.knife. */
+export const PHOTO_PLACEHOLDER_BG = 'rgba(36, 78, 57, 0.12)';
+
+type PhotoPlaceholderProps = {
+  /** Icon size in points (defaults to ~40% of a 64pt thumb). */
+  iconSize?: number;
+  style?: StyleProp<ViewStyle>;
+};
+
+/** Shared empty-photo glyph used on Reviews feed and review detail. */
+export function PhotoPlaceholder({
+  iconSize = Theme.size.thumbnail * 0.4,
+  style,
+}: PhotoPlaceholderProps) {
+  return (
+    <View style={[styles.wrap, style]}>
+      <SymbolView
+        // Material `local_dining` ≈ SF `fork.knife` (not the `restaurant` glyph).
+        name={{ ios: 'fork.knife', android: 'local_dining', web: 'restaurant' }}
+        tintColor={Theme.colors.forestGreen}
+        size={iconSize}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: PHOTO_PLACEHOLDER_BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+
+
+================================================================================
 FILE: components/ui/PhotoSourceChooser.tsx
 ================================================================================
 import {
@@ -17938,18 +18857,10 @@ export function PhotoSourceChooserBody({
               title={t('forms.photos.takePhoto')}
               onPress={onTakePhoto}
             />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('forms.photos.importPhoto')}
+            <HousePrimaryButton
+              title={t('forms.photos.importPhoto')}
               onPress={onImportPhoto}
-              style={({ pressed }) => [
-                styles.secondaryButton,
-                pressed && styles.pressed,
-              ]}>
-              <Text style={styles.secondaryLabel}>
-                {t('forms.photos.importPhoto')}
-              </Text>
-            </Pressable>
+            />
           </View>
         </>
       )}
@@ -18080,19 +18991,6 @@ const styles = StyleSheet.create({
   actions: {
     width: '100%',
     gap: 12,
-  },
-  secondaryButton: {
-    width: '100%',
-    minHeight: 52,
-    borderRadius: 14,
-    backgroundColor: 'rgba(36, 78, 57, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryLabel: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: GustraColors.forestGreen,
   },
   pressed: {
     opacity: 0.75,
@@ -18440,6 +19338,480 @@ export function useColorScheme() {
 
 
 ================================================================================
+FILE: components/wine/LabelCropCanvas.tsx
+================================================================================
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Image,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+  type LayoutChangeEvent,
+} from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
+
+import { GustraColors } from '@/constants/Colors';
+import {
+  clampLabelOffset,
+  labelCoverSize,
+  type CropTransform,
+  type ImageSize,
+  type LabelCropViewport,
+} from '@/services/photos/labelCrop';
+
+const MIN_SCALE = 1;
+const MAX_SCALE = 5;
+/** Portrait label frame (~wine bottle label). */
+const LABEL_ASPECT = 0.68; // width / height
+
+type LabelCropCanvasProps = {
+  uri: string;
+  accessibilityLabel?: string;
+  onTransformChange?: (
+    transform: CropTransform,
+    viewport: LabelCropViewport,
+  ) => void;
+  onImageSize?: (size: ImageSize) => void;
+};
+
+/**
+ * Rectangular pinch/pan crop for wine bottle labels.
+ * Gestures + runOnJS targets stay stable (avoids Reanimated DisplayLink abort).
+ */
+export function LabelCropCanvas({
+  uri,
+  accessibilityLabel = 'Wine label',
+  onTransformChange,
+  onImageSize,
+}: LabelCropCanvasProps) {
+  const { width: windowWidth } = useWindowDimensions();
+  const [viewport, setViewport] = useState<LabelCropViewport>({
+    width: windowWidth * 0.72,
+    height: (windowWidth * 0.72) / LABEL_ASPECT,
+  });
+  const [imageSize, setImageSize] = useState<ImageSize | null>(null);
+  const onTransformChangeRef = useRef(onTransformChange);
+  const onImageSizeRef = useRef(onImageSize);
+  const imageSizeRef = useRef<ImageSize | null>(null);
+  const mountedRef = useRef(true);
+  onTransformChangeRef.current = onTransformChange;
+  onImageSizeRef.current = onImageSize;
+  imageSizeRef.current = imageSize;
+
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+  const offsetX = useSharedValue(0);
+  const offsetY = useSharedValue(0);
+  const savedX = useSharedValue(0);
+  const savedY = useSharedValue(0);
+  const coverW = useSharedValue(viewport.width);
+  const coverH = useSharedValue(viewport.height);
+  const viewW = useSharedValue(viewport.width);
+  const viewH = useSharedValue(viewport.height);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const publish = useCallback(
+    (nextScale: number, x: number, y: number, vw: number, vh: number) => {
+      if (!mountedRef.current) return;
+      onTransformChangeRef.current?.(
+        { scale: nextScale, offsetX: x, offsetY: y },
+        { width: vw, height: vh },
+      );
+    },
+    [],
+  );
+
+  const resetTransform = useCallback(
+    (size: ImageSize, vp: LabelCropViewport) => {
+      const cover = labelCoverSize(size, vp);
+      coverW.value = cover.width;
+      coverH.value = cover.height;
+      viewW.value = vp.width;
+      viewH.value = vp.height;
+      scale.value = 1;
+      savedScale.value = 1;
+      offsetX.value = 0;
+      offsetY.value = 0;
+      savedX.value = 0;
+      savedY.value = 0;
+      publish(1, 0, 0, vp.width, vp.height);
+    },
+    [
+      coverH,
+      coverW,
+      offsetX,
+      offsetY,
+      publish,
+      savedScale,
+      savedX,
+      savedY,
+      scale,
+      viewH,
+      viewW,
+    ],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    Image.getSize(
+      uri,
+      (width, height) => {
+        if (cancelled || !mountedRef.current) return;
+        const size = { width, height };
+        setImageSize(size);
+        onImageSizeRef.current?.(size);
+        resetTransform(size, {
+          width: viewW.value,
+          height: viewH.value,
+        });
+      },
+      () => {
+        if (cancelled || !mountedRef.current) return;
+        const fallback = { width: 1, height: 1 };
+        setImageSize(fallback);
+        onImageSizeRef.current?.(fallback);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [resetTransform, uri, viewH, viewW]);
+
+  const onLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      const { width, height } = e.nativeEvent.layout;
+      const maxW = width * 0.82;
+      const maxH = height * 0.88;
+      let frameH = maxH;
+      let frameW = frameH * LABEL_ASPECT;
+      if (frameW > maxW) {
+        frameW = maxW;
+        frameH = frameW / LABEL_ASPECT;
+      }
+      if (frameW <= 1 || frameH <= 1) return;
+      const next = { width: frameW, height: frameH };
+      setViewport(next);
+      viewW.value = next.width;
+      viewH.value = next.height;
+      const size = imageSizeRef.current;
+      if (!size) return;
+      const cover = labelCoverSize(size, next);
+      coverW.value = cover.width;
+      coverH.value = cover.height;
+      const clamped = clampLabelOffset(
+        offsetX.value,
+        offsetY.value,
+        size,
+        next,
+        scale.value,
+      );
+      offsetX.value = clamped.x;
+      offsetY.value = clamped.y;
+      savedX.value = clamped.x;
+      savedY.value = clamped.y;
+      publish(scale.value, clamped.x, clamped.y, next.width, next.height);
+    },
+    [
+      coverH,
+      coverW,
+      offsetX,
+      offsetY,
+      publish,
+      savedX,
+      savedY,
+      scale,
+      viewH,
+      viewW,
+    ],
+  );
+
+  const gesture = useMemo(() => {
+    const pinch = Gesture.Pinch()
+      .onUpdate((e) => {
+        'worklet';
+        const next = Math.min(
+          MAX_SCALE,
+          Math.max(MIN_SCALE, savedScale.value * e.scale),
+        );
+        scale.value = next;
+        const displayW = coverW.value * next;
+        const displayH = coverH.value * next;
+        const limX = Math.max(0, (displayW - viewW.value) / 2);
+        const limY = Math.max(0, (displayH - viewH.value) / 2);
+        offsetX.value = Math.min(Math.max(offsetX.value, -limX), limX);
+        offsetY.value = Math.min(Math.max(offsetY.value, -limY), limY);
+      })
+      .onEnd(() => {
+        'worklet';
+        savedScale.value = scale.value;
+        savedX.value = offsetX.value;
+        savedY.value = offsetY.value;
+        runOnJS(publish)(
+          scale.value,
+          offsetX.value,
+          offsetY.value,
+          viewW.value,
+          viewH.value,
+        );
+      });
+
+    const pan = Gesture.Pan()
+      .averageTouches(true)
+      .onUpdate((e) => {
+        'worklet';
+        const displayW = coverW.value * scale.value;
+        const displayH = coverH.value * scale.value;
+        const limX = Math.max(0, (displayW - viewW.value) / 2);
+        const limY = Math.max(0, (displayH - viewH.value) / 2);
+        offsetX.value = Math.min(
+          Math.max(savedX.value + e.translationX, -limX),
+          limX,
+        );
+        offsetY.value = Math.min(
+          Math.max(savedY.value + e.translationY, -limY),
+          limY,
+        );
+      })
+      .onEnd(() => {
+        'worklet';
+        savedX.value = offsetX.value;
+        savedY.value = offsetY.value;
+        runOnJS(publish)(
+          scale.value,
+          offsetX.value,
+          offsetY.value,
+          viewW.value,
+          viewH.value,
+        );
+      });
+
+    return Gesture.Simultaneous(pinch, pan);
+  }, [
+    coverH,
+    coverW,
+    offsetX,
+    offsetY,
+    publish,
+    savedScale,
+    savedX,
+    savedY,
+    scale,
+    viewH,
+    viewW,
+  ]);
+
+  const imageStyle = useAnimatedStyle(() => ({
+    width: coverW.value,
+    height: coverH.value,
+    transform: [
+      { translateX: offsetX.value },
+      { translateY: offsetY.value },
+      { scale: scale.value },
+    ],
+  }));
+
+  return (
+    <View
+      style={styles.wrap}
+      onLayout={onLayout}
+      accessibilityLabel={accessibilityLabel}>
+      <GestureDetector gesture={gesture}>
+        <Animated.View
+          style={[
+            styles.frame,
+            { width: viewport.width, height: viewport.height },
+          ]}
+          collapsable={false}>
+          {imageSize ? (
+            <Animated.Image
+              source={{ uri }}
+              style={[styles.image, imageStyle]}
+              resizeMode="stretch"
+            />
+          ) : null}
+          <View pointerEvents="none" style={styles.ring} />
+        </Animated.View>
+      </GestureDetector>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 320,
+  },
+  frame: {
+    overflow: 'hidden',
+    backgroundColor: 'rgba(36, 78, 57, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+  },
+  image: {
+    position: 'absolute',
+  },
+  ring: {
+    ...StyleSheet.absoluteFillObject,
+    borderWidth: 2.5,
+    borderColor: GustraColors.forestGreen,
+    borderRadius: 12,
+  },
+});
+
+
+================================================================================
+FILE: components/wine/WineLabelFicheView.tsx
+================================================================================
+import { Image, StyleSheet, Text, View } from 'react-native';
+
+import { PhotoPlaceholder } from '@/components/ui/PhotoPlaceholder';
+import { SerifText } from '@/components/ui/SerifText';
+import { GustraColors } from '@/constants/Colors';
+import { bodyTextStyle, captionTextStyle, Theme } from '@/constants/Theme';
+import type { WineLabelFiche } from '@/data/types';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
+
+type WineLabelFicheViewProps = {
+  fiche: WineLabelFiche;
+};
+
+type RowProps = {
+  label: string;
+  value: string;
+};
+
+function FicheRow({ label, value }: RowProps) {
+  return (
+    <View style={styles.row}>
+      <Text style={styles.rowLabel}>{label}</Text>
+      <Text style={styles.rowValue}>{value}</Text>
+    </View>
+  );
+}
+
+/**
+ * House-styled wine fiche: label photo on top, fields by importance.
+ */
+export function WineLabelFicheView({ fiche }: WineLabelFicheViewProps) {
+  const { t } = useAppTranslation();
+  const uri = fiche.labelPhotoUri?.trim() ?? '';
+  const alcohol =
+    fiche.alcoholPercent != null && Number.isFinite(fiche.alcoholPercent)
+      ? `${fiche.alcoholPercent}%`
+      : '';
+
+  return (
+    <View style={styles.wrap}>
+      <View style={styles.photoFrame}>
+        {uri ? (
+          <Image source={{ uri }} style={styles.photo} resizeMode="contain" />
+        ) : (
+          <PhotoPlaceholder iconSize={48} />
+        )}
+      </View>
+
+      <SerifText size={22} weight="semibold" style={styles.title}>
+        {fiche.nameAndEstate}
+      </SerifText>
+
+      {fiche.typeStyle?.trim() ? (
+        <FicheRow
+          label={t('wineScan.fiche.typeStyle')}
+          value={fiche.typeStyle.trim()}
+        />
+      ) : null}
+      {fiche.countryRegion?.trim() ? (
+        <FicheRow
+          label={t('wineScan.fiche.countryRegion')}
+          value={fiche.countryRegion.trim()}
+        />
+      ) : null}
+      {fiche.vintage?.trim() ? (
+        <FicheRow
+          label={t('wineScan.fiche.vintage')}
+          value={fiche.vintage.trim()}
+        />
+      ) : null}
+      {fiche.grapes?.trim() ? (
+        <FicheRow
+          label={t('wineScan.fiche.grapes')}
+          value={fiche.grapes.trim()}
+        />
+      ) : null}
+      {alcohol ? (
+        <FicheRow label={t('wineScan.fiche.alcohol')} value={alcohol} />
+      ) : null}
+      {fiche.foodPairings?.trim() ? (
+        <FicheRow
+          label={t('wineScan.fiche.foodPairings')}
+          value={fiche.foodPairings.trim()}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: {
+    gap: 12,
+  },
+  photoFrame: {
+    alignSelf: 'center',
+    width: '70%',
+    aspectRatio: 0.72,
+    borderRadius: Theme.radius.md,
+    overflow: 'hidden',
+    backgroundColor: GustraColors.bubble,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(35, 32, 26, 0.14)',
+  },
+  photo: {
+    width: '100%',
+    height: '100%',
+  },
+  title: {
+    color: GustraColors.ink,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  row: {
+    gap: 4,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(35, 32, 26, 0.12)',
+  },
+  rowLabel: {
+    ...captionTextStyle,
+    fontSize: 13,
+    fontWeight: '600',
+    color: GustraColors.forestGreen,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  rowValue: {
+    ...bodyTextStyle,
+    fontSize: 17,
+    color: GustraColors.ink,
+  },
+});
+
+
+================================================================================
 FILE: constants/Colors.ts
 ================================================================================
 /**
@@ -18481,6 +19853,49 @@ export default {
     tabIconSelected: gold,
     card: '#2C2822',
     border: 'rgba(245, 238, 221, 0.12)',
+  },
+};
+
+
+================================================================================
+FILE: constants/GeminiAPIConfig.ts
+================================================================================
+import Constants from 'expo-constants';
+
+/**
+ * Google Gemini API key for wine-label Vision (local `.env` only).
+ * `EXPO_PUBLIC_GEMINI_API_KEY` — never hardcode; prefer a server proxy for production.
+ */
+function readApiKey(): string {
+  const extra = Constants.expoConfig?.extra as
+    | { geminiApiKey?: string }
+    | undefined;
+  const fromExtra = extra?.geminiApiKey?.trim();
+  if (fromExtra) return fromExtra;
+
+  const fromEnv = process.env.EXPO_PUBLIC_GEMINI_API_KEY?.trim();
+  if (fromEnv) return fromEnv;
+
+  return '';
+}
+
+export const GeminiAPIConfig = {
+  get apiKey(): string {
+    return readApiKey();
+  },
+
+  get isConfigured(): boolean {
+    return readApiKey().length > 0;
+  },
+
+  requireApiKey(): string {
+    const key = readApiKey();
+    if (!key) {
+      throw new Error(
+        'Gemini API key is missing. Copy .env.example to .env and set EXPO_PUBLIC_GEMINI_API_KEY, then restart Expo.',
+      );
+    }
+    return key;
   },
 };
 
@@ -19462,7 +20877,7 @@ export type CategoryAveragesDisplayStyle = 'numbers' | 'stars';
 const STORAGE_KEY = 'passportCategoryAveragesDisplayStyle';
 
 /** Survives provider remounts / Fast Refresh so stars preference is not lost. */
-let cachedStyle: CategoryAveragesDisplayStyle = 'numbers';
+let cachedStyle: CategoryAveragesDisplayStyle = 'stars';
 let hydrated = false;
 let hydratePromise: Promise<CategoryAveragesDisplayStyle> | null = null;
 
@@ -19991,6 +21406,7 @@ import type {
   RestaurantVisitSummary,
   Review,
   ReviewOrigin,
+  WineLabelFiche,
 } from '@/data/types';
 import { normalizeRestaurant, resolveReviewOrigin } from '@/data/types';
 import { formatAbbreviatedDate } from '@/i18n/formatDates';
@@ -20017,6 +21433,7 @@ import {
 import { findExistingRestaurant } from '@/services/places/RestaurantMatcher';
 import type { RestaurantDraft } from '@/services/places/types';
 import { deleteReviewPhotoFiles } from '@/services/reviews/photoStorage';
+import { planImportedReviewCollapse } from '@/services/share/ShareImportService';
 import {
   RatingValue,
   migrateLegacyCriteria,
@@ -20045,6 +21462,8 @@ export type ReviewFormUpsertInput = {
   photoUrls: string[];
   /** OCR text from review photos (Swift `ocrIndexedText`). */
   ocrText?: string;
+  /** Gemini wine-label fiche (additive). */
+  wineLabel?: WineLabelFiche | null;
   /** Custom criterion titles for search indexing. */
   customCriterionNames?: string[];
 };
@@ -20099,10 +21518,12 @@ type ReviewsStoreValue = {
     message: string;
     reviewCount: number;
   }>;
-  /** Merge imported friends reviews from a `.gustrashare` package. */
+  /** Merge / upsert imported friends reviews from a `.gustrashare` package. */
   importSharePackage: (result: {
     restaurants: Restaurant[];
     reviews: Review[];
+    removeReviewIds?: string[];
+    removeRestaurantIds?: string[];
   }) => Promise<void>;
 };
 
@@ -20190,6 +21611,7 @@ function normalizeReview(review: Review, migrateLegacy = false): Review {
     origin: resolveReviewOrigin(review),
     searchableText,
     ocrText,
+    sourceReviewId: review.sourceReviewId?.trim() || undefined,
   };
 }
 
@@ -20203,6 +21625,45 @@ function reviewerNamesForVisits(visits: Review[]): string | undefined {
     names.push(name);
   }
   return names.length > 0 ? names.join(', ') : undefined;
+}
+
+/** First non-empty photo URI from a review’s ordered list (cover = index 0). */
+function firstPhotoUrl(photoUrls: string[] | undefined): string {
+  if (!photoUrls?.length) return '';
+  for (const raw of photoUrls) {
+    const uri = raw?.trim();
+    if (uri) return uri;
+  }
+  return '';
+}
+
+/**
+ * Cover for a restaurant: newest visit’s cover photo, else older visits.
+ * Keeps Reviews feed in sync after delete / reorder / clear photos.
+ */
+function coverPhotoForRestaurant(
+  restaurantId: string,
+  reviews: Review[],
+): string {
+  const visits = reviews
+    .filter((r) => r.restaurantId === restaurantId)
+    .sort((a, b) => +new Date(b.date) - +new Date(a.date));
+  for (const visit of visits) {
+    const photo = firstPhotoUrl(visit.photoUrls);
+    if (photo) return photo;
+  }
+  return '';
+}
+
+function withRestaurantCover(
+  restaurants: Restaurant[],
+  restaurantId: string,
+  reviews: Review[],
+): Restaurant[] {
+  const photoUrl = coverPhotoForRestaurant(restaurantId, reviews);
+  return restaurants.map((r) =>
+    r.id === restaurantId ? { ...r, photoUrl } : r,
+  );
 }
 
 function buildFeedSummaries(
@@ -20219,7 +21680,7 @@ function buildFeedSummaries(
     if (visits.length === 0) continue;
     const averageScore =
       visits.reduce((sum, v) => sum + v.overallScore, 0) / visits.length;
-    const latestPhoto = visits[0].photoUrls[0] ?? restaurant.photoUrl;
+    const latestPhoto = coverPhotoForRestaurant(restaurant.id, visits);
     summaries.push({
       restaurantId: restaurant.id,
       name: restaurant.name,
@@ -20297,11 +21758,30 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
               normalizedRestaurants,
               normalizedReviews,
             );
-            setRestaurants(cleaned.restaurants);
-            setReviews(cleaned.reviews);
+            const collapse = planImportedReviewCollapse(
+              cleaned.reviews,
+              cleaned.restaurants,
+            );
+            let hydratedReviews = cleaned.reviews;
+            let hydratedRestaurants = cleaned.restaurants;
+            if (collapse.removeReviewIds.length > 0) {
+              const dropReviews = new Set(collapse.removeReviewIds);
+              const dropRestaurants = new Set(collapse.removeRestaurantIds);
+              hydratedReviews = hydratedReviews.filter(
+                (r) => !dropReviews.has(r.id),
+              );
+              const used = new Set(
+                hydratedReviews.map((r) => r.restaurantId).filter(Boolean),
+              );
+              hydratedRestaurants = hydratedRestaurants.filter(
+                (r) => used.has(r.id) && !dropRestaurants.has(r.id),
+              );
+            }
+            setRestaurants(hydratedRestaurants);
+            setReviews(hydratedReviews);
             await persist({
-              restaurants: cleaned.restaurants,
-              reviews: cleaned.reviews,
+              restaurants: hydratedRestaurants,
+              reviews: hydratedReviews,
             });
             if (migrateLegacy) {
               await AsyncStorage.removeItem(LEGACY_STORAGE_KEY);
@@ -20311,8 +21791,8 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
             void (async () => {
               try {
                 const auto = await ensureSwiftLegacyMigration({
-                  currentRestaurants: cleaned.restaurants,
-                  currentReviews: cleaned.reviews,
+                  currentRestaurants: hydratedRestaurants,
+                  currentReviews: hydratedReviews,
                 });
                 if (auto.importResult && !cancelled) {
                   const restaurants = auto.importResult.restaurants.map(
@@ -20416,7 +21896,11 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
         (r) => r.restaurantId === summary.restaurantId,
       );
       const nextRestaurants = stillHasReviews
-        ? restaurants
+        ? withRestaurantCover(
+            restaurants,
+            summary.restaurantId,
+            nextReviews,
+          )
         : restaurants.filter((r) => r.id !== summary.restaurantId);
       setReviews(nextReviews);
       setRestaurants(nextRestaurants);
@@ -20564,10 +22048,13 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
               ? Math.round(c.rating)
               : RatingValue.unrated,
         }));
-        const photoUrls = input.photoUrls.filter(Boolean);
+        const photoUrls = input.photoUrls.map((u) => u.trim()).filter(Boolean);
         const overallScore = overallScoreFromCriteria(criteria);
-        const coverPhoto = photoUrls[0] ?? restaurant.photoUrl;
         const ocrText = (input.ocrText ?? existingReview?.ocrText ?? '').trim();
+        const wineLabel =
+          input.wineLabel !== undefined
+            ? input.wineLabel
+            : (existingReview?.wineLabel ?? null);
         const searchableText = rebuildSearchableText({
           restaurant,
           generalComment: input.generalComment.trim(),
@@ -20575,14 +22062,6 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
           customCriterionNames: input.customCriterionNames,
           ocrText,
         });
-
-        restaurant = {
-          ...restaurant,
-          photoUrl: coverPhoto || restaurant.photoUrl,
-        };
-        nextRestaurants = nextRestaurants.map((r) =>
-          r.id === restaurant!.id ? restaurant! : r,
-        );
 
         let reviewId = existingReview?.id;
         let reviewToUpdate = existingReview;
@@ -20612,6 +22091,7 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
                   origin: resolveReviewOrigin(r),
                   searchableText,
                   ocrText,
+                  wineLabel,
                 }
               : r,
           );
@@ -20631,9 +22111,18 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
               origin: 'own',
               searchableText,
               ocrText,
+              wineLabel,
             },
           ];
         }
+
+        nextRestaurants = withRestaurantCover(
+          nextRestaurants,
+          restaurant.id,
+          nextReviews,
+        );
+        restaurant =
+          nextRestaurants.find((r) => r.id === restaurant!.id) ?? restaurant;
 
         restaurantsRef.current = nextRestaurants;
         reviewsRef.current = nextReviews;
@@ -20668,7 +22157,11 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
         (r) => r.restaurantId === target.restaurantId,
       );
       const nextRestaurants = stillHasReviews
-        ? restaurants
+        ? withRestaurantCover(
+            restaurants,
+            target.restaurantId,
+            nextReviews,
+          )
         : restaurants.filter((r) => r.id !== target.restaurantId);
 
       setReviews(nextReviews);
@@ -20795,19 +22288,70 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const importSharePackage = useCallback(
-    async (result: { restaurants: Restaurant[]; reviews: Review[] }) => {
-      if (result.reviews.length === 0) return;
-      const nextRestaurants = [...restaurants];
-      const seenRestaurantIds = new Set(restaurants.map((r) => r.id));
-      for (const restaurant of result.restaurants) {
-        if (seenRestaurantIds.has(restaurant.id)) continue;
-        nextRestaurants.push(normalizeRestaurant(restaurant));
-        seenRestaurantIds.add(restaurant.id);
+    async (result: {
+      restaurants: Restaurant[];
+      reviews: Review[];
+      removeReviewIds?: string[];
+      removeRestaurantIds?: string[];
+    }) => {
+      if (
+        result.reviews.length === 0 &&
+        !(result.removeReviewIds?.length) &&
+        !(result.removeRestaurantIds?.length)
+      ) {
+        return;
       }
-      const nextReviews = [
-        ...reviews,
-        ...result.reviews.map((r) => normalizeReview(r)),
-      ];
+
+      const removeReviewIds = new Set(result.removeReviewIds ?? []);
+      const removeRestaurantIds = new Set(result.removeRestaurantIds ?? []);
+
+      let nextReviews = reviews.filter((r) => !removeReviewIds.has(r.id));
+      for (const incoming of result.reviews.map((r) => normalizeReview(r))) {
+        const index = nextReviews.findIndex((r) => r.id === incoming.id);
+        if (index >= 0) nextReviews[index] = incoming;
+        else nextReviews.push(incoming);
+      }
+
+      let nextRestaurants = restaurants.filter(
+        (r) => !removeRestaurantIds.has(r.id),
+      );
+      for (const incoming of result.restaurants.map((r) =>
+        normalizeRestaurant(r),
+      )) {
+        const index = nextRestaurants.findIndex((r) => r.id === incoming.id);
+        if (index >= 0) {
+          nextRestaurants[index] = normalizeRestaurant({
+            ...incoming,
+            isFavorite:
+              nextRestaurants[index]!.isFavorite || incoming.isFavorite,
+          });
+        } else {
+          nextRestaurants.push(incoming);
+        }
+      }
+
+      // Second pass: collapse any remaining friend duplicates already on device.
+      const collapse = planImportedReviewCollapse(
+        nextReviews,
+        nextRestaurants,
+      );
+      if (collapse.removeReviewIds.length > 0) {
+        const extraRemove = new Set(collapse.removeReviewIds);
+        nextReviews = nextReviews.filter((r) => !extraRemove.has(r.id));
+      }
+      if (collapse.removeRestaurantIds.length > 0) {
+        const extraRest = new Set(collapse.removeRestaurantIds);
+        nextRestaurants = nextRestaurants.filter((r) => !extraRest.has(r.id));
+      }
+
+      // Drop restaurants that no longer have any visits (e.g. collapsed dupes).
+      const usedRestaurantIds = new Set(
+        nextReviews.map((r) => r.restaurantId).filter(Boolean),
+      );
+      nextRestaurants = nextRestaurants.filter((r) =>
+        usedRestaurantIds.has(r.id),
+      );
+
       setRestaurants(nextRestaurants);
       setReviews(nextReviews);
       await persist({
@@ -21704,6 +23248,19 @@ export type SatisfactionLevel = 'excellent' | 'neutral' | 'avoid';
 /** Matches Swift `ReviewOrigin`. */
 export type ReviewOrigin = 'own' | 'imported';
 
+/** Structured wine-label fiche (Gemini Vision); optional on older reviews. */
+export type WineLabelFiche = {
+  labelPhotoUri: string;
+  nameAndEstate: string;
+  typeStyle?: string;
+  countryRegion?: string;
+  vintage?: string | null;
+  grapes?: string | null;
+  alcoholPercent?: number | null;
+  foodPairings?: string | null;
+  analyzedAt?: string;
+};
+
 export type CriterionRating = {
   id: string;
   title: string;
@@ -21799,6 +23356,16 @@ export type Review = {
    * without re-running Vision/ML Kit.
    */
   ocrText?: string;
+  /**
+   * Gemini wine-label fiche (additive). Absent on older reviews / no match.
+   */
+  wineLabel?: WineLabelFiche | null;
+  /**
+   * Original review id from a `.gustrashare` package (friend's UUID).
+   * Used to upsert on re-import instead of creating duplicates. Absent on
+   * older imports / own reviews.
+   */
+  sourceReviewId?: string;
 };
 
 /** Legacy backfill: non-empty `reviewedBy` ⇒ imported (Swift migrate). */
@@ -22414,7 +23981,8 @@ FILE: i18n/locales/de.json
     "share": "Teilen",
     "filters": "Filter",
     "addReview": "Bewertung hinzufügen",
-    "myLocation": "My location",
+    "myLocation": "Mein Standort",
+    "mapLegend": "Kartenlegende",
     "clearLocation": "Clear location filter",
     "clearCuisine": "Clear cuisine filter",
     "clearFavorites": "Clear favorites filter",
@@ -22482,6 +24050,11 @@ FILE: i18n/locales/de.json
   "map": {
     "title": "Meine Karte",
     "friendSuffix": "(Freund)",
+    "legend": {
+      "title": "Pins",
+      "own": "Meine Bewertungen",
+      "friends": "Bewertungen von Freunden"
+    },
     "empty": {
       "noMatchesTitle": "Keine Treffer",
       "noMatchesBody": "Keine Restaurants entsprechen den aktuellen Filtern.",
@@ -22582,7 +24155,8 @@ FILE: i18n/locales/de.json
     "languageFrench": "Français",
     "languageValueGerman": "Deutsch",
     "languageValueSpanish": "Español",
-    "languageValueFrench": "Français"
+    "languageValueFrench": "Français",
+    "geminiApi": "Gemini Wein-Vision"
   },
   "criteria": {
     "food": "Essen",
@@ -22648,8 +24222,15 @@ FILE: i18n/locales/de.json
       "removePhotos": "Remove Photos",
       "indexing": "Indexing photo text…",
       "avg": "{{score}} avg",
-      "time": "Time",
-      "setTime": "Set time · {{time}}"
+      "time": "Zeit",
+      "setTime": "Zeit festlegen · {{time}}",
+      "photoStrip": {
+        "hintReorder": "Tippen zum Auswählen · gedrückt halten zum Sortieren · erste ist Cover",
+        "hintSelect": "Tippen zum Auswählen zum Entfernen",
+        "cover": "Cover",
+        "a11yCover": "Cover-Foto. Tippen zum Auswählen, gedrückt halten zum Sortieren.",
+        "a11yPhoto": "Foto. Tippen zum Auswählen, gedrückt halten zum Sortieren."
+      }
     },
     "photos": {
       "takePhoto": "Foto aufnehmen",
@@ -22671,9 +24252,9 @@ FILE: i18n/locales/de.json
     "options": {
       "title": "Optionen",
       "a11y": "Optionen",
-      "recordVisit": "Record new visit",
+      "recordVisit": "Neuen Besuch erfassen",
       "editReview": "Bewertung bearbeiten",
-      "cannotEditFriend": "You can’t edit a friend’s review",
+      "cannotEditFriend": "Du kannst die Bewertung eines Freundes nicht bearbeiten",
       "deleteReview": "Bewertung löschen",
       "shareSection": "Teilen"
     },
@@ -22708,8 +24289,8 @@ FILE: i18n/locales/de.json
     "chooser": {
       "gustraFile": "Share Gustra file",
       "gustraFileSubtitle": "Friends can import this into Gustra",
-      "visual": "Send visual recommendation",
-      "visualSubtitle": "A shareable image of this review",
+      "visual": "Bewertung per E-Mail teilen",
+      "visualSubtitle": "Schöne Karte dieser Bewertung senden",
       "cancel": "Abbrechen"
     },
     "nameSheet": {
@@ -22802,6 +24383,8 @@ FILE: i18n/locales/de.json
       "removePhotosTitle": "Remove Photos?",
       "removePhotosBody": "Selected photos will be removed from this review.",
       "photosSaveFailed": "Could not save photos.",
+      "photoLimitTitle": "Fotolimit",
+      "photoLimitBody": "Du kannst bis zu {{max}} Fotos zu einer Bewertung hinzufügen.",
       "deleteTitle": "Delete?",
       "deleteBody": "This review will be deleted.",
       "discardEdits": {
@@ -22846,6 +24429,49 @@ FILE: i18n/locales/de.json
     "profilePhoto": {
       "storageTitle": "Speicher",
       "storageBody": "Could not save the profile photo."
+    }
+  },
+  "wineScan": {
+    "title": "Weinetikett scannen",
+    "lead": "Fotografiere das Flaschenetikett",
+    "hint": "Schneide das Etikett zu; danach lesen wir den Text auf dem Gerät.",
+    "chooserTitle": "Foto vom Weinetikett",
+    "cropHint": "Zoomen und ziehen, bis das Etikett den Rahmen füllt",
+    "cropA11y": "Weinetikett zuschneiden",
+    "readLabel": "Etikett lesen",
+    "reading": "Etikett wird gelesen…",
+    "retake": "Anderes Foto wählen",
+    "adjustCrop": "Zuschnitt anpassen",
+    "ocrResult": "Text vom Etikett",
+    "ocrEmpty": "Kein Text in diesem Ausschnitt gefunden.",
+    "drinksSuggestion": "Für Getränke",
+    "drinksSuggestionPlaceholder": "Weinname und Jahrgang",
+    "useInDrinks": "In Getränke übernehmen",
+    "scanButton": "Scan",
+    "scanButtonA11y": "Weinetikett für Getränke scannen",
+    "drinksCommentPlaceholder": "Wein, Cocktail oder andere Getränke…",
+    "ocrUnavailableTitle": "Texterkennung nicht verfügbar",
+    "ocrUnavailableBody": "Etikett lesen auf dem Gerät braucht einen vollständigen App-Build (nicht Expo Go). Das zugeschnittene Foto kannst du trotzdem behalten.",
+    "noTextTitle": "Kein Text gefunden",
+    "noTextBody": "Versuche ein schärferes Foto oder passe den Ausschnitt an, bis das Etikett den Rahmen füllt.",
+    "failedBody": "Could not analyze the label. Check your connection and try again.",
+    "hintVision": "Crop the label, then we’ll identify the wine online (one optimized photo).",
+    "analyzing": "Analyzing label…",
+    "uploadNoticeTitle": "Photo sent for analysis",
+    "uploadNoticeBody": "To identify the wine, a smaller copy of your photo is uploaded to Google for analysis. The photo is not stored in Gustra’s cloud — only sent for this scan.",
+    "uploadNoticeContinue": "Continue",
+    "noMatchTitle": "No wine recognized",
+    "noMatchBody": "We couldn’t identify a wine from this photo. Try a sharper label photo.",
+    "missingKeyBody": "Gemini API key missing. Set EXPO_PUBLIC_GEMINI_API_KEY in .env and restart Expo.",
+    "fiche": {
+      "title": "Wine",
+      "openA11y": "Open wine details",
+      "typeStyle": "Type & style",
+      "countryRegion": "Country & region",
+      "vintage": "Vintage",
+      "grapes": "Grapes",
+      "alcohol": "Alcohol",
+      "foodPairings": "Pairs with"
     }
   }
 }
@@ -22910,6 +24536,7 @@ FILE: i18n/locales/en.json
     "filters": "Filters",
     "addReview": "Add review",
     "myLocation": "My location",
+    "mapLegend": "Map pin legend",
     "clearLocation": "Clear location filter",
     "clearCuisine": "Clear cuisine filter",
     "clearFavorites": "Clear favorites filter",
@@ -22977,6 +24604,11 @@ FILE: i18n/locales/en.json
   "map": {
     "title": "My map",
     "friendSuffix": "(friend)",
+    "legend": {
+      "title": "Pins",
+      "own": "My reviews",
+      "friends": "Friends' reviews"
+    },
     "empty": {
       "noMatchesTitle": "No matches",
       "noMatchesBody": "No restaurants match your current filters.",
@@ -23077,7 +24709,8 @@ FILE: i18n/locales/en.json
     "languageFrench": "Français",
     "languageValueGerman": "Deutsch",
     "languageValueSpanish": "Español",
-    "languageValueFrench": "Français"
+    "languageValueFrench": "Français",
+    "geminiApi": "Gemini wine Vision"
   },
   "criteria": {
     "food": "Food",
@@ -23144,7 +24777,14 @@ FILE: i18n/locales/en.json
       "indexing": "Indexing photo text…",
       "avg": "{{score}} avg",
       "time": "Time",
-      "setTime": "Set time · {{time}}"
+      "setTime": "Set time · {{time}}",
+      "photoStrip": {
+        "hintReorder": "Tap to select · long-press to reorder · first is Cover",
+        "hintSelect": "Tap to select for removal",
+        "cover": "Cover",
+        "a11yCover": "Cover photo. Tap to select, long-press to reorder.",
+        "a11yPhoto": "Photo. Tap to select, long-press to reorder."
+      }
     },
     "photos": {
       "takePhoto": "Take Photo",
@@ -23203,8 +24843,8 @@ FILE: i18n/locales/en.json
     "chooser": {
       "gustraFile": "Share Gustra file",
       "gustraFileSubtitle": "Friends can import this into Gustra",
-      "visual": "Send visual recommendation",
-      "visualSubtitle": "A shareable image of this review",
+      "visual": "Share review via email",
+      "visualSubtitle": "Send a nice card of this review",
       "cancel": "Cancel"
     },
     "nameSheet": {
@@ -23297,6 +24937,8 @@ FILE: i18n/locales/en.json
       "removePhotosTitle": "Remove Photos?",
       "removePhotosBody": "Selected photos will be removed from this review.",
       "photosSaveFailed": "Could not save photos.",
+      "photoLimitTitle": "Photo limit",
+      "photoLimitBody": "You can add up to {{max}} photos to a review.",
       "deleteTitle": "Delete?",
       "deleteBody": "This review will be deleted.",
       "discardEdits": {
@@ -23341,6 +24983,49 @@ FILE: i18n/locales/en.json
     "profilePhoto": {
       "storageTitle": "Storage",
       "storageBody": "Could not save the profile photo."
+    }
+  },
+  "wineScan": {
+    "title": "Scan wine label",
+    "lead": "Photograph the bottle label",
+    "hint": "Crop the label, then we’ll read the text on your device.",
+    "chooserTitle": "Wine label photo",
+    "cropHint": "Pinch and drag so the label fills the frame",
+    "cropA11y": "Wine label crop",
+    "readLabel": "Read label",
+    "reading": "Reading label…",
+    "retake": "Choose another photo",
+    "adjustCrop": "Adjust crop",
+    "ocrResult": "Text from the label",
+    "ocrEmpty": "No text found on this crop.",
+    "drinksSuggestion": "For Drinks",
+    "drinksSuggestionPlaceholder": "Wine name and year",
+    "useInDrinks": "Use in Drinks",
+    "scanButton": "Scan",
+    "scanButtonA11y": "Scan wine label for Drinks",
+    "drinksCommentPlaceholder": "Wine, cocktail, or other drinks…",
+    "ocrUnavailableTitle": "Text reading unavailable",
+    "ocrUnavailableBody": "On-device label reading needs a full app build (not Expo Go). You can still keep the cropped photo.",
+    "noTextTitle": "No text found",
+    "noTextBody": "Try a sharper photo or adjust the crop so the label fills the frame.",
+    "failedBody": "Could not analyze the label. Check your connection and try again.",
+    "hintVision": "Crop the label, then we’ll identify the wine online (one optimized photo).",
+    "analyzing": "Analyzing label…",
+    "uploadNoticeTitle": "Photo sent for analysis",
+    "uploadNoticeBody": "To identify the wine, a smaller copy of your photo is uploaded to Google for analysis. The photo is not stored in Gustra’s cloud — only sent for this scan.",
+    "uploadNoticeContinue": "Continue",
+    "noMatchTitle": "No wine recognized",
+    "noMatchBody": "We couldn’t identify a wine from this photo. Try a sharper label photo.",
+    "missingKeyBody": "Gemini API key missing. Set EXPO_PUBLIC_GEMINI_API_KEY in .env and restart Expo.",
+    "fiche": {
+      "title": "Wine",
+      "openA11y": "Open wine details",
+      "typeStyle": "Type & style",
+      "countryRegion": "Country & region",
+      "vintage": "Vintage",
+      "grapes": "Grapes",
+      "alcohol": "Alcohol",
+      "foodPairings": "Pairs with"
     }
   }
 }
@@ -23404,7 +25089,8 @@ FILE: i18n/locales/es.json
     "share": "Compartir",
     "filters": "Filtros",
     "addReview": "Añadir reseña",
-    "myLocation": "My location",
+    "myLocation": "Mi ubicación",
+    "mapLegend": "Leyenda del mapa",
     "clearLocation": "Clear location filter",
     "clearCuisine": "Clear cuisine filter",
     "clearFavorites": "Clear favorites filter",
@@ -23472,6 +25158,11 @@ FILE: i18n/locales/es.json
   "map": {
     "title": "Mi mapa",
     "friendSuffix": "(amigo)",
+    "legend": {
+      "title": "Pins",
+      "own": "Mis reseñas",
+      "friends": "Reseñas de amigos"
+    },
     "empty": {
       "noMatchesTitle": "Sin resultados",
       "noMatchesBody": "Ningún restaurante coincide con los filtros actuales.",
@@ -23572,7 +25263,8 @@ FILE: i18n/locales/es.json
     "languageFrench": "Français",
     "languageValueGerman": "Deutsch",
     "languageValueSpanish": "Español",
-    "languageValueFrench": "Français"
+    "languageValueFrench": "Français",
+    "geminiApi": "Gemini Vision de vino"
   },
   "criteria": {
     "food": "Comida",
@@ -23638,8 +25330,15 @@ FILE: i18n/locales/es.json
       "removePhotos": "Remove Photos",
       "indexing": "Indexing photo text…",
       "avg": "{{score}} avg",
-      "time": "Time",
-      "setTime": "Set time · {{time}}"
+      "time": "Hora",
+      "setTime": "Elegir hora · {{time}}",
+      "photoStrip": {
+        "hintReorder": "Toca para seleccionar · mantén pulsado para reordenar · la primera es Cover",
+        "hintSelect": "Toca para seleccionar y eliminar",
+        "cover": "Cover",
+        "a11yCover": "Foto de portada. Toca para seleccionar, mantén pulsado para reordenar.",
+        "a11yPhoto": "Foto. Toca para seleccionar, mantén pulsado para reordenar."
+      }
     },
     "photos": {
       "takePhoto": "Hacer foto",
@@ -23661,9 +25360,9 @@ FILE: i18n/locales/es.json
     "options": {
       "title": "Opciones",
       "a11y": "Opciones",
-      "recordVisit": "Record new visit",
+      "recordVisit": "Registrar nueva visita",
       "editReview": "Editar reseña",
-      "cannotEditFriend": "You can’t edit a friend’s review",
+      "cannotEditFriend": "No puedes editar la reseña de un amigo",
       "deleteReview": "Eliminar reseña",
       "shareSection": "Compartir"
     },
@@ -23698,8 +25397,8 @@ FILE: i18n/locales/es.json
     "chooser": {
       "gustraFile": "Share Gustra file",
       "gustraFileSubtitle": "Friends can import this into Gustra",
-      "visual": "Send visual recommendation",
-      "visualSubtitle": "A shareable image of this review",
+      "visual": "Compartir reseña por correo",
+      "visualSubtitle": "Envía una tarjeta bonita de esta reseña",
       "cancel": "Cancelar"
     },
     "nameSheet": {
@@ -23792,6 +25491,8 @@ FILE: i18n/locales/es.json
       "removePhotosTitle": "Remove Photos?",
       "removePhotosBody": "Selected photos will be removed from this review.",
       "photosSaveFailed": "Could not save photos.",
+      "photoLimitTitle": "Límite de fotos",
+      "photoLimitBody": "Puedes añadir hasta {{max}} fotos a una reseña.",
       "deleteTitle": "Delete?",
       "deleteBody": "This review will be deleted.",
       "discardEdits": {
@@ -23836,6 +25537,49 @@ FILE: i18n/locales/es.json
     "profilePhoto": {
       "storageTitle": "Almacenamiento",
       "storageBody": "Could not save the profile photo."
+    }
+  },
+  "wineScan": {
+    "title": "Escanear etiqueta de vino",
+    "lead": "Fotografía la etiqueta de la botella",
+    "hint": "Recorta la etiqueta; después leeremos el texto en tu dispositivo.",
+    "chooserTitle": "Foto de la etiqueta",
+    "cropHint": "Pellizca y arrastra para que la etiqueta llene el marco",
+    "cropA11y": "Recorte de etiqueta de vino",
+    "readLabel": "Leer etiqueta",
+    "reading": "Leyendo etiqueta…",
+    "retake": "Elegir otra foto",
+    "adjustCrop": "Ajustar recorte",
+    "ocrResult": "Texto de la etiqueta",
+    "ocrEmpty": "No se encontró texto en este recorte.",
+    "drinksSuggestion": "Para Bebidas",
+    "drinksSuggestionPlaceholder": "Nombre del vino y año",
+    "useInDrinks": "Usar en Bebidas",
+    "scanButton": "Escanear",
+    "scanButtonA11y": "Escanear etiqueta de vino para Bebidas",
+    "drinksCommentPlaceholder": "Vino, cóctel u otras bebidas…",
+    "ocrUnavailableTitle": "Lectura de texto no disponible",
+    "ocrUnavailableBody": "Leer la etiqueta en el dispositivo requiere una app completa (no Expo Go). Puedes guardar la foto recortada.",
+    "noTextTitle": "No se encontró texto",
+    "noTextBody": "Prueba una foto más nítida o ajusta el recorte para que la etiqueta llene el marco.",
+    "failedBody": "Could not analyze the label. Check your connection and try again.",
+    "hintVision": "Crop the label, then we’ll identify the wine online (one optimized photo).",
+    "analyzing": "Analyzing label…",
+    "uploadNoticeTitle": "Photo sent for analysis",
+    "uploadNoticeBody": "To identify the wine, a smaller copy of your photo is uploaded to Google for analysis. The photo is not stored in Gustra’s cloud — only sent for this scan.",
+    "uploadNoticeContinue": "Continue",
+    "noMatchTitle": "No wine recognized",
+    "noMatchBody": "We couldn’t identify a wine from this photo. Try a sharper label photo.",
+    "missingKeyBody": "Gemini API key missing. Set EXPO_PUBLIC_GEMINI_API_KEY in .env and restart Expo.",
+    "fiche": {
+      "title": "Wine",
+      "openA11y": "Open wine details",
+      "typeStyle": "Type & style",
+      "countryRegion": "Country & region",
+      "vintage": "Vintage",
+      "grapes": "Grapes",
+      "alcohol": "Alcohol",
+      "foodPairings": "Pairs with"
     }
   }
 }
@@ -23899,7 +25643,8 @@ FILE: i18n/locales/fr.json
     "share": "Partager",
     "filters": "Filtres",
     "addReview": "Ajouter un avis",
-    "myLocation": "My location",
+    "myLocation": "Ma position",
+    "mapLegend": "Légende de la carte",
     "clearLocation": "Clear location filter",
     "clearCuisine": "Clear cuisine filter",
     "clearFavorites": "Clear favorites filter",
@@ -23967,6 +25712,11 @@ FILE: i18n/locales/fr.json
   "map": {
     "title": "Ma carte",
     "friendSuffix": "(ami)",
+    "legend": {
+      "title": "Épingles",
+      "own": "Mes avis",
+      "friends": "Avis d’amis"
+    },
     "empty": {
       "noMatchesTitle": "Aucun résultat",
       "noMatchesBody": "Aucun restaurant ne correspond aux filtres actuels.",
@@ -24067,7 +25817,8 @@ FILE: i18n/locales/fr.json
     "languageFrench": "Français",
     "languageValueGerman": "Deutsch",
     "languageValueSpanish": "Español",
-    "languageValueFrench": "Français"
+    "languageValueFrench": "Français",
+    "geminiApi": "Gemini Vision vin"
   },
   "criteria": {
     "food": "Cuisine",
@@ -24133,8 +25884,15 @@ FILE: i18n/locales/fr.json
       "removePhotos": "Remove Photos",
       "indexing": "Indexing photo text…",
       "avg": "{{score}} avg",
-      "time": "Time",
-      "setTime": "Set time · {{time}}"
+      "time": "Heure",
+      "setTime": "Choisir l’heure · {{time}}",
+      "photoStrip": {
+        "hintReorder": "Touchez pour sélectionner · appui long pour réordonner · la première est Cover",
+        "hintSelect": "Touchez pour sélectionner et supprimer",
+        "cover": "Cover",
+        "a11yCover": "Photo de couverture. Touchez pour sélectionner, appui long pour réordonner.",
+        "a11yPhoto": "Photo. Touchez pour sélectionner, appui long pour réordonner."
+      }
     },
     "photos": {
       "takePhoto": "Prendre une photo",
@@ -24156,9 +25914,9 @@ FILE: i18n/locales/fr.json
     "options": {
       "title": "Options",
       "a11y": "Options",
-      "recordVisit": "Record new visit",
+      "recordVisit": "Enregistrer une nouvelle visite",
       "editReview": "Modifier l’avis",
-      "cannotEditFriend": "You can’t edit a friend’s review",
+      "cannotEditFriend": "Vous ne pouvez pas modifier l’avis d’un ami",
       "deleteReview": "Supprimer l’avis",
       "shareSection": "Partager"
     },
@@ -24193,8 +25951,8 @@ FILE: i18n/locales/fr.json
     "chooser": {
       "gustraFile": "Share Gustra file",
       "gustraFileSubtitle": "Friends can import this into Gustra",
-      "visual": "Send visual recommendation",
-      "visualSubtitle": "A shareable image of this review",
+      "visual": "Partager l’avis par e-mail",
+      "visualSubtitle": "Envoyer une belle carte de cet avis",
       "cancel": "Annuler"
     },
     "nameSheet": {
@@ -24287,6 +26045,8 @@ FILE: i18n/locales/fr.json
       "removePhotosTitle": "Remove Photos?",
       "removePhotosBody": "Selected photos will be removed from this review.",
       "photosSaveFailed": "Could not save photos.",
+      "photoLimitTitle": "Limite de photos",
+      "photoLimitBody": "Vous pouvez ajouter jusqu’à {{max}} photos à un avis.",
       "deleteTitle": "Delete?",
       "deleteBody": "This review will be deleted.",
       "discardEdits": {
@@ -24331,6 +26091,49 @@ FILE: i18n/locales/fr.json
     "profilePhoto": {
       "storageTitle": "Stockage",
       "storageBody": "Could not save the profile photo."
+    }
+  },
+  "wineScan": {
+    "title": "Scanner l’étiquette",
+    "lead": "Photographiez l’étiquette de la bouteille",
+    "hint": "Cadrez l’étiquette ; ensuite nous lirons le texte sur l’appareil.",
+    "chooserTitle": "Photo de l’étiquette",
+    "cropHint": "Pincez et faites glisser pour remplir le cadre",
+    "cropA11y": "Recadrage de l’étiquette",
+    "readLabel": "Lire l’étiquette",
+    "reading": "Lecture de l’étiquette…",
+    "retake": "Choisir une autre photo",
+    "adjustCrop": "Ajuster le cadrage",
+    "ocrResult": "Texte de l’étiquette",
+    "ocrEmpty": "Aucun texte trouvé sur ce recadrage.",
+    "drinksSuggestion": "Pour Boissons",
+    "drinksSuggestionPlaceholder": "Nom du vin et millésime",
+    "useInDrinks": "Utiliser dans Boissons",
+    "scanButton": "Scanner",
+    "scanButtonA11y": "Scanner l’étiquette pour Boissons",
+    "drinksCommentPlaceholder": "Vin, cocktail ou autres boissons…",
+    "ocrUnavailableTitle": "Lecture de texte indisponible",
+    "ocrUnavailableBody": "La lecture sur l’appareil nécessite une build complète (pas Expo Go). Vous pouvez garder la photo recadrée.",
+    "noTextTitle": "Aucun texte trouvé",
+    "noTextBody": "Essayez une photo plus nette ou ajustez le cadrage pour remplir le cadre.",
+    "failedBody": "Could not analyze the label. Check your connection and try again.",
+    "hintVision": "Crop the label, then we’ll identify the wine online (one optimized photo).",
+    "analyzing": "Analyzing label…",
+    "uploadNoticeTitle": "Photo sent for analysis",
+    "uploadNoticeBody": "To identify the wine, a smaller copy of your photo is uploaded to Google for analysis. The photo is not stored in Gustra’s cloud — only sent for this scan.",
+    "uploadNoticeContinue": "Continue",
+    "noMatchTitle": "No wine recognized",
+    "noMatchBody": "We couldn’t identify a wine from this photo. Try a sharper label photo.",
+    "missingKeyBody": "Gemini API key missing. Set EXPO_PUBLIC_GEMINI_API_KEY in .env and restart Expo.",
+    "fiche": {
+      "title": "Wine",
+      "openA11y": "Open wine details",
+      "typeStyle": "Type & style",
+      "countryRegion": "Country & region",
+      "vintage": "Vintage",
+      "grapes": "Grapes",
+      "alcohol": "Alcohol",
+      "foodPairings": "Pairs with"
     }
   }
 }
@@ -24395,6 +26198,7 @@ FILE: i18n/locales/it.json
     "filters": "Filtri",
     "addReview": "Aggiungi recensione",
     "myLocation": "La mia posizione",
+    "mapLegend": "Legenda mappa",
     "clearLocation": "Cancella filtro località",
     "clearCuisine": "Cancella filtro cucina",
     "clearFavorites": "Cancella filtro preferiti",
@@ -24462,6 +26266,11 @@ FILE: i18n/locales/it.json
   "map": {
     "title": "La mia mappa",
     "friendSuffix": "(amico)",
+    "legend": {
+      "title": "Spilli",
+      "own": "Le mie recensioni",
+      "friends": "Recensioni degli amici"
+    },
     "empty": {
       "noMatchesTitle": "Nessun risultato",
       "noMatchesBody": "Nessun ristorante corrisponde ai filtri attuali.",
@@ -24562,7 +26371,8 @@ FILE: i18n/locales/it.json
     "languageFrench": "Français",
     "languageValueGerman": "Deutsch",
     "languageValueSpanish": "Español",
-    "languageValueFrench": "Français"
+    "languageValueFrench": "Français",
+    "geminiApi": "Gemini Vision vino"
   },
   "criteria": {
     "food": "Cibo",
@@ -24629,7 +26439,14 @@ FILE: i18n/locales/it.json
       "indexing": "Indicizzazione foto…",
       "avg": "{{score}} media",
       "time": "Ora",
-      "setTime": "Imposta ora · {{time}}"
+      "setTime": "Imposta ora · {{time}}",
+      "photoStrip": {
+        "hintReorder": "Tocca per selezionare · tieni premuto per riordinare · la prima è Cover",
+        "hintSelect": "Tocca per selezionare e rimuovere",
+        "cover": "Cover",
+        "a11yCover": "Foto di copertina. Tocca per selezionare, tieni premuto per riordinare.",
+        "a11yPhoto": "Foto. Tocca per selezionare, tieni premuto per riordinare."
+      }
     },
     "photos": {
       "takePhoto": "Scatta foto",
@@ -24688,8 +26505,8 @@ FILE: i18n/locales/it.json
     "chooser": {
       "gustraFile": "Condividi file Gustra",
       "gustraFileSubtitle": "Per amici con Gustra",
-      "visual": "Invia raccomandazione visuale",
-      "visualSubtitle": "Email con riepilogo e foto",
+      "visual": "Condividi recensione via e-mail",
+      "visualSubtitle": "Invia una bella scheda di questa recensione",
       "cancel": "Annulla"
     },
     "nameSheet": {
@@ -24782,6 +26599,8 @@ FILE: i18n/locales/it.json
       "removePhotosTitle": "Rimuovere le foto?",
       "removePhotosBody": "Le foto selezionate verranno rimosse da questa recensione.",
       "photosSaveFailed": "Impossibile salvare le foto.",
+      "photoLimitTitle": "Limite foto",
+      "photoLimitBody": "Puoi aggiungere fino a {{max}} foto a una recensione.",
       "deleteTitle": "Eliminare?",
       "deleteBody": "Questa recensione verrà eliminata.",
       "discardEdits": {
@@ -24826,6 +26645,49 @@ FILE: i18n/locales/it.json
     "profilePhoto": {
       "storageTitle": "Archiviazione",
       "storageBody": "Impossibile salvare la foto profilo."
+    }
+  },
+  "wineScan": {
+    "title": "Scansiona etichetta",
+    "lead": "Fotografa l’etichetta della bottiglia",
+    "hint": "Ritaglia l’etichetta; poi leggiamo il testo sul dispositivo.",
+    "chooserTitle": "Foto dell’etichetta",
+    "cropHint": "Pizzica e trascina finché l’etichetta riempie il riquadro",
+    "cropA11y": "Ritaglio etichetta vino",
+    "readLabel": "Leggi etichetta",
+    "reading": "Lettura etichetta…",
+    "retake": "Scegli un’altra foto",
+    "adjustCrop": "Modifica ritaglio",
+    "ocrResult": "Testo dall’etichetta",
+    "ocrEmpty": "Nessun testo trovato in questo ritaglio.",
+    "drinksSuggestion": "Per Bevande",
+    "drinksSuggestionPlaceholder": "Nome del vino e annata",
+    "useInDrinks": "Usa in Bevande",
+    "scanButton": "Scansiona",
+    "scanButtonA11y": "Scansiona etichetta vino per Bevande",
+    "drinksCommentPlaceholder": "Vino, cocktail o altre bevande…",
+    "ocrUnavailableTitle": "Lettura testo non disponibile",
+    "ocrUnavailableBody": "La lettura sul dispositivo richiede una build completa (non Expo Go). Puoi comunque tenere la foto ritagliata.",
+    "noTextTitle": "Nessun testo trovato",
+    "noTextBody": "Prova una foto più nitida o regola il ritaglio così l’etichetta riempie il riquadro.",
+    "failedBody": "Could not analyze the label. Check your connection and try again.",
+    "hintVision": "Crop the label, then we’ll identify the wine online (one optimized photo).",
+    "analyzing": "Analyzing label…",
+    "uploadNoticeTitle": "Photo sent for analysis",
+    "uploadNoticeBody": "To identify the wine, a smaller copy of your photo is uploaded to Google for analysis. The photo is not stored in Gustra’s cloud — only sent for this scan.",
+    "uploadNoticeContinue": "Continue",
+    "noMatchTitle": "No wine recognized",
+    "noMatchBody": "We couldn’t identify a wine from this photo. Try a sharper label photo.",
+    "missingKeyBody": "Gemini API key missing. Set EXPO_PUBLIC_GEMINI_API_KEY in .env and restart Expo.",
+    "fiche": {
+      "title": "Wine",
+      "openA11y": "Open wine details",
+      "typeStyle": "Type & style",
+      "countryRegion": "Country & region",
+      "vintage": "Vintage",
+      "grapes": "Grapes",
+      "alcohol": "Alcohol",
+      "foodPairings": "Pairs with"
     }
   }
 }
@@ -24890,6 +26752,7 @@ FILE: i18n/locales/nl.json
     "filters": "Filters",
     "addReview": "Review toevoegen",
     "myLocation": "Mijn locatie",
+    "mapLegend": "Legenda kaartspelden",
     "clearLocation": "Locatiefilter wissen",
     "clearCuisine": "Keukenfilter wissen",
     "clearFavorites": "Favorietenfilter wissen",
@@ -24957,6 +26820,11 @@ FILE: i18n/locales/nl.json
   "map": {
     "title": "Mijn kaart",
     "friendSuffix": "(vriend)",
+    "legend": {
+      "title": "Spelden",
+      "own": "Mijn reviews",
+      "friends": "Reviews van vrienden"
+    },
     "empty": {
       "noMatchesTitle": "Geen resultaten",
       "noMatchesBody": "Geen restaurants komen overeen met je huidige filters.",
@@ -25057,7 +26925,8 @@ FILE: i18n/locales/nl.json
     "languageFrench": "Français",
     "languageValueGerman": "Deutsch",
     "languageValueSpanish": "Español",
-    "languageValueFrench": "Français"
+    "languageValueFrench": "Français",
+    "geminiApi": "Gemini wijn-Vision"
   },
   "criteria": {
     "food": "Eten",
@@ -25124,7 +26993,14 @@ FILE: i18n/locales/nl.json
       "indexing": "Fototekst indexeren…",
       "avg": "{{score}} gem.",
       "time": "Tijd",
-      "setTime": "Tijd instellen · {{time}}"
+      "setTime": "Tijd instellen · {{time}}",
+      "photoStrip": {
+        "hintReorder": "Tik om te selecteren · lang indrukken om te herschikken · eerste is Cover",
+        "hintSelect": "Tik om te selecteren voor verwijderen",
+        "cover": "Cover",
+        "a11yCover": "Coverfoto. Tik om te selecteren, lang indrukken om te herschikken.",
+        "a11yPhoto": "Foto. Tik om te selecteren, lang indrukken om te herschikken."
+      }
     },
     "photos": {
       "takePhoto": "Foto maken",
@@ -25144,7 +27020,7 @@ FILE: i18n/locales/nl.json
       "share": "Delen"
     },
     "options": {
-      "title": "Options",
+      "title": "Opties",
       "a11y": "Opties",
       "recordVisit": "Nieuw bezoek vastleggen",
       "editReview": "Review bewerken",
@@ -25183,8 +27059,8 @@ FILE: i18n/locales/nl.json
     "chooser": {
       "gustraFile": "Gustra-bestand delen",
       "gustraFileSubtitle": "Vrienden kunnen dit in Gustra importeren",
-      "visual": "Visuele aanbeveling sturen",
-      "visualSubtitle": "Een deelbare afbeelding van deze review",
+      "visual": "Deel review via e-mail",
+      "visualSubtitle": "Stuur een mooie kaart van deze review",
       "cancel": "Annuleren"
     },
     "nameSheet": {
@@ -25277,6 +27153,8 @@ FILE: i18n/locales/nl.json
       "removePhotosTitle": "Foto’s verwijderen?",
       "removePhotosBody": "Geselecteerde foto’s worden uit deze review verwijderd.",
       "photosSaveFailed": "Kon foto’s niet opslaan.",
+      "photoLimitTitle": "Fotolimiet",
+      "photoLimitBody": "Je kunt maximaal {{max}} foto’s toevoegen aan een review.",
       "deleteTitle": "Verwijderen?",
       "deleteBody": "Deze review wordt verwijderd.",
       "discardEdits": {
@@ -25321,6 +27199,49 @@ FILE: i18n/locales/nl.json
     "profilePhoto": {
       "storageTitle": "Opslag",
       "storageBody": "Kon de profielfoto niet opslaan."
+    }
+  },
+  "wineScan": {
+    "title": "Wijnetiket scannen",
+    "lead": "Fotografeer het etiket",
+    "hint": "Snijd het etiket bij; daarna lezen we de tekst op je toestel.",
+    "chooserTitle": "Foto van wijnetiket",
+    "cropHint": "Knijp en sleep zodat het etiket het kader vult",
+    "cropA11y": "Bijsnijden wijnetiket",
+    "readLabel": "Etiket lezen",
+    "reading": "Etiket lezen…",
+    "retake": "Andere foto kiezen",
+    "adjustCrop": "Bijsnijden aanpassen",
+    "ocrResult": "Tekst van het etiket",
+    "ocrEmpty": "Geen tekst gevonden op deze uitsnede.",
+    "drinksSuggestion": "Voor Dranken",
+    "drinksSuggestionPlaceholder": "Wijnnaam en jaartal",
+    "useInDrinks": "Gebruik bij Dranken",
+    "scanButton": "Scan",
+    "scanButtonA11y": "Wijnetiket scannen voor Dranken",
+    "drinksCommentPlaceholder": "Wijn, cocktail of andere dranken…",
+    "ocrUnavailableTitle": "Tekst lezen niet beschikbaar",
+    "ocrUnavailableBody": "Etiket lezen op het toestel werkt in een volledige app-build (niet in Expo Go). Je kunt de bijgesneden foto wel bewaren.",
+    "noTextTitle": "Geen tekst gevonden",
+    "noTextBody": "Probeer een scherpere foto of pas de uitsnede aan zodat het etiket het kader vult.",
+    "failedBody": "Kon het etiket niet analyseren. Controleer je verbinding en probeer opnieuw.",
+    "hintVision": "Snijd het etiket bij; daarna identificeren we de wijn online (één verkleinde foto).",
+    "analyzing": "Etiket analyseren…",
+    "uploadNoticeTitle": "Foto voor analyse",
+    "uploadNoticeBody": "Om de wijn te herkennen sturen we een kleinere kopie van je foto naar Google voor analyse. De foto wordt niet in Gustra’s cloud bewaard — alleen voor deze scan verstuurd.",
+    "uploadNoticeContinue": "Doorgaan",
+    "noMatchTitle": "Geen wijn herkend",
+    "noMatchBody": "We konden geen wijn herkennen op deze foto. Probeer een scherper etiket.",
+    "missingKeyBody": "Gemini API-key ontbreekt. Zet EXPO_PUBLIC_GEMINI_API_KEY in .env en herstart Expo.",
+    "fiche": {
+      "title": "Wijn",
+      "openA11y": "Wijnfiche openen",
+      "typeStyle": "Type & stijl",
+      "countryRegion": "Land & regio",
+      "vintage": "Oogstjaar",
+      "grapes": "Druiven",
+      "alcohol": "Alcohol",
+      "foodPairings": "Past bij"
     }
   }
 }
@@ -25857,6 +27778,8 @@ function localPhotoRefsFromReviews(reviews: Review[]): string[] {
   const refs: string[] = [];
   for (const review of reviews) {
     for (const url of review.photoUrls) refs.push(url);
+    const label = review.wineLabel?.labelPhotoUri?.trim();
+    if (label) refs.push(label);
   }
   return refs;
 }
@@ -26291,10 +28214,18 @@ export function reviewToBackup(review: Review): ReviewBackup {
   }
 
   // Local files only (Swift). Remote mock URLs are omitted from photoPaths.
-  const photoPaths = review.photoUrls
-    .filter((p) => !isRemotePhotoUrl(p))
-    .map(backupPhotoKey)
-    .filter(Boolean);
+  const photoPathSet = new Set<string>();
+  for (const p of review.photoUrls) {
+    if (isRemotePhotoUrl(p)) continue;
+    const key = backupPhotoKey(p);
+    if (key) photoPathSet.add(key);
+  }
+  const labelUri = review.wineLabel?.labelPhotoUri?.trim();
+  if (labelUri && !isRemotePhotoUrl(labelUri)) {
+    const key = backupPhotoKey(labelUri);
+    if (key) photoPathSet.add(key);
+  }
+  const photoPaths = [...photoPathSet];
 
   const searchable =
     review.searchableText?.trim() ||
@@ -26333,6 +28264,15 @@ export function reviewToBackup(review: Review): ReviewBackup {
       ? backupPhotoKey(review.reviewedByPhotoUrl)
       : null,
     origin: resolveReviewOrigin(review),
+    wineLabelJSON: review.wineLabel?.nameAndEstate
+      ? JSON.stringify({
+          ...review.wineLabel,
+          labelPhotoUri: review.wineLabel.labelPhotoUri
+            ? backupPhotoKey(review.wineLabel.labelPhotoUri)
+            : '',
+        })
+      : null,
+    sourceReviewId: review.sourceReviewId?.trim() || null,
   };
 }
 
@@ -26479,6 +28419,50 @@ export function backupReviewToApp(
       ocrText,
     });
 
+  let wineLabel = previous?.wineLabel ?? null;
+  const wineLabelRaw = item.wineLabelJSON?.trim();
+  if (wineLabelRaw) {
+    try {
+      const parsed = JSON.parse(wineLabelRaw) as {
+        labelPhotoUri?: string;
+        nameAndEstate?: string;
+        typeStyle?: string;
+        countryRegion?: string;
+        vintage?: string | null;
+        grapes?: string | null;
+        alcoholPercent?: number | null;
+        foodPairings?: string | null;
+        analyzedAt?: string;
+      };
+      const name = (parsed.nameAndEstate ?? '').trim();
+      if (name) {
+        const rawPhoto = (parsed.labelPhotoUri ?? '').trim();
+        const labelPhotoUri =
+          !rawPhoto
+            ? ''
+            : isRemotePhotoUrl(rawPhoto) || rawPhoto.startsWith('file://')
+              ? rawPhoto
+              : localPhotoUri(backupPhotoKey(rawPhoto));
+        wineLabel = {
+          labelPhotoUri,
+          nameAndEstate: name,
+          typeStyle: parsed.typeStyle,
+          countryRegion: parsed.countryRegion,
+          vintage: parsed.vintage ?? null,
+          grapes: parsed.grapes ?? null,
+          alcoholPercent:
+            typeof parsed.alcoholPercent === 'number'
+              ? parsed.alcoholPercent
+              : null,
+          foodPairings: parsed.foodPairings ?? null,
+          analyzedAt: parsed.analyzedAt,
+        };
+      }
+    } catch {
+      // keep previous
+    }
+  }
+
   return {
     id: item.id,
     restaurantId: item.restaurantID ?? previous?.restaurantId ?? '',
@@ -26494,6 +28478,11 @@ export function backupReviewToApp(
     origin: originFromBackup(item, previous),
     searchableText,
     ocrText,
+    wineLabel,
+    sourceReviewId:
+      item.sourceReviewId?.trim() ||
+      previous?.sourceReviewId?.trim() ||
+      undefined,
   };
 }
 
@@ -26786,6 +28775,16 @@ export type ReviewBackup = {
   reviewedById?: string | null;
   reviewedByPhotoPath?: string | null;
   origin?: string | null;
+  /**
+   * Expo extension: JSON string of WineLabelFiche (ignored by older Swift).
+   * Label photo filename should also appear in photoPaths / photoFiles.
+   */
+  wineLabelJSON?: string | null;
+  /**
+   * Expo extension: original shared review UUID (for re-import upsert).
+   * Ignored by older Swift / Expo.
+   */
+  sourceReviewId?: string | null;
 };
 
 /** App settings beyond Swift schema v1 — ignored by Swift decoder. */
@@ -27040,13 +29039,15 @@ FILE: services/google/GoogleApiTracker.ts
 ================================================================================
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type GoogleApiKind = 'maps' | 'places';
+export type GoogleApiKind = 'maps' | 'places' | 'gemini';
 
 export type GoogleApiUsageSnapshot = {
   mapsToday: number;
   mapsTotal: number;
   placesToday: number;
   placesTotal: number;
+  geminiToday: number;
+  geminiTotal: number;
 };
 
 type Listener = (snapshot: GoogleApiUsageSnapshot) => void;
@@ -27074,6 +29075,8 @@ let snapshot: GoogleApiUsageSnapshot = {
   mapsTotal: 0,
   placesToday: 0,
   placesTotal: 0,
+  geminiToday: 0,
+  geminiTotal: 0,
 };
 let ready = false;
 let hydratePromise: Promise<void> | null = null;
@@ -27093,18 +29096,38 @@ async function rolloverIfNeeded(): Promise<void> {
   const today = currentDayKey();
   const stored = await AsyncStorage.getItem(DAY_KEY);
   if (stored === today) return;
-  await AsyncStorage.multiRemove([todayKey('maps'), todayKey('places')]);
+  await AsyncStorage.multiRemove([
+    todayKey('maps'),
+    todayKey('places'),
+    todayKey('gemini'),
+  ]);
   await AsyncStorage.setItem(DAY_KEY, today);
 }
 
 async function reload(): Promise<void> {
-  const [mapsTotal, mapsToday, placesTotal, placesToday] = await Promise.all([
+  const [
+    mapsTotal,
+    mapsToday,
+    placesTotal,
+    placesToday,
+    geminiTotal,
+    geminiToday,
+  ] = await Promise.all([
     readInt(totalKey('maps')),
     readInt(todayKey('maps')),
     readInt(totalKey('places')),
     readInt(todayKey('places')),
+    readInt(totalKey('gemini')),
+    readInt(todayKey('gemini')),
   ]);
-  snapshot = { mapsTotal, mapsToday, placesTotal, placesToday };
+  snapshot = {
+    mapsTotal,
+    mapsToday,
+    placesTotal,
+    placesToday,
+    geminiTotal,
+    geminiToday,
+  };
   notify();
 }
 
@@ -27135,6 +29158,7 @@ export function subscribeGoogleApiTracker(listener: Listener): () => void {
  * Increment a successful Google API call (Swift `GoogleApiTracker.increment`).
  * Places: searchNearby / searchText / Place Details.
  * Maps: Maps JS / SDK map load.
+ * Gemini: wine-label Vision identify.
  */
 export async function incrementGoogleApi(kind: GoogleApiKind): Promise<void> {
   await hydrateGoogleApiTracker();
@@ -27147,8 +29171,10 @@ export async function incrementGoogleApi(kind: GoogleApiKind): Promise<void> {
   ]);
   if (kind === 'maps') {
     snapshot = { ...snapshot, mapsTotal: nextTotal, mapsToday: nextToday };
-  } else {
+  } else if (kind === 'places') {
     snapshot = { ...snapshot, placesTotal: nextTotal, placesToday: nextToday };
+  } else {
+    snapshot = { ...snapshot, geminiTotal: nextTotal, geminiToday: nextToday };
   }
   notify();
 }
@@ -27160,6 +29186,8 @@ export async function resetGoogleApiCounters(): Promise<void> {
     todayKey('maps'),
     totalKey('places'),
     todayKey('places'),
+    totalKey('gemini'),
+    todayKey('gemini'),
   ]);
   await AsyncStorage.setItem(DAY_KEY, currentDayKey());
   snapshot = {
@@ -27167,6 +29195,8 @@ export async function resetGoogleApiCounters(): Promise<void> {
     mapsTotal: 0,
     placesToday: 0,
     placesTotal: 0,
+    geminiToday: 0,
+    geminiTotal: 0,
   };
   notify();
 }
@@ -28467,8 +30497,16 @@ export function isOcrAvailable(): boolean {
   }
 }
 
+type ExtractOptions = {
+  /** When false, keep line breaks (wine label display). Default: collapse. */
+  collapseWhitespace?: boolean;
+};
+
 /** Extract text from a single local image URI. */
-export async function extractTextFromImage(imageUri: string): Promise<string> {
+export async function extractTextFromImage(
+  imageUri: string,
+  options?: ExtractOptions,
+): Promise<string> {
   const uri = imageUri.trim();
   if (!uri) return '';
 
@@ -28477,7 +30515,11 @@ export async function extractTextFromImage(imageUri: string): Promise<string> {
 
   try {
     const result = await recognize(uri);
-    return (result?.text ?? '').replace(/\s+/g, ' ').trim();
+    const text = result?.text ?? '';
+    if (options?.collapseWhitespace === false) {
+      return text.replace(/\r\n/g, '\n').trim();
+    }
+    return text.replace(/\s+/g, ' ').trim();
   } catch {
     return '';
   }
@@ -28785,6 +30827,127 @@ export async function getPhotosDiskUsage(): Promise<PhotosDiskUsage> {
     formattedBytes: formatByteCount(byteCount),
     subtitle: i18n.t('settings.storage.photosStored', { count: fileCount }),
   };
+}
+
+
+================================================================================
+FILE: services/photos/labelCrop.ts
+================================================================================
+import * as ImageManipulator from 'expo-image-manipulator';
+
+export type CropTransform = {
+  scale: number;
+  offsetX: number;
+  offsetY: number;
+};
+
+export type ImageSize = {
+  width: number;
+  height: number;
+};
+
+export type LabelCropViewport = {
+  width: number;
+  height: number;
+};
+
+/** Max longest side for saved wine-label crops. */
+export const WINE_LABEL_MAX_SIDE = 1200;
+
+/** Aspect-fill size of the image inside a rectangular viewport. */
+export function labelCoverSize(
+  image: ImageSize,
+  viewport: LabelCropViewport,
+): ImageSize {
+  const vw = Math.max(viewport.width, 1);
+  const vh = Math.max(viewport.height, 1);
+  if (image.width <= 0 || image.height <= 0) {
+    return { width: vw, height: vh };
+  }
+  const imageAspect = image.width / image.height;
+  const viewAspect = vw / vh;
+  if (imageAspect > viewAspect) {
+    return { width: vh * imageAspect, height: vh };
+  }
+  return { width: vw, height: vw / imageAspect };
+}
+
+export function clampLabelOffset(
+  offsetX: number,
+  offsetY: number,
+  image: ImageSize,
+  viewport: LabelCropViewport,
+  scale: number,
+): { x: number; y: number } {
+  const cover = labelCoverSize(image, viewport);
+  const displayW = cover.width * Math.max(scale, 1);
+  const displayH = cover.height * Math.max(scale, 1);
+  const limitX = Math.max(0, (displayW - viewport.width) / 2);
+  const limitY = Math.max(0, (displayH - viewport.height) / 2);
+  return {
+    x: Math.min(Math.max(offsetX, -limitX), limitX),
+    y: Math.min(Math.max(offsetY, -limitY), limitY),
+  };
+}
+
+/**
+ * Crop the rectangular label viewport from the pan/zoom canvas.
+ */
+export async function renderCroppedLabel(args: {
+  uri: string;
+  image: ImageSize;
+  viewport: LabelCropViewport;
+  transform: CropTransform;
+  maxSide?: number;
+}): Promise<string> {
+  const vw = Math.max(args.viewport.width, 1);
+  const vh = Math.max(args.viewport.height, 1);
+  const scale = Math.max(args.transform.scale, 1);
+  const cover = labelCoverSize(args.image, args.viewport);
+  const displayW = cover.width * scale;
+  const displayH = cover.height * scale;
+  const originX = (vw - displayW) / 2 + args.transform.offsetX;
+  const originY = (vh - displayH) / 2 + args.transform.offsetY;
+
+  const pxPerPointX = args.image.width / displayW;
+  const pxPerPointY = args.image.height / displayH;
+  let cropX = (0 - originX) * pxPerPointX;
+  let cropY = (0 - originY) * pxPerPointY;
+  let cropW = vw * pxPerPointX;
+  let cropH = vh * pxPerPointY;
+
+  cropX = Math.min(Math.max(0, cropX), Math.max(0, args.image.width - 1));
+  cropY = Math.min(Math.max(0, cropY), Math.max(0, args.image.height - 1));
+  cropW = Math.min(cropW, args.image.width - cropX);
+  cropH = Math.min(cropH, args.image.height - cropY);
+
+  const maxSide = args.maxSide ?? WINE_LABEL_MAX_SIDE;
+  const longest = Math.max(cropW, cropH);
+  const actions: ImageManipulator.Action[] = [
+    {
+      crop: {
+        originX: Math.round(cropX),
+        originY: Math.round(cropY),
+        width: Math.max(1, Math.round(cropW)),
+        height: Math.max(1, Math.round(cropH)),
+      },
+    },
+  ];
+  if (longest > maxSide && longest > 0) {
+    const ratio = maxSide / longest;
+    actions.push({
+      resize: {
+        width: Math.max(1, Math.round(cropW * ratio)),
+        height: Math.max(1, Math.round(cropH * ratio)),
+      },
+    });
+  }
+
+  const result = await ImageManipulator.manipulateAsync(args.uri, actions, {
+    compress: 0.85,
+    format: ImageManipulator.SaveFormat.JPEG,
+  });
+  return result.uri;
 }
 
 
@@ -30056,6 +32219,17 @@ export function isSameRestaurantDraft(
 
 
 ================================================================================
+FILE: services/reviews/photoLimits.ts
+================================================================================
+/** Max photos per review (Take / Import / wine crop). */
+export const MAX_REVIEW_PHOTOS = 12;
+
+export function remainingReviewPhotoSlots(currentCount: number): number {
+  return Math.max(0, MAX_REVIEW_PHOTOS - Math.max(0, currentCount));
+}
+
+
+================================================================================
 FILE: services/reviews/photoStorage.ts
 ================================================================================
 import * as FileSystem from 'expo-file-system/legacy';
@@ -30801,6 +32975,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
 import type { Restaurant, Review } from '@/data/types';
+import { resolveReviewOrigin } from '@/data/types';
 import {
   restaurantToBackup,
   reviewToBackup,
@@ -30865,13 +33040,19 @@ function reviewToShareBackup(
   idMap: Map<string, string>,
 ): ShareReviewBackup {
   const backup = reviewToBackup(review);
+  // Prefer the friend's original id so re-imports upsert instead of duplicating.
+  const stableReviewId =
+    resolveReviewOrigin(review) === 'imported' && review.sourceReviewId?.trim()
+      ? review.sourceReviewId.trim()
+      : review.id;
   return {
     ...backup,
-    id: mappedId(review.id, idMap),
+    id: mappedId(stableReviewId, idMap),
     restaurantID: review.restaurantId
       ? mappedId(review.restaurantId, idMap)
       : null,
     date: toShareIso8601(review.date),
+    sourceReviewId: review.sourceReviewId?.trim() || stableReviewId,
   };
 }
 
@@ -31040,12 +33221,16 @@ import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system/legacy';
 
 import type { Restaurant, Review } from '@/data/types';
-import { normalizeRestaurant } from '@/data/types';
+import {
+  normalizeRestaurant,
+  resolveReviewOrigin,
+} from '@/data/types';
 import {
   backupPhotoKey,
   ensurePhotosDirectory,
   localPhotoUri,
 } from '@/services/backup/photos';
+import type { RestaurantBackup } from '@/services/backup/types';
 import {
   type SharePackage,
   type ShareReviewBackup,
@@ -31275,18 +33460,266 @@ export async function uriLooksLikeSharePackage(uri: string): Promise<boolean> {
 }
 
 export type ShareImportResult = {
+  /** Restaurants to insert or replace by id. */
   restaurants: Restaurant[];
+  /** Reviews to insert or replace by id. */
   reviews: Review[];
+  /** Extra local review ids collapsed as duplicates of an upsert. */
+  removeReviewIds: string[];
+  /** Restaurants left with no visits after collapse. */
+  removeRestaurantIds: string[];
   importedCount: number;
+  updatedCount: number;
 };
 
+function visitDayKey(iso: string): string {
+  const parsed = new Date(iso);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+  const raw = iso.trim();
+  return raw.length >= 10 ? raw.slice(0, 10) : raw;
+}
+
+function hasCoordinates(lat: number, lng: number): boolean {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    !(lat === 0 && lng === 0)
+  );
+}
+
+/** ~120 m — same place across two share packages. */
+function coordsNear(
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number },
+): boolean {
+  if (!hasCoordinates(a.latitude, a.longitude)) return false;
+  if (!hasCoordinates(b.latitude, b.longitude)) return false;
+  const dLat = (a.latitude - b.latitude) * 111_320;
+  const midLat = ((a.latitude + b.latitude) / 2) * (Math.PI / 180);
+  const dLng = (a.longitude - b.longitude) * 111_320 * Math.cos(midLat);
+  return Math.hypot(dLat, dLng) <= 120;
+}
+
+function restaurantsMatch(
+  existing: Restaurant,
+  incoming: Pick<
+    RestaurantBackup,
+    'name' | 'city' | 'latitude' | 'longitude' | 'mapItemIdentifier'
+  >,
+): boolean {
+  const mapA = existing.mapItemIdentifier?.trim();
+  const mapB = incoming.mapItemIdentifier?.trim();
+  if (mapA && mapB && mapA === mapB) return true;
+
+  const nameA = existing.name.trim().toLowerCase();
+  const nameB = (incoming.name ?? '').trim().toLowerCase();
+  if (!nameA || !nameB || nameA !== nameB) return false;
+
+  const cityA = existing.city.trim().toLowerCase();
+  const cityB = (incoming.city ?? '').trim().toLowerCase();
+  if (cityA && cityB && cityA === cityB) return true;
+
+  if (
+    coordsNear(existing, {
+      latitude: incoming.latitude ?? 0,
+      longitude: incoming.longitude ?? 0,
+    })
+  ) {
+    return true;
+  }
+
+  return !cityA && !cityB;
+}
+
+function authorsMatch(
+  existing: Review,
+  reviewedById: string,
+  reviewedBy: string,
+): boolean {
+  if (resolveReviewOrigin(existing) !== 'imported') return false;
+  const exId = existing.reviewedById?.trim();
+  const inId = reviewedById.trim();
+  if (exId && inId && exId === inId) return true;
+  // Name fallback: older packages minted a fresh author UUID per file, so
+  // ids can differ for the same friend.
+  const exName = existing.reviewedBy.trim().toLowerCase();
+  const inName = reviewedBy.trim().toLowerCase();
+  return Boolean(exName && inName && exName === inName);
+}
+
+function findMatchingExistingReviews(args: {
+  existingReviews: Review[];
+  existingRestaurants: Map<string, Restaurant>;
+  sourceReviewId: string;
+  reviewedById: string;
+  reviewedBy: string;
+  visitDay: string;
+  packageRestaurant: RestaurantBackup | undefined;
+}): Review[] {
+  const {
+    existingReviews,
+    existingRestaurants,
+    sourceReviewId,
+    reviewedById,
+    reviewedBy,
+    visitDay,
+    packageRestaurant,
+  } = args;
+
+  const bySource = existingReviews.filter((review) => {
+    if (resolveReviewOrigin(review) !== 'imported') return false;
+    const src = review.sourceReviewId?.trim();
+    if (src && src === sourceReviewId) return true;
+    return review.id === sourceReviewId;
+  });
+  if (bySource.length > 0) return bySource;
+
+  if (!packageRestaurant) return [];
+
+  return existingReviews.filter((review) => {
+    if (!authorsMatch(review, reviewedById, reviewedBy)) return false;
+    if (visitDayKey(review.date) !== visitDay) return false;
+    const restaurant = existingRestaurants.get(review.restaurantId);
+    if (!restaurant) return false;
+    return restaurantsMatch(restaurant, packageRestaurant);
+  });
+}
+
+function pickCanonicalReview(matches: Review[]): Review {
+  return [...matches].sort((a, b) => {
+    const photoDelta = b.photoUrls.length - a.photoUrls.length;
+    if (photoDelta !== 0) return photoDelta;
+    return b.date.localeCompare(a.date);
+  })[0]!;
+}
+
 /**
- * Import selected reviews as new imported entities with remapped IDs/photos
- * (Swift `ShareImportService.importSelected`).
+ * Collapse already-stored friend duplicates (same author + day + place, or
+ * same sourceReviewId). Keeps the visit with the most photos.
+ */
+export function planImportedReviewCollapse(
+  reviews: Review[],
+  restaurants: Restaurant[],
+): { removeReviewIds: string[]; removeRestaurantIds: string[] } {
+  const restaurantsById = new Map(restaurants.map((r) => [r.id, r]));
+  const imported = reviews.filter(
+    (r) => resolveReviewOrigin(r) === 'imported',
+  );
+  const removeReviewIds = new Set<string>();
+  const claimed = new Set<string>();
+
+  for (const review of imported) {
+    if (claimed.has(review.id) || removeReviewIds.has(review.id)) continue;
+    const restaurant = restaurantsById.get(review.restaurantId);
+    if (!restaurant) continue;
+
+    const cluster = imported.filter((other) => {
+      if (other.id === review.id) return true;
+      if (claimed.has(other.id) || removeReviewIds.has(other.id)) return false;
+      const srcA = review.sourceReviewId?.trim();
+      const srcB = other.sourceReviewId?.trim();
+      if (srcA && srcB && srcA === srcB) return true;
+      if (
+        !authorsMatch(
+          other,
+          review.reviewedById?.trim() || '',
+          review.reviewedBy,
+        )
+      ) {
+        return false;
+      }
+      if (visitDayKey(other.date) !== visitDayKey(review.date)) return false;
+      const otherRest = restaurantsById.get(other.restaurantId);
+      if (!otherRest) return false;
+      return restaurantsMatch(restaurant, {
+        name: otherRest.name,
+        city: otherRest.city,
+        latitude: otherRest.latitude,
+        longitude: otherRest.longitude,
+        mapItemIdentifier: otherRest.mapItemIdentifier,
+      });
+    });
+
+    const canonical = pickCanonicalReview(cluster);
+    for (const match of cluster) {
+      claimed.add(match.id);
+      if (match.id !== canonical.id) removeReviewIds.add(match.id);
+    }
+  }
+
+  const remainingByRestaurant = new Map<string, number>();
+  for (const review of reviews) {
+    if (removeReviewIds.has(review.id)) continue;
+    remainingByRestaurant.set(
+      review.restaurantId,
+      (remainingByRestaurant.get(review.restaurantId) ?? 0) + 1,
+    );
+  }
+
+  const removeRestaurantIds: string[] = [];
+  for (const reviewId of removeReviewIds) {
+    const dropped = reviews.find((r) => r.id === reviewId);
+    if (!dropped) continue;
+    if ((remainingByRestaurant.get(dropped.restaurantId) ?? 0) > 0) continue;
+    removeRestaurantIds.push(dropped.restaurantId);
+  }
+
+  return {
+    removeReviewIds: [...removeReviewIds],
+    removeRestaurantIds,
+  };
+}
+
+function findReusableRestaurant(args: {
+  existingRestaurants: Restaurant[];
+  packageRestaurant: RestaurantBackup;
+  preferredId?: string;
+}): Restaurant | undefined {
+  const { existingRestaurants, packageRestaurant, preferredId } = args;
+  if (preferredId) {
+    const preferred = existingRestaurants.find((r) => r.id === preferredId);
+    if (preferred && restaurantsMatch(preferred, packageRestaurant)) {
+      return preferred;
+    }
+  }
+  return existingRestaurants.find((r) =>
+    restaurantsMatch(r, packageRestaurant),
+  );
+}
+
+function restaurantFromBackup(
+  backup: RestaurantBackup,
+  previous?: Restaurant,
+): Restaurant {
+  return normalizeRestaurant({
+    id: previous?.id ?? Crypto.randomUUID(),
+    name: backup.name,
+    city: backup.city,
+    country: backup.country ?? previous?.country ?? '',
+    address: backup.streetAddress ?? previous?.address ?? '',
+    phone: backup.phoneNumber ?? previous?.phone,
+    latitude: backup.latitude ?? previous?.latitude ?? 0,
+    longitude: backup.longitude ?? previous?.longitude ?? 0,
+    mapItemIdentifier:
+      backup.mapItemIdentifier ?? previous?.mapItemIdentifier ?? null,
+    isFavorite: previous?.isFavorite ?? false,
+    primaryType: backup.primaryType ?? previous?.primaryType ?? '',
+    thumbnailColor: previous?.thumbnailColor || '#3D6B52',
+    photoUrl: previous?.photoUrl ?? '',
+  });
+}
+
+/**
+ * Import selected reviews, upserting when the same friend visit already exists
+ * (source review id, or author + day + place). Newer package photos/ratings win.
  */
 export async function importSelectedShareReviews(args: {
   reviewIds: string[];
   package: SharePackage;
+  existingReviews?: Review[];
+  existingRestaurants?: Restaurant[];
 }): Promise<ShareImportResult> {
   const selectedIds = new Set(args.reviewIds.filter(Boolean));
   if (selectedIds.size === 0) {
@@ -31300,39 +33733,15 @@ export async function importSelectedShareReviews(args: {
     throw new ShareImportError('Select at least one review to import.');
   }
 
-  const restaurantIds = new Set(
-    selectedReviews
-      .map((r) => r.restaurantID)
-      .filter((id): id is string => Boolean(id)),
+  const existingReviews = args.existingReviews ?? [];
+  const existingRestaurants = args.existingRestaurants ?? [];
+  const existingRestaurantsById = new Map(
+    existingRestaurants.map((r) => [r.id, r]),
   );
+
   const restaurantsByOldId = new Map(
-    args.package.restaurants
-      .filter((r) => restaurantIds.has(r.id))
-      .map((r) => [r.id, r]),
+    args.package.restaurants.map((r) => [r.id, r]),
   );
-
-  const restaurantIdMap = new Map<string, Restaurant>();
-  const restaurants: Restaurant[] = [];
-
-  for (const [oldId, backup] of restaurantsByOldId) {
-    const restaurant = normalizeRestaurant({
-      id: Crypto.randomUUID(),
-      name: backup.name,
-      city: backup.city,
-      country: backup.country ?? '',
-      address: backup.streetAddress ?? '',
-      phone: backup.phoneNumber ?? undefined,
-      latitude: backup.latitude ?? 0,
-      longitude: backup.longitude ?? 0,
-      mapItemIdentifier: backup.mapItemIdentifier ?? null,
-      isFavorite: false,
-      primaryType: backup.primaryType ?? '',
-      thumbnailColor: '#3D6B52',
-      photoUrl: '',
-    });
-    restaurantIdMap.set(oldId, restaurant);
-    restaurants.push(restaurant);
-  }
 
   const neededPhotoPaths = new Set<string>();
   for (const review of selectedReviews) {
@@ -31361,7 +33770,15 @@ export async function importSelectedShareReviews(args: {
   /** One id for this package when `sharedById` is missing (legacy Swift/Expo). */
   const packageAuthorId =
     args.package.sharedById?.trim() || Crypto.randomUUID();
-  const reviews: Review[] = [];
+
+  const upsertRestaurants = new Map<string, Restaurant>();
+  const upsertReviews: Review[] = [];
+  const removeReviewIds = new Set<string>();
+  let importedCount = 0;
+  let updatedCount = 0;
+
+  // Avoid matching the same local review twice in one multi-select import.
+  const claimedExistingIds = new Set<string>();
 
   for (const backup of selectedReviews) {
     const mappedPhotos = (backup.photoPaths ?? [])
@@ -31376,42 +33793,83 @@ export async function importSelectedShareReviews(args: {
     const oldReviewerPath = backup.reviewedByPhotoPath?.trim();
     if (oldReviewerPath && photoPathMap.has(oldReviewerPath)) {
       reviewedByPhotoFilename = photoPathMap.get(oldReviewerPath)!;
-    } else if (
-      !authorFromBackup ||
-      authorFromBackup === sharedByTrimmed
-    ) {
+    } else if (!authorFromBackup || authorFromBackup === sharedByTrimmed) {
       reviewedByPhotoFilename = sharedByPhotoPath ?? '';
     }
 
     const perReviewAuthorId = backup.reviewedById?.trim();
     const reviewedById = perReviewAuthorId || packageAuthorId;
-
-    const restaurant = backup.restaurantID
-      ? restaurantIdMap.get(backup.restaurantID)
+    const sourceReviewId =
+      backup.sourceReviewId?.trim() || backup.id.trim() || Crypto.randomUUID();
+    const visitDate = shareDateToApp(backup.date);
+    const visitDay = visitDayKey(visitDate);
+    const packageRestaurant = backup.restaurantID
+      ? restaurantsByOldId.get(backup.restaurantID)
       : undefined;
+
+    const matches = findMatchingExistingReviews({
+      existingReviews: existingReviews.filter(
+        (r) => !claimedExistingIds.has(r.id) && !removeReviewIds.has(r.id),
+      ),
+      existingRestaurants: existingRestaurantsById,
+      sourceReviewId,
+      reviewedById,
+      reviewedBy,
+      visitDay,
+      packageRestaurant,
+    });
+
+    const canonical = matches.length > 0 ? pickCanonicalReview(matches) : null;
+    for (const match of matches) {
+      claimedExistingIds.add(match.id);
+      if (canonical && match.id !== canonical.id) {
+        removeReviewIds.add(match.id);
+      }
+    }
+
+    let restaurant: Restaurant | undefined;
+    if (packageRestaurant) {
+      const reusable = findReusableRestaurant({
+        existingRestaurants: [
+          ...existingRestaurants,
+          ...upsertRestaurants.values(),
+        ],
+        packageRestaurant,
+        preferredId: canonical?.restaurantId,
+      });
+      restaurant = restaurantFromBackup(packageRestaurant, reusable);
+      upsertRestaurants.set(restaurant.id, restaurant);
+    } else if (canonical) {
+      restaurant = existingRestaurantsById.get(canonical.restaurantId);
+    }
 
     const criteria = criteriaFromShareReview(backup);
     const photoUrls = mappedPhotos.map((name) => localPhotoUri(name));
     const firstPhoto = photoUrls[0] ?? '';
 
-    if (restaurant && firstPhoto && !restaurant.photoUrl) {
-      restaurant.photoUrl = firstPhoto;
+    if (restaurant && firstPhoto) {
+      restaurant = {
+        ...restaurant,
+        photoUrl: firstPhoto,
+      };
+      upsertRestaurants.set(restaurant.id, restaurant);
     }
 
     const generalComment = backup.generalComment ?? '';
     const searchableFromPackage = (backup.searchableText ?? '').trim();
-    reviews.push({
-      id: Crypto.randomUUID(),
-      restaurantId: restaurant?.id ?? '',
-      date: shareDateToApp(backup.date),
+    const review: Review = {
+      id: canonical?.id ?? Crypto.randomUUID(),
+      restaurantId: restaurant?.id ?? canonical?.restaurantId ?? '',
+      date: visitDate,
       generalComment,
       criteria,
-      photoUrls,
+      photoUrls:
+        photoUrls.length > 0 ? photoUrls : (canonical?.photoUrls ?? []),
       reviewedBy,
       reviewedById,
       reviewedByPhotoUrl: reviewedByPhotoFilename
         ? localPhotoUri(reviewedByPhotoFilename)
-        : undefined,
+        : canonical?.reviewedByPhotoUrl,
       overallScore: overallScoreFromCriteria(criteria),
       origin: 'imported',
       searchableText:
@@ -31421,14 +33879,51 @@ export async function importSelectedShareReviews(args: {
           generalComment,
           criteria,
         }),
-      ocrText: '',
-    });
+      ocrText: canonical?.ocrText ?? '',
+      wineLabel: canonical?.wineLabel,
+      sourceReviewId,
+    };
+    upsertReviews.push(review);
+
+    if (canonical) updatedCount += 1;
+    else importedCount += 1;
+  }
+
+  // Drop restaurants that only hosted removed duplicate visits.
+  const remainingByRestaurant = new Map<string, number>();
+  for (const review of existingReviews) {
+    if (removeReviewIds.has(review.id)) continue;
+    // Count will be replaced for upserted reviews below.
+    if (upsertReviews.some((u) => u.id === review.id)) continue;
+    remainingByRestaurant.set(
+      review.restaurantId,
+      (remainingByRestaurant.get(review.restaurantId) ?? 0) + 1,
+    );
+  }
+  for (const review of upsertReviews) {
+    remainingByRestaurant.set(
+      review.restaurantId,
+      (remainingByRestaurant.get(review.restaurantId) ?? 0) + 1,
+    );
+  }
+
+  const removeRestaurantIds: string[] = [];
+  for (const reviewId of removeReviewIds) {
+    const dropped = existingReviews.find((r) => r.id === reviewId);
+    if (!dropped) continue;
+    const rid = dropped.restaurantId;
+    if ((remainingByRestaurant.get(rid) ?? 0) > 0) continue;
+    if (upsertRestaurants.has(rid)) continue;
+    removeRestaurantIds.push(rid);
   }
 
   return {
-    restaurants,
-    reviews,
-    importedCount: selectedReviews.length,
+    restaurants: [...upsertRestaurants.values()],
+    reviews: upsertReviews,
+    removeReviewIds: [...removeReviewIds],
+    removeRestaurantIds,
+    importedCount,
+    updatedCount,
   };
 }
 
@@ -31645,6 +34140,358 @@ export function toShareIso8601(input: Date | string | number): string {
     return new Date(0).toISOString().replace(/\.\d{3}Z$/, 'Z');
   }
   return date.toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+
+================================================================================
+FILE: services/wine/identifyWineLabel.ts
+================================================================================
+import * as FileSystem from 'expo-file-system/legacy';
+import * as ImageManipulator from 'expo-image-manipulator';
+import { Image } from 'react-native';
+
+import { GeminiAPIConfig } from '@/constants/GeminiAPIConfig';
+import { incrementGoogleApi } from '@/services/google/GoogleApiTracker';
+import {
+  formatWineLabelDrinksComment,
+  type WineLabelFiche,
+} from '@/services/wine/wineLabelTypes';
+
+const MAX_SIDE = 1024;
+const GEMINI_MODEL = 'gemini-2.0-flash';
+
+const PROMPT = `This is a photo/scan of a wine bottle (or its label).
+Identify the wine. Account for transparent bottles where text on the back may show through mirrored.
+If you cannot confidently read a wine name/estate, return nameAndEstate as an empty string.
+
+Return STRICT JSON only (no markdown) with these keys:
+{
+  "nameAndEstate": "Wine name & winery/estate (e.g. Love by Léoube)",
+  "typeStyle": "one of: Rood, Wit, Rosé, Mousserend, Dessertwijn (use Dutch labels as shown, or closest)",
+  "countryRegion": "Country and region (e.g. Frankrijk, Côtes de Provence)",
+  "vintage": "Harvest year on the bottle or null",
+  "grapes": "Grape variety/varieties or null",
+  "alcoholPercent": number or null,
+  "foodPairings": "Dishes this wine pairs well with, short phrase, or null"
+}`;
+
+type GeminiJson = {
+  nameAndEstate?: unknown;
+  typeStyle?: unknown;
+  countryRegion?: unknown;
+  vintage?: unknown;
+  grapes?: unknown;
+  alcoholPercent?: unknown;
+  foodPairings?: unknown;
+};
+
+function getImageSize(uri: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    Image.getSize(
+      uri,
+      (width, height) => resolve({ width, height }),
+      reject,
+    );
+  });
+}
+
+/** Downscale + JPEG compress so one Vision call stays small/cheap. */
+export async function optimizeWineLabelForUpload(uri: string): Promise<string> {
+  let actions: ImageManipulator.Action[] = [];
+  try {
+    const { width, height } = await getImageSize(uri);
+    const longest = Math.max(width, height);
+    if (longest > MAX_SIDE && longest > 0) {
+      const scale = MAX_SIDE / longest;
+      actions = [
+        {
+          resize: {
+            width: Math.max(1, Math.round(width * scale)),
+            height: Math.max(1, Math.round(height * scale)),
+          },
+        },
+      ];
+    }
+  } catch {
+    actions = [{ resize: { width: MAX_SIDE } }];
+  }
+
+  const result = await ImageManipulator.manipulateAsync(uri, actions, {
+    compress: 0.75,
+    format: ImageManipulator.SaveFormat.JPEG,
+  });
+  return result.uri;
+}
+
+function asTrimmedString(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value.trim();
+}
+
+function asNullableString(value: unknown): string | null {
+  const s = asTrimmedString(value);
+  if (!s || /^null$/i.test(s) || s === '-' || s === 'n/a') return null;
+  return s;
+}
+
+function asAlcohol(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.round(value * 10) / 10;
+  }
+  if (typeof value === 'string') {
+    const m = value.replace(',', '.').match(/(\d+(?:\.\d+)?)/);
+    if (m) {
+      const n = Number.parseFloat(m[1]!);
+      return Number.isFinite(n) ? Math.round(n * 10) / 10 : null;
+    }
+  }
+  return null;
+}
+
+function parseFicheJson(
+  raw: string,
+  labelPhotoUri: string,
+): WineLabelFiche | null {
+  let parsed: GeminiJson;
+  try {
+    const cleaned = raw
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+    parsed = JSON.parse(cleaned) as GeminiJson;
+  } catch {
+    return null;
+  }
+
+  const nameAndEstate = asTrimmedString(parsed.nameAndEstate);
+  if (!nameAndEstate) return null;
+
+  return {
+    labelPhotoUri,
+    nameAndEstate,
+    typeStyle: asNullableString(parsed.typeStyle) ?? undefined,
+    countryRegion: asNullableString(parsed.countryRegion) ?? undefined,
+    vintage: asNullableString(parsed.vintage),
+    grapes: asNullableString(parsed.grapes),
+    alcoholPercent: asAlcohol(parsed.alcoholPercent),
+    foodPairings: asNullableString(parsed.foodPairings),
+    analyzedAt: new Date().toISOString(),
+  };
+}
+
+export type IdentifyWineLabelResult = {
+  fiche: WineLabelFiche | null;
+  drinksComment: string;
+  /** Optimized JPEG used for the API (also good as label photo). */
+  optimizedUri: string;
+};
+
+/**
+ * One Gemini Vision call per invocation. Returns null fiche when no match.
+ */
+export async function identifyWineLabel(
+  sourceUri: string,
+): Promise<IdentifyWineLabelResult> {
+  const key = GeminiAPIConfig.requireApiKey();
+  const optimizedUri = await optimizeWineLabelForUpload(sourceUri);
+  const base64 = await FileSystem.readAsStringAsync(optimizedUri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(key)}`;
+  const body = {
+    contents: [
+      {
+        parts: [
+          { text: PROMPT },
+          {
+            inline_data: {
+              mime_type: 'image/jpeg',
+              data: base64,
+            },
+          },
+        ],
+      },
+    ],
+    generationConfig: {
+      response_mime_type: 'application/json',
+      temperature: 0.2,
+    },
+  };
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    throw new Error(
+      errText.trim() || `Gemini request failed (${response.status})`,
+    );
+  }
+
+  const payload = (await response.json()) as {
+    candidates?: Array<{
+      content?: { parts?: Array<{ text?: string }> };
+    }>;
+  };
+  const text =
+    payload.candidates?.[0]?.content?.parts
+      ?.map((p) => p.text ?? '')
+      .join('')
+      .trim() ?? '';
+
+  await incrementGoogleApi('gemini');
+
+  const fiche = parseFicheJson(text, optimizedUri);
+  return {
+    fiche,
+    drinksComment: fiche ? formatWineLabelDrinksComment(fiche) : '',
+    optimizedUri,
+  };
+}
+
+
+================================================================================
+FILE: services/wine/parseWineLabelOcr.ts
+================================================================================
+/**
+ * Light cleanup of wine-label OCR → suggested name + year for Drinks comment.
+ */
+
+const YEAR_RE = /\b(19|20)\d{2}\b/;
+
+/** Drop obvious junk lines (alcohol %, volume, importer boilerplate). */
+function isNoiseLine(line: string): boolean {
+  const t = line.trim();
+  if (t.length < 2) return true;
+  if (/^\d+([.,]\d+)?\s*%/.test(t)) return true;
+  if (/^\d+([.,]\d+)?\s*(ml|cl|l)\b/i.test(t)) return true;
+  if (/^(product of|produit|produced|bottled|importe|contains|allergen)/i.test(t))
+    return true;
+  if (/^www\.|https?:\/\//i.test(t)) return true;
+  return false;
+}
+
+export type ParsedWineLabel = {
+  /** Full OCR text with line breaks (for display). */
+  rawText: string;
+  /** Best-effort “Name Year” suggestion for the drinks comment. */
+  suggestion: string;
+  year: string | null;
+};
+
+export function parseWineLabelOcr(raw: string): ParsedWineLabel {
+  const rawText = raw.replace(/\r\n/g, '\n').trim();
+  const lines = rawText
+    .split('\n')
+    .map((l) => l.replace(/\s+/g, ' ').trim())
+    .filter((l) => l.length > 0 && !isNoiseLine(l));
+
+  let year: string | null = null;
+  for (const line of lines) {
+    const m = line.match(YEAR_RE);
+    if (m) {
+      year = m[0];
+      break;
+    }
+  }
+  if (!year) {
+    const m = rawText.match(YEAR_RE);
+    year = m ? m[0] : null;
+  }
+
+  // Prefer a longer “title-like” line without the year alone.
+  let name =
+    lines.find((l) => l.length >= 4 && !/^\d{4}$/.test(l)) ?? lines[0] ?? '';
+  name = name.replace(YEAR_RE, '').replace(/\s+/g, ' ').trim();
+
+  const suggestion = [name, year].filter(Boolean).join(' ').trim();
+  return { rawText, suggestion, year };
+}
+
+
+================================================================================
+FILE: services/wine/pendingWineLabelResult.ts
+================================================================================
+import type { WineLabelFiche } from '@/data/types';
+
+/**
+ * Hand-off from wine-label-scan → review-form (Drinks + wine fiche + photo).
+ */
+
+export type WineLabelScanResult = {
+  /** Text to put in the Drinks comment (suggestion or edited). */
+  drinksComment: string;
+  /** Kept for search indexing compatibility (summary / empty). */
+  ocrText: string;
+  /** Label photo to add to review photos when set. */
+  croppedUri: string | null;
+  /** Structured Gemini fiche; null = no match (hide icon). */
+  wineLabel: WineLabelFiche | null;
+};
+
+let pending: WineLabelScanResult | null = null;
+
+export function setPendingWineLabelResult(result: WineLabelScanResult): void {
+  pending = result;
+}
+
+export function takePendingWineLabelResult(): WineLabelScanResult | null {
+  const next = pending;
+  pending = null;
+  return next;
+}
+
+
+================================================================================
+FILE: services/wine/wineLabelTypes.ts
+================================================================================
+import type { WineLabelFiche } from '@/data/types';
+
+export type { WineLabelFiche };
+
+/** True when the fiche is worth showing (has a name). */
+export function hasWineLabelMatch(
+  fiche: WineLabelFiche | null | undefined,
+): fiche is WineLabelFiche {
+  return Boolean(fiche?.nameAndEstate?.trim());
+}
+
+/** One-line summary for the Drinks comment. */
+export function formatWineLabelDrinksComment(fiche: WineLabelFiche): string {
+  const parts = [
+    fiche.nameAndEstate.trim(),
+    fiche.typeStyle?.trim(),
+    fiche.countryRegion?.trim(),
+    fiche.vintage?.trim(),
+    fiche.grapes?.trim(),
+    fiche.alcoholPercent != null && Number.isFinite(fiche.alcoholPercent)
+      ? `${fiche.alcoholPercent}%`
+      : '',
+  ].filter(Boolean);
+  return parts.join(' · ');
+}
+
+
+================================================================================
+FILE: services/wine/wineVisionConsent.ts
+================================================================================
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const KEY = 'wine_vision_upload_notice_v1';
+
+/** True after the user has seen the first-time upload warning. */
+export async function hasSeenWineVisionUploadNotice(): Promise<boolean> {
+  const raw = await AsyncStorage.getItem(KEY);
+  return raw === '1';
+}
+
+export async function markWineVisionUploadNoticeSeen(): Promise<void> {
+  await AsyncStorage.setItem(KEY, '1');
 }
 
 

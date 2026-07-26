@@ -54,6 +54,7 @@
     "filters": "Filtri",
     "addReview": "Aggiungi recensione",
     "myLocation": "La mia posizione",
+    "mapLegend": "Legenda mappa",
     "clearLocation": "Cancella filtro località",
     "clearCuisine": "Cancella filtro cucina",
     "clearFavorites": "Cancella filtro preferiti",
@@ -121,6 +122,11 @@
   "map": {
     "title": "La mia mappa",
     "friendSuffix": "(amico)",
+    "legend": {
+      "title": "Spilli",
+      "own": "Le mie recensioni",
+      "friends": "Recensioni degli amici"
+    },
     "empty": {
       "noMatchesTitle": "Nessun risultato",
       "noMatchesBody": "Nessun ristorante corrisponde ai filtri attuali.",
@@ -221,7 +227,8 @@
     "languageFrench": "Français",
     "languageValueGerman": "Deutsch",
     "languageValueSpanish": "Español",
-    "languageValueFrench": "Français"
+    "languageValueFrench": "Français",
+    "geminiApi": "Gemini Vision vino"
   },
   "criteria": {
     "food": "Cibo",
@@ -288,7 +295,14 @@
       "indexing": "Indicizzazione foto…",
       "avg": "{{score}} media",
       "time": "Ora",
-      "setTime": "Imposta ora · {{time}}"
+      "setTime": "Imposta ora · {{time}}",
+      "photoStrip": {
+        "hintReorder": "Tocca per selezionare · tieni premuto per riordinare · la prima è Cover",
+        "hintSelect": "Tocca per selezionare e rimuovere",
+        "cover": "Cover",
+        "a11yCover": "Foto di copertina. Tocca per selezionare, tieni premuto per riordinare.",
+        "a11yPhoto": "Foto. Tocca per selezionare, tieni premuto per riordinare."
+      }
     },
     "photos": {
       "takePhoto": "Scatta foto",
@@ -347,8 +361,8 @@
     "chooser": {
       "gustraFile": "Condividi file Gustra",
       "gustraFileSubtitle": "Per amici con Gustra",
-      "visual": "Invia raccomandazione visuale",
-      "visualSubtitle": "Email con riepilogo e foto",
+      "visual": "Condividi recensione via e-mail",
+      "visualSubtitle": "Invia una bella scheda di questa recensione",
       "cancel": "Annulla"
     },
     "nameSheet": {
@@ -441,6 +455,8 @@
       "removePhotosTitle": "Rimuovere le foto?",
       "removePhotosBody": "Le foto selezionate verranno rimosse da questa recensione.",
       "photosSaveFailed": "Impossibile salvare le foto.",
+      "photoLimitTitle": "Limite foto",
+      "photoLimitBody": "Puoi aggiungere fino a {{max}} foto a una recensione.",
       "deleteTitle": "Eliminare?",
       "deleteBody": "Questa recensione verrà eliminata.",
       "discardEdits": {
@@ -485,6 +501,49 @@
     "profilePhoto": {
       "storageTitle": "Archiviazione",
       "storageBody": "Impossibile salvare la foto profilo."
+    }
+  },
+  "wineScan": {
+    "title": "Scansiona etichetta",
+    "lead": "Fotografa l’etichetta della bottiglia",
+    "hint": "Ritaglia l’etichetta; poi leggiamo il testo sul dispositivo.",
+    "chooserTitle": "Foto dell’etichetta",
+    "cropHint": "Pizzica e trascina finché l’etichetta riempie il riquadro",
+    "cropA11y": "Ritaglio etichetta vino",
+    "readLabel": "Leggi etichetta",
+    "reading": "Lettura etichetta…",
+    "retake": "Scegli un’altra foto",
+    "adjustCrop": "Modifica ritaglio",
+    "ocrResult": "Testo dall’etichetta",
+    "ocrEmpty": "Nessun testo trovato in questo ritaglio.",
+    "drinksSuggestion": "Per Bevande",
+    "drinksSuggestionPlaceholder": "Nome del vino e annata",
+    "useInDrinks": "Usa in Bevande",
+    "scanButton": "Scansiona",
+    "scanButtonA11y": "Scansiona etichetta vino per Bevande",
+    "drinksCommentPlaceholder": "Vino, cocktail o altre bevande…",
+    "ocrUnavailableTitle": "Lettura testo non disponibile",
+    "ocrUnavailableBody": "La lettura sul dispositivo richiede una build completa (non Expo Go). Puoi comunque tenere la foto ritagliata.",
+    "noTextTitle": "Nessun testo trovato",
+    "noTextBody": "Prova una foto più nitida o regola il ritaglio così l’etichetta riempie il riquadro.",
+    "failedBody": "Could not analyze the label. Check your connection and try again.",
+    "hintVision": "Crop the label, then we’ll identify the wine online (one optimized photo).",
+    "analyzing": "Analyzing label…",
+    "uploadNoticeTitle": "Photo sent for analysis",
+    "uploadNoticeBody": "To identify the wine, a smaller copy of your photo is uploaded to Google for analysis. The photo is not stored in Gustra’s cloud — only sent for this scan.",
+    "uploadNoticeContinue": "Continue",
+    "noMatchTitle": "No wine recognized",
+    "noMatchBody": "We couldn’t identify a wine from this photo. Try a sharper label photo.",
+    "missingKeyBody": "Gemini API key missing. Set EXPO_PUBLIC_GEMINI_API_KEY in .env and restart Expo.",
+    "fiche": {
+      "title": "Wine",
+      "openA11y": "Open wine details",
+      "typeStyle": "Type & style",
+      "countryRegion": "Country & region",
+      "vintage": "Vintage",
+      "grapes": "Grapes",
+      "alcohol": "Alcohol",
+      "foodPairings": "Pairs with"
     }
   }
 }

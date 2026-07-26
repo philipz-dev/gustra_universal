@@ -34,7 +34,7 @@ export default function ShareImportScreen() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { importSharePackage } = useReviewsStore();
+  const { importSharePackage, reviews, restaurants } = useReviewsStore();
   const { enabledCriteria } = useCriteriaSettings();
   const packageData = useMemo(() => takePendingSharePackage(), []);
 
@@ -119,6 +119,8 @@ export default function ShareImportScreen() {
       const result = await importSelectedShareReviews({
         reviewIds: [...selectedIds],
         package: packageData,
+        existingReviews: reviews,
+        existingRestaurants: restaurants,
       });
       await importSharePackage(result);
       clearPendingSharePackage();

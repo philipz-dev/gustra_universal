@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
   Image,
@@ -27,7 +27,7 @@ type HeroPhotoPagerProps = {
 /**
  * Horizontal review hero pager (Swift `ReviewDetailView.heroPhoto`).
  * Aspect-fit in a fixed 220pt canvas via `resizeMode="contain"` — no crop.
- * Avoid Image.getSize + nested frames (broke display on some devices).
+ * No photos (or only broken URIs) → render nothing (no fork.knife placeholder).
  */
 export function HeroPhotoPager({
   uris,
@@ -36,13 +36,48 @@ export function HeroPhotoPager({
   onPressPhoto,
 }: HeroPhotoPagerProps) {
   const pageWidth = useRef(Dimensions.get('window').width).current;
+  const trimmed = useMemo(
+    () => uris.map((u) => u.trim()).filter(Boolean),
+    [uris],
+  );
+  const [failed, setFailed] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    setFailed((prev) => {
+      const next = new Set<string>();
+      for (const uri of prev) {
+        if (trimmed.includes(uri)) next.add(uri);
+      }
+      return next.size === prev.size ? prev : next;
+    });
+  }, [trimmed]);
+
+  const pages = useMemo(
+    () => trimmed.filter((uri) => !failed.has(uri)),
+    [trimmed, failed],
+  );
+
+  const markFailed = useCallback((uri: string) => {
+    setFailed((prev) => {
+      if (prev.has(uri)) return prev;
+      const next = new Set(prev);
+      next.add(uri);
+      return next;
+    });
+  }, []);
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const next = Math.round(e.nativeEvent.contentOffset.x / pageWidth);
-    if (next !== index && next >= 0 && next < uris.length) {
+    if (next !== index && next >= 0 && next < pages.length) {
       onIndexChange(next);
     }
   };
+
+  if (pages.length === 0) {
+    return null;
+  }
+
+  const safeIndex = Math.min(Math.max(index, 0), pages.length - 1);
 
   return (
     <View style={styles.heroBlock}>
@@ -57,19 +92,20 @@ export function HeroPhotoPager({
         scrollEventThrottle={16}
         decelerationRate="fast"
         style={styles.heroScroll}>
-        {uris.map((uri, photoIndex) => (
+        {pages.map((uri, photoIndex) => (
           <HeroPage
             key={`${uri}-${photoIndex}`}
             uri={uri}
             width={pageWidth}
-            label={`Photo ${photoIndex + 1} of ${uris.length}`}
+            label={`Photo ${photoIndex + 1} of ${pages.length}`}
             onPress={() => onPressPhoto(photoIndex)}
+            onError={() => markFailed(uri)}
           />
         ))}
       </ScrollView>
-      {uris.length > 1 ? (
+      {pages.length > 1 ? (
         <Text style={styles.pageIndicator}>
-          {index + 1} / {uris.length}
+          {safeIndex + 1} / {pages.length}
         </Text>
       ) : null}
     </View>
@@ -81,21 +117,33 @@ function HeroPage({
   width,
   label,
   onPress,
+  onError,
 }: {
   uri: string;
   width: number;
   label: string;
   onPress: () => void;
+  onError: () => void;
 }) {
   const canvasW = Math.max(1, width - HERO_H_PAD * 2);
   const canvasH = Math.max(1, HERO_H - 8);
-  const [failed, setFailed] = useState(false);
+  const onPressRef = useRef(onPress);
+  onPressRef.current = onPress;
 
-  const tap = Gesture.Tap()
-    .maxDistance(12)
-    .onEnd(() => {
-      runOnJS(onPress)();
-    });
+  const handlePress = useCallback(() => {
+    onPressRef.current();
+  }, []);
+
+  const tap = useMemo(
+    () =>
+      Gesture.Tap()
+        .maxDistance(12)
+        .onEnd(() => {
+          'worklet';
+          runOnJS(handlePress)();
+        }),
+    [handlePress],
+  );
 
   return (
     <GestureDetector gesture={tap}>
@@ -105,16 +153,13 @@ function HeroPage({
         accessibilityLabel={label}
         collapsable={false}>
         <View style={[styles.heroFrame, { width: canvasW, height: canvasH }]}>
-          {failed ? (
-            <View style={styles.failed} />
-          ) : (
-            <Image
-              source={{ uri }}
-              style={{ width: canvasW, height: canvasH }}
-              resizeMode="contain"
-              onError={() => setFailed(true)}
-            />
-          )}
+          <Image
+            key={uri}
+            source={{ uri }}
+            style={{ width: canvasW, height: canvasH }}
+            resizeMode="contain"
+            onError={onError}
+          />
         </View>
       </View>
     </GestureDetector>
@@ -144,10 +189,6 @@ const styles = StyleSheet.create({
     backgroundColor: GustraColors.bubble,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  failed: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(36, 78, 57, 0.12)',
   },
   pageIndicator: {
     alignSelf: 'center',

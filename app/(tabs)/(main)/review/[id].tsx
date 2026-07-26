@@ -51,6 +51,7 @@ import { Haptics } from '@/services/haptics';
 import { shareReviewAsEmail } from '@/services/share/ReviewEmailShare';
 import { shareReviewsPackage } from '@/services/share/ReviewShareService';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { hasWineLabelMatch } from '@/services/wine/wineLabelTypes';
 
 function afterSheetDismiss(work: () => void): void {
   setTimeout(work, Platform.OS === 'ios' ? 360 : 60);
@@ -72,6 +73,8 @@ export default function ReviewDetailScreen() {
     useReviewerProfile();
   const review = getReview(id);
   const restaurant = review ? getRestaurant(review.restaurantId) : undefined;
+  const photoUris =
+    review?.photoUrls.map((u) => u.trim()).filter(Boolean) ?? [];
   const isFriendReview = review
     ? resolveReviewOrigin(review) === 'imported'
     : false;
@@ -288,6 +291,8 @@ export default function ReviewDetailScreen() {
         .join(', ')
     : '';
 
+  const showWineFiche = hasWineLabelMatch(review?.wineLabel);
+
   const header = (
     <HouseNavHeader
       title={t('detail.review.title')}
@@ -296,16 +301,32 @@ export default function ReviewDetailScreen() {
       onBack={() => router.back()}
       right={
         review ? (
-          <HouseToolbarIconButton
-            iosName="ellipsis"
-            androidName="more-vert"
-            accessibilityLabel={t('detail.options.a11y')}
-            disabled={sharing}
-            onPress={() => {
-              Haptics.selectionChanged();
-              setOptionsVisible(true);
-            }}
-          />
+          <View style={styles.headerActions}>
+            {showWineFiche ? (
+              <HouseToolbarIconButton
+                iosName="wineglass"
+                androidName="local-bar"
+                accessibilityLabel={t('wineScan.fiche.openA11y')}
+                onPress={() => {
+                  Haptics.selectionChanged();
+                  router.push({
+                    pathname: '/wine-label-fiche',
+                    params: { reviewId: review.id },
+                  });
+                }}
+              />
+            ) : null}
+            <HouseToolbarIconButton
+              iosName="ellipsis"
+              androidName="more-vert"
+              accessibilityLabel={t('detail.options.a11y')}
+              disabled={sharing}
+              onPress={() => {
+                Haptics.selectionChanged();
+                setOptionsVisible(true);
+              }}
+            />
+          </View>
         ) : null
       }
     />
@@ -330,18 +351,21 @@ export default function ReviewDetailScreen() {
         contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]}
         overScrollMode="never"
         nestedScrollEnabled>
-        {review.photoUrls.length > 0 ? (
-          <HeroPhotoPager
-            key={review.photoUrls.join('|')}
-            uris={review.photoUrls}
-            index={Math.min(photoIndex, review.photoUrls.length - 1)}
-            onIndexChange={setPhotoIndex}
-            onPressPhoto={(index) => {
-              setPhotoIndex(index);
-              setShowPhotoViewer(true);
-            }}
-          />
-        ) : null}
+        <HeroPhotoPager
+          key={photoUris.join('|') || 'empty'}
+          uris={photoUris}
+          index={
+            photoUris.length > 0
+              ? Math.min(photoIndex, photoUris.length - 1)
+              : 0
+          }
+          onIndexChange={setPhotoIndex}
+          onPressPhoto={(index) => {
+            if (photoUris.length === 0) return;
+            setPhotoIndex(index);
+            setShowPhotoViewer(true);
+          }}
+        />
 
         <View style={styles.content}>
           <View style={styles.header}>
@@ -418,9 +442,9 @@ export default function ReviewDetailScreen() {
       </ScrollView>
 
       <ReviewPhotoViewer
-        visible={showPhotoViewer}
-        uris={review.photoUrls}
-        index={photoIndex}
+        visible={showPhotoViewer && photoUris.length > 0}
+        uris={photoUris}
+        index={Math.min(photoIndex, Math.max(photoUris.length - 1, 0))}
         onIndexChange={setPhotoIndex}
         onClose={() => setShowPhotoViewer(false)}
       />
@@ -470,6 +494,10 @@ const styles = StyleSheet.create({
   content: {
     padding: Theme.spacing.detailContent,
     gap: Theme.spacing.detailSection,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   header: {
     gap: 4,

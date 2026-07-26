@@ -81,10 +81,18 @@ export function reviewToBackup(review: Review): ReviewBackup {
   }
 
   // Local files only (Swift). Remote mock URLs are omitted from photoPaths.
-  const photoPaths = review.photoUrls
-    .filter((p) => !isRemotePhotoUrl(p))
-    .map(backupPhotoKey)
-    .filter(Boolean);
+  const photoPathSet = new Set<string>();
+  for (const p of review.photoUrls) {
+    if (isRemotePhotoUrl(p)) continue;
+    const key = backupPhotoKey(p);
+    if (key) photoPathSet.add(key);
+  }
+  const labelUri = review.wineLabel?.labelPhotoUri?.trim();
+  if (labelUri && !isRemotePhotoUrl(labelUri)) {
+    const key = backupPhotoKey(labelUri);
+    if (key) photoPathSet.add(key);
+  }
+  const photoPaths = [...photoPathSet];
 
   const searchable =
     review.searchableText?.trim() ||
@@ -123,6 +131,15 @@ export function reviewToBackup(review: Review): ReviewBackup {
       ? backupPhotoKey(review.reviewedByPhotoUrl)
       : null,
     origin: resolveReviewOrigin(review),
+    wineLabelJSON: review.wineLabel?.nameAndEstate
+      ? JSON.stringify({
+          ...review.wineLabel,
+          labelPhotoUri: review.wineLabel.labelPhotoUri
+            ? backupPhotoKey(review.wineLabel.labelPhotoUri)
+            : '',
+        })
+      : null,
+    sourceReviewId: review.sourceReviewId?.trim() || null,
   };
 }
 
@@ -269,6 +286,50 @@ export function backupReviewToApp(
       ocrText,
     });
 
+  let wineLabel = previous?.wineLabel ?? null;
+  const wineLabelRaw = item.wineLabelJSON?.trim();
+  if (wineLabelRaw) {
+    try {
+      const parsed = JSON.parse(wineLabelRaw) as {
+        labelPhotoUri?: string;
+        nameAndEstate?: string;
+        typeStyle?: string;
+        countryRegion?: string;
+        vintage?: string | null;
+        grapes?: string | null;
+        alcoholPercent?: number | null;
+        foodPairings?: string | null;
+        analyzedAt?: string;
+      };
+      const name = (parsed.nameAndEstate ?? '').trim();
+      if (name) {
+        const rawPhoto = (parsed.labelPhotoUri ?? '').trim();
+        const labelPhotoUri =
+          !rawPhoto
+            ? ''
+            : isRemotePhotoUrl(rawPhoto) || rawPhoto.startsWith('file://')
+              ? rawPhoto
+              : localPhotoUri(backupPhotoKey(rawPhoto));
+        wineLabel = {
+          labelPhotoUri,
+          nameAndEstate: name,
+          typeStyle: parsed.typeStyle,
+          countryRegion: parsed.countryRegion,
+          vintage: parsed.vintage ?? null,
+          grapes: parsed.grapes ?? null,
+          alcoholPercent:
+            typeof parsed.alcoholPercent === 'number'
+              ? parsed.alcoholPercent
+              : null,
+          foodPairings: parsed.foodPairings ?? null,
+          analyzedAt: parsed.analyzedAt,
+        };
+      }
+    } catch {
+      // keep previous
+    }
+  }
+
   return {
     id: item.id,
     restaurantId: item.restaurantID ?? previous?.restaurantId ?? '',
@@ -284,6 +345,11 @@ export function backupReviewToApp(
     origin: originFromBackup(item, previous),
     searchableText,
     ocrText,
+    wineLabel,
+    sourceReviewId:
+      item.sourceReviewId?.trim() ||
+      previous?.sourceReviewId?.trim() ||
+      undefined,
   };
 }
 

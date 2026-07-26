@@ -63,18 +63,10 @@ export function PhotoSourceChooserBody({
               title={t('forms.photos.takePhoto')}
               onPress={onTakePhoto}
             />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t('forms.photos.importPhoto')}
+            <HousePrimaryButton
+              title={t('forms.photos.importPhoto')}
               onPress={onImportPhoto}
-              style={({ pressed }) => [
-                styles.secondaryButton,
-                pressed && styles.pressed,
-              ]}>
-              <Text style={styles.secondaryLabel}>
-                {t('forms.photos.importPhoto')}
-              </Text>
-            </Pressable>
+            />
           </View>
         </>
       )}
@@ -205,19 +197,6 @@ const styles = StyleSheet.create({
   actions: {
     width: '100%',
     gap: 12,
-  },
-  secondaryButton: {
-    width: '100%',
-    minHeight: 52,
-    borderRadius: 14,
-    backgroundColor: 'rgba(36, 78, 57, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryLabel: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: GustraColors.forestGreen,
   },
   pressed: {
     opacity: 0.75,

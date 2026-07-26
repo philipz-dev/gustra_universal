@@ -2,12 +2,16 @@ import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system/legacy';
 
 import type { Restaurant, Review } from '@/data/types';
-import { normalizeRestaurant } from '@/data/types';
+import {
+  normalizeRestaurant,
+  resolveReviewOrigin,
+} from '@/data/types';
 import {
   backupPhotoKey,
   ensurePhotosDirectory,
   localPhotoUri,
 } from '@/services/backup/photos';
+import type { RestaurantBackup } from '@/services/backup/types';
 import {
   type SharePackage,
   type ShareReviewBackup,
@@ -237,18 +241,266 @@ export async function uriLooksLikeSharePackage(uri: string): Promise<boolean> {
 }
 
 export type ShareImportResult = {
+  /** Restaurants to insert or replace by id. */
   restaurants: Restaurant[];
+  /** Reviews to insert or replace by id. */
   reviews: Review[];
+  /** Extra local review ids collapsed as duplicates of an upsert. */
+  removeReviewIds: string[];
+  /** Restaurants left with no visits after collapse. */
+  removeRestaurantIds: string[];
   importedCount: number;
+  updatedCount: number;
 };
 
+function visitDayKey(iso: string): string {
+  const parsed = new Date(iso);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+  const raw = iso.trim();
+  return raw.length >= 10 ? raw.slice(0, 10) : raw;
+}
+
+function hasCoordinates(lat: number, lng: number): boolean {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    !(lat === 0 && lng === 0)
+  );
+}
+
+/** ~120 m — same place across two share packages. */
+function coordsNear(
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number },
+): boolean {
+  if (!hasCoordinates(a.latitude, a.longitude)) return false;
+  if (!hasCoordinates(b.latitude, b.longitude)) return false;
+  const dLat = (a.latitude - b.latitude) * 111_320;
+  const midLat = ((a.latitude + b.latitude) / 2) * (Math.PI / 180);
+  const dLng = (a.longitude - b.longitude) * 111_320 * Math.cos(midLat);
+  return Math.hypot(dLat, dLng) <= 120;
+}
+
+function restaurantsMatch(
+  existing: Restaurant,
+  incoming: Pick<
+    RestaurantBackup,
+    'name' | 'city' | 'latitude' | 'longitude' | 'mapItemIdentifier'
+  >,
+): boolean {
+  const mapA = existing.mapItemIdentifier?.trim();
+  const mapB = incoming.mapItemIdentifier?.trim();
+  if (mapA && mapB && mapA === mapB) return true;
+
+  const nameA = existing.name.trim().toLowerCase();
+  const nameB = (incoming.name ?? '').trim().toLowerCase();
+  if (!nameA || !nameB || nameA !== nameB) return false;
+
+  const cityA = existing.city.trim().toLowerCase();
+  const cityB = (incoming.city ?? '').trim().toLowerCase();
+  if (cityA && cityB && cityA === cityB) return true;
+
+  if (
+    coordsNear(existing, {
+      latitude: incoming.latitude ?? 0,
+      longitude: incoming.longitude ?? 0,
+    })
+  ) {
+    return true;
+  }
+
+  return !cityA && !cityB;
+}
+
+function authorsMatch(
+  existing: Review,
+  reviewedById: string,
+  reviewedBy: string,
+): boolean {
+  if (resolveReviewOrigin(existing) !== 'imported') return false;
+  const exId = existing.reviewedById?.trim();
+  const inId = reviewedById.trim();
+  if (exId && inId && exId === inId) return true;
+  // Name fallback: older packages minted a fresh author UUID per file, so
+  // ids can differ for the same friend.
+  const exName = existing.reviewedBy.trim().toLowerCase();
+  const inName = reviewedBy.trim().toLowerCase();
+  return Boolean(exName && inName && exName === inName);
+}
+
+function findMatchingExistingReviews(args: {
+  existingReviews: Review[];
+  existingRestaurants: Map<string, Restaurant>;
+  sourceReviewId: string;
+  reviewedById: string;
+  reviewedBy: string;
+  visitDay: string;
+  packageRestaurant: RestaurantBackup | undefined;
+}): Review[] {
+  const {
+    existingReviews,
+    existingRestaurants,
+    sourceReviewId,
+    reviewedById,
+    reviewedBy,
+    visitDay,
+    packageRestaurant,
+  } = args;
+
+  const bySource = existingReviews.filter((review) => {
+    if (resolveReviewOrigin(review) !== 'imported') return false;
+    const src = review.sourceReviewId?.trim();
+    if (src && src === sourceReviewId) return true;
+    return review.id === sourceReviewId;
+  });
+  if (bySource.length > 0) return bySource;
+
+  if (!packageRestaurant) return [];
+
+  return existingReviews.filter((review) => {
+    if (!authorsMatch(review, reviewedById, reviewedBy)) return false;
+    if (visitDayKey(review.date) !== visitDay) return false;
+    const restaurant = existingRestaurants.get(review.restaurantId);
+    if (!restaurant) return false;
+    return restaurantsMatch(restaurant, packageRestaurant);
+  });
+}
+
+function pickCanonicalReview(matches: Review[]): Review {
+  return [...matches].sort((a, b) => {
+    const photoDelta = b.photoUrls.length - a.photoUrls.length;
+    if (photoDelta !== 0) return photoDelta;
+    return b.date.localeCompare(a.date);
+  })[0]!;
+}
+
 /**
- * Import selected reviews as new imported entities with remapped IDs/photos
- * (Swift `ShareImportService.importSelected`).
+ * Collapse already-stored friend duplicates (same author + day + place, or
+ * same sourceReviewId). Keeps the visit with the most photos.
+ */
+export function planImportedReviewCollapse(
+  reviews: Review[],
+  restaurants: Restaurant[],
+): { removeReviewIds: string[]; removeRestaurantIds: string[] } {
+  const restaurantsById = new Map(restaurants.map((r) => [r.id, r]));
+  const imported = reviews.filter(
+    (r) => resolveReviewOrigin(r) === 'imported',
+  );
+  const removeReviewIds = new Set<string>();
+  const claimed = new Set<string>();
+
+  for (const review of imported) {
+    if (claimed.has(review.id) || removeReviewIds.has(review.id)) continue;
+    const restaurant = restaurantsById.get(review.restaurantId);
+    if (!restaurant) continue;
+
+    const cluster = imported.filter((other) => {
+      if (other.id === review.id) return true;
+      if (claimed.has(other.id) || removeReviewIds.has(other.id)) return false;
+      const srcA = review.sourceReviewId?.trim();
+      const srcB = other.sourceReviewId?.trim();
+      if (srcA && srcB && srcA === srcB) return true;
+      if (
+        !authorsMatch(
+          other,
+          review.reviewedById?.trim() || '',
+          review.reviewedBy,
+        )
+      ) {
+        return false;
+      }
+      if (visitDayKey(other.date) !== visitDayKey(review.date)) return false;
+      const otherRest = restaurantsById.get(other.restaurantId);
+      if (!otherRest) return false;
+      return restaurantsMatch(restaurant, {
+        name: otherRest.name,
+        city: otherRest.city,
+        latitude: otherRest.latitude,
+        longitude: otherRest.longitude,
+        mapItemIdentifier: otherRest.mapItemIdentifier,
+      });
+    });
+
+    const canonical = pickCanonicalReview(cluster);
+    for (const match of cluster) {
+      claimed.add(match.id);
+      if (match.id !== canonical.id) removeReviewIds.add(match.id);
+    }
+  }
+
+  const remainingByRestaurant = new Map<string, number>();
+  for (const review of reviews) {
+    if (removeReviewIds.has(review.id)) continue;
+    remainingByRestaurant.set(
+      review.restaurantId,
+      (remainingByRestaurant.get(review.restaurantId) ?? 0) + 1,
+    );
+  }
+
+  const removeRestaurantIds: string[] = [];
+  for (const reviewId of removeReviewIds) {
+    const dropped = reviews.find((r) => r.id === reviewId);
+    if (!dropped) continue;
+    if ((remainingByRestaurant.get(dropped.restaurantId) ?? 0) > 0) continue;
+    removeRestaurantIds.push(dropped.restaurantId);
+  }
+
+  return {
+    removeReviewIds: [...removeReviewIds],
+    removeRestaurantIds,
+  };
+}
+
+function findReusableRestaurant(args: {
+  existingRestaurants: Restaurant[];
+  packageRestaurant: RestaurantBackup;
+  preferredId?: string;
+}): Restaurant | undefined {
+  const { existingRestaurants, packageRestaurant, preferredId } = args;
+  if (preferredId) {
+    const preferred = existingRestaurants.find((r) => r.id === preferredId);
+    if (preferred && restaurantsMatch(preferred, packageRestaurant)) {
+      return preferred;
+    }
+  }
+  return existingRestaurants.find((r) =>
+    restaurantsMatch(r, packageRestaurant),
+  );
+}
+
+function restaurantFromBackup(
+  backup: RestaurantBackup,
+  previous?: Restaurant,
+): Restaurant {
+  return normalizeRestaurant({
+    id: previous?.id ?? Crypto.randomUUID(),
+    name: backup.name,
+    city: backup.city,
+    country: backup.country ?? previous?.country ?? '',
+    address: backup.streetAddress ?? previous?.address ?? '',
+    phone: backup.phoneNumber ?? previous?.phone,
+    latitude: backup.latitude ?? previous?.latitude ?? 0,
+    longitude: backup.longitude ?? previous?.longitude ?? 0,
+    mapItemIdentifier:
+      backup.mapItemIdentifier ?? previous?.mapItemIdentifier ?? null,
+    isFavorite: previous?.isFavorite ?? false,
+    primaryType: backup.primaryType ?? previous?.primaryType ?? '',
+    thumbnailColor: previous?.thumbnailColor || '#3D6B52',
+    photoUrl: previous?.photoUrl ?? '',
+  });
+}
+
+/**
+ * Import selected reviews, upserting when the same friend visit already exists
+ * (source review id, or author + day + place). Newer package photos/ratings win.
  */
 export async function importSelectedShareReviews(args: {
   reviewIds: string[];
   package: SharePackage;
+  existingReviews?: Review[];
+  existingRestaurants?: Restaurant[];
 }): Promise<ShareImportResult> {
   const selectedIds = new Set(args.reviewIds.filter(Boolean));
   if (selectedIds.size === 0) {
@@ -262,39 +514,15 @@ export async function importSelectedShareReviews(args: {
     throw new ShareImportError('Select at least one review to import.');
   }
 
-  const restaurantIds = new Set(
-    selectedReviews
-      .map((r) => r.restaurantID)
-      .filter((id): id is string => Boolean(id)),
+  const existingReviews = args.existingReviews ?? [];
+  const existingRestaurants = args.existingRestaurants ?? [];
+  const existingRestaurantsById = new Map(
+    existingRestaurants.map((r) => [r.id, r]),
   );
+
   const restaurantsByOldId = new Map(
-    args.package.restaurants
-      .filter((r) => restaurantIds.has(r.id))
-      .map((r) => [r.id, r]),
+    args.package.restaurants.map((r) => [r.id, r]),
   );
-
-  const restaurantIdMap = new Map<string, Restaurant>();
-  const restaurants: Restaurant[] = [];
-
-  for (const [oldId, backup] of restaurantsByOldId) {
-    const restaurant = normalizeRestaurant({
-      id: Crypto.randomUUID(),
-      name: backup.name,
-      city: backup.city,
-      country: backup.country ?? '',
-      address: backup.streetAddress ?? '',
-      phone: backup.phoneNumber ?? undefined,
-      latitude: backup.latitude ?? 0,
-      longitude: backup.longitude ?? 0,
-      mapItemIdentifier: backup.mapItemIdentifier ?? null,
-      isFavorite: false,
-      primaryType: backup.primaryType ?? '',
-      thumbnailColor: '#3D6B52',
-      photoUrl: '',
-    });
-    restaurantIdMap.set(oldId, restaurant);
-    restaurants.push(restaurant);
-  }
 
   const neededPhotoPaths = new Set<string>();
   for (const review of selectedReviews) {
@@ -323,7 +551,15 @@ export async function importSelectedShareReviews(args: {
   /** One id for this package when `sharedById` is missing (legacy Swift/Expo). */
   const packageAuthorId =
     args.package.sharedById?.trim() || Crypto.randomUUID();
-  const reviews: Review[] = [];
+
+  const upsertRestaurants = new Map<string, Restaurant>();
+  const upsertReviews: Review[] = [];
+  const removeReviewIds = new Set<string>();
+  let importedCount = 0;
+  let updatedCount = 0;
+
+  // Avoid matching the same local review twice in one multi-select import.
+  const claimedExistingIds = new Set<string>();
 
   for (const backup of selectedReviews) {
     const mappedPhotos = (backup.photoPaths ?? [])
@@ -338,42 +574,83 @@ export async function importSelectedShareReviews(args: {
     const oldReviewerPath = backup.reviewedByPhotoPath?.trim();
     if (oldReviewerPath && photoPathMap.has(oldReviewerPath)) {
       reviewedByPhotoFilename = photoPathMap.get(oldReviewerPath)!;
-    } else if (
-      !authorFromBackup ||
-      authorFromBackup === sharedByTrimmed
-    ) {
+    } else if (!authorFromBackup || authorFromBackup === sharedByTrimmed) {
       reviewedByPhotoFilename = sharedByPhotoPath ?? '';
     }
 
     const perReviewAuthorId = backup.reviewedById?.trim();
     const reviewedById = perReviewAuthorId || packageAuthorId;
-
-    const restaurant = backup.restaurantID
-      ? restaurantIdMap.get(backup.restaurantID)
+    const sourceReviewId =
+      backup.sourceReviewId?.trim() || backup.id.trim() || Crypto.randomUUID();
+    const visitDate = shareDateToApp(backup.date);
+    const visitDay = visitDayKey(visitDate);
+    const packageRestaurant = backup.restaurantID
+      ? restaurantsByOldId.get(backup.restaurantID)
       : undefined;
+
+    const matches = findMatchingExistingReviews({
+      existingReviews: existingReviews.filter(
+        (r) => !claimedExistingIds.has(r.id) && !removeReviewIds.has(r.id),
+      ),
+      existingRestaurants: existingRestaurantsById,
+      sourceReviewId,
+      reviewedById,
+      reviewedBy,
+      visitDay,
+      packageRestaurant,
+    });
+
+    const canonical = matches.length > 0 ? pickCanonicalReview(matches) : null;
+    for (const match of matches) {
+      claimedExistingIds.add(match.id);
+      if (canonical && match.id !== canonical.id) {
+        removeReviewIds.add(match.id);
+      }
+    }
+
+    let restaurant: Restaurant | undefined;
+    if (packageRestaurant) {
+      const reusable = findReusableRestaurant({
+        existingRestaurants: [
+          ...existingRestaurants,
+          ...upsertRestaurants.values(),
+        ],
+        packageRestaurant,
+        preferredId: canonical?.restaurantId,
+      });
+      restaurant = restaurantFromBackup(packageRestaurant, reusable);
+      upsertRestaurants.set(restaurant.id, restaurant);
+    } else if (canonical) {
+      restaurant = existingRestaurantsById.get(canonical.restaurantId);
+    }
 
     const criteria = criteriaFromShareReview(backup);
     const photoUrls = mappedPhotos.map((name) => localPhotoUri(name));
     const firstPhoto = photoUrls[0] ?? '';
 
-    if (restaurant && firstPhoto && !restaurant.photoUrl) {
-      restaurant.photoUrl = firstPhoto;
+    if (restaurant && firstPhoto) {
+      restaurant = {
+        ...restaurant,
+        photoUrl: firstPhoto,
+      };
+      upsertRestaurants.set(restaurant.id, restaurant);
     }
 
     const generalComment = backup.generalComment ?? '';
     const searchableFromPackage = (backup.searchableText ?? '').trim();
-    reviews.push({
-      id: Crypto.randomUUID(),
-      restaurantId: restaurant?.id ?? '',
-      date: shareDateToApp(backup.date),
+    const review: Review = {
+      id: canonical?.id ?? Crypto.randomUUID(),
+      restaurantId: restaurant?.id ?? canonical?.restaurantId ?? '',
+      date: visitDate,
       generalComment,
       criteria,
-      photoUrls,
+      photoUrls:
+        photoUrls.length > 0 ? photoUrls : (canonical?.photoUrls ?? []),
       reviewedBy,
       reviewedById,
       reviewedByPhotoUrl: reviewedByPhotoFilename
         ? localPhotoUri(reviewedByPhotoFilename)
-        : undefined,
+        : canonical?.reviewedByPhotoUrl,
       overallScore: overallScoreFromCriteria(criteria),
       origin: 'imported',
       searchableText:
@@ -383,14 +660,51 @@ export async function importSelectedShareReviews(args: {
           generalComment,
           criteria,
         }),
-      ocrText: '',
-    });
+      ocrText: canonical?.ocrText ?? '',
+      wineLabel: canonical?.wineLabel,
+      sourceReviewId,
+    };
+    upsertReviews.push(review);
+
+    if (canonical) updatedCount += 1;
+    else importedCount += 1;
+  }
+
+  // Drop restaurants that only hosted removed duplicate visits.
+  const remainingByRestaurant = new Map<string, number>();
+  for (const review of existingReviews) {
+    if (removeReviewIds.has(review.id)) continue;
+    // Count will be replaced for upserted reviews below.
+    if (upsertReviews.some((u) => u.id === review.id)) continue;
+    remainingByRestaurant.set(
+      review.restaurantId,
+      (remainingByRestaurant.get(review.restaurantId) ?? 0) + 1,
+    );
+  }
+  for (const review of upsertReviews) {
+    remainingByRestaurant.set(
+      review.restaurantId,
+      (remainingByRestaurant.get(review.restaurantId) ?? 0) + 1,
+    );
+  }
+
+  const removeRestaurantIds: string[] = [];
+  for (const reviewId of removeReviewIds) {
+    const dropped = existingReviews.find((r) => r.id === reviewId);
+    if (!dropped) continue;
+    const rid = dropped.restaurantId;
+    if ((remainingByRestaurant.get(rid) ?? 0) > 0) continue;
+    if (upsertRestaurants.has(rid)) continue;
+    removeRestaurantIds.push(rid);
   }
 
   return {
-    restaurants,
-    reviews,
-    importedCount: selectedReviews.length,
+    restaurants: [...upsertRestaurants.values()],
+    reviews: upsertReviews,
+    removeReviewIds: [...removeReviewIds],
+    removeRestaurantIds,
+    importedCount,
+    updatedCount,
   };
 }
 

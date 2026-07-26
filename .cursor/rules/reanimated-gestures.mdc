@@ -1,0 +1,22 @@
+---
+description: Stable Reanimated/Gesture Handler bridging — avoid Hermes DisplayLink aborts
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Reanimated & gestures (Hermes / UI-thread)
+
+When writing `react-native-reanimated` or `react-native-gesture-handler` code (worklets, `runOnJS`, `Gesture.*`, `useAnimatedStyle`):
+
+## Required
+
+1. Pass **stable** functions to `runOnJS` — `useCallback` (often with a ref for the latest parent callback).
+2. Build `Gesture.*` trees inside **`useMemo`** (or an equivalent stable factory). Do not recreate pinch/pan/tap every render.
+3. Do not pass fresh function literals from render into worklets / `runOnJS`.
+4. Guard `runOnJS` handlers against unmount before `setState` or parent callbacks (mounted ref).
+
+Reference patterns in this repo: `components/review/InteractiveStarRating.tsx`, `components/wine/LabelCropCanvas.tsx`.
+
+## Optional hygiene
+
+5. Use `?.` / `??` where values are truly optional — not as a substitute for (1)–(4), and not to hide real bugs.

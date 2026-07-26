@@ -10,6 +10,7 @@ import { SymbolView } from 'expo-symbols';
 
 import { GustraColors } from '@/constants/Colors';
 import { captionTextStyle, Theme } from '@/constants/Theme';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { Haptics } from '@/services/haptics';
 
 const PHOTO_SIZE = 72;
@@ -24,6 +25,8 @@ type ReorderablePhotoStripProps = {
   onToggleSelect: (uri: string) => void;
   onAddPress: () => void;
   isImporting?: boolean;
+  /** When false, the + / Take·Import entry is hidden (e.g. at max photos). */
+  canAddPhotos?: boolean;
   /** Parent form should disable vertical scroll while dragging. */
   onDraggingChange?: (dragging: boolean) => void;
 };
@@ -41,8 +44,10 @@ export function ReorderablePhotoStrip({
   onToggleSelect,
   onAddPress,
   isImporting = false,
+  canAddPhotos = true,
   onDraggingChange,
 }: ReorderablePhotoStripProps) {
+  const { t } = useAppTranslation();
   const selected = new Set(selectedUris);
   /** Skip the press that can follow a completed long-press drag. */
   const skipNextPressRef = useRef(false);
@@ -77,8 +82,8 @@ export function ReorderablePhotoStrip({
               accessibilityState={{ selected: isSelected }}
               accessibilityLabel={
                 isCover
-                  ? 'Cover photo. Tap to select, long-press to reorder.'
-                  : 'Photo. Tap to select, long-press to reorder.'
+                  ? t('forms.review.photoStrip.a11yCover')
+                  : t('forms.review.photoStrip.a11yPhoto')
               }
               style={styles.thumbHit}>
               <Image source={{ uri: item }} style={styles.thumb} resizeMode="cover" />
@@ -87,7 +92,9 @@ export function ReorderablePhotoStrip({
               ) : null}
               {isCover ? (
                 <View style={styles.coverBadge} pointerEvents="none">
-                  <Text style={styles.coverBadgeText}>Cover</Text>
+                  <Text style={styles.coverBadgeText}>
+                    {t('forms.review.photoStrip.cover')}
+                  </Text>
                 </View>
               ) : null}
               {isSelected ? (
@@ -119,8 +126,8 @@ export function ReorderablePhotoStrip({
       {photoUrls.length > 0 ? (
         <Text style={styles.hint}>
           {photoUrls.length > 1
-            ? 'Tap to select · long-press to reorder · first is Cover'
-            : 'Tap to select for removal'}
+            ? t('forms.review.photoStrip.hintReorder')
+            : t('forms.review.photoStrip.hintSelect')}
         </Text>
       ) : null}
       <DraggableFlatList
@@ -155,26 +162,28 @@ export function ReorderablePhotoStrip({
         containerStyle={styles.list}
         contentContainerStyle={styles.listContent}
         ListFooterComponent={
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel="Add Photos"
-            onPress={onAddPress}
-            disabled={isImporting}
-            activeOpacity={0.7}
-            style={styles.addPhoto}>
-            {isImporting ? (
-              <ActivityIndicator color={GustraColors.forestGreen} />
-            ) : Platform.OS === 'ios' ? (
-              <SymbolView
-                name="plus"
-                size={28}
-                tintColor={GustraColors.forestGreen}
-                weight="semibold"
-              />
-            ) : (
-              <MaterialIcons name="add" size={30} color={GustraColors.forestGreen} />
-            )}
-          </TouchableOpacity>
+          canAddPhotos ? (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={t('forms.review.addPhotos')}
+              onPress={onAddPress}
+              disabled={isImporting}
+              activeOpacity={0.7}
+              style={styles.addPhoto}>
+              {isImporting ? (
+                <ActivityIndicator color={GustraColors.forestGreen} />
+              ) : Platform.OS === 'ios' ? (
+                <SymbolView
+                  name="plus"
+                  size={28}
+                  tintColor={GustraColors.forestGreen}
+                  weight="semibold"
+                />
+              ) : (
+                <MaterialIcons name="add" size={30} color={GustraColors.forestGreen} />
+              )}
+            </TouchableOpacity>
+          ) : null
         }
       />
     </View>

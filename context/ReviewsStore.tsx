@@ -19,6 +19,7 @@ import type {
   RestaurantVisitSummary,
   Review,
   ReviewOrigin,
+  WineLabelFiche,
 } from '@/data/types';
 import { normalizeRestaurant, resolveReviewOrigin } from '@/data/types';
 import { formatAbbreviatedDate } from '@/i18n/formatDates';
@@ -45,6 +46,7 @@ import {
 import { findExistingRestaurant } from '@/services/places/RestaurantMatcher';
 import type { RestaurantDraft } from '@/services/places/types';
 import { deleteReviewPhotoFiles } from '@/services/reviews/photoStorage';
+import { planImportedReviewCollapse } from '@/services/share/ShareImportService';
 import {
   RatingValue,
   migrateLegacyCriteria,
@@ -73,6 +75,8 @@ export type ReviewFormUpsertInput = {
   photoUrls: string[];
   /** OCR text from review photos (Swift `ocrIndexedText`). */
   ocrText?: string;
+  /** Gemini wine-label fiche (additive). */
+  wineLabel?: WineLabelFiche | null;
   /** Custom criterion titles for search indexing. */
   customCriterionNames?: string[];
 };
@@ -127,10 +131,12 @@ type ReviewsStoreValue = {
     message: string;
     reviewCount: number;
   }>;
-  /** Merge imported friends reviews from a `.gustrashare` package. */
+  /** Merge / upsert imported friends reviews from a `.gustrashare` package. */
   importSharePackage: (result: {
     restaurants: Restaurant[];
     reviews: Review[];
+    removeReviewIds?: string[];
+    removeRestaurantIds?: string[];
   }) => Promise<void>;
 };
 
@@ -218,6 +224,7 @@ function normalizeReview(review: Review, migrateLegacy = false): Review {
     origin: resolveReviewOrigin(review),
     searchableText,
     ocrText,
+    sourceReviewId: review.sourceReviewId?.trim() || undefined,
   };
 }
 
@@ -231,6 +238,45 @@ function reviewerNamesForVisits(visits: Review[]): string | undefined {
     names.push(name);
   }
   return names.length > 0 ? names.join(', ') : undefined;
+}
+
+/** First non-empty photo URI from a review’s ordered list (cover = index 0). */
+function firstPhotoUrl(photoUrls: string[] | undefined): string {
+  if (!photoUrls?.length) return '';
+  for (const raw of photoUrls) {
+    const uri = raw?.trim();
+    if (uri) return uri;
+  }
+  return '';
+}
+
+/**
+ * Cover for a restaurant: newest visit’s cover photo, else older visits.
+ * Keeps Reviews feed in sync after delete / reorder / clear photos.
+ */
+function coverPhotoForRestaurant(
+  restaurantId: string,
+  reviews: Review[],
+): string {
+  const visits = reviews
+    .filter((r) => r.restaurantId === restaurantId)
+    .sort((a, b) => +new Date(b.date) - +new Date(a.date));
+  for (const visit of visits) {
+    const photo = firstPhotoUrl(visit.photoUrls);
+    if (photo) return photo;
+  }
+  return '';
+}
+
+function withRestaurantCover(
+  restaurants: Restaurant[],
+  restaurantId: string,
+  reviews: Review[],
+): Restaurant[] {
+  const photoUrl = coverPhotoForRestaurant(restaurantId, reviews);
+  return restaurants.map((r) =>
+    r.id === restaurantId ? { ...r, photoUrl } : r,
+  );
 }
 
 function buildFeedSummaries(
@@ -247,7 +293,7 @@ function buildFeedSummaries(
     if (visits.length === 0) continue;
     const averageScore =
       visits.reduce((sum, v) => sum + v.overallScore, 0) / visits.length;
-    const latestPhoto = visits[0].photoUrls[0] ?? restaurant.photoUrl;
+    const latestPhoto = coverPhotoForRestaurant(restaurant.id, visits);
     summaries.push({
       restaurantId: restaurant.id,
       name: restaurant.name,
@@ -325,11 +371,30 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
               normalizedRestaurants,
               normalizedReviews,
             );
-            setRestaurants(cleaned.restaurants);
-            setReviews(cleaned.reviews);
+            const collapse = planImportedReviewCollapse(
+              cleaned.reviews,
+              cleaned.restaurants,
+            );
+            let hydratedReviews = cleaned.reviews;
+            let hydratedRestaurants = cleaned.restaurants;
+            if (collapse.removeReviewIds.length > 0) {
+              const dropReviews = new Set(collapse.removeReviewIds);
+              const dropRestaurants = new Set(collapse.removeRestaurantIds);
+              hydratedReviews = hydratedReviews.filter(
+                (r) => !dropReviews.has(r.id),
+              );
+              const used = new Set(
+                hydratedReviews.map((r) => r.restaurantId).filter(Boolean),
+              );
+              hydratedRestaurants = hydratedRestaurants.filter(
+                (r) => used.has(r.id) && !dropRestaurants.has(r.id),
+              );
+            }
+            setRestaurants(hydratedRestaurants);
+            setReviews(hydratedReviews);
             await persist({
-              restaurants: cleaned.restaurants,
-              reviews: cleaned.reviews,
+              restaurants: hydratedRestaurants,
+              reviews: hydratedReviews,
             });
             if (migrateLegacy) {
               await AsyncStorage.removeItem(LEGACY_STORAGE_KEY);
@@ -339,8 +404,8 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
             void (async () => {
               try {
                 const auto = await ensureSwiftLegacyMigration({
-                  currentRestaurants: cleaned.restaurants,
-                  currentReviews: cleaned.reviews,
+                  currentRestaurants: hydratedRestaurants,
+                  currentReviews: hydratedReviews,
                 });
                 if (auto.importResult && !cancelled) {
                   const restaurants = auto.importResult.restaurants.map(
@@ -444,7 +509,11 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
         (r) => r.restaurantId === summary.restaurantId,
       );
       const nextRestaurants = stillHasReviews
-        ? restaurants
+        ? withRestaurantCover(
+            restaurants,
+            summary.restaurantId,
+            nextReviews,
+          )
         : restaurants.filter((r) => r.id !== summary.restaurantId);
       setReviews(nextReviews);
       setRestaurants(nextRestaurants);
@@ -592,10 +661,13 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
               ? Math.round(c.rating)
               : RatingValue.unrated,
         }));
-        const photoUrls = input.photoUrls.filter(Boolean);
+        const photoUrls = input.photoUrls.map((u) => u.trim()).filter(Boolean);
         const overallScore = overallScoreFromCriteria(criteria);
-        const coverPhoto = photoUrls[0] ?? restaurant.photoUrl;
         const ocrText = (input.ocrText ?? existingReview?.ocrText ?? '').trim();
+        const wineLabel =
+          input.wineLabel !== undefined
+            ? input.wineLabel
+            : (existingReview?.wineLabel ?? null);
         const searchableText = rebuildSearchableText({
           restaurant,
           generalComment: input.generalComment.trim(),
@@ -603,14 +675,6 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
           customCriterionNames: input.customCriterionNames,
           ocrText,
         });
-
-        restaurant = {
-          ...restaurant,
-          photoUrl: coverPhoto || restaurant.photoUrl,
-        };
-        nextRestaurants = nextRestaurants.map((r) =>
-          r.id === restaurant!.id ? restaurant! : r,
-        );
 
         let reviewId = existingReview?.id;
         let reviewToUpdate = existingReview;
@@ -640,6 +704,7 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
                   origin: resolveReviewOrigin(r),
                   searchableText,
                   ocrText,
+                  wineLabel,
                 }
               : r,
           );
@@ -659,9 +724,18 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
               origin: 'own',
               searchableText,
               ocrText,
+              wineLabel,
             },
           ];
         }
+
+        nextRestaurants = withRestaurantCover(
+          nextRestaurants,
+          restaurant.id,
+          nextReviews,
+        );
+        restaurant =
+          nextRestaurants.find((r) => r.id === restaurant!.id) ?? restaurant;
 
         restaurantsRef.current = nextRestaurants;
         reviewsRef.current = nextReviews;
@@ -696,7 +770,11 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
         (r) => r.restaurantId === target.restaurantId,
       );
       const nextRestaurants = stillHasReviews
-        ? restaurants
+        ? withRestaurantCover(
+            restaurants,
+            target.restaurantId,
+            nextReviews,
+          )
         : restaurants.filter((r) => r.id !== target.restaurantId);
 
       setReviews(nextReviews);
@@ -823,19 +901,70 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const importSharePackage = useCallback(
-    async (result: { restaurants: Restaurant[]; reviews: Review[] }) => {
-      if (result.reviews.length === 0) return;
-      const nextRestaurants = [...restaurants];
-      const seenRestaurantIds = new Set(restaurants.map((r) => r.id));
-      for (const restaurant of result.restaurants) {
-        if (seenRestaurantIds.has(restaurant.id)) continue;
-        nextRestaurants.push(normalizeRestaurant(restaurant));
-        seenRestaurantIds.add(restaurant.id);
+    async (result: {
+      restaurants: Restaurant[];
+      reviews: Review[];
+      removeReviewIds?: string[];
+      removeRestaurantIds?: string[];
+    }) => {
+      if (
+        result.reviews.length === 0 &&
+        !(result.removeReviewIds?.length) &&
+        !(result.removeRestaurantIds?.length)
+      ) {
+        return;
       }
-      const nextReviews = [
-        ...reviews,
-        ...result.reviews.map((r) => normalizeReview(r)),
-      ];
+
+      const removeReviewIds = new Set(result.removeReviewIds ?? []);
+      const removeRestaurantIds = new Set(result.removeRestaurantIds ?? []);
+
+      let nextReviews = reviews.filter((r) => !removeReviewIds.has(r.id));
+      for (const incoming of result.reviews.map((r) => normalizeReview(r))) {
+        const index = nextReviews.findIndex((r) => r.id === incoming.id);
+        if (index >= 0) nextReviews[index] = incoming;
+        else nextReviews.push(incoming);
+      }
+
+      let nextRestaurants = restaurants.filter(
+        (r) => !removeRestaurantIds.has(r.id),
+      );
+      for (const incoming of result.restaurants.map((r) =>
+        normalizeRestaurant(r),
+      )) {
+        const index = nextRestaurants.findIndex((r) => r.id === incoming.id);
+        if (index >= 0) {
+          nextRestaurants[index] = normalizeRestaurant({
+            ...incoming,
+            isFavorite:
+              nextRestaurants[index]!.isFavorite || incoming.isFavorite,
+          });
+        } else {
+          nextRestaurants.push(incoming);
+        }
+      }
+
+      // Second pass: collapse any remaining friend duplicates already on device.
+      const collapse = planImportedReviewCollapse(
+        nextReviews,
+        nextRestaurants,
+      );
+      if (collapse.removeReviewIds.length > 0) {
+        const extraRemove = new Set(collapse.removeReviewIds);
+        nextReviews = nextReviews.filter((r) => !extraRemove.has(r.id));
+      }
+      if (collapse.removeRestaurantIds.length > 0) {
+        const extraRest = new Set(collapse.removeRestaurantIds);
+        nextRestaurants = nextRestaurants.filter((r) => !extraRest.has(r.id));
+      }
+
+      // Drop restaurants that no longer have any visits (e.g. collapsed dupes).
+      const usedRestaurantIds = new Set(
+        nextReviews.map((r) => r.restaurantId).filter(Boolean),
+      );
+      nextRestaurants = nextRestaurants.filter((r) =>
+        usedRestaurantIds.has(r.id),
+      );
+
       setRestaurants(nextRestaurants);
       setReviews(nextReviews);
       await persist({

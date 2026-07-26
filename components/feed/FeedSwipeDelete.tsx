@@ -1,10 +1,17 @@
-import { useRef, useState, type ReactNode, type RefObject } from 'react';
+import {
+  useCallback,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import {
   Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
+  type LayoutChangeEvent,
 } from 'react-native';
 import ReanimatedSwipeable, {
   type SwipeableMethods,
@@ -13,7 +20,9 @@ import { SymbolView } from 'expo-symbols';
 import Animated, {
   Extrapolation,
   interpolate,
+  runOnJS,
   type SharedValue,
+  useAnimatedReaction,
   useAnimatedStyle,
 } from 'react-native-reanimated';
 
@@ -23,13 +32,16 @@ import {
   registerOpenSwipeable,
   updateOpenSwipeableFrame,
 } from '@/components/feed/openSwipeable';
-import { GustraColors } from '@/constants/Colors';
 import { captionTextStyle, Theme } from '@/constants/Theme';
 import { Haptics } from '@/services/haptics';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 
-/** House destructive — muted avoid red (not iOS system neon). */
-const DESTRUCTIVE_RED = GustraColors.ratingAvoid;
+/** iOS system destructive red (UIColor.systemRed light). */
+const IOS_DESTRUCTIVE_RED = '#FF3B30';
+/** Peek / threshold width — past this on release, row commits full swipe. */
 const ACTION_WIDTH = Platform.OS === 'ios' ? 74 : 80;
+/** Release past this fraction of the row → full swipe delete. */
+const FULL_SWIPE_FRACTION = 0.38;
 
 type FeedSwipeDeleteProps = {
   id: string;
@@ -41,36 +53,49 @@ type FeedSwipeDeleteProps = {
 
 type RightActionsProps = {
   progress: SharedValue<number>;
+  translation: SharedValue<number>;
+  rowWidth: number;
   cornerRadius: number;
   isOpen: boolean;
   onMeasure: () => void;
+  onPassFullThreshold: (passed: boolean) => void;
   deleteRef: RefObject<View | null>;
+  deleteLabel: string;
 };
 
 function RightDeleteActions({
   progress,
+  translation,
+  rowWidth,
   cornerRadius,
   isOpen,
   onMeasure,
+  onPassFullThreshold,
   deleteRef,
+  deleteLabel,
 }: RightActionsProps) {
+  const panelWidth = rowWidth > 0 ? rowWidth : ACTION_WIDTH;
+  const thresholdPx = Math.max(ACTION_WIDTH, panelWidth * FULL_SWIPE_FRACTION);
+
+  useAnimatedReaction(
+    () => -translation.value,
+    (drag, prev) => {
+      const passed = drag >= thresholdPx;
+      const wasPassed = (prev ?? 0) >= thresholdPx;
+      if (passed !== wasPassed) {
+        runOnJS(onPassFullThreshold)(passed);
+      }
+    },
+    [thresholdPx, onPassFullThreshold],
+  );
+
   const animStyle = useAnimatedStyle(() => ({
     opacity: interpolate(
       progress.value,
-      [0, 0.35, 1],
-      [0, 0.55, 1],
+      [0, 0.2, 1],
+      [0, 0.7, 1],
       Extrapolation.CLAMP,
     ),
-    transform: [
-      {
-        scale: interpolate(
-          progress.value,
-          [0, 1],
-          [0.88, 1],
-          Extrapolation.CLAMP,
-        ),
-      },
-    ],
   }));
 
   return (
@@ -83,6 +108,7 @@ function RightDeleteActions({
       style={[
         styles.deleteAction,
         {
+          width: panelWidth,
           borderTopRightRadius: cornerRadius,
           borderBottomRightRadius: cornerRadius,
         },
@@ -90,8 +116,9 @@ function RightDeleteActions({
       <Animated.View style={[styles.deleteAnimWrap, animStyle]}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Delete"
+          accessibilityLabel={deleteLabel}
           onPress={() => {
+            Haptics.warning();
             performOpenSwipeableDelete();
           }}
           style={({ pressed }) => [
@@ -107,7 +134,7 @@ function RightDeleteActions({
             tintColor="#FFFFFF"
             size={22}
           />
-          <Text style={styles.deleteLabel}>Delete</Text>
+          <Text style={styles.deleteLabel}>{deleteLabel}</Text>
         </Pressable>
       </Animated.View>
     </View>
@@ -115,8 +142,8 @@ function RightDeleteActions({
 }
 
 /**
- * Swipe-delete via ReanimatedSwipeable — closer to UIKit List swipeActions
- * (`allowsFullSwipe: false`, system red, progress-driven reveal, open haptic).
+ * Swipe-delete via ReanimatedSwipeable — iOS system red, open/commit haptics,
+ * full-swipe past ~38% of the row commits delete (card flies off, then confirm).
  */
 export function FeedSwipeDelete({
   id,
@@ -124,63 +151,104 @@ export function FeedSwipeDelete({
   children,
   cornerRadius = Theme.radius.xl,
 }: FeedSwipeDeleteProps) {
+  const { t } = useAppTranslation();
   const swipeableRef = useRef<SwipeableMethods>(null);
   const deleteRef = useRef<View>(null);
+  const onDeleteRef = useRef(onDelete);
+  onDeleteRef.current = onDelete;
+  const fullSwipeCommittedRef = useRef(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [rowWidth, setRowWidth] = useState(0);
 
-  const measureDeleteFrame = () => {
+  const deleteLabel = t('common.delete');
+  /** Release past ~delete-button width → snap fully open (card flies off). */
+  const rightThreshold = ACTION_WIDTH * 0.65;
+
+  const measureDeleteFrame = useCallback(() => {
     deleteRef.current?.measureInWindow((x, y, width, height) => {
       if (width <= 0 || height <= 0) return;
       updateOpenSwipeableFrame(id, { x, y, width, height });
     });
-  };
+  }, [id]);
+
+  const onPassFullThreshold = useCallback((passed: boolean) => {
+    if (passed) {
+      Haptics.medium();
+    }
+  }, []);
+
+  const triggerDeleteFromFullSwipe = useCallback(() => {
+    if (fullSwipeCommittedRef.current) return;
+    fullSwipeCommittedRef.current = true;
+    Haptics.warning();
+    // Bring the row back under the confirm alert; Cancel restores the card.
+    swipeableRef.current?.close();
+    onDeleteRef.current();
+  }, []);
+
+  const onRowLayout = useCallback((event: LayoutChangeEvent) => {
+    const width = Math.round(event.nativeEvent.layout.width);
+    if (width > 0) setRowWidth(width);
+  }, []);
 
   return (
-    <ReanimatedSwipeable
-      ref={swipeableRef}
-      friction={1}
-      rightThreshold={36}
-      dragOffsetFromRightEdge={16}
-      overshootRight={false}
-      overshootFriction={8}
-      enableTrackpadTwoFingerGesture
-      containerStyle={[
-        styles.container,
-        { borderRadius: cornerRadius },
-      ]}
-      childrenContainerStyle={
-        Platform.OS === 'android'
-          ? [styles.childrenAndroid, { borderRadius: cornerRadius }]
-          : undefined
-      }
-      onSwipeableOpen={() => {
-        setIsOpen(true);
-        Haptics.selectionChanged();
-        registerOpenSwipeable({
-          id,
-          close: () => swipeableRef.current?.close(),
-          onDelete,
-          deleteFrame: null,
-        });
-        requestAnimationFrame(() => {
-          measureDeleteFrame();
-        });
-      }}
-      onSwipeableClose={() => {
-        clearOpenSwipeable(id);
-        setIsOpen(false);
-      }}
-      renderRightActions={(progress) => (
-        <RightDeleteActions
-          progress={progress}
-          cornerRadius={cornerRadius}
-          isOpen={isOpen}
-          onMeasure={measureDeleteFrame}
-          deleteRef={deleteRef}
-        />
-      )}>
-      {children}
-    </ReanimatedSwipeable>
+    <View onLayout={onRowLayout}>
+      <ReanimatedSwipeable
+        ref={swipeableRef}
+        friction={1}
+        rightThreshold={rightThreshold}
+        dragOffsetFromRightEdge={16}
+        overshootRight={false}
+        overshootFriction={8}
+        enableTrackpadTwoFingerGesture
+        containerStyle={[
+          styles.container,
+          { borderRadius: cornerRadius },
+        ]}
+        childrenContainerStyle={
+          Platform.OS === 'android'
+            ? [styles.childrenAndroid, { borderRadius: cornerRadius }]
+            : undefined
+        }
+        onSwipeableOpenStartDrag={() => {
+          fullSwipeCommittedRef.current = false;
+          Haptics.selectionChanged();
+        }}
+        onSwipeableOpen={() => {
+          setIsOpen(true);
+          registerOpenSwipeable({
+            id,
+            close: () => swipeableRef.current?.close(),
+            onDelete: () => onDeleteRef.current(),
+            deleteFrame: null,
+          });
+          requestAnimationFrame(() => {
+            measureDeleteFrame();
+          });
+          // Full-width actions: open == committed full swipe → confirm delete.
+          triggerDeleteFromFullSwipe();
+        }}
+        onSwipeableClose={() => {
+          clearOpenSwipeable(id);
+          setIsOpen(false);
+          fullSwipeCommittedRef.current = false;
+        }}
+        renderRightActions={(progress, translation) => (
+          <RightDeleteActions
+            progress={progress}
+            translation={translation}
+            rowWidth={rowWidth}
+            cornerRadius={cornerRadius}
+            isOpen={isOpen}
+            onMeasure={measureDeleteFrame}
+            onPassFullThreshold={onPassFullThreshold}
+            deleteRef={deleteRef}
+            deleteLabel={deleteLabel}
+          />
+        )}>
+        {children}
+      </ReanimatedSwipeable>
+    </View>
   );
 }
 
@@ -195,12 +263,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   deleteAction: {
-    width: ACTION_WIDTH,
-    backgroundColor: DESTRUCTIVE_RED,
+    backgroundColor: IOS_DESTRUCTIVE_RED,
     justifyContent: 'center',
+    alignItems: 'flex-end',
   },
   deleteAnimWrap: {
-    flex: 1,
+    width: ACTION_WIDTH,
+    height: '100%',
   },
   deletePressable: {
     flex: 1,

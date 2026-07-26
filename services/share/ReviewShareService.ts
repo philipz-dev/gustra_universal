@@ -4,6 +4,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
 import type { Restaurant, Review } from '@/data/types';
+import { resolveReviewOrigin } from '@/data/types';
 import {
   restaurantToBackup,
   reviewToBackup,
@@ -68,13 +69,19 @@ function reviewToShareBackup(
   idMap: Map<string, string>,
 ): ShareReviewBackup {
   const backup = reviewToBackup(review);
+  // Prefer the friend's original id so re-imports upsert instead of duplicating.
+  const stableReviewId =
+    resolveReviewOrigin(review) === 'imported' && review.sourceReviewId?.trim()
+      ? review.sourceReviewId.trim()
+      : review.id;
   return {
     ...backup,
-    id: mappedId(review.id, idMap),
+    id: mappedId(stableReviewId, idMap),
     restaurantID: review.restaurantId
       ? mappedId(review.restaurantId, idMap)
       : null,
     date: toShareIso8601(review.date),
+    sourceReviewId: review.sourceReviewId?.trim() || stableReviewId,
   };
 }
 

@@ -54,6 +54,7 @@
     "filters": "Filters",
     "addReview": "Review toevoegen",
     "myLocation": "Mijn locatie",
+    "mapLegend": "Legenda kaartspelden",
     "clearLocation": "Locatiefilter wissen",
     "clearCuisine": "Keukenfilter wissen",
     "clearFavorites": "Favorietenfilter wissen",
@@ -121,6 +122,11 @@
   "map": {
     "title": "Mijn kaart",
     "friendSuffix": "(vriend)",
+    "legend": {
+      "title": "Spelden",
+      "own": "Mijn reviews",
+      "friends": "Reviews van vrienden"
+    },
     "empty": {
       "noMatchesTitle": "Geen resultaten",
       "noMatchesBody": "Geen restaurants komen overeen met je huidige filters.",
@@ -221,7 +227,8 @@
     "languageFrench": "Français",
     "languageValueGerman": "Deutsch",
     "languageValueSpanish": "Español",
-    "languageValueFrench": "Français"
+    "languageValueFrench": "Français",
+    "geminiApi": "Gemini wijn-Vision"
   },
   "criteria": {
     "food": "Eten",
@@ -288,7 +295,14 @@
       "indexing": "Fototekst indexeren…",
       "avg": "{{score}} gem.",
       "time": "Tijd",
-      "setTime": "Tijd instellen · {{time}}"
+      "setTime": "Tijd instellen · {{time}}",
+      "photoStrip": {
+        "hintReorder": "Tik om te selecteren · lang indrukken om te herschikken · eerste is Cover",
+        "hintSelect": "Tik om te selecteren voor verwijderen",
+        "cover": "Cover",
+        "a11yCover": "Coverfoto. Tik om te selecteren, lang indrukken om te herschikken.",
+        "a11yPhoto": "Foto. Tik om te selecteren, lang indrukken om te herschikken."
+      }
     },
     "photos": {
       "takePhoto": "Foto maken",
@@ -308,7 +322,7 @@
       "share": "Delen"
     },
     "options": {
-      "title": "Options",
+      "title": "Opties",
       "a11y": "Opties",
       "recordVisit": "Nieuw bezoek vastleggen",
       "editReview": "Review bewerken",
@@ -347,8 +361,8 @@
     "chooser": {
       "gustraFile": "Gustra-bestand delen",
       "gustraFileSubtitle": "Vrienden kunnen dit in Gustra importeren",
-      "visual": "Visuele aanbeveling sturen",
-      "visualSubtitle": "Een deelbare afbeelding van deze review",
+      "visual": "Deel review via e-mail",
+      "visualSubtitle": "Stuur een mooie kaart van deze review",
       "cancel": "Annuleren"
     },
     "nameSheet": {
@@ -441,6 +455,8 @@
       "removePhotosTitle": "Foto’s verwijderen?",
       "removePhotosBody": "Geselecteerde foto’s worden uit deze review verwijderd.",
       "photosSaveFailed": "Kon foto’s niet opslaan.",
+      "photoLimitTitle": "Fotolimiet",
+      "photoLimitBody": "Je kunt maximaal {{max}} foto’s toevoegen aan een review.",
       "deleteTitle": "Verwijderen?",
       "deleteBody": "Deze review wordt verwijderd.",
       "discardEdits": {
@@ -485,6 +501,49 @@
     "profilePhoto": {
       "storageTitle": "Opslag",
       "storageBody": "Kon de profielfoto niet opslaan."
+    }
+  },
+  "wineScan": {
+    "title": "Wijnetiket scannen",
+    "lead": "Fotografeer het etiket",
+    "hint": "Snijd het etiket bij; daarna lezen we de tekst op je toestel.",
+    "chooserTitle": "Foto van wijnetiket",
+    "cropHint": "Knijp en sleep zodat het etiket het kader vult",
+    "cropA11y": "Bijsnijden wijnetiket",
+    "readLabel": "Etiket lezen",
+    "reading": "Etiket lezen…",
+    "retake": "Andere foto kiezen",
+    "adjustCrop": "Bijsnijden aanpassen",
+    "ocrResult": "Tekst van het etiket",
+    "ocrEmpty": "Geen tekst gevonden op deze uitsnede.",
+    "drinksSuggestion": "Voor Dranken",
+    "drinksSuggestionPlaceholder": "Wijnnaam en jaartal",
+    "useInDrinks": "Gebruik bij Dranken",
+    "scanButton": "Scan",
+    "scanButtonA11y": "Wijnetiket scannen voor Dranken",
+    "drinksCommentPlaceholder": "Wijn, cocktail of andere dranken…",
+    "ocrUnavailableTitle": "Tekst lezen niet beschikbaar",
+    "ocrUnavailableBody": "Etiket lezen op het toestel werkt in een volledige app-build (niet in Expo Go). Je kunt de bijgesneden foto wel bewaren.",
+    "noTextTitle": "Geen tekst gevonden",
+    "noTextBody": "Probeer een scherpere foto of pas de uitsnede aan zodat het etiket het kader vult.",
+    "failedBody": "Kon het etiket niet analyseren. Controleer je verbinding en probeer opnieuw.",
+    "hintVision": "Snijd het etiket bij; daarna identificeren we de wijn online (één verkleinde foto).",
+    "analyzing": "Etiket analyseren…",
+    "uploadNoticeTitle": "Foto voor analyse",
+    "uploadNoticeBody": "Om de wijn te herkennen sturen we een kleinere kopie van je foto naar Google voor analyse. De foto wordt niet in Gustra’s cloud bewaard — alleen voor deze scan verstuurd.",
+    "uploadNoticeContinue": "Doorgaan",
+    "noMatchTitle": "Geen wijn herkend",
+    "noMatchBody": "We konden geen wijn herkennen op deze foto. Probeer een scherper etiket.",
+    "missingKeyBody": "Gemini API-key ontbreekt. Zet EXPO_PUBLIC_GEMINI_API_KEY in .env en herstart Expo.",
+    "fiche": {
+      "title": "Wijn",
+      "openA11y": "Wijnfiche openen",
+      "typeStyle": "Type & stijl",
+      "countryRegion": "Land & regio",
+      "vintage": "Oogstjaar",
+      "grapes": "Druiven",
+      "alcohol": "Alcohol",
+      "foodPairings": "Past bij"
     }
   }
 }

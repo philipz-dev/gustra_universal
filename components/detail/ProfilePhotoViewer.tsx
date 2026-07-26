@@ -26,7 +26,7 @@ import {
   lockAppPortraitOrientation,
   unlockPhotoViewerOrientation,
 } from '@/services/orientation/photoViewerOrientation';
-import { sharePhotoUri, savePhotoUri } from '@/services/photos/photoViewerActions';
+import { sharePhotoUri } from '@/services/photos/photoViewerActions';
 
 type ProfilePhotoViewerProps = {
   visible: boolean;
@@ -72,22 +72,6 @@ export function ProfilePhotoViewer({
       alertOverModal(
         'Error',
         error instanceof Error ? error.message : 'Could not share photo',
-      );
-    } finally {
-      setBusy(false);
-    }
-  }, [busy, uri]);
-
-  const handleSave = useCallback(async () => {
-    if (!uri || busy) return;
-    setBusy(true);
-    try {
-      await savePhotoUri(uri);
-      alertOverModal('Photo saved');
-    } catch (error) {
-      alertOverModal(
-        'Error',
-        error instanceof Error ? error.message : 'Could not save photo',
       );
     } finally {
       setBusy(false);
@@ -157,7 +141,6 @@ export function ProfilePhotoViewer({
           <PhotoViewerTopBar
             onClose={close}
             onShare={() => void handleShare()}
-            onSave={() => void handleSave()}
           />
 
           <PhotoViewerCountPill

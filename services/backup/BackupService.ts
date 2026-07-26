@@ -34,6 +34,8 @@ function localPhotoRefsFromReviews(reviews: Review[]): string[] {
   const refs: string[] = [];
   for (const review of reviews) {
     for (const url of review.photoUrls) refs.push(url);
+    const label = review.wineLabel?.labelPhotoUri?.trim();
+    if (label) refs.push(label);
   }
   return refs;
 }

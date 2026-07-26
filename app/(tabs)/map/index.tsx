@@ -29,13 +29,7 @@ import {
   bodyTextStyle,
   captionTextStyle,
 } from '@/constants/Theme';
-import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
-import {
-  satisfactionFromScore,
-  type Review,
-  type SatisfactionLevel,
-} from '@/data/types';
 import { Haptics } from '@/services/haptics';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { useSharedRestaurantFilters } from '@/hooks/useSharedRestaurantFilters';
@@ -44,16 +38,11 @@ import {
   resolveCurrentLocation,
 } from '@/services/location/resolveCurrentLocation';
 import { FALLBACK_MAP_CENTER, type LatLng } from '@/services/places';
-import { overallScoreFromCriteria } from '@/services/reviews/ratings';
 
-const LEVEL_COLOR: Record<SatisfactionLevel, string> = {
-  excellent: GustraColors.ratingExcellent,
-  neutral: GustraColors.ratingNeutral,
-  avoid: GustraColors.ratingAvoid,
-};
-
-/** Distinct purple pin color for friends' reviews. */
-const FRIENDS_PIN_COLOR = '#7B5EA7';
+/** Own reviews — brand green. */
+const OWN_PIN_COLOR = GustraColors.forestGreen;
+/** Friends' reviews — contrasting blue (not satisfaction traffic-light). */
+const FRIENDS_PIN_COLOR = '#2F6FED';
 
 /** Survives push/pop to review detail so Back restores the same map view. */
 type MemoriesMapCamera = { center: LatLng; zoom: number };
@@ -63,7 +52,6 @@ type MapPin = {
   reviewId: string;
   name: string;
   coordinate: LatLng;
-  level: SatisfactionLevel;
   isFriend: boolean;
 };
 
@@ -75,14 +63,8 @@ function hasCoordinates(lat: number, lng: number): boolean {
   );
 }
 
-function scoreForEnabled(review: Review, enabledIds: Set<string>): number {
-  return overallScoreFromCriteria(
-    review.criteria.filter((c) => enabledIds.has(c.id)),
-  );
-}
-
 /**
- * My map — pins colored by satisfaction (Swift `MemoriesMapView`).
+ * My map — pins by ownership (own = green, friends = blue).
  * Same shared filter state as Reviews / My Gustra (Sort by ignored here).
  */
 export default function MemoriesMapScreen() {
@@ -90,7 +72,6 @@ export default function MemoriesMapScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { reviews, getRestaurant, ready } = useReviewsStore();
-  const { enabledCriteria } = useCriteriaSettings();
   const {
     filterState,
     setFilterState,
@@ -112,15 +93,11 @@ export default function MemoriesMapScreen() {
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [locating, setLocating] = useState(false);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [legendExpanded, setLegendExpanded] = useState(false);
   const mapRef = useRef<GoogleMapsViewHandle>(null);
   const pendingFitRef = useRef(false);
   /** Snapshot at mount — module cache may update while this screen is mounted. */
   const restoredCameraRef = useRef(savedMemoriesMapCamera);
-
-  const enabledIds = useMemo(
-    () => new Set(enabledCriteria.map((c) => c.id)),
-    [enabledCriteria],
-  );
 
   const allowedRestaurantIds = useMemo(
     () => new Set(filteredSummaries.map((s) => s.restaurantId)),
@@ -145,7 +122,6 @@ export default function MemoriesMapScreen() {
         if (!hasCoordinates(restaurant.latitude, restaurant.longitude)) {
           return [];
         }
-        const score = scoreForEnabled(review, enabledIds);
         return [
           {
             reviewId: review.id,
@@ -154,19 +130,11 @@ export default function MemoriesMapScreen() {
               latitude: restaurant.latitude,
               longitude: restaurant.longitude,
             },
-            level: satisfactionFromScore(score),
             isFriend: review.origin === 'imported',
           },
         ];
       });
-  }, [
-    allowedRestaurantIds,
-    enabledIds,
-    getRestaurant,
-    includeFriends,
-    ready,
-    reviews,
-  ]);
+  }, [allowedRestaurantIds, getRestaurant, includeFriends, ready, reviews]);
 
   const markers = useMemo(
     (): GoogleMapMarker[] =>
@@ -176,7 +144,7 @@ export default function MemoriesMapScreen() {
         title: pin.isFriend
           ? `${pin.name} ${t('map.friendSuffix')}`
           : pin.name,
-        color: pin.isFriend ? FRIENDS_PIN_COLOR : LEVEL_COLOR[pin.level],
+        color: pin.isFriend ? FRIENDS_PIN_COLOR : OWN_PIN_COLOR,
       })),
     [pins, t],
   );
@@ -345,6 +313,59 @@ export default function MemoriesMapScreen() {
           }}
         />
 
+        <View style={styles.legendWrap} pointerEvents="box-none">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: legendExpanded }}
+            accessibilityLabel={t('a11y.mapLegend')}
+            onPress={() => {
+              Haptics.selectionChanged();
+              setLegendExpanded((v) => !v);
+            }}
+            style={({ pressed }) => [
+              styles.legendCard,
+              pressed && styles.pressed,
+            ]}>
+            <View style={styles.legendHeader}>
+              <Text style={styles.legendTitle}>{t('map.legend.title')}</Text>
+              {Platform.OS === 'ios' ? (
+                <SymbolView
+                  name={legendExpanded ? 'chevron.up' : 'chevron.down'}
+                  size={12}
+                  tintColor="rgba(35, 32, 26, 0.55)"
+                />
+              ) : (
+                <MaterialIcons
+                  name={legendExpanded ? 'expand-less' : 'expand-more'}
+                  size={18}
+                  color="rgba(35, 32, 26, 0.55)"
+                />
+              )}
+            </View>
+            {legendExpanded ? (
+              <View style={styles.legendRows}>
+                <View style={styles.legendRow}>
+                  <View
+                    style={[styles.legendDot, { backgroundColor: OWN_PIN_COLOR }]}
+                  />
+                  <Text style={styles.legendLabel}>{t('map.legend.own')}</Text>
+                </View>
+                <View style={styles.legendRow}>
+                  <View
+                    style={[
+                      styles.legendDot,
+                      { backgroundColor: FRIENDS_PIN_COLOR },
+                    ]}
+                  />
+                  <Text style={styles.legendLabel}>
+                    {t('map.legend.friends')}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+          </Pressable>
+        </View>
+
         <View
           style={[styles.mapControls, { bottom: bottomPad + 12 }]}
           pointerEvents="box-none">
@@ -456,6 +477,58 @@ const styles = StyleSheet.create({
   },
   mapBody: {
     flex: 1,
+  },
+  legendWrap: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    zIndex: 2,
+    maxWidth: 220,
+  },
+  legendCard: {
+    backgroundColor: 'rgba(245, 238, 221, 0.96)',
+    borderRadius: Theme.radius.md,
+    borderWidth: 1.5,
+    borderColor: 'rgba(36, 78, 57, 0.28)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  legendHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  legendTitle: {
+    ...captionTextStyle,
+    fontSize: 13,
+    fontWeight: '600',
+    color: GustraColors.ink,
+  },
+  legendRows: {
+    gap: 6,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  legendLabel: {
+    ...captionTextStyle,
+    fontSize: 12,
+    color: 'rgba(35, 32, 26, 0.75)',
+    flexShrink: 1,
   },
   mapControls: {
     position: 'absolute',

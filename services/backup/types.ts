@@ -47,6 +47,16 @@ export type ReviewBackup = {
   reviewedById?: string | null;
   reviewedByPhotoPath?: string | null;
   origin?: string | null;
+  /**
+   * Expo extension: JSON string of WineLabelFiche (ignored by older Swift).
+   * Label photo filename should also appear in photoPaths / photoFiles.
+   */
+  wineLabelJSON?: string | null;
+  /**
+   * Expo extension: original shared review UUID (for re-import upsert).
+   * Ignored by older Swift / Expo.
+   */
+  sourceReviewId?: string | null;
 };
 
 /** App settings beyond Swift schema v1 — ignored by Swift decoder. */

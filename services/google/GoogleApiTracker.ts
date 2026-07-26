@@ -1,12 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type GoogleApiKind = 'maps' | 'places';
+export type GoogleApiKind = 'maps' | 'places' | 'gemini';
 
 export type GoogleApiUsageSnapshot = {
   mapsToday: number;
   mapsTotal: number;
   placesToday: number;
   placesTotal: number;
+  geminiToday: number;
+  geminiTotal: number;
 };
 
 type Listener = (snapshot: GoogleApiUsageSnapshot) => void;
@@ -34,6 +36,8 @@ let snapshot: GoogleApiUsageSnapshot = {
   mapsTotal: 0,
   placesToday: 0,
   placesTotal: 0,
+  geminiToday: 0,
+  geminiTotal: 0,
 };
 let ready = false;
 let hydratePromise: Promise<void> | null = null;
@@ -53,18 +57,38 @@ async function rolloverIfNeeded(): Promise<void> {
   const today = currentDayKey();
   const stored = await AsyncStorage.getItem(DAY_KEY);
   if (stored === today) return;
-  await AsyncStorage.multiRemove([todayKey('maps'), todayKey('places')]);
+  await AsyncStorage.multiRemove([
+    todayKey('maps'),
+    todayKey('places'),
+    todayKey('gemini'),
+  ]);
   await AsyncStorage.setItem(DAY_KEY, today);
 }
 
 async function reload(): Promise<void> {
-  const [mapsTotal, mapsToday, placesTotal, placesToday] = await Promise.all([
+  const [
+    mapsTotal,
+    mapsToday,
+    placesTotal,
+    placesToday,
+    geminiTotal,
+    geminiToday,
+  ] = await Promise.all([
     readInt(totalKey('maps')),
     readInt(todayKey('maps')),
     readInt(totalKey('places')),
     readInt(todayKey('places')),
+    readInt(totalKey('gemini')),
+    readInt(todayKey('gemini')),
   ]);
-  snapshot = { mapsTotal, mapsToday, placesTotal, placesToday };
+  snapshot = {
+    mapsTotal,
+    mapsToday,
+    placesTotal,
+    placesToday,
+    geminiTotal,
+    geminiToday,
+  };
   notify();
 }
 
@@ -95,6 +119,7 @@ export function subscribeGoogleApiTracker(listener: Listener): () => void {
  * Increment a successful Google API call (Swift `GoogleApiTracker.increment`).
  * Places: searchNearby / searchText / Place Details.
  * Maps: Maps JS / SDK map load.
+ * Gemini: wine-label Vision identify.
  */
 export async function incrementGoogleApi(kind: GoogleApiKind): Promise<void> {
   await hydrateGoogleApiTracker();
@@ -107,8 +132,10 @@ export async function incrementGoogleApi(kind: GoogleApiKind): Promise<void> {
   ]);
   if (kind === 'maps') {
     snapshot = { ...snapshot, mapsTotal: nextTotal, mapsToday: nextToday };
-  } else {
+  } else if (kind === 'places') {
     snapshot = { ...snapshot, placesTotal: nextTotal, placesToday: nextToday };
+  } else {
+    snapshot = { ...snapshot, geminiTotal: nextTotal, geminiToday: nextToday };
   }
   notify();
 }
@@ -120,6 +147,8 @@ export async function resetGoogleApiCounters(): Promise<void> {
     todayKey('maps'),
     totalKey('places'),
     todayKey('places'),
+    totalKey('gemini'),
+    todayKey('gemini'),
   ]);
   await AsyncStorage.setItem(DAY_KEY, currentDayKey());
   snapshot = {
@@ -127,6 +156,8 @@ export async function resetGoogleApiCounters(): Promise<void> {
     mapsTotal: 0,
     placesToday: 0,
     placesTotal: 0,
+    geminiToday: 0,
+    geminiTotal: 0,
   };
   notify();
 }
