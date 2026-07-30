@@ -11,8 +11,7 @@ export type ReviewOptionsAction =
   | 'recordVisit'
   | 'edit'
   | 'shareGustra'
-  | 'shareVisual'
-  | 'delete';
+  | 'shareVisual';
 
 type ReviewOptionsSheetProps = {
   visible: boolean;
@@ -24,7 +23,7 @@ type ReviewOptionsSheetProps = {
 
 /**
  * Review detail overflow menu (⋯ → Options sheet).
- * Inset grouped list: Visit/Edit · Share · Delete.
+ * Visit/Edit · Share. Delete lives on Edit review / feed swipe.
  */
 export function ReviewOptionsSheet({
   visible,
@@ -108,19 +107,6 @@ export function ReviewOptionsSheet({
                 />
               </InsetGroup>
             </View>
-
-            <Pressable
-              onPress={() => onAction('delete')}
-              style={({ pressed }) => [
-                styles.deleteRow,
-                pressed && styles.deleteRowPressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel={t('detail.options.deleteReview')}>
-              <Text style={styles.deleteLabel}>
-                {t('detail.options.deleteReview')}
-              </Text>
-            </Pressable>
           </View>
         </View>
       </View>
@@ -290,20 +276,5 @@ const styles = StyleSheet.create({
   rowSubtitle: {
     fontSize: 13,
     color: 'rgba(35, 32, 26, 0.55)',
-  },
-  deleteRow: {
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    backgroundColor: 'rgba(199, 71, 66, 0.16)',
-    alignItems: 'center',
-  },
-  deleteRowPressed: {
-    backgroundColor: 'rgba(199, 71, 66, 0.24)',
-  },
-  deleteLabel: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: GustraColors.ratingAvoid,
   },
 });

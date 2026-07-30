@@ -516,7 +516,7 @@ export function FilterOptionsModal({
                     ]}>
                     <View style={styles.compositeText}>
                       <Text style={styles.rowTitle}>{currentSortTitle}</Text>
-                      {draft.sortKind.type === 'averageScore' ? (
+                      {draft.sortKind.type === 'date' ? (
                         <Text style={styles.rowSubtitle}>{t('filters.default')}</Text>
                       ) : null}
                     </View>

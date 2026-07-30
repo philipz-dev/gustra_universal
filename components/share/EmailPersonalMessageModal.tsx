@@ -14,6 +14,7 @@ import { SymbolView } from 'expo-symbols';
 
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
+import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { bodyTextStyle, Theme } from '@/constants/Theme';
 
 const MAX_LENGTH = 280;
@@ -89,6 +90,7 @@ export function EmailPersonalMessageModal({
               multiline
               maxLength={MAX_LENGTH}
               autoFocus
+              keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
               textAlignVertical="top"
             />
             {draft.length > 0 ? (

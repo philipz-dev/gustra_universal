@@ -18,6 +18,13 @@
       }
     },
     "production": {
+      "env": {
+        "SENTRY_ALLOW_FAILURE": "true",
+        "SENTRY_AUTH_TOKEN": "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",
+        "SENTRY_ORG": "none-zzo",
+        "SENTRY_PROJECT": "react-native",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://4aa7b40d43e0028df07ee450f6d72598@o4511812445601792.ingest.de.sentry.io/4511812463951952"
+      },
       "android": {
         "buildType": "app-bundle"
       }
@@ -29,7 +36,32 @@
         "ascAppId": "6791973687"
       },
       "android": {
-        "track": "internal"
+        "track": "internal",
+        "serviceAccountKeyPath": "./secrets/gustra-503718-8996d99b6021.json"
+      }
+    },
+    "testflight-internal": {
+      "ios": {
+        "ascAppId": "6791973687",
+        "groups": [
+          "Internal"
+        ]
+      },
+      "android": {
+        "track": "internal",
+        "serviceAccountKeyPath": "./secrets/gustra-503718-8996d99b6021.json"
+      }
+    },
+    "testflight-developer": {
+      "ios": {
+        "ascAppId": "6791973687",
+        "groups": [
+          "Developer"
+        ]
+      },
+      "android": {
+        "track": "internal",
+        "serviceAccountKeyPath": "./secrets/gustra-503718-8996d99b6021.json"
       }
     }
   }

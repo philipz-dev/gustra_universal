@@ -11,7 +11,7 @@ type ReviewsHeaderProps = {
   onShare?: () => void;
   showFilter?: boolean;
   canFilter?: boolean;
-  /** Gold icon when filters are active. */
+  /** Orange icon when filters are active. */
   filterActive?: boolean;
   onFilter?: () => void;
 };
@@ -53,8 +53,7 @@ export function ReviewsHeader({
       right={
         showFilter ? (
           <HouseToolbarIconButton
-            iosName="line.3.horizontal.decrease"
-            androidName="filter-list"
+            ionName="funnel"
             accessibilityLabel={t('a11y.filters')}
             disabled={!canFilter}
             emphasized={filterActive}

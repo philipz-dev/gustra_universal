@@ -1,0 +1,238 @@
+#!/usr/bin/env bash
+# gustrarun — kill stuck Expo/Metro, free :8081, start Metro, prewarm bundle, open emulators.
+#
+# Usage:
+#   npm run gustrarun
+#   bash scripts/gustrarun [--ios-only|--android-only] [--clear] [--skip-prewarm]
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+CLEAR=0
+LAUNCH_IOS=1
+LAUNCH_ANDROID=1
+PREWARM=1
+PORT=8081
+METRO_PID=""
+PREWARM_SECONDS="${GUSTRA_PREWARM_SECONDS:-300}"
+READY_SECONDS="${GUSTRA_READY_SECONDS:-180}"
+
+usage() {
+  cat <<'EOF'
+gustrarun — Metro + open Gustra on running emulators
+
+  npm run gustrarun
+  bash scripts/gustrarun [--ios-only|--android-only] [--clear] [--skip-prewarm]
+
+  1) Stops leftover expo/metro processes and frees :8081
+  2) Starts Metro (dev client, --localhost) in the background
+  3) Waits until Metro /status is ready
+  4) Prewarms the JS bundle (avoids “Could not connect” on first open)
+  5) Opens the app on booted iOS Simulator / Android emulator
+
+Simulators/emulators should already be running.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --ios-only) LAUNCH_ANDROID=0; shift ;;
+    --android-only) LAUNCH_IOS=0; shift ;;
+    --clear) CLEAR=1; shift ;;
+    --no-clear) CLEAR=0; shift ;;
+    --skip-prewarm) PREWARM=0; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *)
+      echo "Onbekende optie: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+cleanup() {
+  if [[ -n "${METRO_PID}" ]] && kill -0 "${METRO_PID}" 2>/dev/null; then
+    kill "${METRO_PID}" 2>/dev/null || true
+    wait "${METRO_PID}" 2>/dev/null || true
+  fi
+}
+trap cleanup INT TERM
+
+kill_expo() {
+  echo "› Stop vaste Expo / Metro-processen…"
+  # Never `pkill -f metro` — matches unrelated argv that merely contain metro.config.js
+  # (e.g. Cursor `git diff … metro.config.js …`).
+  pkill -9 -f 'expo start' 2>/dev/null || true
+  pkill -9 -f 'node_modules/.bin/expo' 2>/dev/null || true
+  pkill -9 -f 'node_modules/expo/bin/cli' 2>/dev/null || true
+  pkill -9 -f 'react-native/cli.js start' 2>/dev/null || true
+  pkill -9 -f 'metro/src/cli' 2>/dev/null || true
+  pkill -9 -f 'jest-worker/build/workers/processChild' 2>/dev/null || true
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -tiTCP:"${PORT}" -sTCP:LISTEN 2>/dev/null | xargs kill -9 2>/dev/null || true
+  fi
+  if [[ -x "$ROOT/node_modules/.bin/kill-port" ]]; then
+    "$ROOT/node_modules/.bin/kill-port" "${PORT}" >/dev/null 2>&1 || true
+  fi
+  sleep 1
+}
+
+metro_ready() {
+  local status
+  status="$(curl -sf --max-time 1 "http://127.0.0.1:${PORT}/status" 2>/dev/null || true)"
+  [[ "$status" == *"packager-status:running"* ]] || [[ "$status" == *"running"* ]]
+}
+
+urlencode() {
+  python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"
+}
+
+bundle_url() {
+  local platform="$1"
+  printf 'http://127.0.0.1:%s/node_modules/expo-router/entry.bundle?platform=%s&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app' \
+    "${PORT}" "${platform}"
+}
+
+prewarm_bundle() {
+  local platform="$1"
+  local url
+  url="$(bundle_url "$platform")"
+  echo "› Prewarm ${platform}-bundle (max ${PREWARM_SECONDS}s)…"
+  echo "  ${url}"
+  if curl -sf --max-time "${PREWARM_SECONDS}" -o /dev/null "$url"; then
+    echo "› ${platform}-bundle klaar"
+    return 0
+  fi
+  echo "› Waarschuwing: ${platform}-prewarm mislukt (curl exit $?). App kan nog time-outen op eerste load." >&2
+  return 0
+}
+
+open_ios() {
+  if ! xcrun simctl list devices booted 2>/dev/null | grep -q 'Booted'; then
+    echo "› iOS: geen booted Simulator — sla over"
+    return 0
+  fi
+  local metro_url encoded deep
+  metro_url="http://127.0.0.1:${PORT}"
+  encoded="$(urlencode "$metro_url")"
+  deep="exp+gustra://expo-development-client/?url=${encoded}"
+  echo "› iOS: open Gustra (dev client) → ${metro_url}"
+  xcrun simctl openurl booted "$deep" 2>/dev/null \
+    || xcrun simctl openurl booted "gustra://expo-development-client/?url=${encoded}" 2>/dev/null \
+    || echo "  (kon Simulator-URL niet openen — open de app handmatig)"
+}
+
+open_android() {
+  local adb="${ANDROID_HOME:-$HOME/Library/Android/sdk}/platform-tools/adb"
+  if [[ ! -x "$adb" ]]; then
+    adb="$(command -v adb || true)"
+  fi
+  if [[ -z "$adb" ]]; then
+    echo "› Android: adb niet gevonden — sla over"
+    return 0
+  fi
+  if ! "$adb" devices 2>/dev/null | grep -q $'\tdevice$'; then
+    echo "› Android: geen device/emulator — sla over"
+    return 0
+  fi
+  "$adb" reverse "tcp:${PORT}" "tcp:${PORT}" >/dev/null 2>&1 || true
+  local metro_url encoded deep
+  metro_url="http://127.0.0.1:${PORT}"
+  encoded="$(urlencode "$metro_url")"
+  deep="exp+gustra://expo-development-client/?url=${encoded}"
+  echo "› Android: open Gustra (dev client) → ${metro_url}"
+  "$adb" shell am start -a android.intent.action.VIEW -d "$deep" >/dev/null 2>&1 \
+    || "$adb" shell am start -a android.intent.action.VIEW -d "gustra://expo-development-client/?url=${encoded}" >/dev/null 2>&1 \
+    || echo "  (kon Android-URL niet openen — open de app handmatig)"
+}
+
+kill_expo
+
+# Empty/unset CI: keep Metro watch/HMR. Do NOT set CI=1.
+unset CI || true
+export EXPO_NO_TELEMETRY="${EXPO_NO_TELEMETRY:-1}"
+export EXPO_NO_DEPENDENCY_VALIDATION="${EXPO_NO_DEPENDENCY_VALIDATION:-1}"
+export EXPO_NO_DEVTOOLS_PLUGINS="${EXPO_NO_DEVTOOLS_PLUGINS:-1}"
+export NODE_OPTIONS="${NODE_OPTIONS:---dns-result-order=ipv4first}"
+export RCT_METRO_PORT="${PORT}"
+
+node "$ROOT/scripts/patch-expo-devtools-hang.js"
+
+args=(start --dev-client --port "${PORT}" --localhost --scheme gustra)
+if [[ "$CLEAR" -eq 1 ]]; then
+  args+=(-c)
+  echo "› Cache clear aan (−c) — kan even duren"
+fi
+
+LOG="$ROOT/.expo/dev/logs/gustrarun-metro.log"
+mkdir -p "$(dirname "$LOG")"
+: > "$LOG"
+
+EXPO_BIN="$ROOT/node_modules/.bin/expo"
+if [[ ! -x "$EXPO_BIN" ]]; then
+  EXPO_BIN=(npx expo)
+else
+  EXPO_BIN=("$EXPO_BIN")
+fi
+
+echo "› Start Metro: ${EXPO_BIN[*]} ${args[*]}"
+echo "  (log: ${LOG})"
+
+# Critical: pipe stdout/stderr (not a TTY). Expo's isInteractive() is
+# `!CI && stdout.isTTY` — it ignores stdin. With `</dev/null` and a real TTY
+# stdout, any prompt (port-in-use, doctor, …) hangs forever.
+# Piping keeps watch/HMR (CI unset) while forcing non-interactive prompts.
+"${EXPO_BIN[@]}" "${args[@]}" </dev/null 2>&1 | tee -a "$LOG" &
+METRO_PID=$!
+
+echo "› Wachten tot Metro luistert op :${PORT} (max ${READY_SECONDS}s)…"
+ready=0
+for i in $(seq 1 "${READY_SECONDS}"); do
+  # The pipeline PID is `tee`; also accept any expo child still alive.
+  if ! kill -0 "${METRO_PID}" 2>/dev/null && ! pgrep -f 'node_modules/.bin/expo start' >/dev/null 2>&1; then
+    echo "Expo/Metro stopte onverwacht vóór klaar. Laatste log:" >&2
+    tail -40 "$LOG" >&2 || true
+    exit 1
+  fi
+  if metro_ready; then
+    ready=1
+    echo "› Metro klaar (${i}s)"
+    break
+  fi
+  if (( i % 5 == 0 )); then
+    echo "  … nog bezig (${i}s)"
+    tail -n 5 "$LOG" 2>/dev/null | sed '/^$/d' | tail -1 | sed 's/^/    /' || true
+  fi
+  sleep 1
+done
+
+if [[ "$ready" -ne 1 ]]; then
+  echo "Timeout: Metro kwam niet omhoog op :${PORT}." >&2
+  echo "Laatste logregels:" >&2
+  tail -50 "$LOG" >&2 || true
+  echo "Tip: npm run gustrarun -- --clear" >&2
+  pkill -9 -f 'expo start' 2>/dev/null || true
+  kill "${METRO_PID}" 2>/dev/null || true
+  exit 1
+fi
+
+if [[ "$PREWARM" -eq 1 ]]; then
+  if [[ "$LAUNCH_IOS" -eq 1 ]]; then
+    prewarm_bundle ios
+  fi
+  if [[ "$LAUNCH_ANDROID" -eq 1 ]]; then
+    prewarm_bundle android
+  fi
+fi
+
+if [[ "$LAUNCH_IOS" -eq 1 ]]; then
+  open_ios
+fi
+if [[ "$LAUNCH_ANDROID" -eq 1 ]]; then
+  open_android
+fi
+
+echo "› Metro blijft draaien (Ctrl+C stopt)."
+# Wait on the pipeline (tee). Also trap expo children on exit.
+wait "${METRO_PID}" || true

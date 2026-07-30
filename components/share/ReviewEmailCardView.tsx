@@ -4,6 +4,7 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle, captionTextStyle } from '@/constants/Theme';
+import { formatScoreOutOfFive } from '@/services/reviews/ratings';
 
 export const EMAIL_CARD_CONTENT_WIDTH = 390;
 export const EMAIL_CARD_OUTER_WIDTH = EMAIL_CARD_CONTENT_WIDTH + 32;
@@ -153,7 +154,7 @@ export function ReviewEmailCardView({
               <Text style={styles.sectionLabel}>OVERALL</Text>
               <Text style={styles.stars}>{glyphStars(overallScore)}</Text>
               <Text style={styles.overallAverage}>
-                {overallScore.toFixed(1)} / 5 average
+                {`${formatScoreOutOfFive(overallScore)} average`}
               </Text>
             </View>
           </View>

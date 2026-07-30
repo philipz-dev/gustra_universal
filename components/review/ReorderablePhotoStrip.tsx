@@ -11,6 +11,7 @@ import { SymbolView } from 'expo-symbols';
 import { GustraColors } from '@/constants/Colors';
 import { captionTextStyle, Theme } from '@/constants/Theme';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { relocateLocalPhotoRef } from '@/services/backup/photos';
 import { Haptics } from '@/services/haptics';
 
 const PHOTO_SIZE = 72;
@@ -86,7 +87,11 @@ export function ReorderablePhotoStrip({
                   : t('forms.review.photoStrip.a11yPhoto')
               }
               style={styles.thumbHit}>
-              <Image source={{ uri: item }} style={styles.thumb} resizeMode="cover" />
+              <Image
+                source={{ uri: relocateLocalPhotoRef(item) }}
+                style={styles.thumb}
+                resizeMode="cover"
+              />
               {isSelected ? (
                 <View style={styles.selectedRing} pointerEvents="none" />
               ) : null}
@@ -239,7 +244,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(36, 78, 57, 0.08)',
   },
   selectedRing: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: Theme.radius.sm,
     borderWidth: 3,
     borderColor: GustraColors.forestGreen,

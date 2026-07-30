@@ -35,6 +35,10 @@ export function referencedPhotoFilenames(
   for (const review of reviews) {
     for (const url of review.photoUrls) add(url);
     add(review.reviewedByPhotoUrl);
+    add(review.wineLabel?.labelPhotoUri);
+    for (const wine of review.wineLabels ?? []) {
+      add(wine.labelPhotoUri);
+    }
   }
   for (const restaurant of restaurants) {
     add(restaurant.photoUrl);

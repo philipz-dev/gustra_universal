@@ -6,6 +6,7 @@ import {
   normalizeRestaurant,
   resolveReviewOrigin,
 } from '@/data/types';
+import { standardCriterionStorageTitle } from '@/context/CriteriaSettings';
 import {
   backupPhotoKey,
   ensurePhotosDirectory,
@@ -104,7 +105,7 @@ function criteriaFromShareReview(item: ShareReviewBackup): Review['criteria'] {
       for (const [id, rating] of Object.entries(parsed.ratings ?? {})) {
         criteria.push({
           id,
-          title: 'Custom',
+          title: standardCriterionStorageTitle(id),
           rating,
           comment: parsed.comments?.[id] ?? '',
         });
@@ -662,6 +663,7 @@ export async function importSelectedShareReviews(args: {
         }),
       ocrText: canonical?.ocrText ?? '',
       wineLabel: canonical?.wineLabel,
+      wineLabels: canonical?.wineLabels,
       sourceReviewId,
     };
     upsertReviews.push(review);

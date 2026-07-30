@@ -16,7 +16,11 @@ import { GustraColors } from '@/constants/Colors';
 import { SERIF_FONT, Theme } from '@/constants/Theme';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { Haptics } from '@/services/haptics';
-import { RatingValue, ratingLabel } from '@/services/reviews/ratings';
+import {
+  formatHalfStarOutOfFive,
+  RatingValue,
+  ratingLabel,
+} from '@/services/reviews/ratings';
 
 const EMPTY_GOLD = 'rgba(217, 162, 39, 0.35)';
 const STAR_PATH =
@@ -164,7 +168,7 @@ export function InteractiveStarRating({
             accessibilityLabel={t('rating.a11y.rating')}
             accessibilityValue={{
               text: RatingValue.isStarRating(rating)
-                ? RatingValue.starValue(rating).toFixed(1)
+                ? formatHalfStarOutOfFive(rating)
                 : t('rating.labels.notRated'),
             }}>
             {starFills.map((fill, index) => (

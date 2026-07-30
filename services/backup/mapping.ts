@@ -1,10 +1,20 @@
 import type { CustomCriterionDefinition } from '@/context/CriteriaSettings';
-import type { Restaurant, Review, ReviewOrigin } from '@/data/types';
+import {
+  FIXED_BACKUP_CRITERION_IDS,
+  standardCriterionStorageTitle,
+} from '@/context/CriteriaSettings';
+import type {
+  Restaurant,
+  Review,
+  ReviewOrigin,
+  WineLabelFiche,
+} from '@/data/types';
 import { resolveReviewOrigin } from '@/data/types';
 import {
   backupPhotoKey,
   isRemotePhotoUrl,
   localPhotoUri,
+  stripWineLabelUrisFromPhotoUrls,
 } from '@/services/backup/photos';
 import {
   fromAppleRefDate,
@@ -17,6 +27,128 @@ import {
   REVIEWER_PHOTO_BACKUP_KEY,
 } from '@/services/backup/types';
 import { rebuildSearchableText } from '@/services/reviews/searchableText';
+import {
+  syncWineLabelFields,
+  wineLabelsForReview,
+} from '@/services/wine/wineLabelTypes';
+
+function ficheToBackupJson(fiche: WineLabelFiche): Record<string, unknown> {
+  return {
+    ...fiche,
+    labelPhotoUri: fiche.labelPhotoUri
+      ? backupPhotoKey(fiche.labelPhotoUri)
+      : '',
+  };
+}
+
+function parseWineLabelFicheBackup(
+  raw: unknown,
+): WineLabelFiche | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const parsed = raw as {
+    labelPhotoUri?: string;
+    nameAndEstate?: string;
+    typeStyle?: string;
+    countryRegion?: string;
+    vintage?: string | null;
+    grapes?: string | null;
+    grapeVarieties?: string[];
+    grapeBlend?: WineLabelFiche['grapeBlend'];
+    alcoholPercent?: number | null;
+    foodPairings?: string | null;
+    tastingTraits?: WineLabelFiche['tastingTraits'];
+    servingTempHint?: string | null;
+    aerationHint?: string | null;
+    drinkWindowHint?: string | null;
+    tasteProfileConfidence?: WineLabelFiche['tasteProfileConfidence'];
+    analyzedAt?: string;
+    userRating?: number;
+    userComment?: string;
+  };
+  const name = (parsed.nameAndEstate ?? '').trim();
+  if (!name) return null;
+  const rawPhoto = (parsed.labelPhotoUri ?? '').trim();
+  const labelPhotoUri =
+    !rawPhoto
+      ? ''
+      : isRemotePhotoUrl(rawPhoto) || rawPhoto.startsWith('file://')
+        ? rawPhoto
+        : localPhotoUri(backupPhotoKey(rawPhoto));
+  const grapeVarieties = Array.isArray(parsed.grapeVarieties)
+    ? parsed.grapeVarieties
+        .filter((g): g is string => typeof g === 'string')
+        .map((g) => g.trim())
+        .filter(Boolean)
+    : undefined;
+  const grapeBlend = Array.isArray(parsed.grapeBlend)
+    ? parsed.grapeBlend
+        .map((item) => {
+          if (!item || typeof item !== 'object') return null;
+          const name =
+            typeof item.name === 'string' ? item.name.trim() : '';
+          if (!name) return null;
+          const percent =
+            typeof item.percent === 'number' &&
+            Number.isFinite(item.percent) &&
+            item.percent >= 1 &&
+            item.percent <= 100
+              ? Math.round(item.percent)
+              : undefined;
+          return percent != null ? { name, percent } : { name };
+        })
+        .filter((g): g is NonNullable<typeof g> => g != null)
+    : undefined;
+  const userRating =
+    typeof parsed.userRating === 'number' &&
+    Number.isFinite(parsed.userRating)
+      ? parsed.userRating
+      : undefined;
+  const userComment =
+    typeof parsed.userComment === 'string'
+      ? parsed.userComment
+      : undefined;
+  const servingTempHint =
+    typeof parsed.servingTempHint === 'string'
+      ? parsed.servingTempHint
+      : undefined;
+  const aerationHint =
+    typeof parsed.aerationHint === 'string' ? parsed.aerationHint : undefined;
+  const drinkWindowHint =
+    typeof parsed.drinkWindowHint === 'string'
+      ? parsed.drinkWindowHint
+      : undefined;
+  const tasteProfileConfidence =
+    parsed.tasteProfileConfidence === 'high' ||
+    parsed.tasteProfileConfidence === 'medium' ||
+    parsed.tasteProfileConfidence === 'low'
+      ? parsed.tasteProfileConfidence
+      : undefined;
+  return {
+    labelPhotoUri,
+    nameAndEstate: name,
+    typeStyle: parsed.typeStyle,
+    countryRegion: parsed.countryRegion,
+    vintage: parsed.vintage ?? null,
+    grapes: parsed.grapes ?? null,
+    ...(grapeVarieties?.length ? { grapeVarieties } : {}),
+    ...(grapeBlend?.length ? { grapeBlend } : {}),
+    alcoholPercent:
+      typeof parsed.alcoholPercent === 'number'
+        ? parsed.alcoholPercent
+        : null,
+    foodPairings: parsed.foodPairings ?? null,
+    ...(parsed.tastingTraits?.length
+      ? { tastingTraits: parsed.tastingTraits }
+      : {}),
+    ...(servingTempHint?.trim() ? { servingTempHint } : {}),
+    ...(aerationHint?.trim() ? { aerationHint } : {}),
+    ...(drinkWindowHint?.trim() ? { drinkWindowHint } : {}),
+    ...(tasteProfileConfidence ? { tasteProfileConfidence } : {}),
+    analyzedAt: parsed.analyzedAt,
+    ...(userRating != null ? { userRating } : {}),
+    ...(userComment != null ? { userComment } : {}),
+  };
+}
 
 function originFromBackup(
   item: ReviewBackup,
@@ -67,7 +199,7 @@ export function reviewToBackup(review: Review): ReviewBackup {
 
   const custom = review.criteria.filter(
     (c) =>
-      !['food', 'drinks', 'service', 'setting', 'valueForMoney'].includes(c.id),
+      !(FIXED_BACKUP_CRITERION_IDS as readonly string[]).includes(c.id),
   );
   let customCriterionScoresJSON: string | null = null;
   if (custom.length > 0) {
@@ -87,10 +219,13 @@ export function reviewToBackup(review: Review): ReviewBackup {
     const key = backupPhotoKey(p);
     if (key) photoPathSet.add(key);
   }
-  const labelUri = review.wineLabel?.labelPhotoUri?.trim();
-  if (labelUri && !isRemotePhotoUrl(labelUri)) {
-    const key = backupPhotoKey(labelUri);
-    if (key) photoPathSet.add(key);
+  const wines = wineLabelsForReview(review);
+  for (const wine of wines) {
+    const labelUri = wine.labelPhotoUri?.trim();
+    if (labelUri && !isRemotePhotoUrl(labelUri)) {
+      const key = backupPhotoKey(labelUri);
+      if (key) photoPathSet.add(key);
+    }
   }
   const photoPaths = [...photoPathSet];
 
@@ -103,6 +238,8 @@ export function reviewToBackup(review: Review): ReviewBackup {
     ]
       .filter(Boolean)
       .join(' ');
+
+  const primary = wines[0] ?? null;
 
   return {
     id: review.id,
@@ -131,14 +268,13 @@ export function reviewToBackup(review: Review): ReviewBackup {
       ? backupPhotoKey(review.reviewedByPhotoUrl)
       : null,
     origin: resolveReviewOrigin(review),
-    wineLabelJSON: review.wineLabel?.nameAndEstate
-      ? JSON.stringify({
-          ...review.wineLabel,
-          labelPhotoUri: review.wineLabel.labelPhotoUri
-            ? backupPhotoKey(review.wineLabel.labelPhotoUri)
-            : '',
-        })
+    wineLabelJSON: primary?.nameAndEstate
+      ? JSON.stringify(ficheToBackupJson(primary))
       : null,
+    wineLabelsJSON:
+      wines.length > 0
+        ? JSON.stringify(wines.map(ficheToBackupJson))
+        : null,
     sourceReviewId: review.sourceReviewId?.trim() || null,
   };
 }
@@ -228,7 +364,7 @@ export function backupReviewToApp(
       for (const [id, rating] of Object.entries(parsed.ratings ?? {})) {
         criteria.push({
           id,
-          title: 'Custom',
+          title: standardCriterionStorageTitle(id),
           rating,
           comment: parsed.comments?.[id] ?? '',
         });
@@ -286,49 +422,37 @@ export function backupReviewToApp(
       ocrText,
     });
 
-  let wineLabel = previous?.wineLabel ?? null;
+  let wineFields = syncWineLabelFields(wineLabelsForReview(previous));
+  const wineLabelsRaw = item.wineLabelsJSON?.trim();
   const wineLabelRaw = item.wineLabelJSON?.trim();
-  if (wineLabelRaw) {
+  if (wineLabelsRaw) {
     try {
-      const parsed = JSON.parse(wineLabelRaw) as {
-        labelPhotoUri?: string;
-        nameAndEstate?: string;
-        typeStyle?: string;
-        countryRegion?: string;
-        vintage?: string | null;
-        grapes?: string | null;
-        alcoholPercent?: number | null;
-        foodPairings?: string | null;
-        analyzedAt?: string;
-      };
-      const name = (parsed.nameAndEstate ?? '').trim();
-      if (name) {
-        const rawPhoto = (parsed.labelPhotoUri ?? '').trim();
-        const labelPhotoUri =
-          !rawPhoto
-            ? ''
-            : isRemotePhotoUrl(rawPhoto) || rawPhoto.startsWith('file://')
-              ? rawPhoto
-              : localPhotoUri(backupPhotoKey(rawPhoto));
-        wineLabel = {
-          labelPhotoUri,
-          nameAndEstate: name,
-          typeStyle: parsed.typeStyle,
-          countryRegion: parsed.countryRegion,
-          vintage: parsed.vintage ?? null,
-          grapes: parsed.grapes ?? null,
-          alcoholPercent:
-            typeof parsed.alcoholPercent === 'number'
-              ? parsed.alcoholPercent
-              : null,
-          foodPairings: parsed.foodPairings ?? null,
-          analyzedAt: parsed.analyzedAt,
-        };
+      const parsed = JSON.parse(wineLabelsRaw);
+      if (Array.isArray(parsed)) {
+        wineFields = syncWineLabelFields(
+          parsed
+            .map((entry) => parseWineLabelFicheBackup(entry))
+            .filter((f): f is WineLabelFiche => Boolean(f)),
+        );
       }
+    } catch {
+      // keep previous / fall through to singular
+    }
+  } else if (wineLabelRaw) {
+    try {
+      const parsed = parseWineLabelFicheBackup(JSON.parse(wineLabelRaw));
+      if (parsed) wineFields = syncWineLabelFields([parsed]);
     } catch {
       // keep previous
     }
   }
+
+  // Label files are packaged in photoPaths for transport — keep them off the
+  // review gallery (they belong on the wine fiche only).
+  const galleryPhotoUrls = stripWineLabelUrisFromPhotoUrls(
+    photoUrls,
+    wineLabelsForReview(wineFields),
+  );
 
   return {
     id: item.id,
@@ -336,7 +460,7 @@ export function backupReviewToApp(
     date: fromAppleRefDate(item.date),
     generalComment,
     criteria,
-    photoUrls,
+    photoUrls: galleryPhotoUrls,
     reviewedBy: item.reviewedBy ?? previous?.reviewedBy ?? '',
     reviewedById:
       item.reviewedById?.trim() || previous?.reviewedById?.trim() || undefined,
@@ -345,7 +469,8 @@ export function backupReviewToApp(
     origin: originFromBackup(item, previous),
     searchableText,
     ocrText,
-    wineLabel,
+    wineLabel: wineFields.wineLabel,
+    wineLabels: wineFields.wineLabels,
     sourceReviewId:
       item.sourceReviewId?.trim() ||
       previous?.sourceReviewId?.trim() ||

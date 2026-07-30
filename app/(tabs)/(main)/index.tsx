@@ -20,11 +20,12 @@ import { Theme } from '@/constants/Theme';
 import { useReviewerProfile } from '@/context/ReviewerProfile';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import { consumePendingEnableFriendsFilter } from '@/context/pendingFriendsFilter';
-import type { Review } from '@/data/types';
+import type { RestaurantVisitSummary, Review } from '@/data/types';
 import { resolveReviewOrigin } from '@/data/types';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { useSharedRestaurantFilters } from '@/hooks/useSharedRestaurantFilters';
 import { shareReviewsPackage } from '@/services/share/ReviewShareService';
+import { requestSwipeDelete } from '@/services/swipeDelete';
 
 export default function ReviewsFeedScreen() {
   const { t } = useAppTranslation();
@@ -34,6 +35,9 @@ export default function ReviewsFeedScreen() {
   const [nameModalVisible, setNameModalVisible] = useState(false);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const {
     filterState,
     setFilterState,
@@ -58,6 +62,8 @@ export default function ReviewsFeedScreen() {
     restaurants,
     deleteRestaurantFromFeed,
     setRestaurantFavorite,
+    resyncRestaurantCovers,
+    ready,
   } = useReviewsStore();
   const { hasName, updateName, getBackupSnapshot } = useReviewerProfile();
   // After share-import: turn on Include friend's reviews.
@@ -70,6 +76,14 @@ export default function ReviewsFeedScreen() {
           : { ...prev, filters: [...prev.filters, 'friends'] },
       );
     }, [setFilterState]),
+  );
+  // Always re-derive cover thumbs from visit photos when opening Reviews
+  // (e.g. after adding a photo in Edit — restaurant.photoUrl can lag).
+  useFocusEffect(
+    useCallback(() => {
+      if (!ready) return;
+      void resyncRestaurantCovers();
+    }, [ready, resyncRestaurantCovers]),
   );
 
   useEffect(() => {
@@ -92,6 +106,44 @@ export default function ReviewsFeedScreen() {
       });
     });
   }, [filteredSummaries, getReview, query]);
+
+  const visibleFeed = useMemo(
+    () =>
+      filtered.filter(
+        (summary) => !pendingDeleteIds.has(summary.restaurantId),
+      ),
+    [filtered, pendingDeleteIds],
+  );
+
+  const requestDeleteRestaurant = useCallback(
+    (item: RestaurantVisitSummary) => {
+      const id = item.restaurantId;
+      requestSwipeDelete({
+        title: t('alerts.deleteRestaurant.title'),
+        message: t('alerts.deleteRestaurant.body'),
+        undoMessage: t('alerts.deleteRestaurant.undoMessage'),
+        onHide: () => {
+          setPendingDeleteIds((prev) => new Set(prev).add(id));
+        },
+        onRestore: () => {
+          setPendingDeleteIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        },
+        onCommit: () => {
+          setPendingDeleteIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+          void deleteRestaurantFromFeed(item);
+        },
+      });
+    },
+    [deleteRestaurantFromFeed, t],
+  );
 
   /** Visible feed rows → own reviews only (share never sends friends). */
   const reviewsToShare = useMemo(() => {
@@ -214,7 +266,10 @@ export default function ReviewsFeedScreen() {
         ) : (
           <FlatList
             style={styles.listFlex}
-            data={filtered}
+            data={visibleFeed}
+            extraData={filtered
+              .map((s) => `${s.restaurantId}:${s.photoUrl ?? ''}`)
+              .join('|')}
             keyExtractor={(item) => item.restaurantId}
             overScrollMode="never"
             onScrollBeginDrag={dismissOpenSwipeable}
@@ -240,22 +295,7 @@ export default function ReviewsFeedScreen() {
                 onFavoriteToggle={(favorite) => {
                   void setRestaurantFavorite(item.restaurantId, favorite);
                 }}
-                onDelete={() => {
-                  houseAlert(
-                    t('alerts.deleteRestaurant.title'),
-                    t('alerts.deleteRestaurant.body'),
-                    [
-                      { text: t('common.cancel'), style: 'cancel' },
-                      {
-                        text: t('common.delete'),
-                        style: 'destructive',
-                        onPress: () => {
-                          void deleteRestaurantFromFeed(item);
-                        },
-                      },
-                    ],
-                  );
-                }}
+                onDelete={() => requestDeleteRestaurant(item)}
                 onPress={() => {
                   if (item.visitCount <= 1) {
                     router.push(`/review/${item.reviewIds[0]}`);

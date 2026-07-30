@@ -15,6 +15,7 @@ import { SymbolView } from 'expo-symbols';
 import { HousePrimaryButton } from '@/components/ui/HousePrimaryButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
+import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { bodyTextStyle, Theme } from '@/constants/Theme';
 import { REVIEWER_MAX_NAME_LENGTH } from '@/context/ReviewerProfile';
 import type { ShareDestination } from '@/components/detail/ShareReviewChooser';
@@ -185,6 +186,7 @@ function NameStep({
         autoCorrect={false}
         autoCapitalize="words"
         maxLength={REVIEWER_MAX_NAME_LENGTH}
+        keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
         returnKeyType="done"
         onSubmitEditing={() => {
           if (canContinue) onContinue();
@@ -263,6 +265,7 @@ function MessageStep({
           multiline
           maxLength={MESSAGE_MAX}
           autoFocus
+          keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
           textAlignVertical="top"
         />
         {draft.length > 0 ? (

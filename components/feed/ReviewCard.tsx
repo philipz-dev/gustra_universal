@@ -16,6 +16,7 @@ import {
 import { formatReviewDate } from '@/data/mockReviews';
 import type { Review } from '@/data/types';
 import { Haptics } from '@/services/haptics';
+import { formatScoreOutOfFive } from '@/services/reviews/ratings';
 
 type ReviewCardProps = {
   review: Review;
@@ -61,7 +62,7 @@ export function ReviewCard({
       </View>
       <View style={styles.trailing}>
         <SerifText size={20} weight="bold" style={styles.score}>
-          {review.overallScore.toFixed(1)}
+          {formatScoreOutOfFive(review.overallScore)}
         </SerifText>
       </View>
     </Pressable>

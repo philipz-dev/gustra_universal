@@ -4,7 +4,6 @@ import { Tabs } from 'expo-router';
 import { GustraTabBar } from '@/components/ui/GustraTabBar';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { GustraColors } from '@/constants/Colors';
-import { Theme } from '@/constants/Theme';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 export default function TabLayout() {
@@ -109,14 +108,7 @@ export default function TabLayout() {
         options={{
           href: null,
           title: t('tabs.editCriteria'),
-          header: ({ navigation }) => (
-            <HouseNavHeader
-              title={t('tabs.editCriteria')}
-              titleSize={Theme.navigation.secondaryTitleSize}
-              showBack
-              onBack={() => navigation.navigate('settings')}
-            />
-          ),
+          headerShown: false,
         }}
       />
       <Tabs.Screen

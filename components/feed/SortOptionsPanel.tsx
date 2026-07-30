@@ -20,7 +20,7 @@ type SortOptionsPanelProps = {
 };
 
 /**
- * Sort picker (Swift `SortOptionsSheet`) — Average score + enabled criteria.
+ * Sort picker (Swift `SortOptionsSheet`) — Date (default), average score, criteria.
  */
 export function SortOptionsPanel({
   draftSortKind,
@@ -53,8 +53,13 @@ export function SortOptionsPanel({
         ]}
         keyboardShouldPersistTaps="handled">
         <SortRow
-          title={t('filters.sort.averageScore')}
+          title={t('filters.sort.date')}
           subtitle={t('filters.default')}
+          selected={draftSortKind.type === 'date'}
+          onPress={() => onSelect({ type: 'date' })}
+        />
+        <SortRow
+          title={t('filters.sort.averageScore')}
           selected={draftSortKind.type === 'averageScore'}
           onPress={() => onSelect({ type: 'averageScore' })}
         />

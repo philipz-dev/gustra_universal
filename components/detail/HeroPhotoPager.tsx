@@ -13,6 +13,7 @@ import { runOnJS } from 'react-native-reanimated';
 
 import { GustraColors } from '@/constants/Colors';
 import { Theme } from '@/constants/Theme';
+import { relocateLocalPhotoRef } from '@/services/backup/photos';
 
 const HERO_H = Theme.size.heroHeight;
 const HERO_H_PAD = 16;
@@ -37,7 +38,10 @@ export function HeroPhotoPager({
 }: HeroPhotoPagerProps) {
   const pageWidth = useRef(Dimensions.get('window').width).current;
   const trimmed = useMemo(
-    () => uris.map((u) => u.trim()).filter(Boolean),
+    () =>
+      uris
+        .map((u) => relocateLocalPhotoRef(u.trim()))
+        .filter(Boolean),
     [uris],
   );
   const [failed, setFailed] = useState<Set<string>>(() => new Set());

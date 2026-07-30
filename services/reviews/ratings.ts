@@ -42,6 +42,22 @@ export const RatingValue = {
   },
 } as const;
 
+/**
+ * Display a 0.5…5.0 score as `3.5/5` (whole numbers without a decimal).
+ * Empty string when score is missing / zero.
+ */
+export function formatScoreOutOfFive(score: number): string {
+  if (!Number.isFinite(score) || score <= 0) return '';
+  const text = score % 1 === 0 ? String(score) : score.toFixed(1);
+  return `${text}/5`;
+}
+
+/** Half-star steps (`1…10`) → `3.5/5`. */
+export function formatHalfStarOutOfFive(rating: number): string {
+  if (!RatingValue.isStarRating(rating)) return '';
+  return formatScoreOutOfFive(RatingValue.starValue(rating));
+}
+
 /** Average of star ratings as 0.5…5.0 (Swift `overallScore`). */
 export function overallScoreFromCriteria(criteria: CriterionRating[]): number {
   const rated = criteria

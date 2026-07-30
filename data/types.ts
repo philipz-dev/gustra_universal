@@ -3,17 +3,74 @@ export type SatisfactionLevel = 'excellent' | 'neutral' | 'avoid';
 /** Matches Swift `ReviewOrigin`. */
 export type ReviewOrigin = 'own' | 'imported';
 
+/** Canonical tasting scales from Vision (localized in UI). */
+export type WineTastingTraitKey =
+  | 'freshness' // legacy dual-read; no longer requested or shown in Smaakprofiel
+  | 'tannins'
+  | 'body'
+  | 'acidity'
+  | 'sweetness';
+
+/** 1–5 intensity; absent/null when Vision cannot judge. */
+export type WineTastingTrait = {
+  key: WineTastingTraitKey;
+  /** Integer 1…5 */
+  score: number;
+};
+
+/** Single grape in a blend (additive; older fiches may only have string lists). */
+export type WineGrapeBlend = {
+  name: string;
+  /** 1…100 when known from the label; omit when unknown — never invent. */
+  percent?: number;
+};
+
+/** Vision confidence for the optional taste-profile block (not the identity chip). */
+export type WineTasteProfileConfidence = 'high' | 'medium' | 'low';
+
 /** Structured wine-label fiche (Gemini Vision); optional on older reviews. */
 export type WineLabelFiche = {
   labelPhotoUri: string;
   nameAndEstate: string;
+  /**
+   * Prefer stable codes: `red` | `white` | `rose` | `sparkling` | `fortified` | `orange`.
+   * Older scans may store `dessert` or a localized free-text label (e.g. `Rood`).
+   */
   typeStyle?: string;
   countryRegion?: string;
   vintage?: string | null;
+  /** Display / legacy join of grape names. */
   grapes?: string | null;
+  /**
+   * Individual grape varieties for filter/search (additive).
+   * Older fiches may only have `grapes`.
+   */
+  grapeVarieties?: string[];
+  /**
+   * Ordered blend with optional % (additive). Prefer for Smaakprofiel display.
+   */
+  grapeBlend?: WineGrapeBlend[];
   alcoholPercent?: number | null;
   foodPairings?: string | null;
+  /** Additive tasting scales (older fiches omit this). */
+  tastingTraits?: WineTastingTrait[];
+  /** Serve / cellar hints from Vision (localized; omit when unknown). */
+  servingTempHint?: string | null;
+  aerationHint?: string | null;
+  drinkWindowHint?: string | null;
+  /**
+   * Confidence for showing the taste-profile block. `low` → hide section.
+   * Older fiches omit this (UI falls back to content heuristics).
+   */
+  tasteProfileConfidence?: WineTasteProfileConfidence;
   analyzedAt?: string;
+  /**
+   * User star rating for this bottle (half-star steps 1…10).
+   * Additive — older fiches omit this; when present it drives Drinks average.
+   */
+  userRating?: number;
+  /** Optional user notes for this bottle (additive). */
+  userComment?: string;
 };
 
 export type CriterionRating = {
@@ -113,8 +170,15 @@ export type Review = {
   ocrText?: string;
   /**
    * Gemini wine-label fiche (additive). Absent on older reviews / no match.
+   * Prefer `wineLabels` when present; keep this as the first/primary wine for
+   * older clients and backups that only know a singular fiche.
    */
   wineLabel?: WineLabelFiche | null;
+  /**
+   * Ordered wine fiches for this visit (additive). Dual-read with `wineLabel`
+   * via `wineLabelsForReview()`. Older data may only have `wineLabel`.
+   */
+  wineLabels?: WineLabelFiche[];
   /**
    * Original review id from a `.gustrashare` package (friend's UUID).
    * Used to upsert on re-import instead of creating duplicates. Absent on

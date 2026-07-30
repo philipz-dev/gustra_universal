@@ -12,13 +12,26 @@ import { useTranslation } from 'react-i18next';
 
 import { i18n } from '@/i18n';
 
-/** Matches Swift `RatingCategory.standardCases`. English titles are storage fallbacks. */
+/** Matches Swift `RatingCategory.standardCases` + Expo `wines`. English = storage fallbacks. */
 export const STANDARD_CRITERIA = [
   { id: 'food', title: 'Food' },
   { id: 'drinks', title: 'Drinks' },
+  { id: 'wines', title: 'Wines' },
   { id: 'service', title: 'Service' },
   { id: 'setting', title: 'Atmosphere' },
   { id: 'valueForMoney', title: 'Value for Money' },
+] as const;
+
+/**
+ * Criterion ids with dedicated backup/share columns (Swift schema).
+ * `wines` is additive and round-trips via `customCriterionScoresJSON`.
+ */
+export const FIXED_BACKUP_CRITERION_IDS = [
+  'food',
+  'drinks',
+  'service',
+  'setting',
+  'valueForMoney',
 ] as const;
 
 /** Localized display title for a standard criterion id. */
@@ -28,6 +41,8 @@ export function standardCriterionDisplayTitle(id: string): string {
       return i18n.t('criteria.food');
     case 'drinks':
       return i18n.t('criteria.drinks');
+    case 'wines':
+      return i18n.t('criteria.wines');
     case 'service':
       return i18n.t('criteria.service');
     case 'setting':
@@ -41,6 +56,11 @@ export function standardCriterionDisplayTitle(id: string): string {
   }
 }
 
+/** English storage title for known standard ids (backup/share import). */
+export function standardCriterionStorageTitle(id: string): string {
+  return STANDARD_CRITERIA.find((c) => c.id === id)?.title ?? 'Custom';
+}
+
 export type StandardCriterionId = (typeof STANDARD_CRITERIA)[number]['id'];
 
 export type CustomCriterionDefinition = {
@@ -51,8 +71,48 @@ export type CustomCriterionDefinition = {
 
 export const CUSTOM_CRITERION_MAX_NAME_LENGTH = 20;
 
+/** First-start defaults: Food + Wines on, other standards off. */
+export const FIRST_START_ENABLED_STANDARD_IDS: readonly StandardCriterionId[] = [
+  'food',
+  'wines',
+] as const;
+
 const DISABLED_KEY = 'disabledRatingCategories';
 const CUSTOM_KEY = 'customCriteriaDefinitions';
+const SETUP_KEY = 'criteriaSetupCompleted';
+const REVIEWS_STORE_V3 = 'gustraReviewsStore.v3';
+const REVIEWS_STORE_V2 = 'gustraReviewsStore.v2';
+
+export function firstStartDisabledStandardIds(): Set<string> {
+  const enabled = new Set<string>(FIRST_START_ENABLED_STANDARD_IDS);
+  return new Set(
+    STANDARD_CRITERIA.map((c) => c.id).filter((id) => !enabled.has(id)),
+  );
+}
+
+async function storageLooksLikeReturningUser(): Promise<boolean> {
+  const [customRaw, reviewsV3, reviewsV2, reviewerName] = await Promise.all([
+    AsyncStorage.getItem(CUSTOM_KEY),
+    AsyncStorage.getItem(REVIEWS_STORE_V3),
+    AsyncStorage.getItem(REVIEWS_STORE_V2),
+    AsyncStorage.getItem('reviewerProfileName'),
+  ]);
+  // Do not use DISABLED_KEY alone — first-start writes it before setup is completed.
+  if (customRaw != null) return true;
+  if (reviewerName != null && reviewerName.trim().length > 0) return true;
+  for (const raw of [reviewsV3, reviewsV2]) {
+    if (!raw) continue;
+    try {
+      const parsed = JSON.parse(raw) as { reviews?: unknown[] };
+      if (Array.isArray(parsed.reviews) && parsed.reviews.length > 0) {
+        return true;
+      }
+    } catch {
+      return true;
+    }
+  }
+  return false;
+}
 
 export type CriteriaSettingsSnapshot = {
   disabledStandardIds: string[];
@@ -61,15 +121,22 @@ export type CriteriaSettingsSnapshot = {
 
 type CriteriaSettingsValue = {
   ready: boolean;
+  /** False until the first-start criteria setup is finished (or migrated). */
+  setupCompleted: boolean;
   disabledStandardIds: Set<string>;
   customCriteria: CustomCriterionDefinition[];
   /** Enabled standard + custom criteria in display order. */
   enabledCriteria: { id: string; title: string }[];
+  /** At least one standard or custom criterion is on. */
+  hasMinEnabledCriteria: boolean;
   isStandardEnabled: (id: string) => boolean;
   setStandardEnabled: (id: string, enabled: boolean) => void;
   setCustomEnabled: (id: string, enabled: boolean) => void;
   addCustomCriterion: (name: string) => string | null;
   deleteCustomCriterion: (id: string) => void;
+  completeCriteriaSetup: () => Promise<void>;
+  /** Dev-only: reset to first-start defaults and show setup again. */
+  reopenCriteriaSetupForDev: () => Promise<void>;
   getBackupSnapshot: () => CriteriaSettingsSnapshot;
   applyBackupSnapshot: (snapshot: CriteriaSettingsSnapshot) => Promise<void>;
 };
@@ -88,40 +155,60 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
   const [customCriteria, setCustomCriteria] = useState<CustomCriterionDefinition[]>(
     [],
   );
+  const [setupCompleted, setSetupCompleted] = useState(true);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [disabledRaw, customRaw] = await Promise.all([
+        const [disabledRaw, customRaw, setupRaw] = await Promise.all([
           AsyncStorage.getItem(DISABLED_KEY),
           AsyncStorage.getItem(CUSTOM_KEY),
+          AsyncStorage.getItem(SETUP_KEY),
         ]);
         if (cancelled) return;
 
+        let nextDisabled = new Set<string>();
         if (disabledRaw) {
           const parsed = JSON.parse(disabledRaw) as string[];
-          const valid = new Set(
+          nextDisabled = new Set(
             parsed.filter((id) =>
               STANDARD_CRITERIA.some((c) => c.id === id),
             ),
           );
-          setDisabledStandardIds(valid);
         }
 
+        let nextCustom: CustomCriterionDefinition[] = [];
         if (customRaw) {
           const parsed = JSON.parse(customRaw) as CustomCriterionDefinition[];
           if (Array.isArray(parsed)) {
-            setCustomCriteria(
-              parsed.map((c) => ({
-                id: c.id,
-                name: String(c.name ?? '').slice(0, CUSTOM_CRITERION_MAX_NAME_LENGTH),
-                isEnabled: Boolean(c.isEnabled),
-              })),
+            nextCustom = parsed.map((c) => ({
+              id: c.id,
+              name: String(c.name ?? '').slice(0, CUSTOM_CRITERION_MAX_NAME_LENGTH),
+              isEnabled: Boolean(c.isEnabled),
+            }));
+          }
+        }
+
+        let completed = setupRaw === '1';
+        if (!completed) {
+          if (await storageLooksLikeReturningUser()) {
+            completed = true;
+            await AsyncStorage.setItem(SETUP_KEY, '1');
+          } else {
+            nextDisabled = firstStartDisabledStandardIds();
+            await AsyncStorage.setItem(
+              DISABLED_KEY,
+              JSON.stringify([...nextDisabled]),
             );
           }
         }
+
+        if (cancelled) return;
+        setDisabledStandardIds(nextDisabled);
+        setCustomCriteria(nextCustom);
+        setSetupCompleted(completed);
       } catch {
         // Keep defaults
       } finally {
@@ -220,6 +307,19 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
     [persistCustom],
   );
 
+  const completeCriteriaSetup = useCallback(async () => {
+    await AsyncStorage.setItem(SETUP_KEY, '1');
+    setSetupCompleted(true);
+  }, []);
+
+  const reopenCriteriaSetupForDev = useCallback(async () => {
+    const nextDisabled = firstStartDisabledStandardIds();
+    setDisabledStandardIds(nextDisabled);
+    persistDisabled(nextDisabled);
+    await AsyncStorage.removeItem(SETUP_KEY);
+    setSetupCompleted(false);
+  }, [persistDisabled]);
+
   const enabledCriteria = useMemo(() => {
     const standard = STANDARD_CRITERIA.filter(
       (c) => !disabledStandardIds.has(c.id),
@@ -232,6 +332,11 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
       .map((c) => ({ id: c.id, title: c.name }));
     return [...standard, ...custom];
   }, [customCriteria, disabledStandardIds, i18nInstance.language]);
+
+  const hasMinEnabledCriteria = useMemo(
+    () => totalEnabledCount(disabledStandardIds, customCriteria) >= 1,
+    [customCriteria, disabledStandardIds, totalEnabledCount],
+  );
 
   const getBackupSnapshot = useCallback(
     (): CriteriaSettingsSnapshot => ({
@@ -257,6 +362,8 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
       setCustomCriteria(nextCustom);
       persistDisabled(validDisabled);
       persistCustom(nextCustom);
+      await AsyncStorage.setItem(SETUP_KEY, '1');
+      setSetupCompleted(true);
     },
     [persistCustom, persistDisabled],
   );
@@ -264,27 +371,35 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
   const value = useMemo(
     () => ({
       ready,
+      setupCompleted,
       disabledStandardIds,
       customCriteria,
       enabledCriteria,
+      hasMinEnabledCriteria,
       isStandardEnabled,
       setStandardEnabled,
       setCustomEnabled,
       addCustomCriterion,
       deleteCustomCriterion,
+      completeCriteriaSetup,
+      reopenCriteriaSetupForDev,
       getBackupSnapshot,
       applyBackupSnapshot,
     }),
     [
       ready,
+      setupCompleted,
       disabledStandardIds,
       customCriteria,
       enabledCriteria,
+      hasMinEnabledCriteria,
       isStandardEnabled,
       setStandardEnabled,
       setCustomEnabled,
       addCustomCriterion,
       deleteCustomCriterion,
+      completeCriteriaSetup,
+      reopenCriteriaSetupForDev,
       getBackupSnapshot,
       applyBackupSnapshot,
     ],

@@ -1,4 +1,4 @@
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { FeedSwipeDelete } from '@/components/feed/FeedSwipeDelete';
 import { SerifText } from '@/components/ui/SerifText';
@@ -8,6 +8,7 @@ import { listPressedStyle, Surface, Theme } from '@/constants/Theme';
 import type { Review } from '@/data/types';
 import { formatLongDate } from '@/i18n/formatDates';
 import { Haptics } from '@/services/haptics';
+import { formatScoreOutOfFive } from '@/services/reviews/ratings';
 
 function formatVisitDate(iso: string): string {
   return formatLongDate(iso);
@@ -38,10 +39,14 @@ export function VisitRowCard({ review, onPress, onDelete }: VisitRowCardProps) {
           ? { color: Theme.list.androidRipple, borderless: false }
           : undefined
       }
-      style={({ pressed }) => [
-        styles.row,
-        Platform.OS === 'ios' && pressed ? listPressedStyle : null,
-      ]}>
+      style={({ pressed }) =>
+        [
+          styles.row,
+          Platform.OS === 'ios' && pressed
+            ? (listPressedStyle as ViewStyle)
+            : null,
+        ] as ViewStyle[]
+      }>
       <View style={styles.main}>
         <SerifText size={17} weight="semibold" style={styles.date}>
           {formatVisitDate(review.date)}
@@ -50,7 +55,7 @@ export function VisitRowCard({ review, onPress, onDelete }: VisitRowCardProps) {
       </View>
       {score > 0 ? (
         <SerifText size={20} weight="bold" style={styles.score}>
-          {score.toFixed(1)}
+          {formatScoreOutOfFive(score)}
         </SerifText>
       ) : null}
     </Pressable>
@@ -62,7 +67,7 @@ export function VisitRowCard({ review, onPress, onDelete }: VisitRowCardProps) {
     <FeedSwipeDelete
       id={`visit_${review.id}`}
       onDelete={onDelete}
-      cornerRadius={Theme.radius.xl}>
+      cornerRadius={Platform.OS === 'ios' ? Theme.radius.sm : Theme.radius.xl}>
       {row}
     </FeedSwipeDelete>
   );
@@ -77,7 +82,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Theme.spacing.cardPadding,
     minHeight: Theme.size.hitTarget,
     backgroundColor: Theme.list.cardBackground,
-    borderRadius: Theme.radius.xl,
+    borderRadius: Platform.OS === 'ios' ? Theme.radius.sm : Theme.radius.xl,
     ...(Platform.OS === 'ios'
       ? { overflow: 'hidden' as const, ...Surface.raised }
       : { overflow: 'visible' as const, ...Surface.flat }),

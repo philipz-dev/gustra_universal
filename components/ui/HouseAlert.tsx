@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
 import {
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SymbolView } from 'expo-symbols';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SerifText } from '@/components/ui/SerifText';
@@ -20,10 +23,16 @@ export type HouseAlertButton = {
   onPress?: () => void;
 };
 
+export type HouseAlertOptions = {
+  /** Top-leading × — dismisses without running any button action. */
+  showClose?: boolean;
+};
+
 export type HouseAlertRequest = {
   title: string;
   message?: string;
   buttons: HouseAlertButton[];
+  showClose?: boolean;
 };
 
 type Listener = (request: HouseAlertRequest | null) => void;
@@ -52,17 +61,47 @@ export function houseAlert(
   title: string,
   message?: string,
   buttons?: HouseAlertButton[],
+  options?: HouseAlertOptions,
 ): void {
   const request: HouseAlertRequest = {
     title,
     message,
     buttons: normalizeButtons(buttons),
+    showClose: options?.showClose === true,
   };
   if (!listener) {
     queue.push(request);
     return;
   }
   publish(request);
+}
+
+/**
+ * “Save changes?” card: Ja (green) / Nee (red) side by side, × to dismiss.
+ * Callers must make Yes and No leave the current screen when appropriate.
+ */
+export function houseSaveChangesAlert(options: {
+  title: string;
+  onYes: () => void;
+  onNo: () => void;
+}): void {
+  houseAlert(
+    options.title,
+    undefined,
+    [
+      {
+        text: i18n.t('common.yes'),
+        style: 'default',
+        onPress: options.onYes,
+      },
+      {
+        text: i18n.t('common.no'),
+        style: 'destructive',
+        onPress: options.onNo,
+      },
+    ],
+    { showClose: true },
+  );
 }
 
 function subscribe(next: Listener): () => void {
@@ -116,6 +155,11 @@ export function HouseAlertHost() {
     }
   };
 
+  const closeWithoutAction = () => {
+    Haptics.light();
+    dismiss();
+  };
+
   const runButton = (button: HouseAlertButton) => {
     if (button.style === 'cancel') Haptics.light();
     else if (button.style === 'destructive') Haptics.warning();
@@ -129,7 +173,7 @@ export function HouseAlertHost() {
 
   if (!request) return null;
 
-  const { title, message, buttons } = request;
+  const { title, message, buttons, showClose } = request;
   const sheet = isActionSheet(buttons);
   const cancel = buttons.find((b) => b.style === 'cancel');
   const others = buttons.filter((b) => b.style !== 'cancel');
@@ -141,6 +185,10 @@ export function HouseAlertHost() {
   });
 
   const onBackdrop = () => {
+    if (showClose) {
+      closeWithoutAction();
+      return;
+    }
     if (cancel) runButton(cancel);
   };
 
@@ -150,6 +198,10 @@ export function HouseAlertHost() {
       transparent
       animationType="fade"
       onRequestClose={() => {
+        if (showClose) {
+          closeWithoutAction();
+          return;
+        }
         if (cancel) runButton(cancel);
         else dismiss();
       }}>
@@ -203,11 +255,51 @@ export function HouseAlertHost() {
           </View>
         ) : (
           <View style={styles.card}>
-            <SerifText size={22} weight="semibold" style={styles.title}>
-              {title}
-            </SerifText>
+            {showClose ? (
+              <View style={styles.cardHeader}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={i18n.t('common.close')}
+                  hitSlop={10}
+                  onPress={closeWithoutAction}
+                  style={({ pressed }) => [
+                    styles.closeBtn,
+                    pressed && styles.pressed,
+                  ]}>
+                  {Platform.OS === 'ios' ? (
+                    <SymbolView
+                      name="xmark"
+                      size={15}
+                      tintColor="rgba(35, 32, 26, 0.55)"
+                      weight="semibold"
+                    />
+                  ) : (
+                    <Ionicons
+                      name="close"
+                      size={20}
+                      color="rgba(35, 32, 26, 0.55)"
+                    />
+                  )}
+                </Pressable>
+                <SerifText
+                  size={22}
+                  weight="semibold"
+                  style={[styles.title, styles.cardTitle]}>
+                  {title}
+                </SerifText>
+                <View style={styles.closeBtnSpacer} />
+              </View>
+            ) : (
+              <SerifText size={22} weight="semibold" style={styles.title}>
+                {title}
+              </SerifText>
+            )}
             {message ? <Text style={styles.message}>{message}</Text> : null}
-            <View style={styles.cardActions}>
+            <View
+              style={[
+                styles.cardActions,
+                !cancel && orderedOthers.length === 2 && styles.cardActionsRow,
+              ]}>
               {orderedOthers.map((button) => (
                 <Pressable
                   key={button.text}
@@ -215,6 +307,7 @@ export function HouseAlertHost() {
                   onPress={() => runButton(button)}
                   style={({ pressed }) => [
                     styles.actionBtn,
+                    !cancel && orderedOthers.length === 2 && styles.actionBtnRow,
                     button.style === 'destructive'
                       ? styles.actionDestructive
                       : styles.actionPrimary,
@@ -277,6 +370,26 @@ const styles = StyleSheet.create({
     gap: 10,
     zIndex: 1,
   },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 36,
+    marginTop: -8,
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -8,
+  },
+  closeBtnSpacer: {
+    width: 36,
+  },
+  cardTitle: {
+    flex: 1,
+    textAlign: 'center',
+  },
   title: {
     color: GustraColors.ink,
   },
@@ -290,11 +403,18 @@ const styles = StyleSheet.create({
     marginTop: 10,
     gap: 10,
   },
+  cardActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
   actionBtn: {
     borderRadius: Theme.radius.lg,
     paddingVertical: 14,
     paddingHorizontal: 16,
     alignItems: 'center',
+  },
+  actionBtnRow: {
+    flex: 1,
   },
   actionPrimary: {
     backgroundColor: GustraColors.forestGreen,

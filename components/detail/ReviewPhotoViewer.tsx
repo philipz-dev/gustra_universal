@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal,
   NativeScrollEvent,
@@ -136,53 +136,70 @@ export function ReviewPhotoViewer({
   }, [busy, index, uris]);
 
   // Swift: activate only when |dy| > |dx| * 1.2 so horizontal paging wins otherwise.
-  const dismissGesture = Gesture.Pan()
-    .enabled(!zoomed)
-    .manualActivation(true)
-    .onTouchesDown((e) => {
-      const t = e.allTouches[0];
-      if (!t) return;
-      touchStartX.value = t.absoluteX;
-      touchStartY.value = t.absoluteY;
-    })
-    .onTouchesMove((e, state) => {
-      if (e.numberOfTouches > 1) {
-        state.fail();
-        return;
-      }
-      const t = e.allTouches[0];
-      if (!t) return;
-      const dx = t.absoluteX - touchStartX.value;
-      const dy = t.absoluteY - touchStartY.value;
-      if (Math.abs(dy) > 20 && Math.abs(dy) > Math.abs(dx) * 1.2) {
-        state.activate();
-      } else if (Math.abs(dx) > 12 && Math.abs(dx) >= Math.abs(dy)) {
-        state.fail();
-      }
-    })
-    .onStart(() => {
-      runOnJS(markDismissDragging)(true);
-    })
-    .onUpdate((e) => {
-      dismissY.value = e.translationY;
-    })
-    .onEnd((e) => {
-      const dy = e.translationY;
-      const shouldDismiss =
-        Math.abs(dy) >= PhotoViewerStyle.dismissThreshold ||
-        Math.abs(e.velocityY) >= PhotoViewerStyle.dismissVelocityThreshold;
-      if (shouldDismiss) {
-        runOnJS(close)();
-      } else {
-        dismissY.value = withSpring(0, { damping: 18, stiffness: 220 });
-        runOnJS(markDismissDragging)(false);
-      }
-    })
-    .onFinalize((_e, success) => {
-      if (!success) {
-        runOnJS(markDismissDragging)(false);
-      }
-    });
+  const dismissGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(!zoomed)
+        .manualActivation(true)
+        .onTouchesDown((e) => {
+          'worklet';
+          const t = e.allTouches[0];
+          if (!t) return;
+          touchStartX.value = t.absoluteX;
+          touchStartY.value = t.absoluteY;
+        })
+        .onTouchesMove((e, state) => {
+          'worklet';
+          if (e.numberOfTouches > 1) {
+            state.fail();
+            return;
+          }
+          const t = e.allTouches[0];
+          if (!t) return;
+          const dx = t.absoluteX - touchStartX.value;
+          const dy = t.absoluteY - touchStartY.value;
+          if (Math.abs(dy) > 20 && Math.abs(dy) > Math.abs(dx) * 1.2) {
+            state.activate();
+          } else if (Math.abs(dx) > 12 && Math.abs(dx) >= Math.abs(dy)) {
+            state.fail();
+          }
+        })
+        .onStart(() => {
+          'worklet';
+          runOnJS(markDismissDragging)(true);
+        })
+        .onUpdate((e) => {
+          'worklet';
+          dismissY.value = e.translationY;
+        })
+        .onEnd((e) => {
+          'worklet';
+          const dy = e.translationY;
+          const shouldDismiss =
+            Math.abs(dy) >= PhotoViewerStyle.dismissThreshold ||
+            Math.abs(e.velocityY) >= PhotoViewerStyle.dismissVelocityThreshold;
+          if (shouldDismiss) {
+            runOnJS(close)();
+          } else {
+            dismissY.value = withSpring(0, { damping: 18, stiffness: 220 });
+            runOnJS(markDismissDragging)(false);
+          }
+        })
+        .onFinalize((_e, success) => {
+          'worklet';
+          if (!success) {
+            runOnJS(markDismissDragging)(false);
+          }
+        }),
+    [
+      close,
+      dismissY,
+      markDismissDragging,
+      touchStartX,
+      touchStartY,
+      zoomed,
+    ],
+  );
 
   const contentStyle = useAnimatedStyle(() => {
     const progress = Math.min(

@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 
-import { houseAlert } from '@/components/ui/HouseAlert';
+import { houseAlert, houseSaveChangesAlert } from '@/components/ui/HouseAlert';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   useFocusEffect,
@@ -25,6 +25,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { FeedSwipeDelete } from '@/components/feed/FeedSwipeDelete';
 import { InteractiveStarRating } from '@/components/review/InteractiveStarRating';
 import { ReorderablePhotoStrip } from '@/components/review/ReorderablePhotoStrip';
 import { FavoriteHeartButton } from '@/components/ui/FavoriteHeartButton';
@@ -32,8 +33,13 @@ import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { PhotoSourceChooserModal } from '@/components/ui/PhotoSourceChooser';
 import { SerifText } from '@/components/ui/SerifText';
-import { FractionalStarRating } from '@/components/ui/StarRating';
+import {
+  FractionalStarRating,
+  StaticStarRating,
+} from '@/components/ui/StarRating';
+import { WineIdentityLink } from '@/components/wine/WineIdentityLink';
 import { GustraColors } from '@/constants/Colors';
+import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import {
   SERIF_FONT,
   Theme,
@@ -42,17 +48,25 @@ import {
 } from '@/constants/Theme';
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
-import type { CriterionRating } from '@/data/types';
+import type { CriterionRating, WineLabelFiche } from '@/data/types';
 import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
+import { stripWineLabelUrisFromPhotoUrls } from '@/services/backup/photos';
 import { safeOpenSettings } from '@/services/linking/safeLinking';
 import { extractTextFromImages } from '@/services/ocr/OCRService';
 import {
   MAX_REVIEW_PHOTOS,
   remainingReviewPhotoSlots,
 } from '@/services/reviews/photoLimits';
-import type { WineLabelFiche } from '@/data/types';
 import { takePendingWineLabelResult } from '@/services/wine/pendingWineLabelResult';
+import { setPreviewWineLabelFiche } from '@/services/wine/previewWineLabelFiche';
+import {
+  averageWineUserRating,
+  drinksCommentForDisplay,
+  isLegacyStuffedDrinksComment,
+  syncWineLabelFields,
+  wineLabelsForReview,
+} from '@/services/wine/wineLabelTypes';
 import {
   draftAddressLine,
   findExistingRestaurant,
@@ -60,11 +74,13 @@ import {
   type RestaurantDraft,
 } from '@/services/places';
 import { Haptics } from '@/services/haptics';
+import { requestSwipeDelete } from '@/services/swipeDelete';
 import {
   deleteReviewPhotoFiles,
   saveReviewPhoto,
 } from '@/services/reviews/photoStorage';
-import { RatingValue, hasStarRating } from '@/services/reviews/ratings';
+import { RatingValue, hasStarRating, formatScoreOutOfFive } from '@/services/reviews/ratings';
+import { criterionIcon } from '@/services/reviews/criterionIcons';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { i18n } from '@/i18n';
 import {
@@ -99,26 +115,6 @@ function formatShortDate(iso: string): string {
   return formatAbbreviatedDate(iso);
 }
 
-function criterionIcon(id: string): {
-  ios: string;
-  android: keyof typeof MaterialIcons.glyphMap;
-} {
-  switch (id) {
-    case 'food':
-      return { ios: 'fork.knife', android: 'local-dining' };
-    case 'drinks':
-      return { ios: 'wineglass', android: 'local-bar' };
-    case 'service':
-      return { ios: 'person.2.fill', android: 'groups' };
-    case 'setting':
-      return { ios: 'sofa.fill', android: 'chair' };
-    case 'valueForMoney':
-      return { ios: 'tag.fill', android: 'sell' };
-    default:
-      return { ios: 'star.circle.fill', android: 'star' };
-  }
-}
-
 const GENERAL_COMMENT_KEY = '__general__';
 
 type EditBaseline = {
@@ -128,7 +124,7 @@ type EditBaseline = {
   criteriaState: Record<string, { rating: number; comment: string }>;
   photoUrls: string[];
   ocrText: string;
-  wineLabel: WineLabelFiche | null;
+  wineLabels: WineLabelFiche[];
 };
 
 /**
@@ -200,11 +196,14 @@ export default function ReviewFormScreen() {
   const [selectedPhotosForRemoval, setSelectedPhotosForRemoval] = useState<
     string[]
   >([]);
-  const [wineLabel, setWineLabel] = useState<WineLabelFiche | null>(
-    () => existingReview?.wineLabel ?? null,
+  const [wineLabels, setWineLabels] = useState<WineLabelFiche[]>(() =>
+    wineLabelsForReview(existingReview),
   );
-  const wineLabelRef = useRef(wineLabel);
-  wineLabelRef.current = wineLabel;
+  const [pendingWineKeys, setPendingWineKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const wineLabelsRef = useRef(wineLabels);
+  wineLabelsRef.current = wineLabels;
   const [activeReviewId, setActiveReviewId] = useState<string | undefined>();
   /** Synced immediately on upsert so Done/unmount cannot create a second review. */
   const activeReviewIdRef = useRef<string | undefined>(undefined);
@@ -262,12 +261,35 @@ export default function ReviewFormScreen() {
 
     if (existingReview) {
       const visitDateValue = new Date(existingReview.date);
-      const photoUrlsCopy = [...existingReview.photoUrls];
+      const winesCopy = wineLabelsForReview(existingReview);
+      const photoUrlsCopy = stripWineLabelUrisFromPhotoUrls(
+        [...existingReview.photoUrls],
+        winesCopy,
+      );
       const ocrText = existingReview.ocrText ?? '';
-      const wineLabelCopy = existingReview.wineLabel ?? null;
       const map: Record<string, { rating: number; comment: string }> = {};
       for (const c of existingReview.criteria) {
-        map[c.id] = { rating: c.rating, comment: c.comment };
+        let comment = c.comment;
+        if (
+          c.id === 'drinks' &&
+          isLegacyStuffedDrinksComment(comment, winesCopy)
+        ) {
+          comment = '';
+        }
+        map[c.id] = { rating: c.rating, comment };
+      }
+      // Migrate legacy drinks←wine average onto the Wijnen criterion.
+      const wineAvg = averageWineUserRating(winesCopy);
+      if (wineAvg != null) {
+        if (!map.wines) {
+          const drinks = map.drinks;
+          if (drinks && drinks.rating === wineAvg) {
+            map.wines = { rating: wineAvg, comment: '' };
+            map.drinks = { rating: RatingValue.unrated, comment: drinks.comment };
+          } else {
+            map.wines = { rating: wineAvg, comment: '' };
+          }
+        }
       }
       const restaurant = getRestaurant(existingReview.restaurantId);
       const favorite = Boolean(restaurant?.isFavorite);
@@ -276,8 +298,8 @@ export default function ReviewFormScreen() {
       setGeneralComment(existingReview.generalComment);
       setPhotoUrls(photoUrlsCopy);
       photoUrlsRef.current = photoUrlsCopy;
-      setWineLabel(wineLabelCopy);
-      wineLabelRef.current = wineLabelCopy;
+      setWineLabels(winesCopy);
+      wineLabelsRef.current = winesCopy;
       setOcrIndexedText(ocrText);
       ocrIndexedTextRef.current = ocrText;
       setCriteriaState(map);
@@ -290,7 +312,7 @@ export default function ReviewFormScreen() {
         criteriaState: map,
         photoUrls: photoUrlsCopy,
         ocrText,
-        wineLabel: wineLabelCopy,
+        wineLabels: winesCopy,
       };
     } else {
       const match = findExistingRestaurant(initialDraft, restaurants);
@@ -309,13 +331,22 @@ export default function ReviewFormScreen() {
 
   const criteriaList: CriterionRating[] = useMemo(
     () =>
-      enabledCriteria.map((c) => ({
-        id: c.id,
-        title: c.title,
-        rating: criteriaState[c.id]?.rating ?? 0,
-        comment: criteriaState[c.id]?.comment ?? '',
-      })),
-    [criteriaState, enabledCriteria],
+      enabledCriteria.map((c) => {
+        let comment = criteriaState[c.id]?.comment ?? '';
+        if (
+          c.id === 'drinks' &&
+          isLegacyStuffedDrinksComment(comment, wineLabels)
+        ) {
+          comment = '';
+        }
+        return {
+          id: c.id,
+          title: c.title,
+          rating: criteriaState[c.id]?.rating ?? 0,
+          comment,
+        };
+      }),
+    [criteriaState, enabledCriteria, wineLabels],
   );
 
   const matchedRestaurant = useMemo(() => {
@@ -368,7 +399,7 @@ export default function ReviewFormScreen() {
       // Prefer ref so reorder/remove in the same tick persist the latest order.
       photoUrls: photoUrlsRef.current,
       ocrText: ocrIndexedText,
-      wineLabel: wineLabelRef.current,
+      ...syncWineLabelFields(wineLabelsRef.current),
       customCriterionNames,
     };
   }, [
@@ -385,11 +416,12 @@ export default function ReviewFormScreen() {
     if (isFavorite) return true;
     if (generalComment.trim()) return true;
     if (photoUrls.length > 0) return true;
+    if (wineLabels.length > 0) return true;
     return criteriaList.some(
       (c) =>
         RatingValue.isStarRating(c.rating) || c.comment.trim().length > 0,
     );
-  }, [criteriaList, generalComment, isFavorite, photoUrls.length]);
+  }, [criteriaList, generalComment, isFavorite, photoUrls.length, wineLabels.length]);
 
   const persistNow = useCallback(
     async (markBusy = false): Promise<boolean> => {
@@ -402,6 +434,10 @@ export default function ReviewFormScreen() {
           !activeReviewIdRef.current &&
           !existingReview
         ) {
+          return false;
+        }
+        // Explicit save (Done / Yes) requires at least one criterion rating.
+        if (markBusy && !hasStarRating(input.criteria)) {
           return false;
         }
         if (markBusy) setIsSaving(true);
@@ -429,14 +465,25 @@ export default function ReviewFormScreen() {
   );
 
   const schedulePersist = useCallback(() => {
-    // Edit mode: only Done writes — never background-autosave.
-    if (isEditRef.current) return;
-    if (!initialLoadComplete || isSaving) return;
-    if (persistTimer.current) clearTimeout(persistTimer.current);
-    persistTimer.current = setTimeout(() => {
-      void persistNow(false);
-    }, 700);
-  }, [initialLoadComplete, isSaving, persistNow]);
+    // No silent autosave — Done / “Save changes?” Yes persist explicitly.
+    // (Edit mode never autosaved non-photo fields; new visits match that now.)
+  }, []);
+
+  /** Photo add/remove/reorder must hit the store immediately — also in edit. */
+  const persistPhotosNow = useCallback(() => {
+    if (!initialLoadCompleteRef.current) return;
+    // New visit: keep photos local until explicit save (Done / Yes).
+    if (!isEditRef.current) return;
+    void persistNowRef.current(false);
+  }, []);
+
+  const afterPhotoChange = useCallback(() => {
+    if (isEditRef.current) {
+      persistPhotosNow();
+      return;
+    }
+    schedulePersist();
+  }, [persistPhotosNow, schedulePersist]);
 
   persistNowRef.current = persistNow;
   schedulePersistRef.current = schedulePersist;
@@ -452,6 +499,20 @@ export default function ReviewFormScreen() {
     if (ocrIndexedText !== baseline.ocrText) return true;
     if (photoUrls.length !== baseline.photoUrls.length) return true;
     if (photoUrls.some((uri, index) => uri !== baseline.photoUrls[index])) {
+      return true;
+    }
+    if (wineLabels.length !== baseline.wineLabels.length) return true;
+    if (
+      wineLabels.some(
+        (wine, index) =>
+          wine.nameAndEstate !== baseline.wineLabels[index]?.nameAndEstate ||
+          wine.labelPhotoUri !== baseline.wineLabels[index]?.labelPhotoUri ||
+          (wine.userRating ?? 0) !==
+            (baseline.wineLabels[index]?.userRating ?? 0) ||
+          (wine.userComment ?? '') !==
+            (baseline.wineLabels[index]?.userComment ?? ''),
+      )
+    ) {
       return true;
     }
     for (const criterion of enabledCriteria) {
@@ -478,8 +539,18 @@ export default function ReviewFormScreen() {
     ocrIndexedText,
     photoUrls,
     visitDate,
+    wineLabels,
   ]);
   isEditDirtyRef.current = isEditDirty;
+
+  const isNewDirty = useMemo(() => {
+    if (isEdit || !initialLoadComplete) return false;
+    return hasPersistableContent();
+  }, [hasPersistableContent, initialLoadComplete, isEdit]);
+
+  const isFormDirty = isEdit ? isEditDirty : isNewDirty;
+  const isFormDirtyRef = useRef(false);
+  isFormDirtyRef.current = isFormDirty;
 
   // OCR index review photos into searchable text (Swift `indexPhotos`).
   // Depend on photo *set*, not order — reorder must not re-index / jump UI.
@@ -493,7 +564,11 @@ export default function ReviewFormScreen() {
         if (ocrIndexedTextRef.current) {
           setOcrIndexedText('');
           ocrIndexedTextRef.current = '';
-          schedulePersistRef.current();
+          if (isEditRef.current) {
+            void persistNowRef.current(false);
+          } else {
+            schedulePersistRef.current();
+          }
         }
         setIsIndexingPhotos(false);
         return;
@@ -506,7 +581,11 @@ export default function ReviewFormScreen() {
       if (next !== ocrIndexedTextRef.current) {
         setOcrIndexedText(next);
         ocrIndexedTextRef.current = next;
-        schedulePersistRef.current();
+        if (isEditRef.current) {
+          void persistNowRef.current(false);
+        } else {
+          schedulePersistRef.current();
+        }
       }
       setIsIndexingPhotos(false);
     };
@@ -517,8 +596,8 @@ export default function ReviewFormScreen() {
     };
   }, [initialLoadComplete, photoSetKey]);
 
-  // New visit: autosave on leave (Swift `handleDisappear`).
-  // Edit: never autosave — Done saves; discard cleans newly added photos.
+  // Edit: never autosave on leave — Done saves; discard cleans newly added photos.
+  // New: no silent save on leave — Done / “Save changes?” Yes; else drop local photos.
   useEffect(() => {
     return () => {
       if (persistTimer.current) clearTimeout(persistTimer.current);
@@ -536,11 +615,16 @@ export default function ReviewFormScreen() {
         }
         return;
       }
-      if (!didDeleteRef.current && initialLoadCompleteRef.current) {
-        void persistNowRef.current(false);
-      } else if (!persistedRef.current && photoUrlsRef.current.length > 0) {
-        void deleteReviewPhotoFiles(photoUrlsRef.current);
+      if (allowLeaveRef.current || didDeleteRef.current || persistedRef.current) {
+        return;
       }
+      const wineUris = wineLabelsRef.current
+        .map((w) => w.labelPhotoUri?.trim())
+        .filter(Boolean) as string[];
+      const uris = [
+        ...new Set([...photoUrlsRef.current, ...wineUris].filter(Boolean)),
+      ];
+      if (uris.length > 0) void deleteReviewPhotoFiles(uris);
     };
   }, []);
 
@@ -557,42 +641,118 @@ export default function ReviewFormScreen() {
     if (!baseline) return;
     const baselinePhotos = new Set(baseline.photoUrls);
     const added = photoUrlsRef.current.filter((uri) => !baselinePhotos.has(uri));
-    if (added.length > 0) void deleteReviewPhotoFiles(added);
+    const baselineWineUris = new Set(
+      baseline.wineLabels
+        .map((w) => w.labelPhotoUri?.trim())
+        .filter(Boolean) as string[],
+    );
+    const addedWineUris = wineLabelsRef.current
+      .map((w) => w.labelPhotoUri?.trim())
+      .filter((uri): uri is string => Boolean(uri) && !baselineWineUris.has(uri));
+    const toDelete = [...added, ...addedWineUris];
+    if (toDelete.length > 0) void deleteReviewPhotoFiles(toDelete);
   }, []);
 
+  /** Undo mid-edit photo upserts so Reviews feed matches the discarded state. */
+  const restoreEditBaselineToStore = useCallback(async () => {
+    const baseline = editBaselineRef.current;
+    if (!baseline || !draft || !existingReview) return;
+    const criteria = enabledCriteria.map((c) => ({
+      id: c.id,
+      title: c.title,
+      rating: baseline.criteriaState[c.id]?.rating ?? 0,
+      comment: baseline.criteriaState[c.id]?.comment ?? '',
+    }));
+    await upsertReviewFromForm({
+      reviewId: existingReview.id,
+      draft,
+      visitDateIso: baseline.visitDateIso,
+      isFavorite: baseline.isFavorite,
+      generalComment: baseline.generalComment,
+      criteria,
+      photoUrls: baseline.photoUrls,
+      ocrText: baseline.ocrText,
+      ...syncWineLabelFields(baseline.wineLabels),
+      customCriterionNames,
+    });
+  }, [
+    customCriterionNames,
+    draft,
+    enabledCriteria,
+    existingReview,
+    upsertReviewFromForm,
+  ]);
+
+  const discardNewDraft = useCallback(async () => {
+    const wineUris = wineLabelsRef.current
+      .map((w) => w.labelPhotoUri?.trim())
+      .filter(Boolean) as string[];
+    const uris = [
+      ...new Set([...photoUrlsRef.current, ...wineUris].filter(Boolean)),
+    ];
+    const id = activeReviewIdRef.current;
+    if (id) {
+      didDeleteRef.current = true;
+      setDidDelete(true);
+      await deleteReview(id);
+      return;
+    }
+    if (uris.length > 0) void deleteReviewPhotoFiles(uris);
+  }, [deleteReview]);
+
   const promptDiscardEdits = useCallback(
-    (onDiscard: () => void) => {
+    (onLeave: () => void) => {
       Haptics.warning();
-      houseAlert(
-        t('alerts.reviewForm.discardEdits.title'),
-        t('alerts.reviewForm.discardEdits.body'),
-        [
-          {
-            text: t('alerts.reviewForm.discardEdits.keepEditing'),
-            style: 'cancel',
-          },
-          {
-            text: t('alerts.reviewForm.discardEdits.discard'),
-            style: 'destructive',
-            onPress: () => {
-              discardEditPhotos();
+      houseSaveChangesAlert({
+        title: t('alerts.reviewForm.discardEdits.title'),
+        onYes: () => {
+          void (async () => {
+            if (persistTimer.current) clearTimeout(persistTimer.current);
+            const ok = await persistNow(true);
+            if (!ok) {
+              Haptics.warning();
+              houseAlert(
+                t('forms.review.title'),
+                t('alerts.reviewForm.needStars'),
+              );
+              return;
+            }
+            Haptics.success();
+            allowLeaveRef.current = true;
+            onLeave();
+          })();
+        },
+        onNo: () => {
+          if (isEditRef.current) {
+            discardEditPhotos();
+            void restoreEditBaselineToStore().finally(() => {
               allowLeaveRef.current = true;
-              onDiscard();
-            },
-          },
-        ],
-      );
+              onLeave();
+            });
+            return;
+          }
+          void discardNewDraft().finally(() => {
+            allowLeaveRef.current = true;
+            onLeave();
+          });
+        },
+      });
     },
-    [discardEditPhotos, t],
+    [
+      discardEditPhotos,
+      discardNewDraft,
+      persistNow,
+      restoreEditBaselineToStore,
+      t,
+    ],
   );
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (event) => {
       if (
-        !isEditRef.current ||
         allowLeaveRef.current ||
         didDeleteRef.current ||
-        !isEditDirtyRef.current
+        !isFormDirtyRef.current
       ) {
         return;
       }
@@ -620,40 +780,105 @@ export default function ReviewFormScreen() {
 
   const onBack = useCallback(() => {
     if (persistTimer.current) clearTimeout(persistTimer.current);
-    // Edit + dirty → beforeRemove shows discard sheet. Clean leave otherwise.
-    if (isEdit && isEditDirty) {
+    // Dirty (new or edit) → beforeRemove shows “Save changes?”
+    if (isFormDirty) {
       router.back();
-      return;
-    }
-    if (!isEdit && initialLoadComplete && !didDelete) {
-      void persistNow(false).finally(() => {
-        allowLeaveRef.current = true;
-        router.back();
-      });
       return;
     }
     allowLeaveRef.current = true;
     router.back();
-  }, [
-    didDelete,
-    initialLoadComplete,
-    isEdit,
-    isEditDirty,
-    persistNow,
-    router,
-  ]);
+  }, [isFormDirty, router]);
+
+  const clearAllWines = useCallback(() => {
+    const uris = wineLabelsRef.current
+      .map((w) => w.labelPhotoUri?.trim())
+      .filter(Boolean) as string[];
+    setWineLabels([]);
+    wineLabelsRef.current = [];
+    if (uris.length > 0) {
+      void deleteReviewPhotoFiles(uris);
+      const banned = new Set(uris);
+      setPhotoUrls((prev) => {
+        const cleaned = stripWineLabelUrisFromPhotoUrls(
+          prev.filter((u) => !banned.has(u.trim())),
+          [],
+        );
+        photoUrlsRef.current = cleaned;
+        return cleaned;
+      });
+    }
+  }, []);
+
+  const removeWineAt = useCallback(
+    (index: number) => {
+      const current = wineLabelsRef.current;
+      const removed = current[index];
+      const next = current.filter((_, i) => i !== index);
+      setWineLabels(next);
+      wineLabelsRef.current = next;
+      const uri = removed?.labelPhotoUri?.trim();
+      if (uri) {
+        void deleteReviewPhotoFiles([uri]);
+        // Drop deleted wine file from gallery too (legacy rows kept it at [0]).
+        setPhotoUrls((prev) => {
+          const cleaned = stripWineLabelUrisFromPhotoUrls(
+            prev.filter((u) => {
+              const t = u.trim();
+              return t && t !== uri;
+            }),
+            next,
+          );
+          photoUrlsRef.current = cleaned;
+          return cleaned;
+        });
+      }
+      if (isEditRef.current) {
+        void persistNowRef.current(false);
+      } else {
+        schedulePersistRef.current();
+      }
+    },
+    [],
+  );
 
   const setCriterionRating = (id: string, rating: number) => {
-    setCriteriaState((prev) => ({
-      ...prev,
-      [id]: {
-        rating,
-        comment: RatingValue.isStarRating(rating)
-          ? (prev[id]?.comment ?? '')
-          : '',
-      },
-    }));
-    schedulePersist();
+    const apply = () => {
+      setCriteriaState((prev) => ({
+        ...prev,
+        [id]: {
+          rating,
+          comment: RatingValue.isStarRating(rating)
+            ? (prev[id]?.comment ?? '')
+            : '',
+        },
+      }));
+      schedulePersist();
+    };
+
+    if (
+      id === 'wines' &&
+      !RatingValue.isStarRating(rating) &&
+      wineLabelsRef.current.length > 0
+    ) {
+      houseAlert(
+        t('wineScan.clearWinesWithRatingsTitle'),
+        t('wineScan.clearWinesWithRatingsBody'),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('common.delete'),
+            style: 'destructive',
+            onPress: () => {
+              clearAllWines();
+              apply();
+            },
+          },
+        ],
+      );
+      return;
+    }
+
+    apply();
   };
 
   const setCriterionComment = (id: string, comment: string) => {
@@ -667,50 +892,141 @@ export default function ReviewFormScreen() {
     schedulePersist();
   };
 
+  const syncWinesRatingFromWines = useCallback((wines: WineLabelFiche[]) => {
+    const avg = averageWineUserRating(wines);
+    setCriteriaState((prev) => {
+      const current = prev.wines ?? {
+        rating: RatingValue.unrated,
+        comment: '',
+      };
+      if (avg == null) {
+        if (!RatingValue.isStarRating(current.rating)) return prev;
+        return {
+          ...prev,
+          wines: { ...current, rating: RatingValue.unrated },
+        };
+      }
+      if (current.rating === avg) return prev;
+      return {
+        ...prev,
+        wines: {
+          rating: avg,
+          comment: current.comment,
+        },
+      };
+    });
+  }, []);
+
+  useEffect(() => {
+    if (wineLabels.length === 0) return;
+    syncWinesRatingFromWines(wineLabels);
+  }, [syncWinesRatingFromWines, wineLabels]);
+
   useFocusEffect(
     useCallback(() => {
       const pending = takePendingWineLabelResult();
       if (!pending) return;
-      const comment = pending.drinksComment.trim();
-      if (comment) {
-        setCriteriaState((prev) => {
-          const current = prev.drinks ?? {
-            rating: RatingValue.unrated,
-            comment: '',
-          };
-          return {
-            ...prev,
-            drinks: {
-              rating: current.rating,
-              comment,
-            },
-          };
-        });
-      }
-      if (
-        pending.croppedUri &&
-        !photoUrlsRef.current.includes(pending.croppedUri)
-      ) {
-        if (remainingReviewPhotoSlots(photoUrlsRef.current.length) <= 0) {
-          houseAlert(
-            t('alerts.reviewForm.photoLimitTitle'),
-            t('alerts.reviewForm.photoLimitBody', { max: MAX_REVIEW_PHOTOS }),
-          );
-        } else {
-          const croppedUri = pending.croppedUri;
+
+      if (typeof pending.removeIndex === 'number') {
+        const idx = pending.removeIndex;
+        let nextWines = wineLabelsRef.current;
+        if (idx >= 0 && idx < nextWines.length) {
+          const removed = nextWines[idx];
+          nextWines = nextWines.filter((_, i) => i !== idx);
+          setWineLabels(nextWines);
+          wineLabelsRef.current = nextWines;
+          const uri = removed?.labelPhotoUri?.trim();
+          if (uri) void deleteReviewPhotoFiles([uri]);
           setPhotoUrls((prev) => {
-            if (prev.includes(croppedUri)) return prev;
-            if (remainingReviewPhotoSlots(prev.length) <= 0) return prev;
-            const next = [...prev, croppedUri];
-            photoUrlsRef.current = next;
-            return next;
+            const cleaned = stripWineLabelUrisFromPhotoUrls(prev, nextWines);
+            photoUrlsRef.current = cleaned;
+            return cleaned;
           });
         }
+        syncWinesRatingFromWines(nextWines);
+
+        const avg = averageWineUserRating(nextWines);
+        const preferredReviewId = pending.leaveToReviewId?.trim();
+        const goToReview = (reviewId?: string | null) => {
+          const id =
+            (reviewId?.trim() ||
+              preferredReviewId ||
+              activeReviewIdRef.current ||
+              existingReview?.id ||
+              '') || undefined;
+          allowLeaveRef.current = true;
+          if (router.canDismiss()) {
+            router.dismissAll();
+          }
+          if (id) {
+            router.navigate({
+              pathname: '/review/[id]',
+              params: { id },
+            });
+            return;
+          }
+          router.navigate('/(tabs)/(main)');
+        };
+
+        const input = buildInput();
+        if (!input) {
+          goToReview(preferredReviewId);
+          return;
+        }
+
+        void upsertReviewFromForm({
+          ...input,
+          photoUrls: photoUrlsRef.current,
+          ...syncWineLabelFields(nextWines),
+          criteria: input.criteria.map((c) =>
+            c.id === 'wines' && avg != null ? { ...c, rating: avg } : c,
+          ),
+        }).then(
+          (result) => goToReview(result?.reviewId),
+          () => goToReview(preferredReviewId),
+        );
+        return;
       }
-      if (pending.wineLabel) {
-        setWineLabel(pending.wineLabel);
-        wineLabelRef.current = pending.wineLabel;
+
+      if (!pending.wineLabel) return;
+
+      const incoming = pending.wineLabel;
+      // Prefer fields on the fiche; fall back to deprecated pending top-level.
+      const withUser: WineLabelFiche = {
+        ...incoming,
+        userRating: RatingValue.isStarRating(incoming.userRating ?? 0)
+          ? incoming.userRating
+          : RatingValue.isStarRating(pending.drinksRating ?? 0)
+            ? pending.drinksRating
+            : incoming.userRating,
+        userComment:
+          incoming.userComment?.trim() ||
+          pending.drinksComment.trim() ||
+          undefined,
+      };
+
+      let nextWines: WineLabelFiche[];
+      if (
+        typeof pending.replaceIndex === 'number' &&
+        pending.replaceIndex >= 0 &&
+        pending.replaceIndex < wineLabelsRef.current.length
+      ) {
+        nextWines = wineLabelsRef.current.map((w, i) =>
+          i === pending.replaceIndex ? withUser : w,
+        );
+      } else {
+        nextWines = [...wineLabelsRef.current, withUser];
       }
+
+      setWineLabels(nextWines);
+      wineLabelsRef.current = nextWines;
+      setPhotoUrls((prev) => {
+        const cleaned = stripWineLabelUrisFromPhotoUrls(prev, nextWines);
+        photoUrlsRef.current = cleaned;
+        return cleaned;
+      });
+      syncWinesRatingFromWines(nextWines);
+
       if (pending.ocrText.trim()) {
         setOcrIndexedText((prev) => {
           const next = [prev, pending.ocrText].filter(Boolean).join(' ').trim();
@@ -718,9 +1034,18 @@ export default function ReviewFormScreen() {
           return next;
         });
       }
-      schedulePersistRef.current();
+      if (isEditRef.current) {
+        void persistNowRef.current(false);
+      } else {
+        schedulePersistRef.current();
+      }
       Haptics.success();
-    }, []),
+    }, [
+      buildInput,
+      router,
+      syncWinesRatingFromWines,
+      upsertReviewFromForm,
+    ]),
   );
 
   const confirmRemoveSelectedPhotos = () => {
@@ -743,7 +1068,7 @@ export default function ReviewFormScreen() {
             });
             setSelectedPhotosForRemoval([]);
             void deleteReviewPhotoFiles(toRemove);
-            schedulePersist();
+            afterPhotoChange();
           },
         },
       ],
@@ -797,12 +1122,13 @@ export default function ReviewFormScreen() {
       if (saved.length) {
         Haptics.light();
         setPhotoUrls((prev) => {
-          const room = remainingReviewPhotoSlots(prev.length);
-          const next = [...prev, ...saved.slice(0, room)];
+          const cleaned = prev.map((u) => u.trim()).filter(Boolean);
+          const room = remainingReviewPhotoSlots(cleaned.length);
+          const next = [...cleaned, ...saved.slice(0, room)];
           photoUrlsRef.current = next;
           return next;
         });
-        schedulePersist();
+        afterPhotoChange();
       }
     } catch {
       Haptics.error();
@@ -838,12 +1164,13 @@ export default function ReviewFormScreen() {
       const uri = await saveReviewPhoto(result.assets[0].uri);
       Haptics.light();
       setPhotoUrls((prev) => {
-        if (remainingReviewPhotoSlots(prev.length) <= 0) return prev;
-        const next = [...prev, uri];
+        const cleaned = prev.map((u) => u.trim()).filter(Boolean);
+        if (remainingReviewPhotoSlots(cleaned.length) <= 0) return cleaned;
+        const next = [...cleaned, uri];
         photoUrlsRef.current = next;
         return next;
       });
-      schedulePersist();
+      afterPhotoChange();
     } catch {
       Haptics.error();
       houseAlert(t('forms.review.photos'), t('alerts.photos.saveFailed'));
@@ -950,7 +1277,6 @@ export default function ReviewFormScreen() {
                 favorite={isFavorite}
                 onToggle={(next) => {
                   setIsFavorite(next);
-                  if (initialLoadComplete && !isEdit) void persistNow(false);
                 }}
               />
             </View>
@@ -971,7 +1297,9 @@ export default function ReviewFormScreen() {
                   <View style={styles.revisitScore}>
                     <FractionalStarRating score={revisitAverage} size={16} />
                     <Text style={styles.revisitMetaText}>
-                      {t('forms.review.avg', { score: revisitAverage.toFixed(1) })}
+                      {t('forms.review.avg', {
+                        score: formatScoreOutOfFive(revisitAverage),
+                      })}
                     </Text>
                   </View>
                 ) : null}
@@ -1018,6 +1346,22 @@ export default function ReviewFormScreen() {
                 rating: RatingValue.unrated,
                 comment: '',
               };
+              const isWines = criterion.id === 'wines';
+              const isDrinks = criterion.id === 'drinks';
+              const notes = isDrinks
+                ? drinksCommentForDisplay(state.comment, wineLabels)
+                : state.comment;
+              const winesHasBottles = isWines && wineLabels.length > 0;
+              const winesAvg = winesHasBottles
+                ? averageWineUserRating(wineLabels)
+                : null;
+              const winesDisplayRating =
+                winesAvg ??
+                (RatingValue.isStarRating(state.rating) ? state.rating : 0);
+              const showCommentField = winesHasBottles
+                ? false
+                : RatingValue.isStarRating(state.rating) ||
+                  (isDrinks && notes.length > 0);
               return (
                 <View key={criterion.id}>
                   {offset > 0 ? <View style={styles.divider} /> : null}
@@ -1039,58 +1383,31 @@ export default function ReviewFormScreen() {
                       )}
                     </View>
                     <View style={styles.criterionBody}>
-                      <View style={styles.criterionTitleRow}>
-                        <SerifText style={styles.criterionTitle}>
-                          {criterion.title}
-                        </SerifText>
-                        {criterion.id === 'drinks' ? (
-                          <Pressable
-                            onPress={() => {
-                              Haptics.selectionChanged();
-                              router.push('/wine-label-scan');
-                            }}
-                            hitSlop={8}
-                            accessibilityRole="button"
-                            accessibilityLabel={t('wineScan.scanButtonA11y')}
-                            style={({ pressed }) => [
-                              styles.wineScanChip,
-                              pressed && styles.wineScanChipPressed,
-                            ]}>
-                            {Platform.OS === 'ios' ? (
-                              <SymbolView
-                                name="camera.viewfinder"
-                                size={14}
-                                tintColor={GustraColors.forestGreen}
-                                weight="semibold"
-                              />
-                            ) : (
-                              <MaterialIcons
-                                name="document-scanner"
-                                size={16}
-                                color={GustraColors.forestGreen}
-                              />
-                            )}
-                            <Text style={styles.wineScanChipText}>
-                              {t('wineScan.scanButton')}
-                            </Text>
-                          </Pressable>
-                        ) : null}
-                      </View>
-                      <InteractiveStarRating
-                        rating={state.rating}
-                        onChange={(rating) =>
-                          setCriterionRating(criterion.id, rating)
-                        }
-                        onScrubbingChange={setRatingScrubbing}
-                      />
-                      {RatingValue.isStarRating(state.rating) ||
-                      (criterion.id === 'drinks' &&
-                        state.comment.trim().length > 0) ? (
+                      <SerifText style={styles.criterionTitle}>
+                        {criterion.title}
+                      </SerifText>
+                      {winesHasBottles ? (
+                        winesDisplayRating > 0 ? (
+                          <StaticStarRating
+                            rating={winesDisplayRating}
+                            showLabel
+                          />
+                        ) : null
+                      ) : (
+                        <InteractiveStarRating
+                          rating={state.rating}
+                          onChange={(rating) =>
+                            setCriterionRating(criterion.id, rating)
+                          }
+                          onScrubbingChange={setRatingScrubbing}
+                        />
+                      )}
+                      {showCommentField ? (
                         <TextInput
                           ref={(node) => {
                             commentInputRefs.current[criterion.id] = node;
                           }}
-                          value={state.comment}
+                          value={notes}
                           onChangeText={(text) =>
                             setCriterionComment(criterion.id, text)
                           }
@@ -1116,14 +1433,136 @@ export default function ReviewFormScreen() {
                             );
                           }}
                           placeholder={
-                            criterion.id === 'drinks'
+                            isWines
                               ? t('wineScan.drinksCommentPlaceholder')
                               : t('forms.review.optionalComment')
                           }
                           placeholderTextColor="rgba(35, 32, 26, 0.4)"
                           multiline
+                          keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
                           style={styles.commentField}
                         />
+                      ) : null}
+                      {isWines ? (
+                        <View style={styles.wineBlock}>
+                          {wineLabels.map((wine, wineIndex) => {
+                            const wineKey = `${wine.labelPhotoUri ?? ''}|${wine.nameAndEstate}`;
+                            if (pendingWineKeys.has(wineKey)) return null;
+                            return (
+                            <FeedSwipeDelete
+                              key={`${wine.labelPhotoUri}-${wine.nameAndEstate}-${wineIndex}`}
+                              id={`wine-${wineIndex}-${wine.labelPhotoUri || wine.nameAndEstate}`}
+                              onDelete={() => {
+                                const name =
+                                  wine.nameAndEstate.trim() ||
+                                  t('wineScan.fiche.title');
+                                const key = wineKey;
+                                requestSwipeDelete({
+                                  title: t('wineScan.deleteWineTitle'),
+                                  message: t('wineScan.deleteWineBody', {
+                                    name,
+                                  }),
+                                  undoMessage: t('wineScan.deleteWineUndo', {
+                                    name,
+                                  }),
+                                  onHide: () => {
+                                    setPendingWineKeys((prev) =>
+                                      new Set(prev).add(key),
+                                    );
+                                  },
+                                  onRestore: () => {
+                                    setPendingWineKeys((prev) => {
+                                      const next = new Set(prev);
+                                      next.delete(key);
+                                      return next;
+                                    });
+                                  },
+                                  onCommit: () => {
+                                    setPendingWineKeys((prev) => {
+                                      const next = new Set(prev);
+                                      next.delete(key);
+                                      return next;
+                                    });
+                                    const current = wineLabelsRef.current;
+                                    const idx = current.findIndex(
+                                      (w) =>
+                                        `${w.labelPhotoUri ?? ''}|${w.nameAndEstate}` ===
+                                        key,
+                                    );
+                                    if (idx >= 0) removeWineAt(idx);
+                                  },
+                                });
+                              }}
+                              cornerRadius={Theme.radius.md}>
+                              <WineIdentityLink
+                                compact
+                                name={wine.nameAndEstate}
+                                rating={wine.userRating}
+                                onPress={() => {
+                                  const restaurantKey =
+                                    matchedRestaurant?.id ?? draft?.id ?? '';
+                                  const reviewKey =
+                                    activeReviewIdRef.current ??
+                                    activeReviewId ??
+                                    existingReview?.id ??
+                                    '';
+                                  setPreviewWineLabelFiche(wine, {
+                                    editIndex: wineIndex,
+                                  });
+                                  router.push({
+                                    pathname: '/wine-label-fiche',
+                                    params: {
+                                      preview: '1',
+                                      edit: '1',
+                                      ...(reviewKey
+                                        ? { reviewId: reviewKey }
+                                        : {}),
+                                      ...(restaurantKey
+                                        ? { restaurantId: restaurantKey }
+                                        : {}),
+                                    },
+                                  });
+                                }}
+                              />
+                            </FeedSwipeDelete>
+                            );
+                          })}
+                          <Pressable
+                            onPress={() => {
+                              Haptics.selectionChanged();
+                              router.push('/wine-label-scan');
+                            }}
+                            accessibilityRole="button"
+                            accessibilityLabel={
+                              wineLabels.length > 0
+                                ? t('wineScan.scanAnotherA11y')
+                                : t('wineScan.scanButtonA11y')
+                            }
+                            style={({ pressed }) => [
+                              styles.wineScanChip,
+                              pressed && styles.wineScanChipPressed,
+                            ]}>
+                            {Platform.OS === 'ios' ? (
+                              <SymbolView
+                                name="camera.viewfinder"
+                                size={14}
+                                tintColor={GustraColors.forestGreen}
+                                weight="semibold"
+                              />
+                            ) : (
+                              <MaterialIcons
+                                name="document-scanner"
+                                size={16}
+                                color={GustraColors.forestGreen}
+                              />
+                            )}
+                            <Text style={styles.wineScanChipText}>
+                              {wineLabels.length > 0
+                                ? t('wineScan.scanAnother')
+                                : t('wineScan.scanButton')}
+                            </Text>
+                          </Pressable>
+                        </View>
                       ) : null}
                     </View>
                   </View>
@@ -1160,6 +1599,7 @@ export default function ReviewFormScreen() {
               placeholder={t("forms.review.optionalComment")}
               placeholderTextColor="rgba(35, 32, 26, 0.4)"
               multiline
+              keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
               style={[styles.commentField, styles.generalComment]}
             />
           </View>
@@ -1172,7 +1612,7 @@ export default function ReviewFormScreen() {
               onReorder={(next) => {
                 photoUrlsRef.current = next;
                 setPhotoUrls(next);
-                schedulePersist();
+                afterPhotoChange();
               }}
               onToggleSelect={togglePhotoSelection}
               onAddPress={showPhotoSourcePicker}
@@ -1301,7 +1741,6 @@ export default function ReviewFormScreen() {
                 }
                 if (!selected) return;
                 setVisitDate(selected);
-                if (initialLoadComplete && !isEdit) void persistNow(false);
               }}
             />
             {Platform.OS === 'ios' ? (
@@ -1319,7 +1758,6 @@ export default function ReviewFormScreen() {
                   onChange={(_, selected) => {
                     if (!selected) return;
                     setVisitDate(selected);
-                    if (initialLoadComplete && !isEdit) void persistNow(false);
                   }}
                 />
               </View>
@@ -1478,7 +1916,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: GustraColors.ink,
   },
+  wineBlock: {
+    gap: 8,
+  },
   wineScanChip: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,

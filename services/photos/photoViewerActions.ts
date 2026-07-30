@@ -3,23 +3,21 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { Platform, Share } from 'react-native';
 
-import { isRemotePhotoUrl } from '@/services/backup/photos';
+import {
+  isRemotePhotoUrl,
+  resolveLocalPhotoUri,
+} from '@/services/backup/photos';
 
 /** Resolve a local `file://` URI suitable for share / save. */
 export async function ensureLocalPhotoUri(uri: string): Promise<string> {
   const trimmed = uri.trim();
   if (!trimmed) throw new Error('No photo available.');
 
-  if (trimmed.startsWith('file://')) return trimmed;
-  if (trimmed.startsWith('/')) return `file://${trimmed}`;
-
   if (!isRemotePhotoUrl(trimmed)) {
-    // Relative Photos/ key
-    const root = FileSystem.documentDirectory;
-    if (!root) throw new Error('Could not read photo.');
-    const local = `${root}Photos/${trimmed.split('/').pop()}`;
-    const info = await FileSystem.getInfoAsync(local);
-    if (info.exists) return local.startsWith('file://') ? local : `file://${local}`;
+    const local = await resolveLocalPhotoUri(trimmed);
+    if (local) {
+      return local.startsWith('file://') ? local : `file://${local}`;
+    }
   }
 
   const cache = FileSystem.cacheDirectory;

@@ -5,6 +5,7 @@ import { FractionalStarRating } from '@/components/ui/StarRating';
 import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle } from '@/constants/Theme';
 import type { CategoryAveragesDisplayStyle } from '@/context/PassportDisplaySettings';
+import { formatScoreOutOfFive } from '@/services/reviews/ratings';
 
 /** Android reads smaller at the same pt size; bump + tighter gap for passport. */
 const STAR_SIZE = Platform.OS === 'android' ? 26 : 20;
@@ -29,7 +30,7 @@ export function CategoryAverageRow({
   return (
     <View
       style={styles.row}
-      accessibilityLabel={`${label}, ${average.toFixed(1)} of 5`}>
+      accessibilityLabel={`${label}, ${formatScoreOutOfFive(average)}`}>
       <Text style={styles.title} numberOfLines={2}>
         {label}
       </Text>
@@ -41,7 +42,7 @@ export function CategoryAverageRow({
         />
       ) : (
         <SerifText size={17} weight="semibold" style={styles.value}>
-          {`${average.toFixed(1)}/5`}
+          {formatScoreOutOfFive(average)}
         </SerifText>
       )}
     </View>

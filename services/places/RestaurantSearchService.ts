@@ -1,4 +1,5 @@
 import { GoogleAPIConfig } from '@/constants/GoogleAPIConfig';
+import { assertGoogleApiAllowed } from '@/services/google/GoogleApiQuota';
 import { incrementGoogleApi } from '@/services/google/GoogleApiTracker';
 import type {
   LatLng,
@@ -7,20 +8,47 @@ import type {
 
 export const DEFAULT_SEARCH_RADIUS_M = 2_000;
 
+/** Nearby Search `includedTypes` — dining venues only (no bakery/retail food). */
 const FOOD_INCLUDED_TYPES = [
   'restaurant',
   'cafe',
-  'bakery',
   'bar',
   'meal_takeaway',
 ] as const;
 
-/** Local filter for text search (Swift `foodPlaceTypes`). */
-const FOOD_PLACE_TYPES = new Set([
-  'food',
+/**
+ * Nearby: drop places whose *primary* business is retail food / grocery,
+ * even if they also carry a dining type tag.
+ */
+const FOOD_EXCLUDED_PRIMARY_TYPES = [
+  'bakery',
+  'bagel_shop',
+  'cake_shop',
+  'candy_store',
+  'chocolate_shop',
+  'confectionery',
+  'dessert_shop',
+  'donut_shop',
+  'pastry_shop',
+  'deli',
+  'ice_cream_shop',
+  'sandwich_shop',
+  'convenience_store',
+  'supermarket',
+  'grocery_store',
+  'food_store',
+  'market',
+  'liquor_store',
+] as const;
+
+/**
+ * Local allowlist for Text Search (map / manual).
+ * Intentionally omits generic `food` and retail types (bakery, deli, …) —
+ * those matched too many non-horeca places.
+ */
+const DINING_PLACE_TYPES = new Set([
   'restaurant',
   'cafe',
-  'bakery',
   'bar',
   'pub',
   'meal_takeaway',
@@ -28,11 +56,13 @@ const FOOD_PLACE_TYPES = new Set([
   'snack_bar',
   'fast_food_restaurant',
   'food_court',
-  'ice_cream_shop',
-  'sandwich_shop',
-  'deli',
   'pizza_restaurant',
+  'wine_bar',
+  'coffee_shop',
+  'tea_house',
 ]);
+
+const EXCLUDED_PRIMARY_TYPES = new Set<string>(FOOD_EXCLUDED_PRIMARY_TYPES);
 
 const FIELD_MASK =
   'places.id,places.displayName,places.location,places.formattedAddress,places.addressComponents,places.types,places.primaryType,places.nationalPhoneNumber,places.internationalPhoneNumber';
@@ -52,6 +82,25 @@ type PlacesApiPlace = {
   nationalPhoneNumber?: string;
   internationalPhoneNumber?: string;
 };
+
+/** True for restaurant / café / bar / takeaway — not bakery, deli, ice cream, grocery. */
+function isDiningPlace(place: PlacesApiPlace): boolean {
+  const primary = place.primaryType?.trim() ?? '';
+  if (primary && EXCLUDED_PRIMARY_TYPES.has(primary)) return false;
+
+  if (
+    primary === 'restaurant' ||
+    primary.endsWith('_restaurant') ||
+    DINING_PLACE_TYPES.has(primary)
+  ) {
+    return true;
+  }
+
+  const types = place.types ?? [];
+  return types.some(
+    (type) => DINING_PLACE_TYPES.has(type) || type.endsWith('_restaurant'),
+  );
+}
 
 type PlacesApiResponse = {
   places?: PlacesApiPlace[];
@@ -182,9 +231,7 @@ function makeResult(
   if (!name || latitude == null || longitude == null) return null;
 
   if (restrictToFood) {
-    const types = place.types ?? [];
-    const isFood = types.some((type) => FOOD_PLACE_TYPES.has(type));
-    if (!isFood) return null;
+    if (!isDiningPlace(place)) return null;
   }
 
   const components = place.addressComponents;
@@ -235,6 +282,8 @@ async function postPlaces(
   body: Record<string, unknown>,
   restrictToFood = false,
 ): Promise<RestaurantSearchResult[]> {
+  await assertGoogleApiAllowed('places');
+
   let apiKey: string;
   try {
     apiKey = GoogleAPIConfig.requireApiKey();
@@ -275,20 +324,25 @@ async function postNearby(
   center: LatLng,
   radius: number,
 ): Promise<RestaurantSearchResult[]> {
-  return postPlaces('places:searchNearby', {
-    includedTypes: [...FOOD_INCLUDED_TYPES],
-    maxResultCount: 20,
-    rankPreference: 'DISTANCE',
-    locationRestriction: {
-      circle: {
-        center: {
-          latitude: center.latitude,
-          longitude: center.longitude,
+  return postPlaces(
+    'places:searchNearby',
+    {
+      includedTypes: [...FOOD_INCLUDED_TYPES],
+      excludedPrimaryTypes: [...FOOD_EXCLUDED_PRIMARY_TYPES],
+      maxResultCount: 20,
+      rankPreference: 'DISTANCE',
+      locationRestriction: {
+        circle: {
+          center: {
+            latitude: center.latitude,
+            longitude: center.longitude,
+          },
+          radius,
         },
-        radius,
       },
     },
-  });
+    true,
+  );
 }
 
 async function postText(
@@ -337,6 +391,8 @@ function normalizedPlaceID(placeID: string): string | null {
  * Place Details (New): fetch only `primaryType` (Swift `fetchPrimaryType`).
  */
 export async function fetchPrimaryType(placeID: string): Promise<string | null> {
+  await assertGoogleApiAllowed('places');
+
   let apiKey: string;
   try {
     apiKey = GoogleAPIConfig.requireApiKey();
@@ -392,24 +448,51 @@ export async function searchNearby(
 
 /**
  * Rough ISO 3166-1 alpha-2 for Places `regionCode` ranking.
- * Names users commonly type in Manual entry.
+ * Names users commonly type in Manual entry (folded: no accents).
  */
 const COUNTRY_REGION_CODES: Record<string, string> = {
   austria: 'AT',
+  osterreich: 'AT',
+  oesterreich: 'AT',
   belgium: 'BE',
+  belgie: 'BE',
+  belgique: 'BE',
+  belgien: 'BE',
+  belgio: 'BE',
   denmark: 'DK',
+  danemark: 'DK',
+  danmark: 'DK',
   france: 'FR',
+  frankrijk: 'FR',
+  frankreich: 'FR',
+  francia: 'FR',
   germany: 'DE',
+  deutschland: 'DE',
+  duitsland: 'DE',
+  allemagne: 'DE',
+  germania: 'DE',
   greece: 'GR',
+  griekenland: 'GR',
   ireland: 'IE',
   italy: 'IT',
+  italie: 'IT',
+  italien: 'IT',
+  italia: 'IT',
   luxembourg: 'LU',
+  luxemburg: 'LU',
   netherlands: 'NL',
   'the netherlands': 'NL',
   holland: 'NL',
+  nederland: 'NL',
+  paysbas: 'NL',
+  'pays-bas': 'NL',
   norway: 'NO',
   portugal: 'PT',
   spain: 'ES',
+  spanje: 'ES',
+  spanien: 'ES',
+  espagne: 'ES',
+  espana: 'ES',
   sweden: 'SE',
   switzerland: 'CH',
   'united kingdom': 'GB',
@@ -420,8 +503,17 @@ const COUNTRY_REGION_CODES: Record<string, string> = {
   'united states of america': 'US',
 };
 
+/** Lowercase + strip diacritics so “België” and “Belgie” match the same key. */
+export function foldCountryKey(country: string): string {
+  return country
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
 export function regionCodeForCountry(country: string): string | undefined {
-  const key = country.trim().toLowerCase();
+  const key = foldCountryKey(country);
   if (!key) return undefined;
   return COUNTRY_REGION_CODES[key];
 }
@@ -431,9 +523,9 @@ export function resultMatchesCountry(
   resultCountry: string,
   wantedCountry: string,
 ): boolean {
-  const want = wantedCountry.trim().toLowerCase();
+  const want = foldCountryKey(wantedCountry);
   if (!want) return true;
-  const got = resultCountry.trim().toLowerCase();
+  const got = foldCountryKey(resultCountry);
   if (!got) return true;
   return got === want || got.includes(want) || want.includes(got);
 }

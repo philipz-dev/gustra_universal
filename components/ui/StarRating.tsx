@@ -15,6 +15,13 @@ const STAR_PATH =
 /** Stroke width in viewBox units for empty (outline) stars. */
 const OUTLINE_STROKE = 1.6;
 
+/** Criterion stars on streamlined review detail (`CriterionSection`). */
+export const REVIEW_DETAIL_STAR_SIZE = 16;
+export const REVIEW_DETAIL_STAR_GAP = 3;
+/** Width of the 5-star row — wine `n/5` aligns to the start of this column. */
+export const REVIEW_DETAIL_STARS_WIDTH =
+  REVIEW_DETAIL_STAR_SIZE * 5 + REVIEW_DETAIL_STAR_GAP * 4;
+
 type StarIconProps = {
   size: number;
   color: string;
@@ -83,6 +90,8 @@ type StaticStarRatingProps = {
   rating: number;
   size?: number;
   showLabel?: boolean;
+  /** `inline` puts the word label beside the stars (compact criteria). */
+  labelPlacement?: 'below' | 'inline';
 };
 
 /** Read-only half-star row for detail criteria (Swift `StaticStarRating`). */
@@ -90,6 +99,7 @@ export function StaticStarRating({
   rating,
   size = 22,
   showLabel = false,
+  labelPlacement = 'below',
 }: StaticStarRatingProps) {
   const { t } = useAppTranslation();
 
@@ -101,20 +111,42 @@ export function StaticStarRating({
     );
   }
 
+  const label =
+    showLabel && RatingValue.isStarRating(rating) ? (
+      <Text
+        style={[
+          styles.label,
+          labelPlacement === 'inline' && styles.labelInline,
+        ]}>
+        {ratingLabel(rating)}
+      </Text>
+    ) : null;
+
+  const stars = (
+    <View style={[styles.row, styles.staticGap, { height: size }]}>
+      {Array.from({ length: 5 }, (_, index) => (
+        <FractionalStar
+          key={index}
+          size={size}
+          fill={RatingValue.fillForStar(index + 1, rating)}
+        />
+      ))}
+    </View>
+  );
+
+  if (labelPlacement === 'inline') {
+    return (
+      <View style={styles.staticInline}>
+        {stars}
+        {label}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.staticWrap}>
-      <View style={[styles.row, styles.staticGap, { height: size }]}>
-        {Array.from({ length: 5 }, (_, index) => (
-          <FractionalStar
-            key={index}
-            size={size}
-            fill={RatingValue.fillForStar(index + 1, rating)}
-          />
-        ))}
-      </View>
-      {showLabel && RatingValue.isStarRating(rating) ? (
-        <Text style={styles.label}>{ratingLabel(rating)}</Text>
-      ) : null}
+      {stars}
+      {label}
     </View>
   );
 }
@@ -127,6 +159,12 @@ const styles = StyleSheet.create({
   },
   staticWrap: {
     gap: 6,
+  },
+  staticInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   staticGap: {
     gap: 3,
@@ -155,5 +193,9 @@ const styles = StyleSheet.create({
     fontFamily: SERIF_FONT,
     fontSize: 15,
     color: 'rgba(35, 32, 26, 0.7)',
+  },
+  labelInline: {
+    fontSize: 14,
+    color: 'rgba(35, 32, 26, 0.55)',
   },
 });

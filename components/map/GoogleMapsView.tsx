@@ -13,6 +13,10 @@ import { GoogleAPIConfig } from '@/constants/GoogleAPIConfig';
 import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle } from '@/constants/Theme';
 import { incrementGoogleApi } from '@/services/google/GoogleApiTracker';
+import {
+  assertGoogleApiAllowed,
+  isGoogleApiQuotaExceededError,
+} from '@/services/google/GoogleApiQuota';
 import type { LatLng } from '@/services/places';
 
 export type GoogleMapMarker = {
@@ -206,18 +210,31 @@ export const GoogleMapsView = forwardRef<
       if (payload.type === 'ready') {
         readyRef.current = true;
         setError(null);
-        void incrementGoogleApi('maps');
-        inject(`window.__gustraSetMarkers(${JSON.stringify(markersRef.current)})`);
-        if (showsUserLocation && userLocation) {
+        void (async () => {
+          try {
+            await assertGoogleApiAllowed('maps');
+          } catch (error) {
+            if (isGoogleApiQuotaExceededError(error)) {
+              setError(error.message);
+              return;
+            }
+            throw error;
+          }
+          void incrementGoogleApi('maps');
           inject(
-            `window.__gustraSetUser(${JSON.stringify({
-              lat: userLocation.latitude,
-              lng: userLocation.longitude,
-            })})`,
+            `window.__gustraSetMarkers(${JSON.stringify(markersRef.current)})`,
           );
-        }
-        applyFitOnce();
-        onReady?.();
+          if (showsUserLocation && userLocation) {
+            inject(
+              `window.__gustraSetUser(${JSON.stringify({
+                lat: userLocation.latitude,
+                lng: userLocation.longitude,
+              })})`,
+            );
+          }
+          applyFitOnce();
+          onReady?.();
+        })();
         return;
       }
       if (payload.type === 'idle' && payload.lat != null && payload.lng != null) {

@@ -7,14 +7,14 @@ import { Theme } from '@/constants/Theme';
 export const PHOTO_PLACEHOLDER_BG = 'rgba(36, 78, 57, 0.12)';
 
 type PhotoPlaceholderProps = {
-  /** Icon size in points (defaults to ~40% of a 64pt thumb). */
+  /** Icon size in points (defaults to ~58% of a 64pt thumb). */
   iconSize?: number;
   style?: StyleProp<ViewStyle>;
 };
 
-/** Shared empty-photo glyph used on Reviews feed and review detail. */
+/** Shared empty-photo glyph (e.g. wine fiche). Feed thumbs use SymbolView directly. */
 export function PhotoPlaceholder({
-  iconSize = Theme.size.thumbnail * 0.4,
+  iconSize = Theme.size.thumbnail * 0.58,
   style,
 }: PhotoPlaceholderProps) {
   return (

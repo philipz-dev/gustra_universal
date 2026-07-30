@@ -1,0 +1,28 @@
+---
+description: Every user-facing string must be translated in all app languages
+alwaysApply: true
+---
+
+# i18n — all languages (mandatory)
+
+Supported locales (keep in sync): **en**, **nl**, **fr**, **es**, **de**, **it**.
+
+When you add or change any user-facing copy:
+
+1. **Never** hardcode UI strings in components/screens — use `t('…')` / `useAppTranslation`.
+2. Add the key to **`i18n/locales/en.json` first**, then translate the **same key** into **every** other locale file in the same change:
+   - `nl.json`, `fr.json`, `es.json`, `de.json`, `it.json`
+3. Preserve i18next placeholders exactly (`{{count}}`, `{{name}}`, …).
+4. Keep brand/product names and language endonyms as in English when intentional (Gustra, Google Maps, Waze, Nederlands, English, …).
+5. Do **not** leave French/Spanish/German/Italian as English placeholders.
+6. Before finishing, run:
+
+```bash
+npm run i18n:check
+```
+
+(or `python3 scripts/check-i18n.py`)
+
+A successful check also regenerates `localization/index.html` (English + all locales table for https://gustra.net/localization/). Publish with `npm run deploy:localization` when the live site should update.
+
+If the check fails, fix the locales before considering the task done.

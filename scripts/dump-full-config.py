@@ -22,6 +22,7 @@ SKIP_DIR_NAMES = {
     ".cursor",
     "roadmap",
     "assets",  # images/fonts — not useful in text dump
+    "secrets",  # service-account keys — never dump / never commit
 }
 
 SKIP_FILE_NAMES = {

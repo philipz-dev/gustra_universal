@@ -1,6 +1,8 @@
 {
   "common": {
     "ok": "OK",
+    "yes": "Ja",
+    "no": "Nee",
     "cancel": "Annuleren",
     "delete": "Verwijderen",
     "remove": "Verwijderen",
@@ -22,15 +24,16 @@
     "selectNone": "Niets selecteren",
     "add": "Toevoegen",
     "clear": "Wissen",
-    "import": "Importeren"
+    "import": "Importeren",
+    "undo": "Ongedaan maken"
   },
   "rating": {
     "labels": {
       "poor": "Slecht",
-      "okay": "Matig",
+      "okay": "Redelijk",
       "good": "Goed",
-      "great": "Zeer goed",
-      "perfect": "Perfect",
+      "great": "Uitstekend",
+      "perfect": "Geweldig",
       "na": "n.v.t.",
       "notRated": "Niet beoordeeld"
     },
@@ -40,7 +43,7 @@
     }
   },
   "tabs": {
-    "reviews": "Reviews",
+    "reviews": "Recensies",
     "map": "Mijn kaart",
     "passport": "Mijn Gustra",
     "settings": "Instellingen",
@@ -109,6 +112,7 @@
     "emptyCuisineTitle": "Nog geen keukentypes",
     "emptyCuisineBody": "Keukentypes verschijnen wanneer restaurants categorieën hebben.",
     "sort": {
+      "date": "Datum",
       "averageScore": "Gemiddelde score",
       "criterion": "Criterium"
     },
@@ -157,12 +161,18 @@
     "languageDutch": "Nederlands",
     "languageEnglish": "English",
     "languageItalian": "Italiano",
-    "sectionReviewer": "Reviewer",
+    "sectionReviewer": "Jij",
+    "sectionReviewing": "Beoordelen",
     "sectionCriteria": "Reviewcriteria",
     "sectionPassport": "Mijn Gustra",
     "sectionStorage": "Opslag",
+    "sectionData": "Data & back-up",
     "sectionGoogle": "Google API-gebruik",
+    "sectionAdvanced": "Geavanceerd",
     "sectionLanguage": "Taal",
+    "advancedExpandA11y": "Geavanceerde instellingen tonen",
+    "advancedCollapseA11y": "Geavanceerde instellingen verbergen",
+    "editPhotoHint": "Tik op de foto om te wijzigen",
     "editCriteria": "Reviewcriteria bewerken",
     "dataSavings": "Databesparing voor foto’s",
     "dataSavingsOn": "Lagere resolutie",
@@ -200,8 +210,8 @@
       "none": "Geen eerdere Swift-gegevens gevonden op dit apparaat"
     },
     "passport": {
-      "showAsNumbers": "Toon scores als cijfers",
-      "showAsStars": "Toon scores als sterren"
+      "showAsNumbers": "Categorie-gemiddelden als cijfers",
+      "showAsStars": "Categorie-gemiddelden als sterren"
     },
     "storage": {
       "photosStored_one": "{{count}} foto lokaal opgeslagen",
@@ -211,7 +221,10 @@
       "deleteTitle": "Criterium verwijderen",
       "deleteBody": "“{{name}}” verwijderen?",
       "custom": "Aangepast",
-      "footer": "Aangepaste namen verschijnen bij nieuwe reviews. Uitgeschakelde criteria zijn verborgen bij beoordelen."
+      "footer": "Aangepaste namen verschijnen bij nieuwe reviews. Uitgeschakelde criteria zijn verborgen bij beoordelen.",
+      "discardEdits": {
+        "title": "Wijzigingen opslaan?"
+      }
     },
     "profilePhoto": {
       "addTitle": "Voeg een profielfoto toe",
@@ -228,12 +241,21 @@
     "languageValueGerman": "Deutsch",
     "languageValueSpanish": "Español",
     "languageValueFrench": "Français",
-    "geminiApi": "Gemini wijn-Vision"
+    "geminiApi": "Gemini wijn-Vision",
+    "sectionDeveloper": "Ontwikkelaar",
+    "showCriteriaSetup": "Toon criteria-setup",
+    "showCriteriaSetupSubtitle": "First-start scherm opnieuw openen",
+    "sentryTestCrash": "Stuur Sentry-testevent",
+    "sentryTestCrashSubtitle": "Controleert crashrapportage (veilige fout)",
+    "sentryTestCrashNoDsn": "Zet eerst EXPO_PUBLIC_SENTRY_DSN in .env",
+    "sentryTestCrashSent": "Testevent verzonden — bekijk Issues in Sentry.",
+    "appVersionA11y": "Appversie {{version}}"
   },
   "criteria": {
     "food": "Eten",
-    "drinks": "Dranken",
-    "service": "Service",
+    "drinks": "Drank",
+    "wines": "Wijnen",
+    "service": "Bediening",
     "atmosphere": "Sfeer",
     "valueForMoney": "Prijs-kwaliteit"
   },
@@ -279,7 +301,7 @@
     },
     "review": {
       "editTitle": "Bewerken",
-      "title": "Review",
+      "title": "Recensie",
       "done": "Klaar",
       "visitDate": "Bezoekdatum",
       "ratings": "Scores",
@@ -312,14 +334,17 @@
   },
   "detail": {
     "review": {
-      "title": "Review",
-      "notFound": "Review niet gevonden",
-      "notFoundBody": "Deze review kon niet worden gevonden.",
+      "title": "Recensie",
+      "notFound": "Recensie niet gevonden",
+      "notFoundBody": "Deze recensie kon niet worden gevonden.",
       "generalComments": "Algemene opmerkingen",
       "newVisit": "Nieuw bezoek",
       "edit": "Bewerken",
       "reviewedBy": "Beoordeeld door {{name}}",
-      "share": "Delen"
+      "share": "Delen",
+      "winesDrunk_one": "Gedronken wijn",
+      "winesDrunk_other": "Gedronken wijnen",
+      "drinksAverage": "Gemiddelde van de wijnen"
     },
     "options": {
       "title": "Opties",
@@ -424,14 +449,34 @@
     "fileShared": "Back-upbestand {{filename}} gedeeld",
     "deleteFailed": "Kon het back-upbestand niet verwijderen."
   },
+  "apiQuota": {
+    "places": {
+      "softTitle": "Veel zoekopdrachten vandaag",
+      "softMessage": "Je gebruikt de zoekfunctie vandaag erg actief. Om de app voor iedereen snel en stabiel te houden, geldt er een dagelijkse limiet. Je kunt nog verder zoeken tot de dagelijkse limiet is bereikt.",
+      "hardTitle": "Zoeklimiet bereikt",
+      "hardMessage": "Je hebt het maximale aantal zoekopdrachten voor vandaag bereikt. Morgen kun je weer nieuwe locaties zoeken."
+    },
+    "gemini": {
+      "softTitle": "Veel etiketten gescand",
+      "softMessage": "Je hebt vandaag al meerdere etiketten gescand. Om de herkenning goed en vlot te laten werken, geldt er een dagelijkse limiet op het aantal scans.",
+      "hardTitle": "Scanlimiet bereikt",
+      "hardMessage": "Je hebt het maximale aantal wijnscans voor vandaag bereikt. Morgen kun je weer etiketten scannen."
+    },
+    "maps": {
+      "hardTitle": "Kaartlimiet bereikt",
+      "hardMessage": "De kaart is vandaag het maximale aantal keren geladen. Morgen kun je de kaart weer openen."
+    }
+  },
   "alerts": {
     "deleteRestaurant": {
       "title": "Restaurant verwijderen?",
-      "body": "Dit verwijdert alle bezoeken en foto’s van dit restaurant."
+      "body": "Dit verwijdert alle bezoeken en foto’s van dit restaurant.",
+      "undoMessage": "Restaurant verwijderd"
     },
     "deleteVisit": {
       "title": "Bezoek verwijderen?",
-      "body": "Dit bezoek en de foto’s ervan worden verwijderd."
+      "body": "Dit bezoek en de foto’s ervan worden verwijderd.",
+      "undoMessage": "Bezoek verwijderd"
     },
     "share": {
       "failed": "Kon reviews niet delen.",
@@ -460,10 +505,7 @@
       "deleteTitle": "Verwijderen?",
       "deleteBody": "Deze review wordt verwijderd.",
       "discardEdits": {
-        "title": "Vertrekken zonder op te slaan?",
-        "body": "Je wijzigingen aan dit bezoek gaan verloren.",
-        "keepEditing": "Blijven bewerken",
-        "discard": "Verwerpen"
+        "title": "Wijzigingen opslaan?"
       }
     },
     "recovery": {
@@ -510,7 +552,7 @@
     "chooserTitle": "Foto van wijnetiket",
     "cropHint": "Knijp en sleep zodat het etiket het kader vult",
     "cropA11y": "Bijsnijden wijnetiket",
-    "readLabel": "Etiket lezen",
+    "scanAction": "Scan",
     "reading": "Etiket lezen…",
     "retake": "Andere foto kiezen",
     "adjustCrop": "Bijsnijden aanpassen",
@@ -519,16 +561,31 @@
     "drinksSuggestion": "Voor Dranken",
     "drinksSuggestionPlaceholder": "Wijnnaam en jaartal",
     "useInDrinks": "Gebruik bij Dranken",
-    "scanButton": "Scan",
+    "confirmA11y": "Wijn toevoegen bij Dranken",
+    "resultRatingTitle": "Beoordeel deze fles",
+    "ratingRequired": "Geef sterren om deze wijn te bewaren.",
+    "scanButton": "Wijnetiket scannen",
     "scanButtonA11y": "Wijnetiket scannen voor Dranken",
-    "drinksCommentPlaceholder": "Wijn, cocktail of andere dranken…",
+    "scanAnother": "Scan nog een etiket",
+    "scanAnotherA11y": "Nog een wijnetiket scannen voor Dranken",
+    "clearDrinksWithWinesTitle": "Dranken-beoordeling wissen?",
+    "clearDrinksWithWinesBody": "Gescande wijnen bij dit bezoek worden dan ook verwijderd.",
+    "clearWinesWithRatingsTitle": "Wijnen-beoordeling wissen?",
+    "clearWinesWithRatingsBody": "Gescande wijnen bij dit bezoek worden dan ook verwijderd.",
+    "deleteWineTitle": "Wijn verwijderen?",
+    "deleteWineBody": "“{{name}}” wordt uit deze beoordeling verwijderd.",
+    "deleteWineA11y": "Wijn verwijderen",
+    "drinksCommentPlaceholder": "Jouw notities bij de wijn…",
+    "discardUnsaved": {
+      "title": "Wijzigingen opslaan?"
+    },
     "ocrUnavailableTitle": "Tekst lezen niet beschikbaar",
     "ocrUnavailableBody": "Etiket lezen op het toestel werkt in een volledige app-build (niet in Expo Go). Je kunt de bijgesneden foto wel bewaren.",
     "noTextTitle": "Geen tekst gevonden",
     "noTextBody": "Probeer een scherpere foto of pas de uitsnede aan zodat het etiket het kader vult.",
     "failedBody": "Kon het etiket niet analyseren. Controleer je verbinding en probeer opnieuw.",
     "hintVision": "Snijd het etiket bij; daarna identificeren we de wijn online (één verkleinde foto).",
-    "analyzing": "Etiket analyseren…",
+    "thinking": "Thinking…",
     "uploadNoticeTitle": "Foto voor analyse",
     "uploadNoticeBody": "Om de wijn te herkennen sturen we een kleinere kopie van je foto naar Google voor analyse. De foto wordt niet in Gustra’s cloud bewaard — alleen voor deze scan verstuurd.",
     "uploadNoticeContinue": "Doorgaan",
@@ -537,13 +594,88 @@
     "missingKeyBody": "Gemini API-key ontbreekt. Zet EXPO_PUBLIC_GEMINI_API_KEY in .env en herstart Expo.",
     "fiche": {
       "title": "Wijn",
+      "identityCaption": "Wijnkaart",
       "openA11y": "Wijnfiche openen",
       "typeStyle": "Type & stijl",
+      "typeStyles": {
+        "red": "Rood",
+        "white": "Wit",
+        "rose": "Rosé",
+        "sparkling": "Mousserend",
+        "fortified": "Versterkt",
+        "orange": "Oranje",
+        "dessert": "Dessertwijn"
+      },
+      "profileLabels": {
+        "red": {
+          "dry": "Droge rode wijn",
+          "offDry": "Halfdroge rode wijn",
+          "sweet": "Zoete rode wijn"
+        },
+        "white": {
+          "dry": "Droge witte wijn",
+          "offDry": "Halfdroge witte wijn",
+          "sweet": "Zoete witte wijn"
+        },
+        "rose": {
+          "dry": "Droge rosé wijn",
+          "offDry": "Halfdroge rosé wijn",
+          "sweet": "Zoete rosé wijn"
+        },
+        "sparkling": {
+          "dry": "Droge mousserende wijn",
+          "offDry": "Halfdroge mousserende wijn",
+          "sweet": "Zoete mousserende wijn"
+        },
+        "fortified": {
+          "dry": "Droge versterkte wijn",
+          "offDry": "Halfdroge versterkte wijn",
+          "sweet": "Zoete versterkte wijn"
+        },
+        "orange": {
+          "dry": "Droge oranje wijn",
+          "offDry": "Halfdroge oranje wijn",
+          "sweet": "Zoete oranje wijn"
+        }
+      },
       "countryRegion": "Land & regio",
       "vintage": "Oogstjaar",
       "grapes": "Druiven",
       "alcohol": "Alcohol",
-      "foodPairings": "Past bij"
+      "foodPairings": "Past bij",
+      "myJudgment": "Mijn oordeel",
+      "openFull": "Volledige wijnkaart openen",
+      "tasteProfile": {
+        "title": "Smaakprofiel",
+        "source": "Inschatting van de etiketscan.",
+        "expandA11y": "Smaakprofiel uitklappen",
+        "collapseA11y": "Smaakprofiel inklappen",
+        "poles": {
+          "bodyLight": "Licht",
+          "bodyFull": "Vol",
+          "tanninsSoft": "Zacht",
+          "tanninsFirm": "Strak",
+          "aciditySoft": "Zacht zuur",
+          "acidityLively": "Levendig",
+          "sweetnessDry": "Droog",
+          "sweetnessSweet": "Zoet"
+        }
+      }
+    },
+    "deleteWineUndo": "“{{name}}” verwijderd"
+  },
+  "setup": {
+    "welcome": {
+      "title": "Welkom bij Gustra",
+      "tapToContinue": "Tik om verder te gaan"
+    },
+    "criteria": {
+      "title": "Eerste configuratie",
+      "headline": "Personaliseer je ervaring",
+      "body": "Kies welke criteria belangrijk zijn bij een recensie. Je kunt dit later altijd wijzigen in Instellingen.",
+      "minOne": "Kies minstens één criterium.",
+      "tip": "Tip",
+      "idealThree": ": 3 criteria zijn ideaal"
     }
   }
 }

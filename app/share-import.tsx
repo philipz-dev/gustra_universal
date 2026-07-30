@@ -26,6 +26,7 @@ import {
 } from '@/services/share/ShareImportService';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { formatAbbreviatedDate } from '@/i18n/formatDates';
+import { formatScoreOutOfFive } from '@/services/reviews/ratings';
 
 /**
  * Share-package review picker (Swift `ShareImportSelectionView`).
@@ -102,7 +103,7 @@ export default function ShareImportScreen() {
       if (city) parts.push(city);
     }
     const score = overallScoreFromShareReview(review, enabledIds);
-    if (score > 0) parts.push(score.toFixed(1));
+    if (score > 0) parts.push(formatScoreOutOfFive(score));
     const date = new Date(review.date);
     if (!Number.isNaN(date.getTime())) {
       parts.push(

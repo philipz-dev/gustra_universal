@@ -9,6 +9,7 @@
     "@noble/hashes": "^2.2.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "9.1.0",
+    "@sentry/react-native": "~7.11.0",
     "expo": "~57.0.7",
     "expo-constants": "~57.0.6",
     "expo-crypto": "~57.0.1",
@@ -58,7 +59,10 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
+    "postinstall": "node scripts/patch-expo-devtools-hang.js",
     "start": "expo start",
+    "gustrarun": "bash scripts/gustrarun",
+    "vistarun": "bash scripts/vistarun",
     "start:android": "$HOME/Library/Android/sdk/platform-tools/adb reverse tcp:8081 tcp:8081 && NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --android",
     "android": "NODE_OPTIONS=--dns-result-order=ipv4first expo start --localhost --android",
     "android:prebuild": "expo prebuild --platform android --clean",
@@ -69,10 +73,20 @@
     "deploy": "bash scripts/deploy-store.sh",
     "deploy:ios": "bash scripts/deploy-ios-testflight.sh",
     "deploy:android": "bash scripts/deploy-android-internal.sh",
+    "deploy:cloud": "bash scripts/deploy-store.sh --cloud",
+    "deploy:credentials": "bash scripts/setup-store-credentials.sh",
     "deploy:web": "python3 scripts/deploy-webversion.py",
+    "deploy:privacy": "python3 roadmap/deploy-privacy.py",
+    "deploy:localization": "python3 scripts/deploy-localization.py",
     "deploy:github": "python3 scripts/deploy-github.py",
+    "i18n:check": "python3 scripts/check-i18n.py",
+    "localization:build": "python3 scripts/generate-localization-site.py",
+    "test:gemini": "bash scripts/test-gemini.sh",
     "ios": "expo run:ios",
     "web": "expo start --web"
   },
-  "private": true
+  "private": true,
+  "allowScripts": {
+    "@sentry/cli@2.58.4": true
+  }
 }

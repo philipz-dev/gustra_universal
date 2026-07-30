@@ -13,6 +13,7 @@ import {
 import { HousePrimaryButton } from '@/components/ui/HousePrimaryButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
+import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { bodyTextStyle, Theme } from '@/constants/Theme';
 import { REVIEWER_MAX_NAME_LENGTH } from '@/context/ReviewerProfile';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
@@ -71,6 +72,7 @@ export function ShareReviewerNameModal({
             autoCorrect={false}
             autoCapitalize="words"
             maxLength={REVIEWER_MAX_NAME_LENGTH}
+            keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
             returnKeyType="done"
             onSubmitEditing={() => {
               if (canContinue) onContinue(trimmed);

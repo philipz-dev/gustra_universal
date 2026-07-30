@@ -1,18 +1,30 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-
-import { houseAlert } from '@/components/ui/HouseAlert';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Image,
+  Keyboard,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import Constants from 'expo-constants';
 import { SymbolView } from 'expo-symbols';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LanguagePickerSheet } from '@/components/settings/LanguagePickerSheet';
+import { SettingsCollapsibleSection } from '@/components/settings/SettingsCollapsibleSection';
 import { SettingsRow } from '@/components/settings/SettingsRow';
 import { SettingsSection } from '@/components/settings/SettingsSection';
+import { houseAlert } from '@/components/ui/HouseAlert';
 import { GustraSwitch } from '@/components/ui/GustraSwitch';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
 import { GustraColors } from '@/constants/Colors';
+import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { SERIF_FONT, Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useGoogleApiTracker } from '@/context/GoogleApiTracker';
 import { useLanguageSettings } from '@/context/LanguageSettings';
@@ -22,12 +34,15 @@ import {
   REVIEWER_MAX_NAME_LENGTH,
   useReviewerProfile,
 } from '@/context/ReviewerProfile';
+import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import { useShareImportLaunch } from '@/context/ShareImportLaunch';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import type { LanguagePreference } from '@/i18n/resolveLanguage';
 import { getPhotosDiskUsage } from '@/services/photos/diskUsage';
+import { Haptics } from '@/services/haptics';
 import { scanSwiftLegacyData } from '@/services/migration/SwiftDataMigration';
+import { isSentryEnabled, Sentry } from '@/services/monitoring/sentry';
 
 function languagePreferenceLabel(
   preference: LanguagePreference,
@@ -57,6 +72,7 @@ export default function SettingsScreen() {
   const nameInputRef = useRef<TextInput>(null);
   const { preference, setPreference } = useLanguageSettings();
   const [languagePickerOpen, setLanguagePickerOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const {
     categoryAveragesStyle,
     categoryAveragesToggleTitle,
@@ -78,6 +94,7 @@ export default function SettingsScreen() {
     useReviewerProfile();
   const { reviews, restaurants, importSwiftLegacyData } = useReviewsStore();
   const { pickSharePackage } = useShareImportLaunch();
+  const { reopenCriteriaSetupForDev } = useCriteriaSettings();
   const [reviewerNameDraft, setReviewerNameDraft] = useState('');
   const [photosSubtitle, setPhotosSubtitle] = useState(
     t('settings.storage.photosStored', { count: 0 }),
@@ -239,6 +256,23 @@ export default function SettingsScreen() {
     );
   };
 
+  const appVersionLabel = useMemo(() => {
+    const version = Constants.expoConfig?.version?.trim() || '1.0';
+    const build =
+      Platform.OS === 'ios'
+        ? Constants.expoConfig?.ios?.buildNumber?.trim() ||
+          Constants.nativeBuildVersion?.trim() ||
+          ''
+        : Platform.OS === 'android'
+          ? String(
+              Constants.expoConfig?.android?.versionCode ??
+                Constants.nativeBuildVersion ??
+                '',
+            ).trim()
+          : '';
+    return build ? `${version}(${build})` : version;
+  }, []);
+
   return (
     <ScrollView
       style={styles.screen}
@@ -253,7 +287,7 @@ export default function SettingsScreen() {
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}>
       <SettingsSection title={t('settings.sectionReviewer')}>
-        <View style={styles.reviewerRow}>
+        <View style={styles.reviewerBlock}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={
@@ -262,20 +296,26 @@ export default function SettingsScreen() {
                 : t('settings.addPhotoA11y')
             }
             onPress={() => router.push('/reviewer-photo')}
-            style={({ pressed }) => [styles.avatar, pressed && styles.pressed]}>
-            {photoUri ? (
-              <Image source={{ uri: photoUri }} style={styles.avatarImage} />
-            ) : (
-              <SymbolView
-                name={{
-                  ios: 'camera.fill',
-                  android: 'photo_camera',
-                  web: 'photo_camera',
-                }}
-                tintColor="rgba(36, 78, 57, 0.7)"
-                size={26}
-              />
-            )}
+            style={({ pressed }) => [
+              styles.avatarWrap,
+              pressed && styles.pressed,
+            ]}>
+            <View style={styles.avatar}>
+              {photoUri ? (
+                <Image source={{ uri: photoUri }} style={styles.avatarImage} />
+              ) : (
+                <SymbolView
+                  name={{
+                    ios: 'camera.fill',
+                    android: 'photo_camera',
+                    web: 'photo_camera',
+                  }}
+                  tintColor="rgba(36, 78, 57, 0.7)"
+                  size={28}
+                />
+              )}
+            </View>
+            <Text style={styles.photoHint}>{t('settings.editPhotoHint')}</Text>
           </Pressable>
           <View style={styles.nameField}>
             <TextInput
@@ -287,6 +327,7 @@ export default function SettingsScreen() {
               style={styles.nameInput}
               accessibilityLabel={t('settings.nameA11y')}
               maxLength={REVIEWER_MAX_NAME_LENGTH}
+              keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
               autoCorrect={false}
               autoCapitalize="words"
               returnKeyType="done"
@@ -318,11 +359,24 @@ export default function SettingsScreen() {
             ) : null}
           </View>
         </View>
+        <SettingsRow
+          title={t('settings.language')}
+          subtitle={languagePreferenceLabel(preference, t)}
+          icon={{ ios: 'globe', android: 'language', web: 'language' }}
+          showChevron
+          isLast
+          onPress={() => setLanguagePickerOpen(true)}
+        />
       </SettingsSection>
 
-      <SettingsSection title={t('settings.sectionCriteria')}>
+      <SettingsSection title={t('settings.sectionReviewing')}>
         <SettingsRow
           title={t('settings.editCriteria')}
+          icon={{
+            ios: 'list.bullet',
+            android: 'format_list_bulleted',
+            web: 'format_list_bulleted',
+          }}
           showChevron
           isLast
           onPress={() => router.push('/edit-criteria')}
@@ -332,6 +386,7 @@ export default function SettingsScreen() {
       <SettingsSection title={t('settings.sectionPassport')}>
         <SettingsRow
           title={categoryAveragesToggleTitle}
+          icon={{ ios: 'star.fill', android: 'star', web: 'star' }}
           accent
           isLast
           onPress={() => {
@@ -355,6 +410,18 @@ export default function SettingsScreen() {
 
       <SettingsSection title={t('settings.sectionStorage')}>
         <View style={[styles.rowPad, styles.rowBorder]}>
+          <View style={styles.iconSlot}>
+            <SymbolView
+              name={{
+                ios: 'arrow.down.circle',
+                android: 'data_saver_on',
+                web: 'data_saver_on',
+              }}
+              tintColor="rgba(36, 78, 57, 0.75)"
+              size={20}
+              weight="medium"
+            />
+          </View>
           <View style={styles.copy}>
             <Text style={styles.rowTitle}>{t('settings.dataSavings')}</Text>
             <Text style={styles.rowSubtitle}>
@@ -369,6 +436,18 @@ export default function SettingsScreen() {
           />
         </View>
         <View style={styles.rowPad}>
+          <View style={styles.iconSlot}>
+            <SymbolView
+              name={{
+                ios: 'photo.on.rectangle',
+                android: 'photo_library',
+                web: 'photo_library',
+              }}
+              tintColor="rgba(36, 78, 57, 0.75)"
+              size={20}
+              weight="medium"
+            />
+          </View>
           <View style={styles.copy}>
             <Text style={styles.rowTitle}>{t('settings.photos')}</Text>
             <Text style={styles.rowSubtitle}>{photosSubtitle}</Text>
@@ -377,32 +456,39 @@ export default function SettingsScreen() {
         </View>
       </SettingsSection>
 
-      <SettingsSection>
+      <SettingsSection title={t('settings.sectionData')}>
         <SettingsRow
           title={t('settings.importShared')}
           subtitle={t('settings.importSharedSubtitle')}
+          icon={{
+            ios: 'square.and.arrow.down',
+            android: 'download',
+            web: 'download',
+          }}
           showChevron
           onPress={() => {
             void pickSharePackage();
           }}
         />
-        {Platform.OS === 'ios' ? (
-          <SettingsRow
-            title={t('settings.recoverPrevious')}
-            subtitle={swiftScanLabel ?? t('settings.recoverScanSubtitle')}
-            showChevron
-            onPress={confirmImportSwiftLegacy}
-          />
-        ) : null}
         <SettingsRow
           title={t('settings.backupRestore')}
+          icon={{
+            ios: 'externaldrive',
+            android: 'settings_backup_restore',
+            web: 'settings_backup_restore',
+          }}
           showChevron
           isLast
           onPress={() => router.push('/backup-restore')}
         />
       </SettingsSection>
 
-      <SettingsSection title={t('settings.sectionGoogle')}>
+      <SettingsCollapsibleSection
+        title={t('settings.sectionAdvanced')}
+        expanded={advancedOpen}
+        onExpandedChange={setAdvancedOpen}
+        accessibilityExpandLabel={t('settings.advancedExpandA11y')}
+        accessibilityCollapseLabel={t('settings.advancedCollapseA11y')}>
         <View style={[styles.apiRow, styles.rowBorder]}>
           <Text style={styles.rowTitle}>{t('settings.mapsSdk')}</Text>
           <SerifText size={15} weight="semibold" style={styles.apiValue}>
@@ -432,21 +518,92 @@ export default function SettingsScreen() {
         </View>
         <SettingsRow
           title={t('settings.resetCounters')}
+          icon={{
+            ios: 'arrow.counterclockwise',
+            android: 'restart_alt',
+            web: 'restart_alt',
+          }}
           destructive
-          isLast
+          isLast={Platform.OS !== 'ios' && !__DEV__}
           onPress={confirmResetCounters}
         />
-      </SettingsSection>
+        {Platform.OS === 'ios' ? (
+          <SettingsRow
+            title={t('settings.recoverPrevious')}
+            subtitle={swiftScanLabel ?? t('settings.recoverScanSubtitle')}
+            icon={{
+              ios: 'clock.arrow.circlepath',
+              android: 'history',
+              web: 'history',
+            }}
+            showChevron
+            isLast={!__DEV__}
+            onPress={confirmImportSwiftLegacy}
+          />
+        ) : null}
+        {__DEV__ ? (
+          <>
+            <SettingsRow
+              title={t('settings.showCriteriaSetup')}
+              subtitle={t('settings.showCriteriaSetupSubtitle')}
+              icon={{
+                ios: 'slider.horizontal.3',
+                android: 'tune',
+                web: 'tune',
+              }}
+              showChevron
+              onPress={() => {
+                Haptics.selectionChanged();
+                void (async () => {
+                  await reopenCriteriaSetupForDev();
+                  router.push('/criteria-setup');
+                })();
+              }}
+            />
+            <SettingsRow
+              title={t('settings.sentryTestCrash')}
+              subtitle={
+                isSentryEnabled
+                  ? t('settings.sentryTestCrashSubtitle')
+                  : t('settings.sentryTestCrashNoDsn')
+              }
+              icon={{
+                ios: 'ant',
+                android: 'bug_report',
+                web: 'bug_report',
+              }}
+              showChevron
+              isLast
+              onPress={() => {
+                Haptics.selectionChanged();
+                if (!isSentryEnabled) {
+                  houseAlert(
+                    t('settings.sentryTestCrash'),
+                    t('settings.sentryTestCrashNoDsn'),
+                  );
+                  return;
+                }
+                Sentry.captureException(
+                  new Error('Gustra Sentry test — safe to ignore'),
+                );
+                houseAlert(
+                  t('settings.sentryTestCrash'),
+                  t('settings.sentryTestCrashSent'),
+                );
+              }}
+            />
+          </>
+        ) : null}
+      </SettingsCollapsibleSection>
 
-      <SettingsSection title={t('settings.sectionLanguage')}>
-        <SettingsRow
-          title={t('settings.language')}
-          subtitle={languagePreferenceLabel(preference, t)}
-          showChevron
-          isLast
-          onPress={() => setLanguagePickerOpen(true)}
-        />
-      </SettingsSection>
+      <Text
+        style={styles.versionFooter}
+        accessibilityRole="text"
+        accessibilityLabel={t('settings.appVersionA11y', {
+          version: appVersionLabel,
+        })}>
+        {appVersionLabel}
+      </Text>
 
       <LanguagePickerSheet
         visible={languagePickerOpen}
@@ -466,19 +623,31 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: Theme.spacing.listRowHorizontal,
     paddingTop: 16,
-    gap: Theme.list.sectionGap,
+    gap: Theme.list.sectionGap + 4,
   },
-  reviewerRow: {
-    flexDirection: 'row',
+  versionFooter: {
+    ...captionTextStyle,
+    marginTop: 8,
+    marginBottom: 8,
+    textAlign: 'center',
+    fontSize: 13,
+    color: 'rgba(35, 32, 26, 0.45)',
+  },
+  reviewerBlock: {
+    paddingTop: 16,
+    paddingBottom: 8,
+    paddingHorizontal: 16,
+    gap: 14,
     alignItems: 'center',
-    gap: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
+  },
+  avatarWrap: {
+    alignItems: 'center',
+    gap: 8,
   },
   avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     backgroundColor: 'rgba(36, 78, 57, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -488,18 +657,28 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  photoHint: {
+    ...captionTextStyle,
+    fontSize: 12,
+    color: 'rgba(35, 32, 26, 0.45)',
+  },
   nameField: {
-    flex: 1,
+    alignSelf: 'stretch',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    backgroundColor: 'rgba(236, 227, 207, 0.55)',
+    borderRadius: Theme.radius.md,
+    paddingHorizontal: 12,
+    minHeight: 48,
   },
   nameInput: {
     flex: 1,
     fontFamily: SERIF_FONT,
-    fontSize: 17,
+    fontSize: 18,
     color: GustraColors.forestGreen,
-    paddingVertical: 8,
+    paddingVertical: 10,
+    textAlign: 'center',
   },
   clearButton: {
     width: 32,
@@ -507,12 +686,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  iconSlot: {
+    width: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   rowPad: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     paddingVertical: 13,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     minHeight: 48,
   },
   rowBorder: {
@@ -540,7 +724,7 @@ const styles = StyleSheet.create({
   },
   apiRow: {
     paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     gap: 2,
   },
   apiValue: {

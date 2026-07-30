@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
   StyleSheet,
@@ -34,6 +34,7 @@ type CircularCropCanvasProps = {
 /**
  * Circular pinch / pan / zoom crop viewport
  * — Swift `ReviewerPhotoEditorView.cropCanvas`.
+ * Gestures + runOnJS targets stay stable (avoids Reanimated DisplayLink abort).
  */
 export function CircularCropCanvas({
   uri,
@@ -46,8 +47,11 @@ export function CircularCropCanvas({
   const [imageSize, setImageSize] = useState<ImageSize | null>(null);
   const onTransformChangeRef = useRef(onTransformChange);
   const onImageSizeRef = useRef(onImageSize);
+  const imageSizeRef = useRef<ImageSize | null>(null);
+  const mountedRef = useRef(true);
   onTransformChangeRef.current = onTransformChange;
   onImageSizeRef.current = onImageSize;
+  imageSizeRef.current = imageSize;
 
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
@@ -59,26 +63,51 @@ export function CircularCropCanvas({
   const coverH = useSharedValue(diameter);
   const diameterSV = useSharedValue(diameter);
 
-  const publish = (nextScale: number, x: number, y: number, dia: number) => {
-    onTransformChangeRef.current?.(
-      { scale: nextScale, offsetX: x, offsetY: y },
-      dia,
-    );
-  };
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
-  const resetTransform = (size: ImageSize, dia: number) => {
-    const cover = coverSize(size, dia);
-    coverW.value = cover.width;
-    coverH.value = cover.height;
-    diameterSV.value = dia;
-    scale.value = 1;
-    savedScale.value = 1;
-    offsetX.value = 0;
-    offsetY.value = 0;
-    savedX.value = 0;
-    savedY.value = 0;
-    publish(1, 0, 0, dia);
-  };
+  const publish = useCallback(
+    (nextScale: number, x: number, y: number, dia: number) => {
+      if (!mountedRef.current) return;
+      onTransformChangeRef.current?.(
+        { scale: nextScale, offsetX: x, offsetY: y },
+        dia,
+      );
+    },
+    [],
+  );
+
+  const resetTransform = useCallback(
+    (size: ImageSize, dia: number) => {
+      const cover = coverSize(size, dia);
+      coverW.value = cover.width;
+      coverH.value = cover.height;
+      diameterSV.value = dia;
+      scale.value = 1;
+      savedScale.value = 1;
+      offsetX.value = 0;
+      offsetY.value = 0;
+      savedX.value = 0;
+      savedY.value = 0;
+      publish(1, 0, 0, dia);
+    },
+    [
+      coverH,
+      coverW,
+      diameterSV,
+      offsetX,
+      offsetY,
+      publish,
+      savedScale,
+      savedX,
+      savedY,
+      scale,
+    ],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -111,14 +140,15 @@ export function CircularCropCanvas({
     if (next <= 1) return;
     setDiameter(next);
     diameterSV.value = next;
-    if (!imageSize) return;
-    const cover = coverSize(imageSize, next);
+    const size = imageSizeRef.current;
+    if (!size) return;
+    const cover = coverSize(size, next);
     coverW.value = cover.width;
     coverH.value = cover.height;
     const clamped = clampOffset(
       offsetX.value,
       offsetY.value,
-      imageSize,
+      size,
       next,
       scale.value,
     );
@@ -129,64 +159,77 @@ export function CircularCropCanvas({
     publish(scale.value, clamped.x, clamped.y, next);
   };
 
-  const pinch = Gesture.Pinch()
-    .onUpdate((e) => {
-      'worklet';
-      const next = Math.min(
-        MAX_SCALE,
-        Math.max(MIN_SCALE, savedScale.value * e.scale),
-      );
-      scale.value = next;
-      const displayW = coverW.value * next;
-      const displayH = coverH.value * next;
-      const limX = Math.max(0, (displayW - diameterSV.value) / 2);
-      const limY = Math.max(0, (displayH - diameterSV.value) / 2);
-      offsetX.value = Math.min(Math.max(offsetX.value, -limX), limX);
-      offsetY.value = Math.min(Math.max(offsetY.value, -limY), limY);
-    })
-    .onEnd(() => {
-      'worklet';
-      savedScale.value = scale.value;
-      savedX.value = offsetX.value;
-      savedY.value = offsetY.value;
-      runOnJS(publish)(
-        scale.value,
-        offsetX.value,
-        offsetY.value,
-        diameterSV.value,
-      );
-    });
+  const composed = useMemo(() => {
+    const pinch = Gesture.Pinch()
+      .onUpdate((e) => {
+        'worklet';
+        const next = Math.min(
+          MAX_SCALE,
+          Math.max(MIN_SCALE, savedScale.value * e.scale),
+        );
+        scale.value = next;
+        const displayW = coverW.value * next;
+        const displayH = coverH.value * next;
+        const limX = Math.max(0, (displayW - diameterSV.value) / 2);
+        const limY = Math.max(0, (displayH - diameterSV.value) / 2);
+        offsetX.value = Math.min(Math.max(offsetX.value, -limX), limX);
+        offsetY.value = Math.min(Math.max(offsetY.value, -limY), limY);
+      })
+      .onEnd(() => {
+        'worklet';
+        savedScale.value = scale.value;
+        savedX.value = offsetX.value;
+        savedY.value = offsetY.value;
+        runOnJS(publish)(
+          scale.value,
+          offsetX.value,
+          offsetY.value,
+          diameterSV.value,
+        );
+      });
 
-  const pan = Gesture.Pan()
-    .averageTouches(true)
-    .onUpdate((e) => {
-      'worklet';
-      const displayW = coverW.value * scale.value;
-      const displayH = coverH.value * scale.value;
-      const limX = Math.max(0, (displayW - diameterSV.value) / 2);
-      const limY = Math.max(0, (displayH - diameterSV.value) / 2);
-      offsetX.value = Math.min(
-        Math.max(savedX.value + e.translationX, -limX),
-        limX,
-      );
-      offsetY.value = Math.min(
-        Math.max(savedY.value + e.translationY, -limY),
-        limY,
-      );
-    })
-    .onEnd(() => {
-      'worklet';
-      savedX.value = offsetX.value;
-      savedY.value = offsetY.value;
-      runOnJS(publish)(
-        scale.value,
-        offsetX.value,
-        offsetY.value,
-        diameterSV.value,
-      );
-    });
+    const pan = Gesture.Pan()
+      .averageTouches(true)
+      .onUpdate((e) => {
+        'worklet';
+        const displayW = coverW.value * scale.value;
+        const displayH = coverH.value * scale.value;
+        const limX = Math.max(0, (displayW - diameterSV.value) / 2);
+        const limY = Math.max(0, (displayH - diameterSV.value) / 2);
+        offsetX.value = Math.min(
+          Math.max(savedX.value + e.translationX, -limX),
+          limX,
+        );
+        offsetY.value = Math.min(
+          Math.max(savedY.value + e.translationY, -limY),
+          limY,
+        );
+      })
+      .onEnd(() => {
+        'worklet';
+        savedX.value = offsetX.value;
+        savedY.value = offsetY.value;
+        runOnJS(publish)(
+          scale.value,
+          offsetX.value,
+          offsetY.value,
+          diameterSV.value,
+        );
+      });
 
-  const composed = Gesture.Simultaneous(pinch, pan);
+    return Gesture.Simultaneous(pinch, pan);
+  }, [
+    coverH,
+    coverW,
+    diameterSV,
+    offsetX,
+    offsetY,
+    publish,
+    savedScale,
+    savedX,
+    savedY,
+    scale,
+  ]);
 
   const imageStyle = useAnimatedStyle(() => ({
     width: coverW.value,

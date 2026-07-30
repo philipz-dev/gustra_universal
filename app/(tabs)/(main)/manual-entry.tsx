@@ -17,6 +17,7 @@ import { SymbolView } from 'expo-symbols';
 
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { GustraColors } from '@/constants/Colors';
+import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
@@ -78,6 +79,14 @@ export default function ManualEntryScreen() {
     // Reset Google results when name/city/country change (Swift onChange of name/city).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, city, country]);
+
+  /** Avoid autoFocus keyboard flash (dark → light) during push navigation. */
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      nameRef.current?.focus();
+    }, 400);
+    return () => clearTimeout(timer);
+  }, []);
 
   const flashSearchButton = () => {
     setSearchHighlighted(true);
@@ -181,13 +190,12 @@ export default function ManualEntryScreen() {
         scrollEventThrottle={16}
         overScrollMode="never">
           <View style={styles.group}>
-            <ClearableField
+              <ClearableField
               inputRef={nameRef}
               placeholder={t("forms.manual.restaurantName")}
               value={name}
               onChangeText={setName}
               onFocus={() => scrollInputIntoView(nameRef.current)}
-              autoFocus
               returnKeyType="next"
             />
             <View style={styles.fieldSep} />
@@ -402,7 +410,6 @@ function ClearableField({
   value,
   onChangeText,
   onFocus,
-  autoFocus,
   returnKeyType,
   onSubmitEditing,
 }: {
@@ -411,7 +418,6 @@ function ClearableField({
   value: string;
   onChangeText: (value: string) => void;
   onFocus?: () => void;
-  autoFocus?: boolean;
   returnKeyType?: 'next' | 'done';
   onSubmitEditing?: () => void;
 }) {
@@ -426,7 +432,7 @@ function ClearableField({
         placeholder={placeholder}
         placeholderTextColor="rgba(35, 32, 26, 0.4)"
         style={styles.fieldInput}
-        autoFocus={autoFocus}
+        keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
         autoCorrect={false}
         autoCapitalize="words"
         returnKeyType={returnKeyType}

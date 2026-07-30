@@ -1,42 +1,45 @@
 {
   "common": {
     "ok": "OK",
+    "yes": "Sí",
+    "no": "No",
     "cancel": "Cancelar",
     "delete": "Eliminar",
-    "remove": "Remove",
+    "remove": "Quitar",
     "done": "Hecho",
-    "back": "Back",
+    "back": "Atrás",
     "continue": "Continuar",
-    "reset": "Reset",
-    "overwrite": "Overwrite",
-    "recover": "Recover",
-    "openSettings": "Open Settings",
-    "tryAgain": "Try Again",
+    "reset": "Restablecer",
+    "overwrite": "Sobrescribir",
+    "recover": "Recuperar",
+    "openSettings": "Abrir Ajustes",
+    "tryAgain": "Intentar de nuevo",
     "error": "Error",
     "close": "Cerrar",
     "share": "Compartir",
-    "edit": "Edit",
+    "edit": "Editar",
     "none": "Ninguno",
     "default": "Predeterminado",
     "selectAll": "Seleccionar todo",
-    "selectNone": "Select none",
-    "add": "Add",
-    "clear": "Clear",
-    "import": "Import"
+    "selectNone": "No seleccionar ninguno",
+    "add": "Añadir",
+    "clear": "Borrar",
+    "import": "Importar",
+    "undo": "Deshacer"
   },
   "rating": {
     "labels": {
-      "poor": "Poor",
-      "okay": "Okay",
-      "good": "Good",
-      "great": "Great",
-      "perfect": "Perfect",
+      "poor": "Malo",
+      "okay": "Regular",
+      "good": "Bueno",
+      "great": "Muy bueno",
+      "perfect": "Increíble",
       "na": "N/A",
-      "notRated": "Not rated"
+      "notRated": "Sin valorar"
     },
     "a11y": {
-      "rating": "Rating",
-      "clear": "Clear rating"
+      "rating": "Valoración",
+      "clear": "Borrar valoración"
     }
   },
   "tabs": {
@@ -45,7 +48,7 @@
     "passport": "Mi Gustra",
     "settings": "Ajustes",
     "editCriteria": "Editar criterios de reseña",
-    "profilePhoto": "Profile photo",
+    "profilePhoto": "Foto de perfil",
     "backupRestore": "Copia / Restaurar"
   },
   "a11y": {
@@ -55,17 +58,17 @@
     "addReview": "Añadir reseña",
     "myLocation": "Mi ubicación",
     "mapLegend": "Leyenda del mapa",
-    "clearLocation": "Clear location filter",
-    "clearCuisine": "Clear cuisine filter",
-    "clearFavorites": "Clear favorites filter",
-    "clearFriends": "Clear friend's reviews filter",
-    "clearSort": "Clear sort",
+    "clearLocation": "Borrar filtro de ubicación",
+    "clearCuisine": "Borrar filtro de cocina",
+    "clearFavorites": "Borrar filtro de favoritos",
+    "clearFriends": "Borrar filtro de reseñas de amigos",
+    "clearSort": "Borrar ordenación",
     "delete": "Eliminar"
   },
   "reviews": {
     "searchPlaceholder": "Buscar restaurantes, comentarios, fotos…",
-    "visitCount_one": "{{count}} visit · {{date}}",
-    "visitCount_other": "{{count}} visits · {{date}}",
+    "visitCount_one": "{{count}} visita · {{date}}",
+    "visitCount_other": "{{count}} visitas · {{date}}",
     "source": {
       "mine": "Mis reseñas",
       "friends": "Reseñas de amigos"
@@ -74,12 +77,12 @@
       "noMatchesTitle": "Ningún restaurante coincide",
       "noMatchesBody": "Ningún restaurante coincide con los filtros actuales.",
       "noMatchesShort": "Sin resultados",
-      "noFriendsTitle": "No Friend Reviews",
-      "noFriendsBody": "Import shared reviews from friends to see them here.",
+      "noFriendsTitle": "No hay reseñas de amigos",
+      "noFriendsBody": "Importa reseñas compartidas de amigos para verlas aquí.",
       "noReviewsTitle": "Aún no hay reseñas",
-      "noReviewsBody": "Add your first restaurant review to get started.",
-      "tryAnotherSearch": "Try another restaurant, city, comment, or text from a photo.",
-      "noCriterionRating": "No restaurants have a rating for this criterion yet.",
+      "noReviewsBody": "Añade tu primera reseña de restaurante para empezar.",
+      "tryAnotherSearch": "Prueba con otro restaurante, ciudad, comentario o texto de una foto.",
+      "noCriterionRating": "Aún no hay restaurantes con una valoración para este criterio.",
       "clearFilters": "Borrar filtros",
       "importReviews": "Importar reseñas",
       "addReview": "Añadir reseña"
@@ -98,17 +101,18 @@
     "default": "Predeterminado",
     "reset": "Restablecer filtros",
     "done": "Hecho",
-    "choose": "Choose {{title}}",
+    "choose": "Elige {{title}}",
     "selectAll": "Seleccionar todo",
-    "selectAllHint": "Select all options",
-    "deselectAllHint": "Deselect all options",
-    "restaurantCount": "{{shown}} of {{total}} restaurants",
-    "resultsCount": "{{shown}} of {{total}} results",
-    "emptyLocationTitle": "No locations yet",
-    "emptyLocationBody": "Locations appear when your reviews include a city or country.",
-    "emptyCuisineTitle": "No cuisine types yet",
-    "emptyCuisineBody": "Cuisine types appear when restaurants have place categories.",
+    "selectAllHint": "Seleccionar todas las opciones",
+    "deselectAllHint": "Deseleccionar todas las opciones",
+    "restaurantCount": "{{shown}} de {{total}} restaurantes",
+    "resultsCount": "{{shown}} de {{total}} resultados",
+    "emptyLocationTitle": "Aún no hay ubicaciones",
+    "emptyLocationBody": "Las ubicaciones aparecen cuando tus reseñas incluyen una ciudad o un país.",
+    "emptyCuisineTitle": "Aún no hay tipos de cocina",
+    "emptyCuisineBody": "Los tipos de cocina aparecen cuando los restaurantes tienen categorías.",
     "sort": {
+      "date": "Fecha",
       "averageScore": "Puntuación media",
       "criterion": "Criterio"
     },
@@ -116,14 +120,14 @@
       "location": "Ubicación",
       "cuisine": "Tipo de cocina",
       "favorites": "Favoritos",
-      "friends": "Friend's reviews included"
+      "friends": "Reseñas de amigos incluidas"
     }
   },
   "map": {
     "title": "Mi mapa",
     "friendSuffix": "(amigo)",
     "legend": {
-      "title": "Pins",
+      "title": "Marcadores",
       "own": "Mis reseñas",
       "friends": "Reseñas de amigos"
     },
@@ -137,17 +141,17 @@
     }
   },
   "passport": {
-    "emptyTitle": "No Reviews Yet",
-    "emptyBody": "Your tasting passport fills in as you add restaurant reviews.",
+    "emptyTitle": "Aún no hay reseñas",
+    "emptyBody": "Tu pasaporte gastronómico se completa a medida que añades reseñas de restaurantes.",
     "addReview": "Añadir reseña",
     "overview": "Resumen",
     "totalReviews": "Reseñas totales",
     "averageOverall": "Media general",
-    "bestRestaurant": "Best restaurant",
-    "bestRestaurants": "Best restaurants",
-    "categoryAverages": "Category Averages",
-    "topCities": "Top cities",
-    "cityAverages": "Top cities",
+    "bestRestaurant": "Mejor restaurante",
+    "bestRestaurants": "Mejores restaurantes",
+    "categoryAverages": "Medias por categoría",
+    "topCities": "Mejores ciudades",
+    "cityAverages": "Mejores ciudades",
     "noCityData": "Aún no hay datos de ciudades."
   },
   "settings": {
@@ -157,12 +161,18 @@
     "languageDutch": "Nederlands",
     "languageEnglish": "English",
     "languageItalian": "Italiano",
-    "sectionReviewer": "Reseñador",
+    "sectionReviewer": "Tú",
+    "sectionReviewing": "Reseñas",
     "sectionCriteria": "Criterios de reseña",
     "sectionPassport": "Mi Gustra",
     "sectionStorage": "Almacenamiento",
+    "sectionData": "Datos y copia de seguridad",
     "sectionGoogle": "Uso de la API de Google",
+    "sectionAdvanced": "Avanzado",
     "sectionLanguage": "Idioma",
+    "advancedExpandA11y": "Mostrar ajustes avanzados",
+    "advancedCollapseA11y": "Ocultar ajustes avanzados",
+    "editPhotoHint": "Toca la foto para cambiarla",
     "editCriteria": "Editar criterios de reseña",
     "dataSavings": "Ahorro de datos para fotos",
     "dataSavingsOn": "Resolución más baja",
@@ -171,56 +181,59 @@
     "importShared": "Importar reseñas compartidas",
     "importSharedSubtitle": "Abre un archivo .gustrashare de un amigo",
     "recoverPrevious": "Recuperar datos anteriores de Gustra",
-    "recoverScanSubtitle": "Search this iPhone for the old Swift database and photos",
-    "recoverScanning": "Scanning…",
+    "recoverScanSubtitle": "Busca en este iPhone la antigua base de datos Swift y las fotos",
+    "recoverScanning": "Buscando…",
     "backupRestore": "Copia / Restaurar",
     "mapsSdk": "Google Maps SDK",
     "placesApi": "Places API",
-    "usageToday": "{{today}} today / {{allTime}} all-time",
+    "usageToday": "{{today}} hoy / {{allTime}} total",
     "resetCounters": "Restablecer contadores",
     "namePlaceholder": "Tu nombre",
-    "nameA11y": "Reviewer name",
-    "photoA11y": "Profile photo",
-    "editPhotoA11y": "Edit profile photo",
-    "addPhotoA11y": "Add profile photo",
-    "clearNameA11y": "Clear name",
+    "nameA11y": "Nombre del reseñador",
+    "photoA11y": "Foto de perfil",
+    "editPhotoA11y": "Editar foto de perfil",
+    "addPhotoA11y": "Agregar foto de perfil",
+    "clearNameA11y": "Borrar nombre",
     "languageValueSystem": "Sistema",
     "languageValueDutch": "Nederlands",
     "languageValueEnglish": "English",
     "languageValueItalian": "Italiano",
     "swiftScan": {
-      "found": "Swift database found",
-      "dbCandidates": "{{count}} DB candidates",
-      "photos": "{{count}} photos",
-      "backups": "{{count}} backup file(s)",
-      "alreadyRecovered": "already recovered",
-      "photosOnly": "{{count}} old photos found, but no database — reviews need a .gustra backup or the Swift store",
-      "backupsOnly": "{{count}} backup file(s) in Backups — use Backup / Restore",
-      "unreadable": "{{count}} DB file(s) found but not readable as Gustra data",
-      "none": "No previous Swift data found on this device"
+      "found": "Base de datos Swift encontrada",
+      "dbCandidates": "{{count}} posibles bases de datos",
+      "photos": "{{count}} fotos",
+      "backups": "{{count}} archivo(s) de copia de seguridad",
+      "alreadyRecovered": "ya recuperado",
+      "photosOnly": "{{count}} fotos antiguas encontradas, pero no hay base de datos; las reseñas necesitan una copia .gustra o el almacén Swift",
+      "backupsOnly": "{{count}} archivo(s) de copia en Backups; usa Copia de seguridad / Restaurar",
+      "unreadable": "{{count}} archivo(s) de base de datos encontrados, pero no se pueden leer como datos de Gustra",
+      "none": "No se encontraron datos anteriores de Swift en este dispositivo"
     },
     "passport": {
-      "showAsNumbers": "Mostrar valoraciones como números",
-      "showAsStars": "Mostrar valoraciones como estrellas"
+      "showAsNumbers": "Medias por criterio en números",
+      "showAsStars": "Medias por criterio en estrellas"
     },
     "storage": {
-      "photosStored_one": "{{count}} photo stored locally",
-      "photosStored_other": "{{count}} photos stored locally"
+      "photosStored_one": "{{count}} foto guardada localmente",
+      "photosStored_other": "{{count}} fotos guardadas localmente"
     },
     "criteria": {
-      "deleteTitle": "Delete criterion",
-      "deleteBody": "Remove “{{name}}”?",
-      "custom": "Custom",
-      "footer": "Custom names appear on new reviews. Disabled criteria are hidden when rating."
+      "deleteTitle": "Eliminar criterio",
+      "deleteBody": "¿Quitar «{{name}}»?",
+      "custom": "Personalizado",
+      "footer": "Los nombres personalizados aparecen en las nuevas reseñas. Los criterios desactivados se ocultan al valorar.",
+      "discardEdits": {
+        "title": "¿Guardar cambios?"
+      }
     },
     "profilePhoto": {
-      "addTitle": "Add a profile photo",
-      "usePhoto": "Use Photo",
-      "deletePhoto": "Delete Photo",
-      "takeOrImport": "Take or import a photo",
-      "pendingRemove": "Photo will be removed when you confirm.",
-      "pinchHint": "Pinch to zoom · drag to reposition",
-      "readFailed": "Could not read the selected photo."
+      "addTitle": "Añadir una foto de perfil",
+      "usePhoto": "Usar foto",
+      "deletePhoto": "Eliminar foto",
+      "takeOrImport": "Hacer o importar una foto",
+      "pendingRemove": "La foto se eliminará cuando confirmes.",
+      "pinchHint": "Pellizca para ampliar · arrastra para recolocar",
+      "readFailed": "No se pudo leer la foto seleccionada."
     },
     "languageGerman": "Deutsch",
     "languageSpanish": "Español",
@@ -228,11 +241,20 @@
     "languageValueGerman": "Deutsch",
     "languageValueSpanish": "Español",
     "languageValueFrench": "Français",
-    "geminiApi": "Gemini Vision de vino"
+    "geminiApi": "Gemini Vision de vino",
+    "sectionDeveloper": "Desarrollador",
+    "showCriteriaSetup": "Mostrar setup de criterios",
+    "showCriteriaSetupSubtitle": "Reabrir la pantalla de inicio",
+    "sentryTestCrash": "Enviar evento de prueba Sentry",
+    "sentryTestCrashSubtitle": "Comprueba el informe de fallos (error seguro)",
+    "sentryTestCrashNoDsn": "Define primero EXPO_PUBLIC_SENTRY_DSN en .env",
+    "sentryTestCrashSent": "Evento de prueba enviado — revisa Issues en Sentry.",
+    "appVersionA11y": "Versión de la app {{version}}"
   },
   "criteria": {
     "food": "Comida",
-    "drinks": "Bebidas",
+    "drinks": "Bebida",
+    "wines": "Vinos",
     "service": "Servicio",
     "atmosphere": "Ambiente",
     "valueForMoney": "Relación calidad-precio"
@@ -246,54 +268,54 @@
     },
     "nearby": {
       "startReview": "Empezar reseña",
-      "loadFailed": "Couldn't load nearby restaurants.",
-      "noNearby": "No nearby restaurants found.",
-      "searchNearby": "Search Nearby",
-      "locationDenied": "Location access is needed to find nearby restaurants.",
-      "servicesOff": "Location services appear to be off.",
-      "finding": "Finding nearby restaurants…",
-      "sectionTitle": "Nearby Restaurants",
-      "tryMap": "Try again or search on the map instead.",
-      "searchFailed": "Could not reach the restaurant search service."
+      "loadFailed": "No se pudieron cargar los restaurantes cercanos.",
+      "noNearby": "No se encontraron restaurantes cercanos.",
+      "searchNearby": "Buscar cerca",
+      "locationDenied": "Se necesita acceso a la ubicación para encontrar restaurantes cercanos.",
+      "servicesOff": "Parece que los servicios de ubicación están desactivados.",
+      "finding": "Buscando restaurantes cercanos…",
+      "sectionTitle": "Restaurantes cercanos",
+      "tryMap": "Inténtalo de nuevo o busca en el mapa.",
+      "searchFailed": "No se pudo conectar con el servicio de búsqueda de restaurantes."
     },
     "mapSearch": {
       "title": "Buscar en el mapa",
-      "searchArea": "Search this area",
+      "searchArea": "Buscar en esta zona",
       "startReview": "Empezar reseña",
-      "hint": "Move the map, then tap Search this area.",
-      "searchAreaHint": "Search restaurants in the visible map area"
+      "hint": "Mueve el mapa y pulsa Buscar en esta zona.",
+      "searchAreaHint": "Buscar restaurantes en la zona visible del mapa"
     },
     "manual": {
       "title": "Entrada manual",
-      "restaurantName": "Restaurant name",
+      "restaurantName": "Nombre del restaurante",
       "city": "Ciudad",
       "country": "País",
       "findOnGoogle": "Buscar en Google",
-      "searchHint": "Search Google to add place details, or continue manually.",
-      "googleMatches": "Google matches",
-      "loading": "Loading restaurants…",
-      "continueManually": "Continue manually",
-      "searchFailed": "Could not reach the restaurant search service.",
-      "noMatch": "No match found on Google.",
-      "manualMapHint": "Without a Google match this restaurant won't appear on your map."
+      "searchHint": "Busca en Google para añadir detalles del lugar o continúa manualmente.",
+      "googleMatches": "Resultados de Google",
+      "loading": "Cargando restaurantes…",
+      "continueManually": "Continuar manualmente",
+      "searchFailed": "No se pudo conectar con el servicio de búsqueda de restaurantes.",
+      "noMatch": "No se encontró ninguna coincidencia en Google.",
+      "manualMapHint": "Sin una coincidencia de Google, este restaurante no aparecerá en el mapa."
     },
     "review": {
-      "editTitle": "Edit",
-      "title": "Review",
+      "editTitle": "Editar",
+      "title": "Reseña",
       "done": "Hecho",
       "visitDate": "Fecha de visita",
       "ratings": "Valoraciones",
-      "generalComments": "General comments",
+      "generalComments": "Comentarios generales",
       "photos": "Fotos",
-      "optionalComment": "Optional comment",
-      "otherVisits_one": "{{count}} other visit at this restaurant",
-      "otherVisits_other": "{{count}} other visits at this restaurant",
-      "mostRecent": "Most recent {{date}}",
+      "optionalComment": "Comentario opcional",
+      "otherVisits_one": "{{count}} otra visita a este restaurante",
+      "otherVisits_other": "{{count}} otras visitas a este restaurante",
+      "mostRecent": "Más reciente: {{date}}",
       "addPhotos": "Añadir fotos",
       "delete": "Eliminar",
-      "removePhotos": "Remove Photos",
-      "indexing": "Indexing photo text…",
-      "avg": "{{score}} avg",
+      "removePhotos": "Eliminar fotos",
+      "indexing": "Indexando el texto de las fotos…",
+      "avg": "{{score}} de media",
       "time": "Hora",
       "setTime": "Elegir hora · {{time}}",
       "photoStrip": {
@@ -307,19 +329,22 @@
     "photos": {
       "takePhoto": "Hacer foto",
       "importPhoto": "Importar foto",
-      "adding": "Adding photos…"
+      "adding": "Añadiendo fotos…"
     }
   },
   "detail": {
     "review": {
-      "title": "Review",
-      "notFound": "Review not found",
-      "notFoundBody": "This review could not be found.",
-      "generalComments": "General comments",
-      "newVisit": "New visit",
-      "edit": "Edit",
-      "reviewedBy": "Reviewed by {{name}}",
-      "share": "Compartir"
+      "title": "Reseña",
+      "notFound": "Reseña no encontrada",
+      "notFoundBody": "No se pudo encontrar esta reseña.",
+      "generalComments": "Comentarios generales",
+      "newVisit": "Nueva visita",
+      "edit": "Editar",
+      "reviewedBy": "Reseñado por {{name}}",
+      "share": "Compartir",
+      "winesDrunk_one": "Vino catado",
+      "winesDrunk_other": "Vinos catados",
+      "drinksAverage": "Media de los vinos"
     },
     "options": {
       "title": "Opciones",
@@ -332,175 +357,192 @@
     },
     "restaurant": {
       "title": "Restaurant",
-      "noVisits": "No visits",
-      "noReviews": "This restaurant has no reviews yet.",
-      "visitCount_one": "{{count}} visit",
-      "visitCount_other": "{{count}} visits",
-      "visits": "Visits"
+      "noVisits": "Sin visitas",
+      "noReviews": "Este restaurante aún no tiene reseñas.",
+      "visitCount_one": "{{count}} visita",
+      "visitCount_other": "{{count}} visitas",
+      "visits": "Visitas"
     },
     "location": {
       "title": "Ubicación",
-      "unknown": "Unknown location",
+      "unknown": "Ubicación desconocida",
       "getDirections": "Cómo llegar",
-      "showMap": "Show map",
-      "call": "Call {{phone}}"
+      "showMap": "Mostrar mapa",
+      "call": "Llamar a {{phone}}"
     }
   },
   "directions": {
     "title": "Cómo llegar",
-    "noLocation": "No map location is available for this place.",
+    "noLocation": "No hay una ubicación de mapa disponible para este lugar.",
     "appleMaps": "Apple Mapas",
     "googleMaps": "Google Maps",
     "waze": "Waze",
     "maps": "Mapas",
     "cancel": "Cancelar",
-    "openFailed": "Could not open the maps app.",
-    "destination": "Destination"
+    "openFailed": "No se pudo abrir la app de mapas.",
+    "destination": "Destino"
   },
   "share": {
     "chooser": {
-      "gustraFile": "Share Gustra file",
-      "gustraFileSubtitle": "Friends can import this into Gustra",
+      "gustraFile": "Compartir archivo Gustra",
+      "gustraFileSubtitle": "Tus amigos pueden importar esto en Gustra",
       "visual": "Compartir reseña por correo",
       "visualSubtitle": "Envía una tarjeta bonita de esta reseña",
       "cancel": "Cancelar"
     },
     "nameSheet": {
       "title": "Tu nombre",
-      "body": "Your name is included when you share reviews with friends.",
-      "placeholder": "Reviewer name",
+      "body": "Tu nombre se incluye cuando compartes reseñas con amigos.",
+      "placeholder": "Nombre del reseñador",
       "cancel": "Cancelar",
       "continue": "Continuar"
     }
   },
   "import": {
     "title": "Importar reseñas",
-    "from": "Reviews from {{name}}",
-    "unknownRestaurant": "Unknown Restaurant",
-    "noReviews": "No Reviews",
-    "noReviewsBody": "This shared file contains no reviews.",
-    "selectAll": "Select All",
-    "selectNone": "Select None"
+    "from": "Reseñas de {{name}}",
+    "unknownRestaurant": "Restaurante desconocido",
+    "noReviews": "Sin reseñas",
+    "noReviewsBody": "Este archivo compartido no contiene reseñas.",
+    "selectAll": "Seleccionar todo",
+    "selectNone": "No seleccionar ninguno"
   },
   "backup": {
     "encryptedTitle": "Copia cifrada",
-    "encryptedBody": "Create a password-protected backup of your reviews, or restore from a previous backup.",
+    "encryptedBody": "Crea una copia de seguridad protegida con contraseña de tus reseñas o restaura una copia anterior.",
     "create": "Crear copia",
     "restore": "Restaurar",
-    "restoreTitle": "Restore Backup",
+    "restoreTitle": "Restaurar copia de seguridad",
     "password": "Contraseña",
-    "confirmPassword": "Confirm password",
+    "confirmPassword": "Confirmar contraseña",
     "continue": "Continuar",
-    "whereTitle": "Where should the backup go?",
-    "saveLocally": "Save Locally",
+    "whereTitle": "¿Dónde quieres guardar la copia de seguridad?",
+    "saveLocally": "Guardar localmente",
     "share": "Compartir",
-    "noBackups": "No backups found",
-    "noBackupsBody": "No backups found in the Gustra Backups folder. You can still choose a file from elsewhere.",
-    "gustraBackups": "Gustra backups",
-    "chooseFromFiles": "Choose from Files",
-    "merge": "Merge with current data",
-    "overwrite": "Overwrite current data",
-    "passwordHint": "Min. 7 characters, with at least one letter, number, and symbol.",
-    "enterPassword": "Enter a backup password.",
-    "passwordTooShort": "Password must be at least {{count}} characters.",
-    "passwordNeedsLetter": "Password must include at least one letter.",
-    "passwordNeedsNumber": "Password must include at least one number.",
-    "passwordNeedsSymbol": "Password must include at least one symbol.",
-    "passwordMismatch": "Passwords do not match.",
-    "needReviewFirst": "Add at least one review before creating a backup.",
-    "choosePasswordHint": "Choose a password you will need later to restore this backup.",
-    "localFolderHint": "Local backups are stored in the app’s Backups folder on this device.",
-    "enterRestorePassword": "Enter the password used when this backup was created.",
-    "applyHow": "How should this backup be applied?",
-    "mergeHint": "Keep existing restaurants and add or update items from the backup.",
-    "overwriteHint": "Replace all restaurants and reviews with the backup.",
-    "encryptFailed": "Could not encrypt the backup file.",
-    "shareFailed": "Could not share the backup.",
-    "readFailed": "Could not read the backup file.",
-    "incorrectPassword": "Incorrect backup password.",
-    "mergedSuccess": "Backup merged successfully.",
-    "restoredSuccess": "Backup restored successfully.",
-    "fileSaved": "Backup file {{filename}} saved",
-    "fileShared": "Backup file {{filename}} shared",
-    "deleteFailed": "Could not delete the backup file."
+    "noBackups": "No se encontraron copias de seguridad",
+    "noBackupsBody": "No se encontraron copias de seguridad en la carpeta Backups de Gustra. Aún puedes elegir un archivo de otro lugar.",
+    "gustraBackups": "Copias de seguridad de Gustra",
+    "chooseFromFiles": "Elegir desde Archivos",
+    "merge": "Combinar con los datos actuales",
+    "overwrite": "Sobrescribir los datos actuales",
+    "passwordHint": "Mín. 7 caracteres, con al menos una letra, un número y un símbolo.",
+    "enterPassword": "Introduce una contraseña para la copia de seguridad.",
+    "passwordTooShort": "La contraseña debe tener al menos {{count}} caracteres.",
+    "passwordNeedsLetter": "La contraseña debe incluir al menos una letra.",
+    "passwordNeedsNumber": "La contraseña debe incluir al menos un número.",
+    "passwordNeedsSymbol": "La contraseña debe incluir al menos un símbolo.",
+    "passwordMismatch": "Las contraseñas no coinciden.",
+    "needReviewFirst": "Añade al menos una reseña antes de crear una copia de seguridad.",
+    "choosePasswordHint": "Elige una contraseña que necesitarás más tarde para restaurar esta copia.",
+    "localFolderHint": "Las copias locales se guardan en la carpeta Backups de la app en este dispositivo.",
+    "enterRestorePassword": "Introduce la contraseña utilizada al crear esta copia de seguridad.",
+    "applyHow": "¿Cómo se debe aplicar esta copia de seguridad?",
+    "mergeHint": "Conserva los restaurantes existentes y añade o actualiza elementos de la copia.",
+    "overwriteHint": "Sustituye todos los restaurantes y reseñas por los de la copia.",
+    "encryptFailed": "No se pudo cifrar el archivo de copia.",
+    "shareFailed": "No se pudo compartir la copia de seguridad.",
+    "readFailed": "No se pudo leer el archivo de copia.",
+    "incorrectPassword": "Contraseña de copia de seguridad incorrecta.",
+    "mergedSuccess": "Copia de seguridad combinada correctamente.",
+    "restoredSuccess": "Copia de seguridad restaurada correctamente.",
+    "fileSaved": "Archivo de copia {{filename}} guardado",
+    "fileShared": "Archivo de copia {{filename}} compartido",
+    "deleteFailed": "No se pudo eliminar el archivo de copia."
+  },
+  "apiQuota": {
+    "places": {
+      "softTitle": "Muchas búsquedas hoy",
+      "softMessage": "Estás usando mucho la búsqueda hoy. Para mantener la app rápida y estable para todos, hay un límite diario. Puedes seguir buscando hasta alcanzar ese límite.",
+      "hardTitle": "Límite de búsqueda alcanzado",
+      "hardMessage": "Has alcanzado el número máximo de búsquedas de hoy. Mañana podrás buscar nuevos lugares de nuevo."
+    },
+    "gemini": {
+      "softTitle": "Muchas etiquetas escaneadas",
+      "softMessage": "Ya has escaneado varias etiquetas hoy. Para mantener el reconocimiento fluido y fiable, hay un límite diario de escaneos.",
+      "hardTitle": "Límite de escaneo alcanzado",
+      "hardMessage": "Has alcanzado el número máximo de escaneos de vino de hoy. Mañana podrás escanear etiquetas de nuevo."
+    },
+    "maps": {
+      "hardTitle": "Límite del mapa alcanzado",
+      "hardMessage": "El mapa se ha cargado el número máximo de veces hoy. Mañana podrás abrir el mapa de nuevo."
+    }
   },
   "alerts": {
     "deleteRestaurant": {
-      "title": "Delete restaurant?",
-      "body": "This removes all visits and photos for this restaurant."
+      "title": "¿Eliminar restaurante?",
+      "body": "Esto elimina todas las visitas y fotos de este restaurante.",
+      "undoMessage": "Restaurante eliminado"
     },
     "deleteVisit": {
-      "title": "Delete Visit?",
-      "body": "This visit and its photos will be removed."
+      "title": "¿Eliminar visita?",
+      "body": "Esta visita y sus fotos serán eliminadas.",
+      "undoMessage": "Visita eliminada"
     },
     "share": {
-      "failed": "Could not share reviews.",
-      "reviewFailed": "Could not share this review.",
-      "needName": "Add your name in Settings before sharing reviews."
+      "failed": "No se pudieron compartir reseñas.",
+      "reviewFailed": "No se pudo compartir esta reseña.",
+      "needName": "Agrega tu nombre en Configuración antes de compartir reseñas."
     },
     "location": {
-      "deniedTitle": "Location needed",
-      "deniedBody": "Allow location access in Settings to show your position on the map.",
-      "servicesTitle": "Location services off",
-      "servicesBody": "Turn on Location Services to use your position on the map.",
-      "unavailable": "Current location unavailable."
+      "deniedTitle": "Ubicación necesaria",
+      "deniedBody": "Permita el acceso a la ubicación en Configuración para mostrar su posición en el mapa.",
+      "servicesTitle": "Servicios de ubicación desactivados",
+      "servicesBody": "Active los Servicios de ubicación para usar su posición en el mapa.",
+      "unavailable": "Ubicación actual no disponible."
     },
     "permission": {
-      "needed": "Permission needed",
-      "photos": "Photo library access is required.",
-      "camera": "Camera access is required."
+      "needed": "Permiso necesario",
+      "photos": "Se requiere acceso a la biblioteca de fotografías.",
+      "camera": "Se requiere acceso a la cámara."
     },
     "reviewForm": {
-      "needStars": "Add at least one star rating to save this review.",
-      "removePhotosTitle": "Remove Photos?",
-      "removePhotosBody": "Selected photos will be removed from this review.",
-      "photosSaveFailed": "Could not save photos.",
+      "needStars": "Agregue al menos una calificación de estrellas para guardar esta reseña.",
+      "removePhotosTitle": "¿Quitar fotos?",
+      "removePhotosBody": "Las fotos seleccionadas se eliminarán de esta revisión.",
+      "photosSaveFailed": "No se pudieron guardar las fotos.",
       "photoLimitTitle": "Límite de fotos",
       "photoLimitBody": "Puedes añadir hasta {{max}} fotos a una reseña.",
-      "deleteTitle": "Delete?",
-      "deleteBody": "This review will be deleted.",
+      "deleteTitle": "¿Borrar?",
+      "deleteBody": "Esta reseña será eliminada.",
       "discardEdits": {
-        "title": "Leave without saving?",
-        "body": "Your changes to this visit will be discarded.",
-        "keepEditing": "Keep editing",
-        "discard": "Discard"
+        "title": "¿Guardar cambios?"
       }
     },
     "recovery": {
-      "confirmTitle": "Recover previous reviews?",
-      "confirmBody": "Scans this iPhone for the old Swift database (any .store/.sqlite under Application Support, Documents, Library) and photos. Current Expo data is auto-saved to Backups first. Encrypted .gustra backups are separate — use Backup / Restore for those.",
-      "completeTitle": "Recovery complete",
-      "completeBody": "Imported {{reviewCount}} reviews across {{restaurantCount}} restaurants ({{photosCopied}} photos copied, {{mode}}).",
-      "failedTitle": "Recovery failed",
-      "failedBody": "Could not import previous Gustra data."
+      "confirmTitle": "¿Recuperar reseñas anteriores?",
+      "confirmBody": "Escanea este iPhone en busca de la antigua base de datos Swift (cualquier .store/.sqlite en Soporte de aplicaciones, Documentos, Biblioteca) y fotos. Los datos actuales de la Expo se guardan automáticamente primero en Copias de seguridad. Las copias de seguridad cifradas de .gustra son independientes; utilice Copia de seguridad/Restaurar para ellas.",
+      "completeTitle": "Recuperación completa",
+      "completeBody": "Reseñas importadas de {{reviewCount}} en restaurantes {{restaurantCount}} (fotos {{photosCopied}} copiadas, {{mode}}).",
+      "failedTitle": "La recuperación falló",
+      "failedBody": "No se pudieron importar datos anteriores de Gustra."
     },
     "resetCounters": {
-      "title": "Reset counters?",
-      "body": "Today and all-time Google API usage counters will be cleared on this device."
+      "title": "¿Reiniciar contadores?",
+      "body": "Los contadores de uso de la API de Google actuales y de todos los tiempos se borrarán en este dispositivo."
     },
     "backup": {
-      "overwriteTitle": "Overwrite existing data?",
-      "overwriteBody": "Your current reviews will be replaced by the backup.",
-      "deleteFileTitle": "Delete backup file?",
-      "deleteFileBody": "This removes the selected backup from this device."
+      "overwriteTitle": "¿Sobrescribir datos existentes?",
+      "overwriteBody": "Sus revisiones actuales serán reemplazadas por la copia de seguridad.",
+      "deleteFileTitle": "¿Eliminar el archivo de copia de seguridad?",
+      "deleteFileBody": "Esto elimina la copia de seguridad seleccionada de este dispositivo."
     },
     "import": {
-      "readFailed": "Could not read the share file.",
-      "openFailed": "Could not open the share file.",
-      "importFailed": "Could not import reviews."
+      "readFailed": "No se pudo leer el archivo compartido.",
+      "openFailed": "No se pudo abrir el archivo compartido.",
+      "importFailed": "No se pudieron importar reseñas."
     },
     "linking": {
-      "unableTitle": "Unable to open",
-      "unableBody": "This app is not available on this device."
+      "unableTitle": "No se puede abrir",
+      "unableBody": "Esta aplicación no está disponible en este dispositivo."
     },
     "photos": {
-      "saved": "Photo saved",
-      "shareFailed": "Could not share photo.",
-      "saveFailed": "Could not save photo."
+      "saved": "Foto guardada",
+      "shareFailed": "No se pudo compartir la foto.",
+      "saveFailed": "No se pudo guardar la foto."
     },
     "profilePhoto": {
       "storageTitle": "Almacenamiento",
-      "storageBody": "Could not save the profile photo."
+      "storageBody": "No se pudo guardar la foto de perfil."
     }
   },
   "wineScan": {
@@ -510,7 +552,7 @@
     "chooserTitle": "Foto de la etiqueta",
     "cropHint": "Pellizca y arrastra para que la etiqueta llene el marco",
     "cropA11y": "Recorte de etiqueta de vino",
-    "readLabel": "Leer etiqueta",
+    "scanAction": "Escanear",
     "reading": "Leyendo etiqueta…",
     "retake": "Elegir otra foto",
     "adjustCrop": "Ajustar recorte",
@@ -519,31 +561,121 @@
     "drinksSuggestion": "Para Bebidas",
     "drinksSuggestionPlaceholder": "Nombre del vino y año",
     "useInDrinks": "Usar en Bebidas",
-    "scanButton": "Escanear",
+    "confirmA11y": "Añadir vino a Bebidas",
+    "resultRatingTitle": "Valora esta botella",
+    "ratingRequired": "Añade estrellas para guardar este vino.",
+    "scanButton": "Escanear etiqueta",
     "scanButtonA11y": "Escanear etiqueta de vino para Bebidas",
-    "drinksCommentPlaceholder": "Vino, cóctel u otras bebidas…",
+    "scanAnother": "Escanear otra etiqueta",
+    "scanAnotherA11y": "Escanear otra etiqueta de vino para Bebidas",
+    "clearDrinksWithWinesTitle": "¿Borrar la nota de Bebidas?",
+    "clearDrinksWithWinesBody": "También se eliminarán los vinos escaneados de esta visita.",
+    "clearWinesWithRatingsTitle": "¿Borrar la nota de Vinos?",
+    "clearWinesWithRatingsBody": "También se eliminarán los vinos escaneados de esta visita.",
+    "deleteWineTitle": "¿Eliminar vino?",
+    "deleteWineBody": "“{{name}}” se eliminará de esta reseña.",
+    "deleteWineA11y": "Eliminar vino",
+    "drinksCommentPlaceholder": "Tus notas sobre el vino…",
+    "discardUnsaved": {
+      "title": "¿Guardar cambios?"
+    },
     "ocrUnavailableTitle": "Lectura de texto no disponible",
     "ocrUnavailableBody": "Leer la etiqueta en el dispositivo requiere una app completa (no Expo Go). Puedes guardar la foto recortada.",
     "noTextTitle": "No se encontró texto",
     "noTextBody": "Prueba una foto más nítida o ajusta el recorte para que la etiqueta llene el marco.",
-    "failedBody": "Could not analyze the label. Check your connection and try again.",
-    "hintVision": "Crop the label, then we’ll identify the wine online (one optimized photo).",
-    "analyzing": "Analyzing label…",
-    "uploadNoticeTitle": "Photo sent for analysis",
-    "uploadNoticeBody": "To identify the wine, a smaller copy of your photo is uploaded to Google for analysis. The photo is not stored in Gustra’s cloud — only sent for this scan.",
-    "uploadNoticeContinue": "Continue",
-    "noMatchTitle": "No wine recognized",
-    "noMatchBody": "We couldn’t identify a wine from this photo. Try a sharper label photo.",
-    "missingKeyBody": "Gemini API key missing. Set EXPO_PUBLIC_GEMINI_API_KEY in .env and restart Expo.",
+    "failedBody": "No se pudo analizar la etiqueta. Comprueba tu conexión y vuelve a intentarlo.",
+    "hintVision": "Recorta la etiqueta y luego identificaremos el vino en línea (una foto optimizada).",
+    "thinking": "Pensando…",
+    "uploadNoticeTitle": "Foto enviada para análisis.",
+    "uploadNoticeBody": "Para identificar el vino, se carga una copia más pequeña de su foto en Google para su análisis. La foto no se almacena en la nube de Gustra; solo se envía para este escaneo.",
+    "uploadNoticeContinue": "Continuar",
+    "noMatchTitle": "No se reconoce ningún vino",
+    "noMatchBody": "No pudimos identificar un vino en esta foto. Pruebe con una foto de etiqueta más nítida.",
+    "missingKeyBody": "Falta la clave API de Gemini. Configure EXPO_PUBLIC_GEMINI_API_KEY en .env y reinicie Expo.",
     "fiche": {
-      "title": "Wine",
-      "openA11y": "Open wine details",
-      "typeStyle": "Type & style",
-      "countryRegion": "Country & region",
-      "vintage": "Vintage",
-      "grapes": "Grapes",
+      "title": "Vino",
+      "identityCaption": "Ficha de vino",
+      "openA11y": "Abrir detalles del vino",
+      "typeStyle": "Tipo y estilo",
+      "typeStyles": {
+        "red": "Tinto",
+        "white": "Blanco",
+        "rose": "Rosado",
+        "sparkling": "Espumoso",
+        "fortified": "Generoso",
+        "orange": "Naranja",
+        "dessert": "Vino dulce"
+      },
+      "profileLabels": {
+        "red": {
+          "dry": "Vino tinto seco",
+          "offDry": "Vino tinto semiseco",
+          "sweet": "Vino tinto dulce"
+        },
+        "white": {
+          "dry": "Vino blanco seco",
+          "offDry": "Vino blanco semiseco",
+          "sweet": "Vino blanco dulce"
+        },
+        "rose": {
+          "dry": "Vino rosado seco",
+          "offDry": "Vino rosado semiseco",
+          "sweet": "Vino rosado dulce"
+        },
+        "sparkling": {
+          "dry": "Vino espumoso seco",
+          "offDry": "Vino espumoso semiseco",
+          "sweet": "Vino espumoso dulce"
+        },
+        "fortified": {
+          "dry": "Vino generoso seco",
+          "offDry": "Vino generoso semiseco",
+          "sweet": "Vino generoso dulce"
+        },
+        "orange": {
+          "dry": "Vino naranja seco",
+          "offDry": "Vino naranja semiseco",
+          "sweet": "Vino naranja dulce"
+        }
+      },
+      "countryRegion": "País y región",
+      "vintage": "Antiguo",
+      "grapes": "Uvas",
       "alcohol": "Alcohol",
-      "foodPairings": "Pairs with"
+      "foodPairings": "Se empareja con",
+      "myJudgment": "Mi valoración",
+      "openFull": "Abrir ficha completa",
+      "tasteProfile": {
+        "title": "Perfil de sabor",
+        "source": "Estimación a partir de la etiqueta.",
+        "expandA11y": "Expandir perfil de sabor",
+        "collapseA11y": "Contraer perfil de sabor",
+        "poles": {
+          "bodyLight": "Ligero",
+          "bodyFull": "Con cuerpo",
+          "tanninsSoft": "Suave",
+          "tanninsFirm": "Firme",
+          "aciditySoft": "Suave",
+          "acidityLively": "Viva",
+          "sweetnessDry": "Seco",
+          "sweetnessSweet": "Dulce"
+        }
+      }
+    },
+    "deleteWineUndo": "“{{name}}” eliminado"
+  },
+  "setup": {
+    "welcome": {
+      "title": "Bienvenido a Gustra",
+      "tapToContinue": "Toca para continuar"
+    },
+    "criteria": {
+      "title": "Configuración inicial",
+      "headline": "Personaliza tu experiencia",
+      "body": "Elige qué criterios importan al reseñar. Puedes cambiarlo después en Ajustes.",
+      "minOne": "Elige al menos un criterio.",
+      "tip": "Consejo",
+      "idealThree": ": 3 criterios son ideales"
     }
   }
 }

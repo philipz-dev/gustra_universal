@@ -11,6 +11,7 @@ import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { HousePrimaryButton } from '@/components/ui/HousePrimaryButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
+import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import {
@@ -367,6 +368,7 @@ export default function EncryptedBackupScreen() {
               style={styles.input}
               autoCapitalize="none"
               autoCorrect={false}
+              keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
             />
             <Text style={styles.fieldLabel}>{t('backup.confirmPassword')}</Text>
             <TextInput
@@ -376,6 +378,7 @@ export default function EncryptedBackupScreen() {
               style={styles.input}
               autoCapitalize="none"
               autoCorrect={false}
+              keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
             />
             <Text style={styles.footerHint}>
               {t('backup.choosePasswordHint')}{'\n'}
@@ -466,6 +469,7 @@ export default function EncryptedBackupScreen() {
               style={styles.input}
               autoCapitalize="none"
               autoCorrect={false}
+              keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
             />
             <Text style={styles.footerHint}>
               {t('backup.enterRestorePassword')}

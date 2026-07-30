@@ -25,6 +25,7 @@ import { getPassportStats } from '@/data/passportStats';
 import { resolveReviewOrigin } from '@/data/types';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { useSharedRestaurantFilters } from '@/hooks/useSharedRestaurantFilters';
+import { formatScoreOutOfFive } from '@/services/reviews/ratings';
 
 export default function CulinaryPassportScreen() {
   const { t } = useAppTranslation();
@@ -157,7 +158,7 @@ export default function CulinaryPassportScreen() {
             />
             <PassportStatRow
               title={t('passport.averageOverall')}
-              value={`${stats.averageOverall.toFixed(1)}/5`}
+              value={formatScoreOutOfFive(stats.averageOverall)}
             />
           </PassportSection>
 

@@ -1,0 +1,86 @@
+#!/bin/bash
+
+# Configuration & Verbosity Setup
+VERBOSE=${VERBOSE:-true}
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+log_info() {
+  echo -e "\033[34m[GUSTRA INFO]\033[0m $1"
+}
+
+log_debug() {
+  if [ "$VERBOSE" = true ]; then
+    echo -e "\033[36m[GUSTRA DEBUG]\033[0m $1"
+  fi
+}
+
+log_warn() {
+  echo -e "\033[33m[GUSTRA WARN]\033[0m $1"
+}
+
+log_error() {
+  echo -e "\033[31m[GUSTRA ERROR]\033[0m $1"
+}
+
+log_info "Starten van Gustra Dev Server (Verbose Mode)..."
+
+# 1. Opruimen van oude processen & poorten
+log_info "Stap 1: Oude Expo/Node-processen opschonen..."
+
+# Narrow kills only — never `pkill -f metro` (matches unrelated git/Cursor argv).
+pkill -9 -f 'expo start' 2>/dev/null || true
+pkill -9 -f 'node_modules/.bin/expo' 2>/dev/null || true
+pkill -9 -f 'node_modules/expo/bin/cli' 2>/dev/null || true
+
+if command -v npx >/dev/null 2>&1; then
+  log_debug "Vrijmaken van poort 8081 via npx kill-port..."
+  npx --yes kill-port 8081 2>&1 | while read -r line; do log_debug "  [kill-port] $line"; done
+else
+  log_warn "npx niet gevonden, overslaan van kill-port."
+fi
+
+PID_ON_8081=$(lsof -tiTCP:8081 -sTCP:LISTEN 2>/dev/null || true)
+if [ -n "$PID_ON_8081" ]; then
+  log_warn "Poort 8081 was nog bezet door PID $PID_ON_8081. Nood-kill uitvoeren..."
+  # shellcheck disable=SC2086
+  kill -9 $PID_ON_8081 2>/dev/null || true
+  log_debug "PID $PID_ON_8081 succesvol gekilld."
+else
+  log_debug "Poort 8081 is volledig vrij."
+fi
+
+# 2. Omgevingsvariabelen
+log_info "Stap 2: Omgevingsvariabelen checken..."
+log_debug "Huidige werkdirectory: $(pwd)"
+if [ -f ".env.local" ] || [ -f ".env" ]; then
+  log_debug ".env / .env.local gevonden."
+else
+  log_warn "Geen .env of .env.local gevonden in de root-map!"
+fi
+
+# Empty CI breaks some Expo parsers; CI=1 would also disable Metro watch.
+unset CI || true
+export EXPO_NO_TELEMETRY="${EXPO_NO_TELEMETRY:-1}"
+export EXPO_NO_DEPENDENCY_VALIDATION="${EXPO_NO_DEPENDENCY_VALIDATION:-1}"
+export EXPO_NO_DEVTOOLS_PLUGINS="${EXPO_NO_DEVTOOLS_PLUGINS:-1}"
+export NODE_OPTIONS="${NODE_OPTIONS:---dns-result-order=ipv4first}"
+export RCT_METRO_PORT=8081
+
+# DevTools autolinking hangs forever on this repo without the patch.
+if [ -f "$ROOT/scripts/patch-expo-devtools-hang.js" ]; then
+  log_debug "Expo DevTools hang-patch toepassen..."
+  node "$ROOT/scripts/patch-expo-devtools-hang.js"
+fi
+
+# 3. Metro starten op de voorgrond (live logs + prompts)
+log_info "Stap 3: Metro bundler starten..."
+log_debug "Commando: expo start --dev-client --localhost --scheme gustra"
+log_info "Wacht tot je 'Waiting on http://…:8081' ziet, open daarna de app / herlaad in Simulator."
+echo "------------------------------------------------------------"
+
+if [ -x "$ROOT/node_modules/.bin/expo" ]; then
+  exec "$ROOT/node_modules/.bin/expo" start --dev-client --localhost --scheme gustra
+else
+  exec npx expo start --dev-client --localhost --scheme gustra
+fi

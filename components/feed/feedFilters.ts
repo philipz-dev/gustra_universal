@@ -12,6 +12,7 @@ export type FeedFilterFlag =
 
 /** Swift `FeedSortKind`. */
 export type FeedSortKind =
+  | { type: 'date' }
   | { type: 'averageScore' }
   | { type: 'criterion'; criterionId: string };
 
@@ -33,7 +34,7 @@ export type FeedFilterOptions = {
 
 export const DEFAULT_FEED_FILTER_STATE: FeedFilterState = {
   filters: [],
-  sortKind: { type: 'averageScore' },
+  sortKind: { type: 'date' },
   locationCities: [],
   primaryTypes: [],
 };
@@ -47,7 +48,7 @@ const RESTAURANT_FILTER_FLAGS: FeedFilterFlag[] = [
 
 export function isFeedFilterActive(state: FeedFilterState): boolean {
   return (
-    state.filters.length > 0 || state.sortKind.type !== 'averageScore'
+    state.filters.length > 0 || state.sortKind.type !== 'date'
   );
 }
 
@@ -73,8 +74,14 @@ export function mergeSummariesByRestaurant(
       const reviewIds = [
         ...new Set([...existing.reviewIds, ...summary.reviewIds]),
       ];
+      const preferNewer = summary.lastVisitAt >= existing.lastVisitAt;
+      const photoUrl =
+        preferNewer && summary.photoUrl
+          ? summary.photoUrl
+          : existing.photoUrl || summary.photoUrl || '';
       byId.set(summary.restaurantId, {
         ...existing,
+        ...(preferNewer ? summary : {}),
         reviewIds,
         visitCount: reviewIds.length,
         averageScore:
@@ -87,6 +94,10 @@ export function mergeSummariesByRestaurant(
           existing.lastVisitAt >= summary.lastVisitAt
             ? existing.lastVisitDate
             : summary.lastVisitDate,
+        photoUrl,
+        reviewerName: preferNewer
+          ? summary.reviewerName || existing.reviewerName
+          : existing.reviewerName || summary.reviewerName,
       });
     }
   }
@@ -155,6 +166,7 @@ export function sortKindTitle(
   sortKind: FeedSortKind,
   criterionTitleFor?: (criterionId: string) => string,
 ): string {
+  if (sortKind.type === 'date') return i18n.t('filters.sort.date');
   if (sortKind.type === 'averageScore') return i18n.t('filters.sort.averageScore');
   return criterionTitleFor?.(sortKind.criterionId) ?? i18n.t('filters.sort.criterion');
 }
@@ -166,6 +178,15 @@ export function placeTypeSelectionSummary(
   return selectionSummary(selected, allItems, placeTypeDisplayName);
 }
 
+function rankByDate(
+  summaries: RestaurantVisitSummary[],
+): RestaurantVisitSummary[] {
+  return [...summaries].sort((a, b) => {
+    if (a.lastVisitAt !== b.lastVisitAt) return b.lastVisitAt - a.lastVisitAt;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  });
+}
+
 function rankByAverageScore(
   summaries: RestaurantVisitSummary[],
 ): RestaurantVisitSummary[] {
@@ -173,6 +194,7 @@ function rankByAverageScore(
     if (a.averageScore !== b.averageScore) {
       return b.averageScore - a.averageScore;
     }
+    if (a.lastVisitAt !== b.lastVisitAt) return b.lastVisitAt - a.lastVisitAt;
     return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
   });
 }
@@ -247,9 +269,11 @@ export function applyFeedFilters(
       restaurantState.sortKind.criterionId,
       options.criterionAverageFor,
     );
-  } else {
-    // Swift: averageScore sort always applies (including when no filter flags).
+  } else if (restaurantState.sortKind.type === 'averageScore') {
     next = rankByAverageScore(next);
+  } else {
+    // Default: most recent visit first.
+    next = rankByDate(next);
   }
 
   return next;

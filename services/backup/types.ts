@@ -50,8 +50,14 @@ export type ReviewBackup = {
   /**
    * Expo extension: JSON string of WineLabelFiche (ignored by older Swift).
    * Label photo filename should also appear in photoPaths / photoFiles.
+   * Kept as the first/primary wine when `wineLabelsJSON` is present.
    */
   wineLabelJSON?: string | null;
+  /**
+   * Expo extension: JSON array of WineLabelFiche (ignored by older clients).
+   * Dual-read with `wineLabelJSON` on restore.
+   */
+  wineLabelsJSON?: string | null;
   /**
    * Expo extension: original shared review UUID (for re-import upsert).
    * Ignored by older Swift / Expo.

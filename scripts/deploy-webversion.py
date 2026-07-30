@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
-"""Export Expo web (static) and upload to https://gustra.net/webversion/."""
+"""Export Expo web (static) and upload to https://gustra.net/demo/.
+
+Usage:
+  python3 scripts/deploy-webversion.py
+  python3 scripts/deploy-webversion.py --skip-export
+"""
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -13,7 +19,9 @@ DIST = ROOT / "dist"
 CREDS = Path.home() / "Desktop" / "credentials.txt"
 HOST = "da039.site.eu"
 USER = "ysnl39dbaf"
-REMOTE_DIR = "domains/gustra.net/public_html/webversion"
+BASE_URL = "/demo"
+REMOTE_DIR = "domains/gustra.net/public_html/demo"
+PUBLIC_URL = "https://gustra.net/demo/"
 
 
 def password() -> str:
@@ -46,7 +54,6 @@ def ensure_cwd(ftp: FTP, remote_dir: str) -> None:
 
 
 def ensure_subdir(ftp: FTP, rel: Path) -> None:
-    """cwd into rel under current dir, creating as needed; leave cwd there."""
     for part in rel.parts:
         if part in ("", "."):
             continue
@@ -58,7 +65,6 @@ def ensure_subdir(ftp: FTP, rel: Path) -> None:
 
 
 def upload_tree(ftp: FTP, local_root: Path) -> int:
-    """Upload all files under local_root into current FTP cwd. Returns file count."""
     count = 0
     base = ftp.pwd()
     for path in sorted(local_root.rglob("*")):
@@ -76,24 +82,12 @@ def upload_tree(ftp: FTP, local_root: Path) -> int:
     return count
 
 
-def export_web() -> None:
-    print("Exporting web static build …")
-    subprocess.check_call(
-        ["npx", "expo", "export", "--platform", "web", "--clear"],
-        cwd=ROOT,
-    )
-    if not DIST.is_dir() or not any(DIST.iterdir()):
-        raise SystemExit(f"Export produced no files in {DIST}")
-    write_htaccess()
-    materialize_clean_urls()
-
-
 def write_htaccess() -> None:
     (DIST / ".htaccess").write_text(
         "DirectoryIndex index.html\n\n"
         "<IfModule mod_rewrite.c>\n"
         "  RewriteEngine On\n"
-        "  RewriteBase /webversion/\n\n"
+        f"  RewriteBase {BASE_URL}/\n\n"
         "  RewriteCond %{REQUEST_FILENAME} -f [OR]\n"
         "  RewriteCond %{REQUEST_FILENAME} -d\n"
         "  RewriteRule ^ - [L]\n\n"
@@ -101,11 +95,11 @@ def write_htaccess() -> None:
         "</IfModule>\n",
         encoding="utf-8",
     )
-    print("wrote dist/.htaccess")
+    print(f"wrote dist/.htaccess (RewriteBase {BASE_URL}/)")
 
 
 def materialize_clean_urls() -> None:
-    """Copy route.html → route/index.html so /webversion/map works without rewrite."""
+    """Copy route.html → route/index.html so /demo/map works without rewrite."""
     skip = {"index.html", "+not-found.html", "_sitemap.html"}
     n = 0
     for html in sorted(DIST.glob("*.html")):
@@ -118,6 +112,24 @@ def materialize_clean_urls() -> None:
         dest.write_bytes(html.read_bytes())
         n += 1
     print(f"materialized {n} clean URL folders")
+
+
+def export_web() -> None:
+    print(f"Exporting web static build (baseUrl={BASE_URL}) …")
+    env = os.environ.copy()
+    env["GUSTRA_WEB_BASE_URL"] = BASE_URL
+    if env.get("CI", None) == "":
+        env.pop("CI", None)
+    env.setdefault("CI", "false")
+    subprocess.check_call(
+        ["npx", "expo", "export", "--platform", "web", "--clear"],
+        cwd=ROOT,
+        env=env,
+    )
+    if not DIST.is_dir() or not any(DIST.iterdir()):
+        raise SystemExit(f"Export produced no files in {DIST}")
+    write_htaccess()
+    materialize_clean_urls()
 
 
 def main() -> None:
@@ -135,7 +147,7 @@ def main() -> None:
         ensure_cwd(ftp, REMOTE_DIR)
         print("cwd →", ftp.pwd())
         n = upload_tree(ftp, DIST)
-    print(f"OK — {n} files → https://gustra.net/webversion/")
+    print(f"OK — {n} files → {PUBLIC_URL}")
 
 
 if __name__ == "__main__":

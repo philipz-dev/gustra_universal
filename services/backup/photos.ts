@@ -1,6 +1,36 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
+import type { Restaurant, Review, WineLabelFiche } from '@/data/types';
 import { REVIEWER_PHOTO_BACKUP_KEY } from '@/services/backup/types';
+import { wineLabelsForReview } from '@/services/wine/wineLabelTypes';
+
+/** Drop review gallery URIs that belong to wine-label fiche photos. */
+export function stripWineLabelUrisFromPhotoUrls(
+  photoUrls: string[],
+  labels: WineLabelFiche[],
+): string[] {
+  const banned = new Set<string>();
+  for (const label of labels) {
+    const raw = label.labelPhotoUri?.trim();
+    if (!raw) continue;
+    banned.add(raw);
+    banned.add(relocateLocalPhotoRef(raw));
+    const key = backupPhotoKey(raw);
+    if (key) banned.add(key);
+  }
+  // Always compact empties — a blank slot at [0] leaves Cover empty and
+  // pushes the next real photo to "photo 2".
+  return photoUrls.filter((uri) => {
+    const trimmed = uri?.trim();
+    if (!trimmed) return false;
+    if (banned.size === 0) return true;
+    if (banned.has(trimmed)) return false;
+    if (banned.has(relocateLocalPhotoRef(trimmed))) return false;
+    const key = backupPhotoKey(trimmed);
+    if (key && banned.has(key)) return false;
+    return true;
+  });
+}
 
 /** Swift `ImageCompressionService.photosDirectory`. */
 export function photosDirectory(): string {
@@ -33,6 +63,116 @@ export function localPhotoUri(backupKey: string): string {
   return `${photosDirectory()}${backupKey}`;
 }
 
+/**
+ * Rewrite a persisted local photo ref to the current app sandbox path.
+ *
+ * Absolute `file://` / `/…` URIs often break after an app update when the
+ * Documents container UUID changes; files under `Photos/` keep the same name.
+ * Remote http(s) URLs and empty strings are unchanged. Idempotent when the
+ * ref already points at the current sandbox.
+ */
+export function relocateLocalPhotoRef(pathOrUri: string): string {
+  const trimmed = pathOrUri.trim();
+  if (!trimmed || isRemotePhotoUrl(trimmed)) return trimmed;
+
+  const root = FileSystem.documentDirectory;
+  if (!root) return trimmed;
+
+  const key = backupPhotoKey(trimmed);
+  if (!key || key.includes('..') || key.includes('/')) return trimmed;
+
+  // Owner / profile avatar style paths stay under Profile/.
+  if (/\/Profile\//i.test(trimmed)) {
+    return `${root}Profile/${key}`;
+  }
+
+  try {
+    return `${photosDirectory()}${key}`;
+  } catch {
+    return trimmed;
+  }
+}
+
+/** Remap restaurant cover + every review photo / wine-label / friend avatar ref. */
+export function relocateStoredPhotoRefs(data: {
+  restaurants: Restaurant[];
+  reviews: Review[];
+}): { restaurants: Restaurant[]; reviews: Review[]; changed: boolean } {
+  let changed = false;
+
+  const restaurants = data.restaurants.map((restaurant) => {
+    const photoUrl = relocateLocalPhotoRef(restaurant.photoUrl ?? '');
+    if (photoUrl === (restaurant.photoUrl ?? '')) return restaurant;
+    changed = true;
+    return { ...restaurant, photoUrl };
+  });
+
+  const reviews = data.reviews.map((review) => {
+    let next = review;
+    const photoUrls = (review.photoUrls ?? []).map(relocateLocalPhotoRef);
+    if (
+      photoUrls.length !== (review.photoUrls ?? []).length ||
+      photoUrls.some((uri, i) => uri !== review.photoUrls[i])
+    ) {
+      changed = true;
+      next = { ...next, photoUrls };
+    }
+
+    const reviewedByPhotoUrl = review.reviewedByPhotoUrl?.trim()
+      ? relocateLocalPhotoRef(review.reviewedByPhotoUrl)
+      : review.reviewedByPhotoUrl;
+    if (reviewedByPhotoUrl !== review.reviewedByPhotoUrl) {
+      changed = true;
+      next = { ...next, reviewedByPhotoUrl };
+    }
+
+    const labelRaw = review.wineLabel?.labelPhotoUri?.trim();
+    if (review.wineLabel && labelRaw) {
+      const labelPhotoUri = relocateLocalPhotoRef(labelRaw);
+      if (labelPhotoUri !== review.wineLabel.labelPhotoUri) {
+        changed = true;
+        next = {
+          ...next,
+          wineLabel: { ...review.wineLabel, labelPhotoUri },
+        };
+      }
+    }
+
+    if (Array.isArray(review.wineLabels) && review.wineLabels.length > 0) {
+      let labelsChanged = false;
+      const wineLabels = review.wineLabels.map((wine) => {
+        const raw = wine.labelPhotoUri?.trim();
+        if (!raw) return wine;
+        const labelPhotoUri = relocateLocalPhotoRef(raw);
+        if (labelPhotoUri === wine.labelPhotoUri) return wine;
+        labelsChanged = true;
+        return { ...wine, labelPhotoUri };
+      });
+      if (labelsChanged) {
+        changed = true;
+        next = { ...next, wineLabels };
+        if (next.wineLabel && wineLabels[0]) {
+          next = { ...next, wineLabel: wineLabels[0] };
+        }
+      }
+    }
+
+    const labels = wineLabelsForReview(next);
+    const gallery = stripWineLabelUrisFromPhotoUrls(next.photoUrls ?? [], labels);
+    if (
+      gallery.length !== (next.photoUrls ?? []).length ||
+      gallery.some((uri, i) => uri !== next.photoUrls[i])
+    ) {
+      changed = true;
+      next = { ...next, photoUrls: gallery };
+    }
+
+    return next;
+  });
+
+  return { restaurants, reviews, changed };
+}
+
 async function readBase64FromUri(uri: string): Promise<string | null> {
   try {
     const info = await FileSystem.getInfoAsync(uri);
@@ -47,7 +187,8 @@ async function readBase64FromUri(uri: string): Promise<string | null> {
 
 /**
  * Resolve a local review photo reference to a readable file URI.
- * Skips remote mock URLs.
+ * Skips remote mock URLs. Falls back to the current sandbox Photos/ path when
+ * an absolute URI from an older install no longer exists.
  */
 export async function resolveLocalPhotoUri(
   pathOrUri: string,
@@ -55,16 +196,21 @@ export async function resolveLocalPhotoUri(
   const trimmed = pathOrUri.trim();
   if (!trimmed || isRemotePhotoUrl(trimmed)) return null;
 
+  const relocated = relocateLocalPhotoRef(trimmed);
   const candidates: string[] = [];
   if (trimmed.startsWith('file://') || trimmed.startsWith('/')) {
     candidates.push(trimmed);
+    if (relocated !== trimmed) candidates.push(relocated);
   } else {
-    candidates.push(localPhotoUri(trimmed));
+    candidates.push(relocated);
     const root = FileSystem.documentDirectory;
     if (root) candidates.push(`${root}${trimmed}`);
   }
 
+  const seen = new Set<string>();
   for (const uri of candidates) {
+    if (!uri || seen.has(uri)) continue;
+    seen.add(uri);
     try {
       const info = await FileSystem.getInfoAsync(uri);
       if (info.exists && !info.isDirectory) return uri;

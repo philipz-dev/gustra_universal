@@ -39,10 +39,10 @@ import {
 } from '@/services/location/resolveCurrentLocation';
 import { FALLBACK_MAP_CENTER, type LatLng } from '@/services/places';
 
-/** Own reviews — brand green. */
-const OWN_PIN_COLOR = GustraColors.forestGreen;
-/** Friends' reviews — contrasting blue (not satisfaction traffic-light). */
-const FRIENDS_PIN_COLOR = '#2F6FED';
+/** Own reviews — house gold (pops on parks/water/roads; forest green blends into map greens). */
+const OWN_PIN_COLOR = GustraColors.gold;
+/** Friends' reviews — house avoid red (warm contrast vs gold; not map-water blue). */
+const FRIENDS_PIN_COLOR = GustraColors.ratingAvoid;
 
 /** Survives push/pop to review detail so Back restores the same map view. */
 type MemoriesMapCamera = { center: LatLng; zoom: number };
@@ -64,7 +64,7 @@ function hasCoordinates(lat: number, lng: number): boolean {
 }
 
 /**
- * My map — pins by ownership (own = green, friends = blue).
+ * My map — pins by ownership (own = gold, friends = house red).
  * Same shared filter state as Reviews / My Gustra (Sort by ignored here).
  */
 export default function MemoriesMapScreen() {

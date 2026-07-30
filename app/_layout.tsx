@@ -4,6 +4,9 @@ import {
   SourceSerif4_400Regular,
 } from '@expo-google-fonts/source-serif-4/400Regular';
 import {
+  SourceSerif4_400Regular_Italic,
+} from '@expo-google-fonts/source-serif-4/400Regular_Italic';
+import {
   SourceSerif4_500Medium,
 } from '@expo-google-fonts/source-serif-4/500Medium';
 import {
@@ -17,7 +20,7 @@ import {
 } from '@expo-google-fonts/source-serif-4/800ExtraBold';
 import { useFonts } from 'expo-font';
 import * as NavigationBar from 'expo-navigation-bar';
-import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DefaultTheme, Stack, ThemeProvider, useNavigationContainerRef } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
@@ -28,8 +31,10 @@ import 'react-native-reanimated';
 
 import { SwipeDismissOverlay } from '@/components/feed/SwipeDismissOverlay';
 import { ReviewEmailSnapshotHost } from '@/components/share/ReviewEmailSnapshotHost';
+import { CriteriaSetupGate } from '@/components/setup/CriteriaSetupGate';
 import { GlobalKeyboardDismiss } from '@/components/ui/GlobalKeyboardDismiss';
 import { HouseAlertHost } from '@/components/ui/HouseAlert';
+import { HouseUndoSnackbarHost } from '@/components/ui/HouseUndoSnackbar';
 import { GustraColors } from '@/constants/Colors';
 import { CriteriaSettingsProvider } from '@/context/CriteriaSettings';
 import { FeedFilterProvider } from '@/context/FeedFilterContext';
@@ -41,7 +46,14 @@ import { ReviewerProfileProvider } from '@/context/ReviewerProfile';
 import { ReviewsStoreProvider } from '@/context/ReviewsStore';
 import { ShareImportLaunchProvider } from '@/context/ShareImportLaunch';
 import '@/i18n';
+import {
+  initSentry,
+  Sentry,
+  sentryNavigationIntegration,
+} from '@/services/monitoring/sentry';
 import { lockAppPortraitOrientation } from '@/services/orientation/photoViewerOrientation';
+
+initSentry();
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -68,16 +80,23 @@ const GustraNavigationTheme = {
   },
 };
 
-export default function RootLayout() {
+function RootLayout() {
+  const navigationRef = useNavigationContainerRef();
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     SourceSerif4_400Regular,
+    SourceSerif4_400Regular_Italic,
     SourceSerif4_500Medium,
     SourceSerif4_600SemiBold,
     SourceSerif4_700Bold,
     SourceSerif4_800ExtraBold,
   });
 
+  useEffect(() => {
+    if (navigationRef && sentryNavigationIntegration) {
+      sentryNavigationIntegration.registerNavigationContainer(navigationRef);
+    }
+  }, [navigationRef]);
 
   useEffect(() => {
     if (error) throw error;
@@ -122,6 +141,14 @@ export default function RootLayout() {
                               <Stack screenOptions={{ headerShown: false }}>
                                 <Stack.Screen name="(tabs)" />
                                 <Stack.Screen
+                                  name="criteria-setup"
+                                  options={{
+                                    presentation: 'fullScreenModal',
+                                    animation: 'fade',
+                                    gestureEnabled: false,
+                                  }}
+                                />
+                                <Stack.Screen
                                   name="share-import"
                                   options={{
                                     presentation: 'modal',
@@ -129,9 +156,11 @@ export default function RootLayout() {
                                   }}
                                 />
                               </Stack>
+                              <CriteriaSetupGate />
                               <SwipeDismissOverlay />
                               <ReviewEmailSnapshotHost />
                               <HouseAlertHost />
+                              <HouseUndoSnackbarHost />
                             </View>
                           </GlobalKeyboardDismiss>
                         </ThemeProvider>
@@ -148,10 +177,10 @@ export default function RootLayout() {
   );
 }
 
+export default Sentry.wrap(RootLayout);
+
 const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
 });
-
-

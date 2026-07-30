@@ -8,6 +8,7 @@ import { GustraColors } from '@/constants/Colors';
  * Use only for display/nav titles and restaurant name/score (Swift `Theme.serif`).
  */
 export const SERIF_FONT_REGULAR = 'SourceSerif4_400Regular';
+export const SERIF_FONT_REGULAR_ITALIC = 'SourceSerif4_400Regular_Italic';
 export const SERIF_FONT_MEDIUM = 'SourceSerif4_500Medium';
 export const SERIF_FONT_SEMIBOLD = 'SourceSerif4_600SemiBold';
 export const SERIF_FONT_BOLD = 'SourceSerif4_700Bold';

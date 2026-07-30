@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, StyleSheet } from 'react-native';
 
 import {
@@ -78,24 +78,30 @@ export function ProfilePhotoViewer({
     }
   }, [busy, uri]);
 
-  const dismissGesture = Gesture.Pan()
-    .enabled(!zoomed)
-    .activeOffsetY([-20, 20])
-    .failOffsetX([-24, 24])
-    .onUpdate((e) => {
-      dismissY.value = e.translationY;
-    })
-    .onEnd((e) => {
-      const dy = e.translationY;
-      const shouldDismiss =
-        Math.abs(dy) >= PhotoViewerStyle.dismissThreshold ||
-        Math.abs(e.velocityY) >= PhotoViewerStyle.dismissVelocityThreshold;
-      if (shouldDismiss) {
-        runOnJS(close)();
-      } else {
-        dismissY.value = withSpring(0, { damping: 18, stiffness: 220 });
-      }
-    });
+  const dismissGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(!zoomed)
+        .activeOffsetY([-20, 20])
+        .failOffsetX([-24, 24])
+        .onUpdate((e) => {
+          'worklet';
+          dismissY.value = e.translationY;
+        })
+        .onEnd((e) => {
+          'worklet';
+          const dy = e.translationY;
+          const shouldDismiss =
+            Math.abs(dy) >= PhotoViewerStyle.dismissThreshold ||
+            Math.abs(e.velocityY) >= PhotoViewerStyle.dismissVelocityThreshold;
+          if (shouldDismiss) {
+            runOnJS(close)();
+          } else {
+            dismissY.value = withSpring(0, { damping: 18, stiffness: 220 });
+          }
+        }),
+    [close, dismissY, zoomed],
+  );
 
   const contentStyle = useAnimatedStyle(() => {
     const progress = Math.min(

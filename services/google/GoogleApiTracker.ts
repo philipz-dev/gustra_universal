@@ -149,6 +149,10 @@ export async function resetGoogleApiCounters(): Promise<void> {
     todayKey('places'),
     totalKey('gemini'),
     todayKey('gemini'),
+    // Soft-warning “shown today” flags (see GoogleApiQuota).
+    'google_api_places_soft_warn_day',
+    'google_api_gemini_soft_warn_day',
+    'google_api_maps_soft_warn_day',
   ]);
   await AsyncStorage.setItem(DAY_KEY, currentDayKey());
   snapshot = {

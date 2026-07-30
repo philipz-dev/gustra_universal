@@ -144,7 +144,11 @@ export function ShareImportLaunchProvider({
         await consumePendingIfNeeded();
         return;
       }
-      if (ShareInbox.isSharePackageURL(url)) {
+      // `.gustrashare` path, or Android `content://` / `file://` document open.
+      if (
+        ShareInbox.isSharePackageURL(url) ||
+        ShareInbox.isExternalShareDocumentURL(url)
+      ) {
         await openSharePackageUri(url);
       }
     },

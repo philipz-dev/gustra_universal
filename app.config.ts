@@ -16,9 +16,19 @@ function geminiApiKey(): string {
   return process.env.EXPO_PUBLIC_GEMINI_API_KEY?.trim() || '';
 }
 
+function sentryOrg(): string {
+  return process.env.SENTRY_ORG?.trim() || '';
+}
+
+function sentryProject(): string {
+  return process.env.SENTRY_PROJECT?.trim() || 'gustra';
+}
+
 export default ({ config }: ConfigContext): ExpoConfig => {
   const key = googleApiKey();
   const geminiKey = geminiApiKey();
+  const sentryOrganization = sentryOrg();
+
 
   // `newArchEnabled` is valid Expo config; ExpoConfig typings lag behind SDK 57.
   return {
@@ -42,7 +52,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       supportsTablet: true,
       // Must match the existing App Store Connect / Swift app.
       bundleIdentifier: 'com.philip.gustra',
-      buildNumber: '23',
+      buildNumber: '38',
+      // Keep in sync with android.versionCode — deploy-store.sh bumps both together.
       entitlements: {
         'com.apple.security.application-groups': ['group.com.philip.gustra'],
       },
@@ -92,12 +103,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     android: {
       adaptiveIcon: {
         backgroundColor: '#F5EEDD',
+        // Foreground keeps the mark inside the Android adaptive safe zone
+        // (~66% center); full-bleed art gets cropped on launchers.
         foregroundImage: './assets/images/android-icon-foreground.png',
         backgroundImage: './assets/images/android-icon-background.png',
+        monochromeImage: './assets/images/android-icon-monochrome.png',
       },
       package: 'net.gustra.app',
-      // Play Console versionCode; bumped by scripts/deploy-android-internal.sh (start 0 → first deploy is 1)
-      versionCode: 0,
+      // Keep in sync with ios.buildNumber — deploy-store.sh bumps both together.
+      versionCode: 38,
       // Material / gesture navigation — cream surfaces bleed under system bars.
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: true,
@@ -256,19 +270,34 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           enforceContrast: false,
         },
       ],
+      // Source maps / native symbols on EAS & local release builds.
+      // Set SENTRY_ORG + SENTRY_PROJECT + SENTRY_AUTH_TOKEN (never commit token).
+      [
+        '@sentry/react-native/expo',
+        {
+          url: 'https://sentry.io/',
+          organization: sentryOrganization || 'gustra',
+          project: sentryProject(),
+          note: 'Use SENTRY_AUTH_TOKEN env to authenticate with Sentry.',
+        },
+      ],
     ],
     extra: {
       googleApiKey: key,
       googlePlacesApiKey: key,
       geminiApiKey: geminiKey,
+      sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN?.trim() || '',
       eas: {
         projectId: 'b149ff2c-d2c0-4105-99eb-c9ba14608290',
       },
     },
     experiments: {
       typedRoutes: true,
-      // Static web deploy lives at https://gustra.net/webversion/
-      baseUrl: '/webversion',
+      // Web-only. Default `/demo` leaked into native dev-client as
+      // `transform.baseUrl=/demo`. Set via GUSTRA_WEB_BASE_URL in deploy-web.
+      ...(process.env.GUSTRA_WEB_BASE_URL?.trim()
+        ? { baseUrl: process.env.GUSTRA_WEB_BASE_URL.trim() }
+        : {}),
     },
   } as ExpoConfig;
 };

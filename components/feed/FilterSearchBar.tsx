@@ -2,6 +2,7 @@ import { StyleSheet, TextInput, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 
 import { GustraColors } from '@/constants/Colors';
+import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { Theme } from '@/constants/Theme';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 
@@ -33,6 +34,7 @@ export function FilterSearchBar({
           placeholderTextColor="rgba(35, 32, 26, 0.4)"
           style={styles.input}
           selectionColor={GustraColors.forestGreen}
+          keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
           autoCorrect={false}
           clearButtonMode="while-editing"
         />

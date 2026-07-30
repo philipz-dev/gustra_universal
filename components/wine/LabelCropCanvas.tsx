@@ -148,15 +148,11 @@ export function LabelCropCanvas({
 
   const onLayout = useCallback(
     (e: LayoutChangeEvent) => {
-      const { width, height } = e.nativeEvent.layout;
+      const { width } = e.nativeEvent.layout;
+      // Size the crop frame from width only so controls can sit tight under the photo.
       const maxW = width * 0.82;
-      const maxH = height * 0.88;
-      let frameH = maxH;
-      let frameW = frameH * LABEL_ASPECT;
-      if (frameW > maxW) {
-        frameW = maxW;
-        frameH = frameW / LABEL_ASPECT;
-      }
+      const frameW = maxW;
+      const frameH = frameW / LABEL_ASPECT;
       if (frameW <= 1 || frameH <= 1) return;
       const next = { width: frameW, height: frameH };
       setViewport(next);
@@ -307,11 +303,10 @@ export function LabelCropCanvas({
 
 const styles = StyleSheet.create({
   wrap: {
-    flex: 1,
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 320,
+    paddingVertical: 2,
   },
   frame: {
     overflow: 'hidden',

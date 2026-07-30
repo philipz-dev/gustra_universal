@@ -440,7 +440,7 @@ def render_page(
         <a href="{GH_REPO_URL}" rel="noopener">GitHub repo</a>
         <a href="{GH_REPO_URL}/releases" rel="noopener">Releases</a>
         <a href="https://gustra.net/plan/">Plan</a>
-        <a href="https://gustra.net/webversion/">Web app</a>
+        <a href="https://gustra.net/demo/">Web app</a>
       </div>
     </header>
 

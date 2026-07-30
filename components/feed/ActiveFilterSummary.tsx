@@ -31,7 +31,7 @@ export function ActiveFilterSummary({
   onChange,
 }: ActiveFilterSummaryProps) {
   const { t } = useAppTranslation();
-  const showSort = state.sortKind.type !== 'averageScore';
+  const showSort = state.sortKind.type !== 'date';
   const showFavorites = hasFeedFilter(state, 'favorites');
   const showFriends = hasFeedFilter(state, 'friends');
   const showLocation = hasFeedFilter(state, 'location');
@@ -83,7 +83,7 @@ export function ActiveFilterSummary({
             androidName="swap_vert"
             accessibilityHint={t('a11y.clearSort')}
             onPress={() =>
-              clear({ ...state, sortKind: { type: 'averageScore' } })
+              clear({ ...state, sortKind: { type: 'date' } })
             }
           />
         ) : (

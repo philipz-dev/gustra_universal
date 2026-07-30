@@ -89,6 +89,27 @@ export const ShareInbox = {
     return clean.toLowerCase().endsWith(`.${this.fileExtension}`);
   },
 
+  /**
+   * Android VIEW intents often hand a `content://…` URI with no filename /
+   * extension. Those still open our app via the share intent-filters.
+   */
+  isExternalShareDocumentURL(url: string): boolean {
+    const trimmed = url.trim();
+    if (!trimmed) return false;
+    const lower = trimmed.toLowerCase();
+    if (lower.startsWith('content:')) return true;
+    if (lower.startsWith('file:')) {
+      // Ignore our own staged inbox / app files.
+      if (lower.includes('/shareinbox/')) return false;
+      return (
+        this.isSharePackageURL(trimmed) ||
+        lower.includes(`.${this.fileExtension}`) ||
+        /\.json(\?|#|$)/i.test(trimmed)
+      );
+    }
+    return false;
+  },
+
   async ensureInbox(): Promise<string> {
     const inbox = this.inboxDirectory();
     const info = await FileSystem.getInfoAsync(inbox);

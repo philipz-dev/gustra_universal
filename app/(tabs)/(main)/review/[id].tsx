@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Image,
   Platform,
@@ -25,6 +25,7 @@ import {
   ReviewOptionsSheet,
   type ReviewOptionsAction,
 } from '@/components/detail/ReviewOptionsSheet';
+import { ReviewWinesSection } from '@/components/detail/ReviewWinesSection';
 import type { ShareDestination } from '@/components/detail/ShareReviewChooser';
 import { PreparingRecommendationOverlay } from '@/components/share/PreparingRecommendationOverlay';
 import {
@@ -36,8 +37,10 @@ import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { SerifText } from '@/components/ui/SerifText';
+import { FractionalStarRating } from '@/components/ui/StarRating';
 import { GustraColors } from '@/constants/Colors';
-import { Theme } from '@/constants/Theme';
+import { ReviewDetailPresentation } from '@/constants/ReviewDetailPresentation';
+import { SERIF_FONT, Theme } from '@/constants/Theme';
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewerProfile } from '@/context/ReviewerProfile';
 import { useReviewsStore } from '@/context/ReviewsStore';
@@ -45,13 +48,24 @@ import { formatReviewDate } from '@/data/mockReviews';
 import {
   resolveReviewOrigin,
   resolveReviewerAvatarUri,
+  type WineLabelFiche,
 } from '@/data/types';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { relocateLocalPhotoRef } from '@/services/backup/photos';
 import { presentDirectionsOptions } from '@/services/directions/DirectionsLauncher';
 import { Haptics } from '@/services/haptics';
 import { shareReviewAsEmail } from '@/services/share/ReviewEmailShare';
 import { shareReviewsPackage } from '@/services/share/ReviewShareService';
-import { useAppTranslation } from '@/hooks/useAppTranslation';
-import { hasWineLabelMatch } from '@/services/wine/wineLabelTypes';
+import { requestSwipeDelete } from '@/services/swipeDelete';
+import { formatScoreOutOfFive } from '@/services/reviews/ratings';
+import {
+  hasWineLabelMatch,
+  wineLabelsForReview,
+} from '@/services/wine/wineLabelTypes';
+
+function wineRowKey(wine: WineLabelFiche): string {
+  return `${wine.labelPhotoUri ?? ''}|${wine.nameAndEstate}`;
+}
 
 function afterSheetDismiss(work: () => void): void {
   setTimeout(work, Platform.OS === 'ios' ? 360 : 60);
@@ -66,15 +80,17 @@ export default function ReviewDetailScreen() {
     getRestaurant,
     getReview,
     setRestaurantFavorite,
+    removeWineFromReview,
     restaurants,
-    deleteReview,
   } = useReviewsStore();
   const { hasName, name, photoUri, getBackupSnapshot, updateName } =
     useReviewerProfile();
   const review = getReview(id);
   const restaurant = review ? getRestaurant(review.restaurantId) : undefined;
   const photoUris =
-    review?.photoUrls.map((u) => u.trim()).filter(Boolean) ?? [];
+    review?.photoUrls
+      .map((u) => relocateLocalPhotoRef(u.trim()))
+      .filter(Boolean) ?? [];
   const isFriendReview = review
     ? resolveReviewOrigin(review) === 'imported'
     : false;
@@ -93,11 +109,17 @@ export default function ReviewDetailScreen() {
   const [pendingSharedBy, setPendingSharedBy] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
   const [preparingEmail, setPreparingEmail] = useState(false);
+  const [pendingWineKeys, setPendingWineKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
   const bottomPad =
     Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
 
-  const reviewerPhotoUri = review
+  const reviewerPhotoRaw = review
     ? resolveReviewerAvatarUri(review, photoUri)
+    : null;
+  const reviewerPhotoUri = reviewerPhotoRaw
+    ? relocateLocalPhotoRef(reviewerPhotoRaw)
     : null;
 
   const closeShareFlow = useCallback(() => {
@@ -219,31 +241,6 @@ export default function ReviewDetailScreen() {
     [pendingSharedBy, runShare],
   );
 
-  const confirmDeleteReview = useCallback(() => {
-    if (!review) return;
-    houseAlert(
-      t('alerts.deleteVisit.title'),
-      t('alerts.deleteVisit.body'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.delete'),
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              await deleteReview(review.id);
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace('/(tabs)/(main)');
-              }
-            })();
-          },
-        },
-      ],
-    );
-  }, [deleteReview, review, router, t]);
-
   const onOptionsAction = useCallback(
     (action: ReviewOptionsAction) => {
       if (!review || !restaurant) return;
@@ -269,20 +266,10 @@ export default function ReviewDetailScreen() {
           case 'shareVisual':
             onSelectDestination('email');
             break;
-          case 'delete':
-            confirmDeleteReview();
-            break;
         }
       });
     },
-    [
-      confirmDeleteReview,
-      isFriendReview,
-      onSelectDestination,
-      restaurant,
-      review,
-      router,
-    ],
+    [isFriendReview, onSelectDestination, restaurant, review, router],
   );
 
   const addressLine = restaurant
@@ -291,7 +278,119 @@ export default function ReviewDetailScreen() {
         .join(', ')
     : '';
 
-  const showWineFiche = hasWineLabelMatch(review?.wineLabel);
+  const reviewWines = wineLabelsForReview(review);
+  const visibleWines = useMemo(
+    () =>
+      reviewWines.filter(
+        (wine) =>
+          hasWineLabelMatch(wine) && !pendingWineKeys.has(wineRowKey(wine)),
+      ),
+    [reviewWines, pendingWineKeys],
+  );
+  const polished = ReviewDetailPresentation.isPolishedEnabled;
+  const streamlined = ReviewDetailPresentation.isStreamlinedEnabled;
+
+  const openWineFiche = useCallback(
+    (wineIndex: number) => {
+      const wine = visibleWines[wineIndex];
+      if (!wine || !review) return;
+      const resolved = reviewWines.findIndex(
+        (w) =>
+          w.nameAndEstate === wine.nameAndEstate &&
+          w.labelPhotoUri === wine.labelPhotoUri,
+      );
+      if (resolved < 0) return;
+      router.push({
+        pathname: '/wine-label-fiche',
+        params: {
+          reviewId: review.id,
+          wineIndex: String(resolved),
+        },
+      });
+    },
+    [review, reviewWines, router, visibleWines],
+  );
+
+  const deleteWine = useCallback(
+    (wineIndex: number) => {
+      const wine = visibleWines[wineIndex];
+      if (!wine || !review || isFriendReview) return;
+      const key = wineRowKey(wine);
+      const name = wine.nameAndEstate.trim() || t('wineScan.fiche.title');
+      requestSwipeDelete({
+        title: t('wineScan.deleteWineTitle'),
+        message: t('wineScan.deleteWineBody', { name }),
+        undoMessage: t('wineScan.deleteWineUndo', { name }),
+        onHide: () => {
+          setPendingWineKeys((prev) => new Set(prev).add(key));
+        },
+        onRestore: () => {
+          setPendingWineKeys((prev) => {
+            const next = new Set(prev);
+            next.delete(key);
+            return next;
+          });
+        },
+        onCommit: () => {
+          setPendingWineKeys((prev) => {
+            const next = new Set(prev);
+            next.delete(key);
+            return next;
+          });
+          const latest = wineLabelsForReview(getReview(review.id));
+          const idx = latest.findIndex((w) => wineRowKey(w) === key);
+          if (idx >= 0) {
+            void removeWineFromReview(review.id, idx);
+          }
+        },
+      });
+    },
+    [
+      getReview,
+      isFriendReview,
+      removeWineFromReview,
+      review,
+      t,
+      visibleWines,
+    ],
+  );
+
+  const reviewerRow =
+    review?.reviewedBy ? (
+      <View
+        style={[
+          styles.reviewedBy,
+          polished && styles.reviewedByHeader,
+        ]}>
+        {reviewerPhotoUri ? (
+          <Pressable
+            onPress={() => setShowReviewerPhoto(true)}
+            accessibilityRole="imagebutton"
+            accessibilityLabel={t('settings.photoA11y')}>
+            <Image
+              source={{ uri: reviewerPhotoUri }}
+              style={[
+                styles.avatarImage,
+                polished && styles.avatarImageCompact,
+              ]}
+            />
+          </Pressable>
+        ) : (
+          <View style={[styles.avatar, polished && styles.avatarCompact]}>
+            <Text
+              style={[
+                styles.avatarLetter,
+                polished && styles.avatarLetterCompact,
+              ]}>
+              {review.reviewedBy.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+        )}
+        <Text style={styles.reviewedByLabel}>
+          {t('detail.review.reviewedBy', { name: review.reviewedBy })}
+        </Text>
+      </View>
+    ) : null;
 
   const header = (
     <HouseNavHeader
@@ -302,20 +401,6 @@ export default function ReviewDetailScreen() {
       right={
         review ? (
           <View style={styles.headerActions}>
-            {showWineFiche ? (
-              <HouseToolbarIconButton
-                iosName="wineglass"
-                androidName="local-bar"
-                accessibilityLabel={t('wineScan.fiche.openA11y')}
-                onPress={() => {
-                  Haptics.selectionChanged();
-                  router.push({
-                    pathname: '/wine-label-fiche',
-                    params: { reviewId: review.id },
-                  });
-                }}
-              />
-            ) : null}
             <HouseToolbarIconButton
               iosName="ellipsis"
               androidName="more-vert"
@@ -367,12 +452,19 @@ export default function ReviewDetailScreen() {
           }}
         />
 
-        <View style={styles.content}>
-          <View style={styles.header}>
+        <View
+          style={[styles.content, polished && styles.contentPolished]}>
+          <View style={[styles.header, polished && styles.headerPolished]}>
             <View style={styles.headerRow}>
-              <SerifText size={20} weight="bold" style={styles.restaurantName}>
-                {restaurant.name}
-              </SerifText>
+              <View style={styles.titleBlock}>
+                <SerifText
+                  size={polished ? 22 : 20}
+                  weight="bold"
+                  style={styles.restaurantName}
+                  numberOfLines={polished ? 2 : undefined}>
+                  {restaurant.name}
+                </SerifText>
+              </View>
               <FavoriteHeartButton
                 favorite={restaurant.isFavorite}
                 onToggle={(favorite) => {
@@ -380,25 +472,73 @@ export default function ReviewDetailScreen() {
                 }}
               />
             </View>
+            {polished && review.overallScore > 0 ? (
+              <View style={styles.scoreRow}>
+                <FractionalStarRating
+                  score={review.overallScore}
+                  size={20}
+                />
+                <SerifText size={22} weight="bold" style={styles.score}>
+                  {formatScoreOutOfFive(review.overallScore)}
+                </SerifText>
+              </View>
+            ) : null}
             <Text style={styles.date}>{formatReviewDate(review.date)}</Text>
-            <View style={styles.divider} />
+            {polished ? reviewerRow : <View style={styles.divider} />}
           </View>
 
-          {review.criteria
-            .filter(
-              (c) => c.rating >= 1 && c.rating <= 10 && enabledIds.has(c.id),
-            )
-            .map((criterion) => (
-              <CriterionSection key={criterion.id} criterion={criterion} />
-            ))}
+          {(() => {
+            const scoredCriteria = review.criteria.filter((c) => {
+              if (!enabledIds.has(c.id)) return false;
+              if (c.rating >= 1 && c.rating <= 10) return true;
+              return c.id === 'wines' && reviewWines.length > 0;
+            });
+            return scoredCriteria.map((criterion) => (
+              <CriterionSection
+                key={criterion.id}
+                criterion={criterion}
+                wineLabels={visibleWines}
+                onOpenWineFiche={
+                  !streamlined &&
+                  criterion.id === 'wines' &&
+                  visibleWines.length > 0
+                    ? openWineFiche
+                    : undefined
+                }
+                onDeleteWine={
+                  !streamlined &&
+                  criterion.id === 'wines' &&
+                  visibleWines.length > 0 &&
+                  !isFriendReview
+                    ? deleteWine
+                    : undefined
+                }
+              />
+            ));
+          })()}
 
           {review.generalComment ? (
-            <View style={styles.section}>
-              <SerifText size={20} weight="bold" style={styles.sectionTitle}>
-                {t('detail.review.generalComments')}
-              </SerifText>
-              <CommentChip text={review.generalComment} />
-            </View>
+            polished ? (
+              <View style={styles.quoteBlock}>
+                <Text style={styles.quoteMark}>“</Text>
+                <Text style={styles.quoteText}>{review.generalComment}</Text>
+              </View>
+            ) : (
+              <View style={styles.section}>
+                <SerifText size={20} weight="bold" style={styles.sectionTitle}>
+                  {t('detail.review.generalComments')}
+                </SerifText>
+                <CommentChip text={review.generalComment} />
+              </View>
+            )
+          ) : null}
+
+          {streamlined && visibleWines.length > 0 ? (
+            <ReviewWinesSection
+              wines={visibleWines}
+              onOpenWineFiche={openWineFiche}
+              onDeleteWine={isFriendReview ? undefined : deleteWine}
+            />
           ) : null}
 
           <LocationBlock
@@ -414,30 +554,7 @@ export default function ReviewDetailScreen() {
             onOpenMap={() => setShowMap(true)}
           />
 
-          {review.reviewedBy ? (
-            <View style={styles.reviewedBy}>
-              {reviewerPhotoUri ? (
-                <Pressable
-                  onPress={() => setShowReviewerPhoto(true)}
-                  accessibilityRole="imagebutton"
-                  accessibilityLabel={t("settings.photoA11y")}>
-                  <Image
-                    source={{ uri: reviewerPhotoUri }}
-                    style={styles.avatarImage}
-                  />
-                </Pressable>
-              ) : (
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarLetter}>
-                    {review.reviewedBy.charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              )}
-              <Text style={styles.reviewedByLabel}>
-                {t('detail.review.reviewedBy', { name: review.reviewedBy })}
-              </Text>
-            </View>
-          ) : null}
+          {!polished ? reviewerRow : null}
         </View>
       </ScrollView>
 
@@ -495,6 +612,9 @@ const styles = StyleSheet.create({
     padding: Theme.spacing.detailContent,
     gap: Theme.spacing.detailSection,
   },
+  contentPolished: {
+    gap: 16,
+  },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -502,14 +622,34 @@ const styles = StyleSheet.create({
   header: {
     gap: 4,
   },
+  headerPolished: {
+    gap: 8,
+    marginBottom: 4,
+  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
   },
-  restaurantName: {
+  titleBlock: {
     flex: 1,
+    minWidth: 0,
+    gap: 6,
+  },
+  restaurantName: {
     color: GustraColors.forestGreen,
+  },
+  scoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    // Match FavoriteHeartButton hit padding so `/5` lines up with the heart glyph.
+    paddingRight: 2,
+  },
+  score: {
+    color: GustraColors.forestGreen,
+    fontVariant: ['tabular-nums'],
   },
   date: {
     fontSize: 14,
@@ -526,10 +666,34 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: GustraColors.ink,
   },
+  quoteBlock: {
+    gap: 4,
+    paddingLeft: 4,
+    borderLeftWidth: 2,
+    borderLeftColor: 'rgba(36, 78, 57, 0.28)',
+    paddingVertical: 2,
+  },
+  quoteMark: {
+    fontFamily: SERIF_FONT,
+    fontSize: 28,
+    lineHeight: 28,
+    color: 'rgba(36, 78, 57, 0.35)',
+    marginBottom: -8,
+  },
+  quoteText: {
+    fontFamily: SERIF_FONT,
+    fontSize: 17,
+    lineHeight: 26,
+    color: 'rgba(35, 32, 26, 0.82)',
+  },
   reviewedBy: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+  reviewedByHeader: {
+    marginTop: 2,
+    gap: 8,
   },
   avatar: {
     width: Theme.size.avatar,
@@ -539,16 +703,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  avatarCompact: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
   avatarImage: {
     width: Theme.size.avatar,
     height: Theme.size.avatar,
     borderRadius: Theme.size.avatar / 2,
     backgroundColor: GustraColors.bubble,
   },
+  avatarImageCompact: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
   avatarLetter: {
     color: GustraColors.forestGreen,
     fontWeight: '700',
     fontSize: 15,
+  },
+  avatarLetterCompact: {
+    fontSize: 12,
   },
   reviewedByLabel: {
     fontSize: 13,

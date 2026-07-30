@@ -17,6 +17,7 @@ import {
 import type { RestaurantVisitSummary } from '@/data/types';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { Haptics } from '@/services/haptics';
+import { formatScoreOutOfFive } from '@/services/reviews/ratings';
 
 type RestaurantFeedCardProps = {
   summary: RestaurantVisitSummary;
@@ -84,7 +85,7 @@ export function RestaurantFeedCard({
       <View style={styles.trailing}>
         {displayScore > 0 ? (
           <SerifText size={20} weight="bold" style={styles.score}>
-            {displayScore.toFixed(1)}
+            {formatScoreOutOfFive(displayScore)}
           </SerifText>
         ) : null}
         <FavoriteHeartButton

@@ -1,11 +1,10 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { dismissOpenSwipeable } from '@/components/feed/openSwipeable';
 import { VisitRowCard } from '@/components/feed/VisitRowCard';
-import { houseAlert } from '@/components/ui/HouseAlert';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { SerifText } from '@/components/ui/SerifText';
@@ -15,8 +14,12 @@ import { bodyTextStyle, Theme } from '@/constants/Theme';
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import type { Review, ReviewOrigin } from '@/data/types';
-import { RatingValue } from '@/services/reviews/ratings';
+import {
+  formatScoreOutOfFive,
+  RatingValue,
+} from '@/services/reviews/ratings';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { requestSwipeDelete } from '@/services/swipeDelete';
 
 function parseOrigin(value: string | undefined): ReviewOrigin | undefined {
   if (value === 'own' || value === 'imported') return value;
@@ -45,6 +48,13 @@ export default function RestaurantVisitsScreen() {
   const origin = parseOrigin(originParam);
   const restaurant = getRestaurant(id);
   const reviews = getReviewsForRestaurant(id, origin);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const visibleReviews = useMemo(
+    () => reviews.filter((r) => !pendingDeleteIds.has(r.id)),
+    [reviews, pendingDeleteIds],
+  );
 
   const bottomPad =
     Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
@@ -68,33 +78,41 @@ export default function RestaurantVisitsScreen() {
 
   const confirmDeleteVisit = useCallback(
     (review: Review) => {
-      houseAlert(
-        t('alerts.deleteVisit.title'),
-        t('alerts.deleteVisit.body'),
-        [
-          { text: t('common.cancel'), style: 'cancel' },
-          {
-            text: t('common.delete'),
-            style: 'destructive',
-            onPress: () => {
-              void (async () => {
-                const remainingInSource = reviews.filter(
-                  (r) => r.id !== review.id,
-                );
-                await deleteReview(review.id);
-                if (remainingInSource.length === 0) {
-                  if (router.canGoBack()) router.back();
-                  else router.replace('/(tabs)/(main)');
-                  return;
-                }
-                if (remainingInSource.length === 1) {
-                  router.replace(`/review/${remainingInSource[0]!.id}`);
-                }
-              })();
-            },
-          },
-        ],
-      );
+      const reviewId = review.id;
+      requestSwipeDelete({
+        title: t('alerts.deleteVisit.title'),
+        message: t('alerts.deleteVisit.body'),
+        undoMessage: t('alerts.deleteVisit.undoMessage'),
+        onHide: () => {
+          setPendingDeleteIds((prev) => new Set(prev).add(reviewId));
+        },
+        onRestore: () => {
+          setPendingDeleteIds((prev) => {
+            const next = new Set(prev);
+            next.delete(reviewId);
+            return next;
+          });
+        },
+        onCommit: () => {
+          setPendingDeleteIds((prev) => {
+            const next = new Set(prev);
+            next.delete(reviewId);
+            return next;
+          });
+          void (async () => {
+            const remainingInSource = reviews.filter((r) => r.id !== reviewId);
+            await deleteReview(reviewId);
+            if (remainingInSource.length === 0) {
+              if (router.canGoBack()) router.back();
+              else router.replace('/(tabs)/(main)');
+              return;
+            }
+            if (remainingInSource.length === 1) {
+              router.replace(`/review/${remainingInSource[0]!.id}`);
+            }
+          })();
+        },
+      });
     },
     [deleteReview, reviews, router, t],
   );
@@ -116,7 +134,7 @@ export default function RestaurantVisitsScreen() {
         />
       ) : (
         <FlatList
-          data={reviews}
+          data={visibleReviews}
           keyExtractor={(item) => item.id}
           overScrollMode="never"
           onScrollBeginDrag={dismissOpenSwipeable}
@@ -136,7 +154,7 @@ export default function RestaurantVisitsScreen() {
                   <View style={styles.avgRow}>
                     <FractionalStarRating score={averageScore} size={22} />
                     <SerifText size={17} weight="semibold" style={styles.avgText}>
-                      {averageScore.toFixed(1)}/5
+                      {formatScoreOutOfFive(averageScore)}
                     </SerifText>
                   </View>
                 ) : null}

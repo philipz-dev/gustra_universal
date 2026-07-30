@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Image } from 'react-native';
 
+import { relocateLocalPhotoRef } from '@/services/backup/photos';
 import {
   hydratePhotoDataSavings,
   reviewPhotoMaxPixelSide,
@@ -77,7 +78,9 @@ export async function deleteReviewPhotoFiles(uris: string[]): Promise<void> {
     uris.map(async (raw) => {
       const trimmed = raw?.trim();
       if (!trimmed || /^https?:\/\//i.test(trimmed)) return;
+      const relocated = relocateLocalPhotoRef(trimmed);
       const candidates = [trimmed];
+      if (relocated !== trimmed) candidates.push(relocated);
       if (!trimmed.startsWith('file://') && !trimmed.startsWith('/')) {
         try {
           candidates.push(`${photosDir()}${trimmed.split('/').pop()}`);
@@ -85,7 +88,10 @@ export async function deleteReviewPhotoFiles(uris: string[]): Promise<void> {
           // document directory unavailable
         }
       }
+      const seen = new Set<string>();
       for (const uri of candidates) {
+        if (!uri || seen.has(uri)) continue;
+        seen.add(uri);
         try {
           const info = await FileSystem.getInfoAsync(uri);
           if (info.exists && !info.isDirectory) {

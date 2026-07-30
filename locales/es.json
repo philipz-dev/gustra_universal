@@ -4,11 +4,5 @@
     "NSPhotoLibraryUsageDescription": "Gustra usa tu biblioteca de fotos para importar imágenes al perfil y a las reseñas.",
     "NSPhotoLibraryAddUsageDescription": "Gustra guarda las fotos de las reseñas en la biblioteca cuando eliges Guardar en Fotos.",
     "NSLocationWhenInUseUsageDescription": "Gustra usa tu ubicación para encontrar restaurantes cercanos."
-  },
-  "android": {
-    "NSCameraUsageDescription": "Gustra usa la cámara para hacer fotos de tu perfil y de las reseñas de restaurantes.",
-    "NSPhotoLibraryUsageDescription": "Gustra usa tu biblioteca de fotos para importar imágenes al perfil y a las reseñas.",
-    "NSPhotoLibraryAddUsageDescription": "Gustra guarda las fotos de las reseñas en la biblioteca cuando eliges Guardar en Fotos.",
-    "NSLocationWhenInUseUsageDescription": "Gustra usa tu ubicación para encontrar restaurantes cercanos."
   }
 }

@@ -33,6 +33,7 @@ yarn-error.*
 # local env files (secrets — never commit)
 .env
 .env*.local
+secrets/
 
 # typescript
 *.tsbuildinfo
@@ -40,3 +41,11 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Local EAS artifacts (deploy-store.sh --output)
+build-*-ios.ipa
+build-*-android.aab
+build-*.ipa
+build-*.aab
+
+.env.local

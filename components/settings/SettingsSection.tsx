@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { captionTextStyle, Surface, Theme } from '@/constants/Theme';
 
@@ -13,7 +13,7 @@ export function SettingsSection({ title, children }: SettingsSectionProps) {
   return (
     <View style={styles.section}>
       {title ? <Text style={styles.title}>{title.toUpperCase()}</Text> : null}
-      <View style={styles.card}>{children}</View>
+      <View style={styles.card as ViewStyle}>{children}</View>
     </View>
   );
 }

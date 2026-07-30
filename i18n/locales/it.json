@@ -1,6 +1,8 @@
 {
   "common": {
     "ok": "OK",
+    "yes": "Sì",
+    "no": "No",
     "cancel": "Annulla",
     "delete": "Elimina",
     "remove": "Rimuovi",
@@ -22,7 +24,8 @@
     "selectNone": "Deseleziona tutto",
     "add": "Aggiungi",
     "clear": "Cancella",
-    "import": "Importa"
+    "import": "Importa",
+    "undo": "Annulla"
   },
   "rating": {
     "labels": {
@@ -30,7 +33,7 @@
       "okay": "Discreto",
       "good": "Buono",
       "great": "Ottimo",
-      "perfect": "Perfetto",
+      "perfect": "Fantastico",
       "na": "N/D",
       "notRated": "Non valutato"
     },
@@ -109,6 +112,7 @@
     "emptyCuisineTitle": "Ancora nessun tipo di cucina",
     "emptyCuisineBody": "I tipi di cucina compaiono quando i ristoranti hanno categorie.",
     "sort": {
+      "date": "Data",
       "averageScore": "Voto medio",
       "criterion": "Criterio"
     },
@@ -157,12 +161,18 @@
     "languageDutch": "Nederlands",
     "languageEnglish": "English",
     "languageItalian": "Italiano",
-    "sectionReviewer": "Recensore",
+    "sectionReviewer": "Tu",
+    "sectionReviewing": "Recensioni",
     "sectionCriteria": "Criteri di recensione",
     "sectionPassport": "Il mio Gustra",
     "sectionStorage": "Archiviazione",
+    "sectionData": "Dati e backup",
     "sectionGoogle": "Utilizzo API Google",
+    "sectionAdvanced": "Avanzate",
     "sectionLanguage": "Lingua",
+    "advancedExpandA11y": "Mostra impostazioni avanzate",
+    "advancedCollapseA11y": "Nascondi impostazioni avanzate",
+    "editPhotoHint": "Tocca la foto per modificarla",
     "editCriteria": "Modifica criteri di recensione",
     "dataSavings": "Risparmio dati per le foto",
     "dataSavingsOn": "Risoluzione inferiore",
@@ -200,8 +210,8 @@
       "none": "Nessun dato Swift precedente su questo dispositivo"
     },
     "passport": {
-      "showAsNumbers": "Mostra voti come numeri",
-      "showAsStars": "Mostra voti come stelle"
+      "showAsNumbers": "Medie per criterio come numeri",
+      "showAsStars": "Medie per criterio come stelle"
     },
     "storage": {
       "photosStored_one": "{{count}} foto salvata in locale",
@@ -211,7 +221,10 @@
       "deleteTitle": "Elimina criterio",
       "deleteBody": "Rimuovere “{{name}}”?",
       "custom": "Personalizzato",
-      "footer": "I nomi personalizzati compaiono nelle nuove recensioni. I criteri disattivati sono nascosti in fase di voto."
+      "footer": "I nomi personalizzati compaiono nelle nuove recensioni. I criteri disattivati sono nascosti in fase di voto.",
+      "discardEdits": {
+        "title": "Salvare le modifiche?"
+      }
     },
     "profilePhoto": {
       "addTitle": "Aggiungi una foto profilo",
@@ -228,11 +241,20 @@
     "languageValueGerman": "Deutsch",
     "languageValueSpanish": "Español",
     "languageValueFrench": "Français",
-    "geminiApi": "Gemini Vision vino"
+    "geminiApi": "Gemini Vision vino",
+    "sectionDeveloper": "Sviluppatore",
+    "showCriteriaSetup": "Mostra setup criteri",
+    "showCriteriaSetupSubtitle": "Riapri la schermata di primo avvio",
+    "sentryTestCrash": "Invia evento di test Sentry",
+    "sentryTestCrashSubtitle": "Verifica i report crash (errore sicuro)",
+    "sentryTestCrashNoDsn": "Imposta prima EXPO_PUBLIC_SENTRY_DSN in .env",
+    "sentryTestCrashSent": "Evento di test inviato — controlla Issues in Sentry.",
+    "appVersionA11y": "Versione dell’app {{version}}"
   },
   "criteria": {
     "food": "Cibo",
-    "drinks": "Bevande",
+    "drinks": "Bevanda",
+    "wines": "Vini",
     "service": "Servizio",
     "atmosphere": "Atmosfera",
     "valueForMoney": "Rapporto qualità-prezzo"
@@ -319,7 +341,10 @@
       "newVisit": "Nuova visita",
       "edit": "Modifica",
       "reviewedBy": "Recensito da {{name}}",
-      "share": "Condividi"
+      "share": "Condividi",
+      "winesDrunk_one": "Vino degustato",
+      "winesDrunk_other": "Vini degustati",
+      "drinksAverage": "Media dei vini"
     },
     "options": {
       "title": "Opzioni",
@@ -424,14 +449,34 @@
     "fileShared": "File di backup {{filename}} condiviso",
     "deleteFailed": "Impossibile eliminare il file di backup."
   },
+  "apiQuota": {
+    "places": {
+      "softTitle": "Molte ricerche oggi",
+      "softMessage": "Stai usando molto la ricerca oggi. Per mantenere l’app veloce e stabile per tutti, c’è un limite giornaliero. Puoi continuare a cercare fino al raggiungimento del limite.",
+      "hardTitle": "Limite di ricerca raggiunto",
+      "hardMessage": "Hai raggiunto il numero massimo di ricerche per oggi. Domani potrai di nuovo cercare nuovi luoghi."
+    },
+    "gemini": {
+      "softTitle": "Molte etichette scansionate",
+      "softMessage": "Hai già scansionato diverse etichette oggi. Per mantenere il riconoscimento fluido e affidabile, c’è un limite giornaliero sul numero di scansioni.",
+      "hardTitle": "Limite di scansione raggiunto",
+      "hardMessage": "Hai raggiunto il numero massimo di scansioni vino per oggi. Domani potrai di nuovo scansionare etichette."
+    },
+    "maps": {
+      "hardTitle": "Limite mappa raggiunto",
+      "hardMessage": "La mappa è stata caricata il numero massimo di volte oggi. Domani potrai di nuovo aprire la mappa."
+    }
+  },
   "alerts": {
     "deleteRestaurant": {
       "title": "Eliminare il ristorante?",
-      "body": "Questo rimuove tutte le visite e le foto di questo ristorante."
+      "body": "Questo rimuove tutte le visite e le foto di questo ristorante.",
+      "undoMessage": "Ristorante rimosso"
     },
     "deleteVisit": {
       "title": "Eliminare la visita?",
-      "body": "Questa visita e le sue foto verranno rimosse."
+      "body": "Questa visita e le sue foto verranno rimosse.",
+      "undoMessage": "Visita rimossa"
     },
     "share": {
       "failed": "Impossibile condividere le recensioni.",
@@ -460,10 +505,7 @@
       "deleteTitle": "Eliminare?",
       "deleteBody": "Questa recensione verrà eliminata.",
       "discardEdits": {
-        "title": "Uscire senza salvare?",
-        "body": "Le modifiche a questa visita verranno eliminate.",
-        "keepEditing": "Continua a modificare",
-        "discard": "Elimina"
+        "title": "Salvare le modifiche?"
       }
     },
     "recovery": {
@@ -510,7 +552,7 @@
     "chooserTitle": "Foto dell’etichetta",
     "cropHint": "Pizzica e trascina finché l’etichetta riempie il riquadro",
     "cropA11y": "Ritaglio etichetta vino",
-    "readLabel": "Leggi etichetta",
+    "scanAction": "Scansiona",
     "reading": "Lettura etichetta…",
     "retake": "Scegli un’altra foto",
     "adjustCrop": "Modifica ritaglio",
@@ -519,31 +561,121 @@
     "drinksSuggestion": "Per Bevande",
     "drinksSuggestionPlaceholder": "Nome del vino e annata",
     "useInDrinks": "Usa in Bevande",
-    "scanButton": "Scansiona",
+    "confirmA11y": "Aggiungi vino a Bevande",
+    "resultRatingTitle": "Valuta questa bottiglia",
+    "ratingRequired": "Aggiungi le stelle per salvare questo vino.",
+    "scanButton": "Scansiona etichetta",
     "scanButtonA11y": "Scansiona etichetta vino per Bevande",
-    "drinksCommentPlaceholder": "Vino, cocktail o altre bevande…",
+    "scanAnother": "Scansiona un’altra etichetta",
+    "scanAnotherA11y": "Scansiona un’altra etichetta vino per Bevande",
+    "clearDrinksWithWinesTitle": "Cancellare il voto Bevande?",
+    "clearDrinksWithWinesBody": "Anche i vini scansionati di questa visita verranno rimossi.",
+    "clearWinesWithRatingsTitle": "Cancellare il voto Vini?",
+    "clearWinesWithRatingsBody": "Anche i vini scansionati di questa visita verranno rimossi.",
+    "deleteWineTitle": "Rimuovere il vino?",
+    "deleteWineBody": "“{{name}}” verrà rimosso da questa recensione.",
+    "deleteWineA11y": "Elimina vino",
+    "drinksCommentPlaceholder": "Le tue note sul vino…",
+    "discardUnsaved": {
+      "title": "Salvare le modifiche?"
+    },
     "ocrUnavailableTitle": "Lettura testo non disponibile",
     "ocrUnavailableBody": "La lettura sul dispositivo richiede una build completa (non Expo Go). Puoi comunque tenere la foto ritagliata.",
     "noTextTitle": "Nessun testo trovato",
     "noTextBody": "Prova una foto più nitida o regola il ritaglio così l’etichetta riempie il riquadro.",
-    "failedBody": "Could not analyze the label. Check your connection and try again.",
-    "hintVision": "Crop the label, then we’ll identify the wine online (one optimized photo).",
-    "analyzing": "Analyzing label…",
-    "uploadNoticeTitle": "Photo sent for analysis",
-    "uploadNoticeBody": "To identify the wine, a smaller copy of your photo is uploaded to Google for analysis. The photo is not stored in Gustra’s cloud — only sent for this scan.",
-    "uploadNoticeContinue": "Continue",
-    "noMatchTitle": "No wine recognized",
-    "noMatchBody": "We couldn’t identify a wine from this photo. Try a sharper label photo.",
-    "missingKeyBody": "Gemini API key missing. Set EXPO_PUBLIC_GEMINI_API_KEY in .env and restart Expo.",
+    "failedBody": "Impossibile analizzare l'etichetta. Controlla la connessione e riprova.",
+    "hintVision": "Ritaglia l'etichetta, poi identificheremo il vino online (una foto ottimizzata).",
+    "thinking": "Sto pensando…",
+    "uploadNoticeTitle": "Foto inviata per analisi",
+    "uploadNoticeBody": "Per identificare il vino, una copia più piccola della tua foto viene caricata su Google per l'analisi. La foto non è archiviata nel cloud di Gustra, viene solo inviata per questa scansione.",
+    "uploadNoticeContinue": "Continuare",
+    "noMatchTitle": "Nessun vino riconosciuto",
+    "noMatchBody": "Non siamo riusciti a identificare un vino da questa foto. Prova una foto dell'etichetta più nitida.",
+    "missingKeyBody": "Chiave API Gemini mancante. Imposta EXPO_PUBLIC_GEMINI_API_KEY in .env e riavvia Expo.",
     "fiche": {
-      "title": "Wine",
-      "openA11y": "Open wine details",
-      "typeStyle": "Type & style",
-      "countryRegion": "Country & region",
-      "vintage": "Vintage",
-      "grapes": "Grapes",
-      "alcohol": "Alcohol",
-      "foodPairings": "Pairs with"
+      "title": "Vino",
+      "identityCaption": "Scheda vino",
+      "openA11y": "Apri i dettagli del vino",
+      "typeStyle": "Tipo e stile",
+      "typeStyles": {
+        "red": "Rosso",
+        "white": "Bianco",
+        "rose": "Rosato",
+        "sparkling": "Spumante",
+        "fortified": "Fortificato",
+        "orange": "Macerato",
+        "dessert": "Vino dolce"
+      },
+      "profileLabels": {
+        "red": {
+          "dry": "Vino rosso secco",
+          "offDry": "Vino rosso abboccato",
+          "sweet": "Vino rosso dolce"
+        },
+        "white": {
+          "dry": "Vino bianco secco",
+          "offDry": "Vino bianco abboccato",
+          "sweet": "Vino bianco dolce"
+        },
+        "rose": {
+          "dry": "Vino rosato secco",
+          "offDry": "Vino rosato abboccato",
+          "sweet": "Vino rosato dolce"
+        },
+        "sparkling": {
+          "dry": "Vino spumante secco",
+          "offDry": "Vino spumante abboccato",
+          "sweet": "Vino spumante dolce"
+        },
+        "fortified": {
+          "dry": "Vino fortificato secco",
+          "offDry": "Vino fortificato abboccato",
+          "sweet": "Vino fortificato dolce"
+        },
+        "orange": {
+          "dry": "Vino macerato secco",
+          "offDry": "Vino macerato abboccato",
+          "sweet": "Vino macerato dolce"
+        }
+      },
+      "countryRegion": "Paese e regione",
+      "vintage": "Annata",
+      "grapes": "Uva",
+      "alcohol": "Alcol",
+      "foodPairings": "Si abbina con",
+      "myJudgment": "Il mio giudizio",
+      "openFull": "Apri scheda completa",
+      "tasteProfile": {
+        "title": "Profilo di gusto",
+        "source": "Stima dalla scansione dell’etichetta.",
+        "expandA11y": "Espandi profilo di gusto",
+        "collapseA11y": "Comprimi profilo di gusto",
+        "poles": {
+          "bodyLight": "Leggero",
+          "bodyFull": "Corposo",
+          "tanninsSoft": "Morbido",
+          "tanninsFirm": "Deciso",
+          "aciditySoft": "Morbida",
+          "acidityLively": "Vivace",
+          "sweetnessDry": "Secco",
+          "sweetnessSweet": "Dolce"
+        }
+      }
+    },
+    "deleteWineUndo": "“{{name}}” rimosso"
+  },
+  "setup": {
+    "welcome": {
+      "title": "Benvenuto in Gustra",
+      "tapToContinue": "Tocca per continuare"
+    },
+    "criteria": {
+      "title": "Configurazione iniziale",
+      "headline": "Personalizza la tua esperienza",
+      "body": "Scegli quali criteri contano in una recensione. Potrai modificarli dopo in Impostazioni.",
+      "minOne": "Scegli almeno un criterio.",
+      "tip": "Suggerimento",
+      "idealThree": ": 3 criteri sono l'ideale"
     }
   }
 }

@@ -35,6 +35,10 @@ import {
   reviewerProfileToBackup,
 } from '@/services/backup/mapping';
 import {
+  relocateStoredPhotoRefs,
+  stripWineLabelUrisFromPhotoUrls,
+} from '@/services/backup/photos';
+import {
   REVIEWER_PHOTO_BACKUP_KEY,
   type BackupImportMode,
 } from '@/services/backup/types';
@@ -53,6 +57,11 @@ import {
   overallScoreFromCriteria,
 } from '@/services/reviews/ratings';
 import { rebuildSearchableText } from '@/services/reviews/searchableText';
+import {
+  averageWineUserRating,
+  syncWineLabelFields,
+  wineLabelsForReview,
+} from '@/services/wine/wineLabelTypes';
 
 const STORAGE_KEY = 'gustraReviewsStore.v3';
 /** Pre–half-star store (integer 1–5 criterion ratings). */
@@ -75,8 +84,10 @@ export type ReviewFormUpsertInput = {
   photoUrls: string[];
   /** OCR text from review photos (Swift `ocrIndexedText`). */
   ocrText?: string;
-  /** Gemini wine-label fiche (additive). */
+  /** Gemini wine-label fiche (additive; primary / compat). */
   wineLabel?: WineLabelFiche | null;
+  /** Ordered wine fiches (additive). Dual-written with `wineLabel`. */
+  wineLabels?: WineLabelFiche[];
   /** Custom criterion titles for search indexing. */
   customCriterionNames?: string[];
 };
@@ -98,6 +109,11 @@ type ReviewsStoreValue = {
     origin?: ReviewOrigin,
   ) => Review[];
   getFeedSummaries: (origin?: ReviewOrigin) => RestaurantVisitSummary[];
+  /**
+   * Re-sync restaurant.photoUrl from review photos (call when opening Reviews).
+   * Idempotent; persists only when something changed.
+   */
+  resyncRestaurantCovers: () => Promise<void>;
   /** Deletes the reviews in a feed summary; drops the restaurant if none remain. */
   deleteRestaurantFromFeed: (
     summary: RestaurantVisitSummary,
@@ -112,6 +128,11 @@ type ReviewsStoreValue = {
   ) => Promise<ReviewFormUpsertResult | null>;
   /** Delete one review; drops the restaurant when no visits remain. */
   deleteReview: (reviewId: string) => Promise<void>;
+  /** Remove one scanned wine from a review (own reviews only). */
+  removeWineFromReview: (
+    reviewId: string,
+    wineIndex: number,
+  ) => Promise<void>;
   createEncryptedBackup: (password: string) => Promise<Uint8Array>;
   importEncryptedBackup: (
     data: Uint8Array,
@@ -217,6 +238,7 @@ function normalizeReview(review: Review, migrateLegacy = false): Review {
   }
   return {
     ...review,
+    photoUrls: (review.photoUrls ?? []).map((u) => u.trim()).filter(Boolean),
     criteria,
     overallScore,
     reviewedById: review.reviewedById?.trim() || undefined,
@@ -277,6 +299,21 @@ function withRestaurantCover(
   return restaurants.map((r) =>
     r.id === restaurantId ? { ...r, photoUrl } : r,
   );
+}
+
+/** Recompute every restaurant cover from visit photoUrls (newest visit with a photo). */
+function withAllRestaurantCovers(
+  restaurants: Restaurant[],
+  reviews: Review[],
+): { restaurants: Restaurant[]; changed: boolean } {
+  let changed = false;
+  const next = restaurants.map((restaurant) => {
+    const photoUrl = coverPhotoForRestaurant(restaurant.id, reviews);
+    if ((restaurant.photoUrl ?? '') === photoUrl) return restaurant;
+    changed = true;
+    return { ...restaurant, photoUrl };
+  });
+  return { restaurants: next, changed };
 }
 
 function buildFeedSummaries(
@@ -390,6 +427,14 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
                 (r) => used.has(r.id) && !dropRestaurants.has(r.id),
               );
             }
+            // Rewrite absolute photo URIs to the current Documents sandbox
+            // (container UUID can change across app updates / reinstalls).
+            const relocated = relocateStoredPhotoRefs({
+              restaurants: hydratedRestaurants,
+              reviews: hydratedReviews,
+            });
+            hydratedRestaurants = relocated.restaurants;
+            hydratedReviews = relocated.reviews;
             setRestaurants(hydratedRestaurants);
             setReviews(hydratedReviews);
             await persist({
@@ -414,9 +459,16 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
                   const reviews = auto.importResult.reviews.map((r) =>
                     normalizeReview(r),
                   );
-                  setRestaurants(restaurants);
-                  setReviews(reviews);
-                  await persist({ restaurants, reviews });
+                  const relocatedImport = relocateStoredPhotoRefs({
+                    restaurants,
+                    reviews,
+                  });
+                  setRestaurants(relocatedImport.restaurants);
+                  setReviews(relocatedImport.reviews);
+                  await persist({
+                    restaurants: relocatedImport.restaurants,
+                    reviews: relocatedImport.reviews,
+                  });
                 }
               } catch {
                 // Non-fatal — Settings Recover remains available.
@@ -444,9 +496,16 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
                 const reviews = auto.importResult.reviews.map((r) =>
                   normalizeReview(r),
                 );
-                setRestaurants(restaurants);
-                setReviews(reviews);
-                await persist({ restaurants, reviews });
+                const relocatedImport = relocateStoredPhotoRefs({
+                  restaurants,
+                  reviews,
+                });
+                setRestaurants(relocatedImport.restaurants);
+                setReviews(relocatedImport.reviews);
+                await persist({
+                  restaurants: relocatedImport.restaurants,
+                  reviews: relocatedImport.reviews,
+                });
               }
             } catch {
               // Non-fatal
@@ -499,6 +558,20 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       buildFeedSummaries(restaurants, reviews, origin),
     [restaurants, reviews],
   );
+
+  const resyncRestaurantCovers = useCallback(async () => {
+    const { restaurants: nextRestaurants, changed } = withAllRestaurantCovers(
+      restaurantsRef.current,
+      reviewsRef.current,
+    );
+    if (!changed) return;
+    restaurantsRef.current = nextRestaurants;
+    setRestaurants(nextRestaurants);
+    await persist({
+      restaurants: nextRestaurants,
+      reviews: reviewsRef.current,
+    });
+  }, []);
 
   const deleteRestaurantFromFeed = useCallback(
     async (summary: RestaurantVisitSummary) => {
@@ -661,19 +734,30 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
               ? Math.round(c.rating)
               : RatingValue.unrated,
         }));
-        const photoUrls = input.photoUrls.map((u) => u.trim()).filter(Boolean);
         const overallScore = overallScoreFromCriteria(criteria);
         const ocrText = (input.ocrText ?? existingReview?.ocrText ?? '').trim();
-        const wineLabel =
-          input.wineLabel !== undefined
-            ? input.wineLabel
-            : (existingReview?.wineLabel ?? null);
+        const wineFields =
+          input.wineLabels !== undefined || input.wineLabel !== undefined
+            ? syncWineLabelFields(
+                input.wineLabels !== undefined
+                  ? input.wineLabels
+                  : input.wineLabel
+                    ? [input.wineLabel]
+                    : [],
+              )
+            : syncWineLabelFields(wineLabelsForReview(existingReview));
+        const photoUrls = stripWineLabelUrisFromPhotoUrls(
+          input.photoUrls.map((u) => u.trim()).filter(Boolean),
+          wineLabelsForReview(wineFields),
+        );
         const searchableText = rebuildSearchableText({
           restaurant,
           generalComment: input.generalComment.trim(),
           criteria,
           customCriterionNames: input.customCriterionNames,
           ocrText,
+          wineLabel: wineFields.wineLabel,
+          wineLabels: wineFields.wineLabels,
         });
 
         let reviewId = existingReview?.id;
@@ -704,7 +788,8 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
                   origin: resolveReviewOrigin(r),
                   searchableText,
                   ocrText,
-                  wineLabel,
+                  wineLabel: wineFields.wineLabel,
+                  wineLabels: wineFields.wineLabels,
                 }
               : r,
           );
@@ -724,7 +809,8 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
               origin: 'own',
               searchableText,
               ocrText,
-              wineLabel,
+              wineLabel: wineFields.wineLabel,
+              wineLabels: wineFields.wineLabels,
             },
           ];
         }
@@ -799,6 +885,67 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
     [restaurants, reviews],
   );
 
+  const removeWineFromReview = useCallback(
+    async (reviewId: string, wineIndex: number) => {
+      const target = reviewsRef.current.find((r) => r.id === reviewId);
+      if (!target || resolveReviewOrigin(target) === 'imported') return;
+
+      const wines = wineLabelsForReview(target);
+      if (wineIndex < 0 || wineIndex >= wines.length) return;
+
+      const removed = wines[wineIndex];
+      const nextWines = wines.filter((_, i) => i !== wineIndex);
+      const wineFields = syncWineLabelFields(nextWines);
+      const avg = averageWineUserRating(nextWines);
+      const criteria = target.criteria.map((c) => {
+        if (c.id !== 'wines' || avg == null) return c;
+        return { ...c, rating: avg };
+      });
+      const overallScore = overallScoreFromCriteria(criteria);
+      const restaurant = restaurantsRef.current.find(
+        (r) => r.id === target.restaurantId,
+      );
+      const searchableText = rebuildSearchableText({
+        restaurant,
+        generalComment: target.generalComment ?? '',
+        criteria,
+        ocrText: target.ocrText,
+        wineLabel: wineFields.wineLabel,
+        wineLabels: wineFields.wineLabels,
+      });
+      const removedUri = removed?.labelPhotoUri?.trim();
+      const gallery = (target.photoUrls ?? []).filter((u) => {
+        const t = u.trim();
+        return t && (!removedUri || t !== removedUri);
+      });
+      const photoUrls = stripWineLabelUrisFromPhotoUrls(gallery, nextWines);
+
+      const nextReviews = reviewsRef.current.map((r) =>
+        r.id === reviewId
+          ? {
+              ...r,
+              criteria,
+              overallScore,
+              searchableText,
+              photoUrls,
+              wineLabel: wineFields.wineLabel,
+              wineLabels: wineFields.wineLabels,
+            }
+          : r,
+      );
+      reviewsRef.current = nextReviews;
+      setReviews(nextReviews);
+      await persist({
+        restaurants: restaurantsRef.current,
+        reviews: nextReviews,
+      });
+
+      const uri = removed?.labelPhotoUri?.trim();
+      if (uri) void deleteReviewPhotoFiles([uri]);
+    },
+    [],
+  );
+
   const createEncryptedBackup = useCallback(
     async (password: string) => {
       const [profileSnap, criteriaSnap] = await Promise.all([
@@ -835,9 +982,13 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
         currentRestaurants: restaurants,
         currentReviews: reviews,
       });
-      setRestaurants(next.restaurants);
-      setReviews(next.reviews);
-      await persist(next);
+      const relocated = relocateStoredPhotoRefs(next);
+      setRestaurants(relocated.restaurants);
+      setReviews(relocated.reviews);
+      await persist({
+        restaurants: relocated.restaurants,
+        reviews: relocated.reviews,
+      });
 
       const profile = reviewerProfileFromPayload(payload);
       if (profile) {
@@ -870,9 +1021,13 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
     });
     const restaurants = result.restaurants.map(normalizeRestaurant);
     const reviews = result.reviews.map((r) => normalizeReview(r));
-    setRestaurants(restaurants);
-    setReviews(reviews);
-    await persist({ restaurants, reviews });
+    const relocated = relocateStoredPhotoRefs({ restaurants, reviews });
+    setRestaurants(relocated.restaurants);
+    setReviews(relocated.reviews);
+    await persist({
+      restaurants: relocated.restaurants,
+      reviews: relocated.reviews,
+    });
     return {
       restaurantCount: result.restaurantCount,
       reviewCount: result.reviewCount,
@@ -889,9 +1044,13 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
     if (auto.importResult) {
       const restaurants = auto.importResult.restaurants.map(normalizeRestaurant);
       const reviews = auto.importResult.reviews.map((r) => normalizeReview(r));
-      setRestaurants(restaurants);
-      setReviews(reviews);
-      await persist({ restaurants, reviews });
+      const relocated = relocateStoredPhotoRefs({ restaurants, reviews });
+      setRestaurants(relocated.restaurants);
+      setReviews(relocated.reviews);
+      await persist({
+        restaurants: relocated.restaurants,
+        reviews: relocated.reviews,
+      });
     }
     return {
       status: auto.status,
@@ -965,11 +1124,15 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
         usedRestaurantIds.has(r.id),
       );
 
-      setRestaurants(nextRestaurants);
-      setReviews(nextReviews);
-      await persist({
+      const relocated = relocateStoredPhotoRefs({
         restaurants: nextRestaurants,
         reviews: nextReviews,
+      });
+      setRestaurants(relocated.restaurants);
+      setReviews(relocated.reviews);
+      await persist({
+        restaurants: relocated.restaurants,
+        reviews: relocated.reviews,
       });
     },
     [restaurants, reviews],
@@ -985,10 +1148,12 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       getReview,
       getReviewsForRestaurant,
       getFeedSummaries,
+      resyncRestaurantCovers,
       deleteRestaurantFromFeed,
       setRestaurantFavorite,
       upsertReviewFromForm,
       deleteReview,
+      removeWineFromReview,
       createEncryptedBackup,
       importEncryptedBackup,
       importSwiftLegacyData,
@@ -1004,10 +1169,12 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       getReview,
       getReviewsForRestaurant,
       getFeedSummaries,
+      resyncRestaurantCovers,
       deleteRestaurantFromFeed,
       setRestaurantFavorite,
       upsertReviewFromForm,
       deleteReview,
+      removeWineFromReview,
       createEncryptedBackup,
       importEncryptedBackup,
       importSwiftLegacyData,

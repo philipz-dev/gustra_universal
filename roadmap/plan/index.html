@@ -353,6 +353,7 @@
     <header class="hero">
       <h1 class="brand">Gustra</h1>
       <p class="tagline">Roadmap to match the old Swift app. Open gaps count — 100% only when they are closed.</p>
+      <p class="tagline" style="margin-top:0.65rem;color:rgba(217,162,39,0.95);font-weight:600">First working Android build is on Play Internal testing (testers only — not public).</p>
       <div class="status-row">
         <div class="progress-block">
           <div class="progress-label">
@@ -385,7 +386,10 @@
       <a href="#hig">Apple look (HIG)</a>
       <a href="#add">Add</a>
       <a href="#compile-store">Tester builds</a>
+      <a href="#npm-scripts">Scripts</a>
+      <a href="#play-setup">Play setup</a>
       <a href="#deploy-web">Web</a>
+      <a href="#deploy-privacy">Privacy</a>
       <a href="https://gustra.net/github/">GitHub log</a>
     </nav>
 
@@ -460,37 +464,159 @@
 
     <section class="panel howto" id="compile-store">
       <h2>Upload for testers (TestFlight / Play Internal)</h2>
-      <p class="section-meta">Only for <strong>testers</strong> — not an App Store or Play Store public release.</p>
+      <p class="section-meta">Only for <strong>testers</strong> — not an App Store or Play Store public release. Completing Play “Send for review” for policy/listing is <em>not</em> a public Production release.</p>
       <ul class="howto-list">
-        <li><strong>iOS</strong> → TestFlight</li>
-        <li><strong>Android</strong> → Play Internal testing track</li>
+        <li><strong>iOS</strong> → TestFlight (upload; Internal/Developer via ASC automatic distribution)</li>
+        <li><strong>Android</strong> → Play Internal testing · package <code>net.gustra.app</code></li>
       </ul>
       <p class="section-meta" style="margin-top:1rem"><strong>How to run</strong></p>
       <p class="section-meta" style="margin-top:0.35rem"><code>npm run deploy</code> &nbsp;(or <code>deploy:ios</code> / <code>deploy:android</code>)</p>
       <p class="section-meta" style="margin-top:1rem"><strong>What the script asks</strong></p>
       <ol class="howto-list">
         <li>Platform: <code>1</code> iOS / <code>2</code> Android / <code>3</code> both</li>
+        <li>iOS TestFlight group: <code>D</code> Developer (default) / <code>I</code> Internal — reminder only; upload has no <code>eas.json</code> <code>groups</code> (Apple rejects API assign when automatic distribution is on)</li>
         <li>Shows a summary of what upload would do</li>
-        <li>Upload? <code>1</code> = Yes, <code>2</code> = No — ask twice (double confirm)</li>
+        <li>Upload? type <code>Y</code> twice (double confirm) — anything else stops</li>
       </ol>
-      <p class="section-meta" style="margin-top:1rem">No “what to test” notes prompt — EAS changelog needs Enterprise; paste notes in TestFlight yourself if you want.</p>
-      <p class="section-meta" style="margin-top:0.35rem">After both Yes: bump → EAS → TestFlight / Play Internal → git commit. On failure the bump stays (EAS may already use that number).</p>
-      <p class="section-meta" style="margin-top:0.35rem">Optional: <code>npm run deploy -- --go</code> jumps to the double Yes/No.</p>
-      <p class="section-meta" style="margin-top:1rem">This never submits a public App Store / Play production release.</p>
+      <p class="section-meta" style="margin-top:1rem"><strong>Build mode (script change)</strong></p>
+      <ul class="howto-list">
+        <li><strong>Default = local</strong> — <code>eas build --local</code> on this Mac (no EAS cloud queue / fewer credits)</li>
+        <li>Local <strong>iOS</strong> needs <code>fastlane</code> on PATH: <code>brew install fastlane</code> (missing → <code>eas-cli-local-build-plugin … exited with non-zero code: 1</code>)</li>
+        <li>Local builds <strong>cannot</strong> use <code>--auto-submit</code>. The script: build <code>--output</code> → <code>eas submit --path</code> (not <code>--latest</code>)</li>
+        <li><strong>Cloud</strong> — <code>npm run deploy:cloud</code> or <code>npm run deploy -- --cloud</code> (still uses auto-submit on Expo servers)</li>
+        <li>Old cloud-only script frozen at <code>scripts/deploy-store.eas-cloud-backup.sh</code></li>
+      </ul>
+      <p class="section-meta" style="margin-top:1rem"><strong>Useful flags</strong></p>
+      <ul class="howto-list">
+        <li><code>npm run deploy -- --go</code> — skip overview, jump to double Yes</li>
+        <li><code>npm run deploy -- --platform android --go</code></li>
+        <li><code>npm run deploy -- --go --platform ios</code>. Env: <code>DEPLOY_PLATFORM</code>, <code>DEPLOY_BUILD_MODE</code>, <code>DEPLOY_IOS_GROUP</code> / <code>--ios-group Developer|Internal</code> (default Developer)</li>
+        <li>Non-interactive confirm: <code>DEPLOY_CONFIRM1=Y DEPLOY_CONFIRM2=Y</code></li>
+        <li>If empty <code>CI=</code> breaks EAS: run with <code>CI=false</code></li>
+      </ul>
+      <p class="section-meta" style="margin-top:1rem"><strong>Credentials</strong></p>
+      <ul class="howto-list">
+        <li><code>npm run deploy:credentials</code> — checklist for Play service account JSON + optional ASC API key</li>
+        <li>Play SA path in <code>eas.json</code>: <code>secrets/gustra-503718-….json</code>; invite <code>gustra-backend@….iam.gserviceaccount.com</code> as Release manager on <code>net.gustra.app</code></li>
+      </ul>
+      <p class="section-meta" style="margin-top:1rem">After both Yes: bump shared build (<code>ios.buildNumber</code> = <code>android.versionCode</code> → same <code>N</code>) → build → submit → one git commit. Solo iOS/Android still bumps both so they stay aligned. On failure the bump stays.</p>
+      <p class="section-meta" style="margin-top:1rem">This never submits a public App Store / Play <strong>production</strong> track release.</p>
+    </section>
+
+    <hr class="page-rule" />
+
+    <section class="panel howto" id="npm-scripts">
+      <h2>npm scripts — deploy &amp; checks</h2>
+      <p class="section-meta">Main commands after the recent script updates:</p>
+      <ul class="howto-list">
+        <li><code>npm run gustrarun</code> — kill Expo/Metro, free :8081, start Metro, then open booted iOS/Android (no <code>-c</code> by default; use <code>--clear</code> if needed)</li>
+        <li><code>npm run deploy</code> — interactive tester upload (default <strong>local</strong> build)</li>
+        <li><code>npm run deploy:ios</code> — iOS → TestFlight only</li>
+        <li><code>npm run deploy:android</code> — Android → Play Internal only</li>
+        <li><code>npm run deploy:cloud</code> — same flow with Expo <strong>cloud</strong> build + auto-submit</li>
+        <li><code>npm run deploy:credentials</code> — one-time store submit credentials checklist</li>
+        <li><code>npm run deploy:web</code> — Expo web export → <a href="https://gustra.net/demo/">gustra.net/demo</a> (was /webversion)</li>
+        <li><code>npm run deploy:privacy</code> — privacy policy → <a href="https://gustra.net/privacy/">gustra.net/privacy</a></li>
+        <li><code>npm run deploy:localization</code> — i18n table → <a href="https://gustra.net/localization/">gustra.net/localization</a> (rebuilds from <code>i18n/locales</code>)</li>
+        <li><code>npm run localization:build</code> — regenerate <code>localization/index.html</code> only (also runs after <code>i18n:check</code>)</li>
+        <li><code>npm run deploy:github</code> — public changelog → <a href="https://gustra.net/github/">gustra.net/github</a></li>
+        <li><code>python3 roadmap/deploy.py</code> — plan site → <a href="https://gustra.net/plan/">gustra.net/plan</a></li>
+        <li><code>python3 scripts/clear-obsolete-web-folders.py</code> — remove remote <code>webversion</code> + <code>adriaan</code> folders</li>
+        <li><code>npm run i18n:check</code> — all locales in sync</li>
+        <li><code>npm run test:gemini</code> — smoke-test Gemini API key / optional wine Vision</li>
+      </ul>
+      <p class="section-meta" style="margin-top:1rem"><strong>Clean Metro / Expo start</strong></p>
+      <p class="section-meta" style="margin-top:0.35rem">When the bundler is stuck, port 8081 is busy, or you still see an old error after a fix:</p>
+      <ul class="howto-list">
+        <li><code>npm run gustrarun</code> — kill stuck Expo/Metro + free :8081 + start Metro (<code>--localhost</code>), prewarm JS bundle, then open booted simulators. Applies DevTools autolinking hang patch</li>
+        <li><code>npm run gustrarun -- --clear</code> — same, but also clear Metro cache</li>
+        <li><code>npm run gustrarun -- --skip-prewarm</code> — open apps immediately (may show “Could not connect” on cold first bundle)</li>
+        <li><code>npx kill-port 8081 && npx expo start -c</code> — free Metro port + start with cleared cache (Metro only)</li>
+      </ul>
+      <p class="section-meta" style="margin-top:1rem"><strong>Android locale fix</strong></p>
+      <p class="section-meta" style="margin-top:0.35rem"><code>locales/*.json</code> must only contain an <code>ios</code> block (permission strings). Putting <code>NS*</code> keys under <code>android</code> fails <code>lintVitalRelease</code> with ExtraTranslation.</p>
+      <p class="section-meta" style="margin-top:1rem"><strong>Client API quotas (per device / day)</strong></p>
+      <ul class="howto-list">
+        <li><strong>Places</strong> — soft 80 (one <code>houseAlert</code>/day) · hard 150 block · __DEV__ 9999<br/>Soft: “Veel zoekopdrachten vandaag” — nog doorzoeken tot limiet · Hard: “Zoeklimiet bereikt”</li>
+        <li><strong>Gemini wine scan</strong> — soft 15 · hard 30 · __DEV__ 9999<br/>Soft: “Veel etiketten gescand” (herkenning vlot) · Hard: “Scanlimiet bereikt”</li>
+        <li><strong>Maps loads</strong> — no soft · hard 100 · __DEV__ 9999 · Hard: “Kaartlimiet bereikt”</li>
+        <li>Copy: neutral (snelheid/stabiliteit), no cost/misuse language; gate in <code>assertGoogleApiAllowed</code>; Settings reset clears soft-warn flags</li>
+      </ul>
+      <p class="section-meta" style="margin-top:1rem"><strong>Local EAS build → submit</strong></p>
+      <ul class="howto-list">
+        <li><code>brew install fastlane</code> required for local iOS archive</li>
+        <li>After local build, submit the <strong>local file</strong> (<code>--path build-N-ios.ipa</code>) — never <code>--latest</code> (that re-uploads the newest <em>cloud</em> build, e.g. an old build 28 while you just built 31)</li>
+        <li><code>deploy-store.sh</code> writes <code>build-&lt;n&gt;-ios.ipa</code> / <code>build-&lt;n&gt;-android.aab</code> via <code>eas build --local --output</code> then <code>eas submit --path</code></li>
+      </ul>
+      <p class="section-meta" style="margin-top:1rem"><strong>Sentry (crash reporting)</strong></p>
+      <ol class="howto-list">
+        <li>Create a React Native project at <a href="https://sentry.io/">sentry.io</a></li>
+        <li>Local <code>.env</code> / <code>.env.local</code>: <code>EXPO_PUBLIC_SENTRY_DSN</code>, <code>SENTRY_ORG</code>, <code>SENTRY_PROJECT</code>, <code>SENTRY_AUTH_TOKEN</code></li>
+        <li>Local iOS archive: <code>deploy-store.sh</code> injects those into <code>eas.json</code> <code>production.env</code> for the build only (shell alone is not enough). <code>SENTRY_ALLOW_FAILURE=true</code> so a bad/missing token never fails TestFlight</li>
+        <li>Cloud EAS: same names as sensitive env on expo.dev</li>
+        <li>New native build required after adding the plugin (<code>npm run deploy</code>)</li>
+        <li>__DEV__ Settings → Advanced → “Send Sentry test event”</li>
+      </ol>
+    </section>
+
+    <hr class="page-rule" />
+
+    <section class="panel howto" id="play-setup">
+      <h2>Play Console — finish app setup (Internal testing)</h2>
+      <p class="section-meta">Without these, testers see “App not available” even if Internal testing is Active.</p>
+      <p class="section-meta" style="margin-top:0.75rem"><strong>Privacy policy URL</strong></p>
+      <p class="section-meta" style="margin-top:0.25rem"><code>https://gustra.net/privacy/</code> &nbsp;(deploy: <code>npm run deploy:privacy</code>)</p>
+      <p class="section-meta" style="margin-top:1rem"><strong>Suggested answers for Gustra</strong></p>
+      <ol class="howto-list">
+        <li><strong>Privacy policy</strong> → paste <code>https://gustra.net/privacy/</code></li>
+        <li><strong>Sign in details</strong> → App does not require users to sign in (reviews stay on device)</li>
+        <li><strong>Ads</strong> → No, this app does not contain ads</li>
+        <li><strong>Content rating</strong> → questionnaire; typical result PEGI 3 / Everyone (no violence, no gambling, no user chat)</li>
+        <li><strong>Target audience</strong> → 18 and over (or 13+ if you prefer; not “designed for children”)</li>
+        <li><strong>Data safety</strong> — Collected / shared only as needed for features:
+          <ul>
+            <li><strong>Location</strong> — Approximate + Precise, collected, not shared with other companies for ads; used for restaurant search / maps (optional permission)</li>
+            <li><strong>Photos / videos</strong> — Collected (user reviews); optional wine-label image sent to Gemini Vision when user scans</li>
+            <li><strong>App activity / personal info</strong> — Review text &amp; ratings stored on device; not sold</li>
+            <li><strong>Data encrypted in transit</strong> — Yes (HTTPS to Google Places / Gemini)</li>
+            <li><strong>Users can request deletion</strong> — Yes (delete reviews / uninstall; contact email on privacy page)</li>
+            <li><strong>Committed to Play Families Policy</strong> — No (not for kids)</li>
+          </ul>
+        </li>
+        <li><strong>Government apps</strong> → No</li>
+        <li><strong>Financial features</strong> → No</li>
+        <li><strong>Health</strong> → No</li>
+        <li><strong>Category + contact</strong> → Food &amp; Drink (or Lifestyle) · email <code>philip.zvar@gmail.com</code></li>
+        <li><strong>Store listing</strong> — short description e.g. “Save restaurant visits with stars, photos, and wine notes.” · app icon · at least 2 phone screenshots</li>
+      </ol>
+      <p class="section-meta" style="margin-top:1rem">Then reopen the Internal testing opt-in link (same Google account as the Developer tester list).</p>
     </section>
 
     <hr class="page-rule" />
 
     <section class="panel howto" id="deploy-web">
-      <h2>Web version (gustra.net/webversion)</h2>
+      <h2>Web demo (gustra.net/demo)</h2>
       <p class="section-meta"><strong>How to run</strong></p>
       <p class="section-meta" style="margin-top:0.35rem"><code>npm run deploy:web</code></p>
       <p class="section-meta" style="margin-top:1rem"><strong>What it does</strong></p>
       <ol class="howto-list">
-        <li><code>npx expo export --platform web</code> (static, <code>baseUrl: /webversion</code>)</li>
-        <li>Upload <code>dist/</code> via FTP to <code>public_html/webversion</code></li>
+        <li>Sets <code>GUSTRA_WEB_BASE_URL=/demo</code> (default in <code>app.config.ts</code>)</li>
+        <li><code>npx expo export --platform web</code> → <code>dist/</code> + <code>.htaccess</code> + clean URL folders</li>
+        <li>FTP upload to <code>public_html/demo</code></li>
+        <li>Re-upload only: <code>python3 scripts/deploy-webversion.py --skip-export</code></li>
       </ol>
-      <p class="section-meta" style="margin-top:1rem"><a href="https://gustra.net/webversion/">https://gustra.net/webversion/</a></p>
+      <p class="section-meta" style="margin-top:1rem"><a href="https://gustra.net/demo/">https://gustra.net/demo/</a> — old <code>/webversion</code> removed.</p>
+    </section>
+
+    <hr class="page-rule" />
+
+    <section class="panel howto" id="deploy-privacy">
+      <h2>Privacy policy (gustra.net/privacy)</h2>
+      <p class="section-meta"><strong>How to run</strong></p>
+      <p class="section-meta" style="margin-top:0.35rem"><code>npm run deploy:privacy</code></p>
+      <p class="section-meta" style="margin-top:1rem">Source: <code>roadmap/privacy/index.html</code> → FTP <code>public_html/privacy</code>.</p>
+      <p class="section-meta" style="margin-top:0.35rem">Play Console: privacy URL <code>https://gustra.net/privacy/</code> · delete-data URL <code>https://gustra.net/privacy/#delete</code></p>
+      <p class="section-meta" style="margin-top:1rem"><a href="https://gustra.net/privacy/">https://gustra.net/privacy/</a></p>
     </section>
 
     <hr class="page-rule" />
@@ -530,9 +656,141 @@
         title: "New",
         groups: [
           {
+            id: "new-2026-07-30",
+            title: "30 Jul 2026",
+            tasks: [
+              { id: "chg-20260730-settings-version", title: "Settings: versie onderaan (bv. 1.0(37)) uit app.config — past automatisch mee bij deploy-bump.", done: true, badge: "Added/fixed", date: "2026-07-30" },
+              { id: "chg-20260730-android-icon-share", title: "Android: adaptive icon logo in safe zone (niet meer afgekapt); .gustrashare open via content:// → geen “This screen doesn’t exist” (+native-intent + Linking).", done: true, badge: "Added/fixed", date: "2026-07-30" },
+            ],
+          },
+          {
+            id: "new-2026-07-28",
+            title: "28 Jul 2026",
+            tasks: [
+              { id: "chg-20260728-tf-upload-only-again", title: "TestFlight submit: again upload-only (no eas.json groups) — fixes Cannot add internal group; D/I blijft ASC-reminder.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-deploy-group-yy", title: "deploy-store: TestFlight groep Developer (default) / Internal; dubbele bevestiging met Y/Y i.p.v. 1/1; eas.json groups terug.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-dining-filter", title: "Nearby/map Places: strengere horeca-filter — geen bakery/deli/ijssalon/retail food; excludedPrimaryTypes + lokale dining-allowlist.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-drinks-space-belgie-passport", title: "Dranken-comment: spaties behouden (geen trim in controlled input); manuele land-match Belgie/België + aliases; score-toggle onder Mijn Gustra.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-unsaved-criteria-review", title: "Criteria bewerken: draft + ✓ + Wijzigingen opslaan?; nieuwe recensie: leeg geen ✓/save, mét content zelfde dialoog + needStars.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-taste-scroll-rate", title: "Smaakprofiel: scroll bij openklappen; druiven bovenaan; kortere brontekst; Beoordeel deze fles boven Type & stijl.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-taste-bars-align", title: "Smaakprofiel bars: polen uitgelijnd op balk, dichter bijeen, score als 4/5.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-taste-bars", title: "Smaakprofiel: horizontale bar charts (0–5) i.p.v. slider-markers; polen + score rechts.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-vistarun-localhost", title: "vistarun: --localhost + DevTools patch + no interactive hang; Metro must be running before app connect.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-vistarun", title: "scripts/vistarun + npm run vistarun — simple verbose Expo start (kill 8081, foreground metro).", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-metro-prewarm", title: "gustrarun: prewarm JS bundle + drop native baseUrl=/demo (fixes Could not connect to development server).", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-gustrarun-hang", title: "gustrarun: fix Expo hang on Starting project — patch DevTools autolinking + --localhost.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-gustrarun", title: "scripts/gustrarun + npm run gustrarun — kill Expo/Metro, free 8081, clean start on iOS+Android emulators.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-localization-site", title: "gustra.net/localization — EN + all locales table; auto-rebuild on i18n:check; deploy:localization.", done: true, badge: "Website", date: "2026-07-28" },
+              { id: "chg-20260728-taste-profile", title: "Wine fiche: collapsible Smaakprofiel (AI traits/grapes%/serve hints); revert via WineFichePresentation.isTasteProfileEnabled; same Gemini call.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-tf-no-groups", title: "TestFlight submit: drop eas.json groups (Apple Cannot add internal group) — upload + ASC auto-distribution.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-local-submit-path", title: "Local deploy: eas submit --path (IPA/AAB) instead of --latest (was re-submitting old cloud build 28).", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-sentry-local-allow-failure", title: "Sentry local iOS: SENTRY_ALLOW_FAILURE + deploy injects AUTH_TOKEN into eas.json env (archive no longer fails on sentry-cli login).", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-fastlane-howto", title: "Plan howto: local iOS EAS needs brew install fastlane (missing → local-build-plugin exit 1).", done: true, badge: "Website", date: "2026-07-28" },
+              { id: "chg-20260728-clean-metro-howto", title: "Plan howto: clean Metro start — npx kill-port 8081 && npx expo start -c (stuck port / stale cache).", done: true, badge: "Website", date: "2026-07-28" },
+              { id: "chg-20260728-map-pin-contrast", title: "My map pins: own = house gold, friends = house red (better contrast vs parks/water than forest green + blue).", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-swipe-mail-feel", title: "Swipe-delete closer to Mail: peek Delete stays open; full-swipe (~50%) commits; friction/overshoot; iOS system Alert confirm; keep house red; flatter visit rows.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-sentry-wizard-cleanup", title: "Sentry wizard cleanup: remove duplicate Sentry.init/import from _layout; DSN via EXPO_PUBLIC_SENTRY_DSN in .env (org none-zzo / project react-native).", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-settings-advanced", title: "Settings: less dump — You / Reviewing / Storage / Data & backup; Advanced collapsible for API counters, reset, iOS recover, __DEV__ tools; leading icons on rows.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-filter-funnel", title: "Reviews/Map/Passport header: funnel filter icon (Ionicons); turns house orange when filters are active.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-nl-bediening", title: "NL: criteria “Dienst” → “Bediening”.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-save-changes-close", title: "Save changes? alerts: leading × dismisses without action; Ja and Nee both leave (shared houseSaveChangesAlert on wine scan/fiche + review edit).", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-wine-scan-tab-clearance", title: "Wine scan: tab-bar clearance so “Choose another photo” isn’t trapped under Reviews/Map tabs; rating title → “Rate this bottle”.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-wine-scan-btn-tight", title: "Wine Scan button sits tight under crop photo (crop canvas no longer flex-fills the screen).", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-wine-scan-btn", title: "Wine crop step: forest-green Scan button under photo; busy overlay shows Thinking… until Gemini responds.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-wine-delete-nav", title: "After deleting a wine from edit fiche → persist review and open that review detail (not restaurant list).", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-review-save-prompt", title: "Review edit leave prompt: same “Save changes?” + Ja (green) / Nee (red) as wine — yes persists, no restores baseline.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-quota-copy", title: "API quota warnings: professional NL/EN (+all locales) — soft explains you can continue; hard is clear; no cost/misuse wording.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-wine-save-prompt", title: "Wine leave prompt: “Save changes?” with side-by-side Ja (forest green) / Nee (house red) — yes saves, no discards.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-quota-places", title: "Places quota soft 80 / hard 150 (__DEV__ 9999). Soft: “Veel zoekopdrachten vandaag” — nog zoeken tot limiet. Hard: “Zoeklimiet bereikt” — morgen weer locaties zoeken.", done: true, badge: "Expo", date: "2026-07-28" },
+              { id: "chg-20260728-quota-gemini", title: "Gemini scan quota soft 15 / hard 30 (__DEV__ 9999). Soft: “Veel etiketten gescand” — herkenning vlot houden. Hard: “Scanlimiet bereikt” — morgen weer etiketten scannen.", done: true, badge: "Expo", date: "2026-07-28" },
+              { id: "chg-20260728-quota-maps", title: "Maps hard-only quota 100/day (__DEV__ 9999). Hard: “Kaartlimiet bereikt” — morgen kaart weer openen. Geen soft warning.", done: true, badge: "Expo", date: "2026-07-28" },
+              { id: "chg-20260728-shared-build", title: "Deploy: ios.buildNumber + android.versionCode stay equal (max+1 both); sync Android to 28; one git commit per upload.", done: true, badge: "Added/fixed", date: "2026-07-28" },
+              { id: "chg-20260728-sentry", title: "Sentry crash reporting (@sentry/react-native): DSN via EXPO_PUBLIC_SENTRY_DSN, navigation breadcrumbs, Expo plugin + Metro source maps; __DEV__ Settings test event; privacy §8.", done: true, badge: "Expo", date: "2026-07-28" },
+              { id: "chg-20260728-android-first", title: "Eerste werkende Android-versie op Play Internal testing (net.gustra.app / Gustra-beta) — testers only, geen publieke Production.", done: true, badge: "Expo", date: "2026-07-28" },
+              { id: "chg-20260728-scripts-howto", title: "Plan: deploy-script changes + howto (local build→submit, deploy:cloud, deploy:web /demo, deploy:privacy, credentials, ExtraTranslation locales fix).", done: true, badge: "Website", date: "2026-07-28" },
+              { id: "chg-20260728-privacy-play-setup", title: "Privacy policy at https://gustra.net/privacy/ + plan howto with Play Console setup answers (fixes Internal testing “App not available”).", done: true, badge: "Website", date: "2026-07-28" },
+            ],
+          },
+          {
+            id: "new-2026-07-27",
+            title: "27 Jul 2026",
+            tasks: [
+              { id: "chg-20260727-android-extra-translation", title: "Android release lint: drop iOS NS* permission strings from locales/*/android (ExtraTranslation / lintVitalRelease).", done: true, badge: "Added/fixed", date: "2026-07-27" },
+              { id: "chg-20260727-local-submit-split", title: "Deploy --local: build without --auto-submit*, then separate eas submit --latest (iOS + Android); cloud keeps auto-submit.", done: true, badge: "Added/fixed", date: "2026-07-27" },
+              { id: "chg-20260727-web-demo-only", title: "Web app only at https://gustra.net/demo/ (removed /webversion); cleared remote webversion + adriaan; removed Adriaan plan entries.", done: true, badge: "Website", date: "2026-07-27" },
+              { id: "chg-20260727-wine-scan-plan", title: "Plan: wine label scan section updated (Wijnen criterion, Gemini Vision fiche, multi-wine; open: proxy + cache).", done: true, badge: "Website", date: "2026-07-27" },
+              { id: "chg-20260727-web-demo", title: "Web deploy naar https://gustra.net/demo/ (GUSTRA_WEB_BASE_URL + npm run deploy:web).", done: true, badge: "Website", date: "2026-07-27" },
+              { id: "chg-20260727-store-credentials", title: "Store submit zonder UI: eas.json serviceAccountKeyPath → secrets/…json; npm run deploy:credentials checklist (Play SA invite + optionele ASC AuthKey.p8).", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-deploy-local", title: "Deploy script: default eas build --local (minder wachttijd/credits); oud cloud-script bewaard als scripts/deploy-store.eas-cloud-backup.sh; --cloud / npm run deploy:cloud.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-iam-vertex-role", title: "GCP IAM: gustra-backend@gustra-503718.iam.gserviceaccount.com role Editor → Vertex AI User (project gustra-503718). Let op: Play upload-rechten blijven in Play Console Users, niet alleen Vertex AI User.", done: false, badge: "gap", date: "2026-07-27" },
+              { id: "chg-20260727-play-sa-invite", title: "Play Console: invite gustra-backend@gustra-503718.iam.gserviceaccount.com as Release manager on net.gustra.app (API access linked).", done: false, badge: "gap", date: "2026-07-27" },
+              { id: "chg-20260727-api-hard-quotas", title: "Harde quota instellen voor API-sleutels (Gemini / Google / Maps) — cost/abuse caps in Cloud Console.", done: false, badge: "gap", date: "2026-07-27" },
+              { id: "chg-20260727-hermes-worklet-crash", title: "TestFlight #27 SIGABRT: stabilize ZoomablePhoto / CircularCrop / photo viewers (runOnJS + useMemo gestures) vs RNWorklets DisplayLink.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-photo-cover-empty", title: "Fix empty Cover slot: compact blank gallery URIs; first added photo is Cover; drop deleted wine URIs from photoUrls.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-ideal-three-short", title: "Setup hint: underlined Tip + “3 criteria zijn ideaal”.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-welcome-italic", title: "Welcome tagline: Source Serif 4 Regular Italic (loaded face) for making food memories.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-setup-to-reviews", title: "Eerste configuratie: vinkje navigates to Reviews (replace main tab), not back to Settings.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-welcome-logo-bg", title: "Welcome screen bg matches splash logo cream (#F6ECE2) so logo edge disappears.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-setup-welcome", title: "First-start: Welkom bij Gustra-scherm (logo + making food memories, tik om verder); setup heet Eerste configuratie met vinkje in banner, custom criteria toevoegbaar, hint dat 3 criteria ideaal is.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-criteria-first-start", title: "First-start Setup: personalize review criteria (Eten+Wijnen on by default, min 1); __DEV__ settings button to reopen.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-review-detail-cards", title: "Review detail: scores/wijnen/locatie in soft bubble panels (less text-list feel); wine score as green serif.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-wines-criterion", title: "Criteria: Drank (singular) + fixed Wijnen criterion (toggle in settings); wine UI/avg moves off Drinks; backup via customCriterionScoresJSON.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-wine-score-star-align", title: "Wine list: n/5 aligns with criterion stars column; larger chevron to fiche.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-wine-list-no-thumb", title: "Gedronken wijnen: no label photo thumb; meta score (n/5) right-aligned under wine name.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-score-out-of-five", title: "All displayed star scores use n/5 format via formatScoreOutOfFive (feed, visits, passport, wine, share, forms).", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-review-score-stars-left", title: "Review detail: overall stars left, score as 3.2/5 on the right under restaurant name.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-review-layout-scan", title: "Review detail scan layout: scores first, wines as separate inline list (thumb+name), compact location (no map thumb); revert via isStreamlinedEnabled.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-review-streamlined", title: "Review detail streamlined scan: no criterion word labels, drop drinks-avg hint, wine rows = region·year·score; revert via ReviewDetailPresentation.isStreamlinedEnabled.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-wine-cutout-revert", title: "Wine fiche: revert cutout hero (looked like a glitch); WineFichePresentation.isCutoutHeroEnabled = false.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-wine-cutout-hero", title: "Wine fiche cutout hero (floating label under nav); revert via WineFichePresentation.isCutoutHeroEnabled = false.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-wine-meta-style-left", title: "Wine fiche meta: Type & style left, grapes right.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-wine-fiche-pairings-style-color", title: "Wine fiche: remove Past bij accent bar; type/style uses same ink color as other meta.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-wine-meta-grapes-style", title: "Wine fiche: identity = name + region·year; meta grid = grapes | style (+ alcohol); judgment card unchanged.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-wine-fiche-premium-v1", title: "Wine fiche premium layout v1: label card hero, region·vintage subline, typographic style, judgment score+quote, 2-col meta. Deferred: cutout bottle, Vision pairing tags, edit/share on card.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-wine-judgment-card", title: "Wine fiche: wrap “Mijn oordeel” (stars + note) in a soft bubble card.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-feed-date-sort-judgment", title: "Reviews default sort: newest visit first; wine fiche labels stars/note as “Mijn oordeel”.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-wine-fiche-sexy", title: "Wine fiche restyle: full-bleed hero + fade, type-tinted chip, typographic facts, quote note; no “Goed” rating label.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-wine-profile-chip", title: "Wine chip: type × sweetness labels (halfdroog=2–3); remove tasting-profile orbs; Vision requires type + sweetness.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-wine-edit-delete", title: "Wine edit: trash at bottom with confirm; after delete navigate to the restaurant visits screen.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-gesture-swipe-color", title: "Disable back-swipe on wine scan/fiche (star scrub); softer house red for swipe-delete.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-keyboard-light", title: "Soft keyboard: force light appearance + delayed focus on Manual entry (no dark→light flash).", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-rating-fair-amazing", title: "Rating labels: okay→Fair / perfect→Amazing (all locales).", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-rating-uitstekend", title: "NL rating label: “Zeer goed” → “Uitstekend” (4★ band).", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-recensie-naming", title: "NL: review detail/form title “Recensie” (consistent with tab “Recensies”); confirm no wineglass in review banner.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-swipe-platform-undo", title: "Swipe-delete: iOS confirm alert; Android Undo snackbar (~4.5s) + haptics (feed, visits, wines).", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-review-detail-polish", title: "Review detail polish: overall score, compact criteria, drinks-avg hint, reviewer under date, quote comments; revert via ReviewDetailPresentation.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-wine-name-ellipsis", title: "Wine row name: single-line ellipsis when too long for the frame.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-rich-wine-rows", title: "Review detail: rich wine rows (label thumb + meta); revert via WineRowPresentation.isRichDetailEnabled.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-wine-swipe-confirm", title: "Swipe-delete wine asks for confirmation (review detail + form).", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-detail-swipe-delete-wine", title: "Review detail: swipe-to-delete wine under Drinks (own reviews).", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-wine-stars-in-detail", title: "Review detail: per-wine stars in name bubble; “Gedronken wijn(en)” heading with spacing under Drinks.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-wine-note-after-stars", title: "Wine scan/edit: optional note field only appears after stars are set.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-per-wine-rating", title: "Per-wine required stars (avg under Drinks); edit wine = same screen as scan (stars + note).", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-scan-confirm-check", title: "Wine scan: confirm with header ✓; wine notes copy; remove Adjust crop; unsaved-back warning.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-scan-result-rating", title: "Wine scan result: optional Drinks stars + note under fiche, applied on Use in Drinks.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-wine-fiche-layout", title: "Wine identity card restyle: hero label photo, type chip, fact grid, soft card, aligned tasting orbs.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-multi-wine-drinks-ux", title: "Drinks: scan only after stars; under notes as “Scan wine label”; multi-wine names + swipe delete; no label in gallery; clear-stars confirms wine wipe.", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-options-no-delete", title: "Review ⋯ Options: remove Delete (use Edit review or feed/visit swipe).", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-review-no-wineglass-header", title: "Review detail: remove wineglass toolbar next to Beoordeling (open fiche via Drinks name).", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-feed-thumb-placeholder", title: "Reviews feed: larger fork.knife placeholder in thumb (no nested PhotoPlaceholder frame).", done: true, badge: "Expo", date: "2026-07-27" },
+              { id: "chg-20260727-metro-devtools-hang", title: "Dev: Expo Metro no longer hangs on start (DevTools plugin timeout + metro blockList for ios/Pods / full dump).", done: true, badge: "Added/fixed", date: "2026-07-27" },
+            ],
+          },
+          {
             id: "new-2026-07-26",
             title: "26 Jul 2026",
             tasks: [
+              { id: "chg-20260726-wine-identity-card", title: "Drinks: stars + user notes + clickable wine name → house-styled identity card (photo + fields). Stop stuffing type/region into the comment.", done: true, badge: "Expo", date: "2026-07-26" },
+              { id: "chg-20260726-wine-vision-locale", title: "Wine Vision: reply in active app language (1 call); typeStyle as stable codes (red/white/…); grapeVarieties[] for filter; only new scans.", done: true, badge: "Expo", date: "2026-07-26" },
+              { id: "chg-20260726-photo-path-relocate", title: "Fix missing review photos after app update: rewrite absolute file:// URIs to the current Documents/Photos sandbox on hydrate + display.", done: true, badge: "Expo", date: "2026-07-26" },
+              { id: "chg-20260726-wine-tasting-traits", title: "Wine Vision: tasting profile (freshness/tannins/…) with green orb scores; collapsible row on review opens full fiche.", done: true, badge: "Expo", date: "2026-07-26" },
+              { id: "chg-20260726-reviews-cover-resync", title: "Reviews feed: resync restaurant cover photos on open; edit mode persists photo changes immediately so thumbs update.", done: true, badge: "Expo", date: "2026-07-26" },
+              { id: "chg-20260726-test-gemini-vision", title: "test:gemini supports --image for a real Vision wine-label call (same JSON prompt as the app).", done: true, badge: "Added/fixed", date: "2026-07-26" },
+              { id: "chg-20260726-gemini-35-flash", title: "Wine label Vision uses gemini-3.5-flash (2.0-flash shut down). test:gemini defaults to the same model.", done: true, badge: "Expo", date: "2026-07-26" },
+              { id: "chg-20260726-test-gemini-script", title: "Standalone bash script to smoke-test Gemini API key from .env (`npm run test:gemini`).", done: true, badge: "Added/fixed", date: "2026-07-26" },
+              { id: "chg-20260726-deploy-tf-group", title: "Deploy script: choose TestFlight group Internal or Developer (EAS submit profiles).", done: true, badge: "Added/fixed", date: "2026-07-26" },
+              { id: "chg-20260726-i18n-all-langs", title: "App copy fully translated in EN/NL/FR/ES/DE/IT. New strings must ship in all languages (`npm run i18n:check` + agent rule).", done: true, badge: "Expo", date: "2026-07-26" },
+              { id: "chg-20260726-es-de-i18n", title: "Complete Spanish and German app translations; Dutch and Italian wine scan copy is now fully localized.", done: true, badge: "Added/fixed", date: "2026-07-26" },
               { id: "chg-20260726-share-email-copy", title: "Share option copy: “Share review via email” / nice card subtitle (NL: Deel review via e-mail).", done: true, badge: "Expo", date: "2026-07-26" },
               { id: "chg-20260726-passport-stars-default", title: "My Gustra: “Show ratings as stars” is on by default (saved preference still wins).", done: true, badge: "Expo", date: "2026-07-26" },
               { id: "chg-20260726-map-options-i18n", title: "Review map icon only opens in-app map (no directions prompt). Options sheet title localized (e.g. Opties).", done: true, badge: "Expo", date: "2026-07-26" },
@@ -885,23 +1143,20 @@
             id: "wine",
             title: "Wine search & bottle scan",
             tasks: [
+              { id: "wine-ocr", title: "Wijnetiket scannen: foto → crop → Gemini Vision → fiche (naam, type/stijl, regio, jaar, druiven, alcohol, pairing) + verplichte sterren; multi-wine onder criterium Wijnen.", done: true, badge: "Expo",
+                children: [
+                  { id: "wine-camera", title: "Take or pick a bottle photo (review → Scan wine label → crop).", done: true, badge: "Expo" },
+                  { id: "wine-ocr-parse", title: "Gemini Vision JSON fiche; open from review wine list; no match → empty state.", done: true, badge: "Expo" },
+                  { id: "wine-wijnen-criterion", title: "Fixed Wijnen criterion (avg of per-wine stars); Drank stays for other drinks.", done: true, badge: "Expo" },
+                  { id: "wine-multi", title: "Multiple wines per visit; swipe-delete; edit fiche; label photos not in gallery.", done: true, badge: "Expo" },
+                ],
+              },
+              { id: "wine-ai-proxy", title: "Move Gemini Vision off-device via a safe server proxy (no API key in the app).", done: false, badge: "gap" },
+              { id: "wine-persist", title: "Cache Vision results so repeat scans of the same label don’t re-bill.", done: false, badge: "gap" },
               { id: "wine-json", title: "Local wine list (~20 known wines: name, notes, score, price, shops, food)." },
               { id: "wine-ui", title: "Search screen: type to filter the local wine list." },
               { id: "wine-nav", title: "Add a Wine screen entry (e.g. from My Gustra or Settings)." },
-              { id: "wine-ocr", title: "Photo of label → Vision identify → wine fiche (name, type, region, vintage, grapes, alcohol, food pairing).", done: true, badge: "Expo",
-                children: [
-                  { id: "wine-camera", title: "Take or pick a bottle photo (Drinks → Scan → crop).", done: true, badge: "Expo" },
-                  { id: "wine-ocr-parse", title: "Gemini Vision JSON fiche; open from review via wineglass; no icon if no match.", done: true, badge: "Expo" },
-                ],
-              },
               { id: "wine-barcode", title: "Optional: barcode lookup via Open Food Facts (free)." },
-              { id: "wine-ai", title: "If local miss: Ask AI once to fill missing fields.",
-                children: [
-                  { id: "wine-ai-proxy", title: "Call AI via a safe server proxy (no API key in the app)." },
-                  { id: "wine-ai-merge", title: "Merge AI wine info into local data / review.wineLabel.", done: true, badge: "Expo" },
-                ],
-              },
-              { id: "wine-persist", title: "Remember AI/OCR results so you don’t pay twice." },
               { id: "wine-disclaimer", title: "Show a disclaimer: price/shops/score may be estimates." },
             ],
           },
