@@ -1279,7 +1279,14 @@ export default function ReviewFormScreen() {
           <View style={styles.card}>
             <View style={styles.restaurantRow}>
               <View style={styles.restaurantCopy}>
-                <SerifText style={styles.restaurantName}>{draft.name}</SerifText>
+                <View style={styles.nameRow}>
+                  <SerifText style={styles.restaurantName}>{draft.name}</SerifText>
+                  {isDraftForm && (
+                    <View style={styles.editorialPill}>
+                      <Text style={styles.editorialPillText}>{t('reviews.draftLabel')}</Text>
+                    </View>
+                  )}
+                </View>
                 {addressLine ? (
                   <Text style={styles.address}>{addressLine}</Text>
                 ) : null}
@@ -1294,9 +1301,9 @@ export default function ReviewFormScreen() {
           </View>
 
           {isDraftForm && draftReason ? (
-            <View style={styles.draftBanner}>
-              <Text style={styles.draftBannerText}>
-                {draftReason === 'wine'
+            <View style={styles.subtleDraftHint}>
+              <Text style={styles.subtleDraftHintText}>
+                * {draftReason === 'wine'
                   ? t('forms.review.draftBannerWine')
                   : t('forms.review.draftBannerCriteria')}
               </Text>
@@ -1830,6 +1837,37 @@ const styles = StyleSheet.create({
     borderRadius: Theme.radius.xxl,
     padding: 16,
     gap: 12,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  editorialPill: {
+    backgroundColor: 'rgba(199, 71, 66, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(199, 71, 66, 0.25)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  editorialPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(199, 71, 66, 0.85)',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  subtleDraftHint: {
+    marginTop: -4,
+    paddingHorizontal: 16,
+  },
+  subtleDraftHintText: {
+    ...bodyTextStyle,
+    fontSize: 13,
+    fontStyle: 'italic',
+    color: 'rgba(35, 32, 26, 0.6)',
   },
   draftBanner: {
     backgroundColor: 'rgba(217, 162, 39, 0.14)',

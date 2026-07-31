@@ -173,7 +173,8 @@ export default function ShareImportScreen() {
     <View style={styles.screen}>
       <HouseNavHeader
         title={navigationTitle}
-        titleSize={Theme.navigation.secondaryTitleSize}
+        titleSize={24}
+        numberOfLines={2}
         left={
           <HouseToolbarIconButton
             iosName="xmark"

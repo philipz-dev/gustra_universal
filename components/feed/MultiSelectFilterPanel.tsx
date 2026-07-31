@@ -132,6 +132,7 @@ export function MultiSelectFilterPanel({
               pressed && styles.pressed,
             ]}>
             <CheckboxIcon checked={selectAllOn} />
+            <Text style={styles.selectAllLabel}>{t('filters.selectAll')}</Text>
           </Pressable>
 
           {items.map((item) => {
@@ -178,11 +179,20 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   selectAllRow: {
-    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     backgroundColor: 'rgba(236, 227, 207, 0.45)',
     borderRadius: Theme.radius.lg,
     paddingHorizontal: 14,
     paddingVertical: 14,
+  },
+  selectAllLabel: {
+    ...bodyTextStyle,
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '600',
+    color: GustraColors.ink,
   },
   row: {
     flexDirection: 'row',

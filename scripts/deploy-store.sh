@@ -373,7 +373,7 @@ if [[ "$BUILD_MODE" == "cloud" ]]; then
 fi
 echo ""
 if [[ "$PLATFORM" == "ios" || "$PLATFORM" == "both" ]]; then
-  echo "Tip: ASC → TestFlight → groep “$IOS_GROUP” → Enable automatic distribution."
+  echo "Tip: ASC → TestFlight → groep “${IOS_GROUP}” → Enable automatic distribution."
   echo "     Script assign’t geen groups via API (anders: Cannot add internal group)."
   echo ""
 fi

@@ -323,7 +323,7 @@
       "time": "Time",
       "setTime": "Set time · {{time}}",
       "photoStrip": {
-        "hintReorder": "Tap to select · long-press to reorder · first is Cover",
+        "hintReorder": "Tap to select · long-press to reorder",
         "hintSelect": "Tap to select for removal",
         "cover": "Cover",
         "a11yCover": "Cover photo. Tap to select, long-press to reorder.",
@@ -388,10 +388,10 @@
   },
   "share": {
     "chooser": {
-      "gustraFile": "Share Gustra file",
-      "gustraFileSubtitle": "Friends can import this into Gustra",
-      "visual": "Share review via email",
-      "visualSubtitle": "Send a nice card of this review",
+      "gustraFile": "Share Gustra Package",
+      "gustraFileSubtitle": "Send 1 or more reviews for other Gustra users to import",
+      "visual": "Share via Email",
+      "visualSubtitle": "Send a styled review card of 1 restaurant (for anyone)",
       "cancel": "Cancel"
     },
     "nameSheet": {
@@ -400,7 +400,9 @@
       "placeholder": "Reviewer name",
       "cancel": "Cancel",
       "continue": "Continue"
-    }
+    },
+    "selectRestaurants": "Select restaurants",
+    "selectOneRestaurant": "Select 1 restaurant"
   },
   "import": {
     "title": "Import Reviews",

@@ -9,9 +9,7 @@ import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 export type ReviewOptionsAction =
   | 'recordVisit'
-  | 'edit'
-  | 'shareGustra'
-  | 'shareVisual';
+  | 'edit';
 
 type ReviewOptionsSheetProps = {
   visible: boolean;
@@ -84,29 +82,6 @@ export function ReviewOptionsSheet({
                 onPress={() => onAction('edit')}
               />
             </InsetGroup>
-
-            <View style={styles.shareBlock}>
-              <Text style={styles.groupLabel}>
-                {t('detail.options.shareSection')}
-              </Text>
-              <InsetGroup>
-                <OptionRow
-                  title={t('share.chooser.gustraFile')}
-                  subtitle={t('share.chooser.gustraFileSubtitle')}
-                  iosName="doc.badge.arrow.up"
-                  androidName="upload_file"
-                  showBorder
-                  onPress={() => onAction('shareGustra')}
-                />
-                <OptionRow
-                  title={t('share.chooser.visual')}
-                  subtitle={t('share.chooser.visualSubtitle')}
-                  iosName="envelope.fill"
-                  androidName="email"
-                  onPress={() => onAction('shareVisual')}
-                />
-              </InsetGroup>
-            </View>
           </View>
         </View>
       </View>

@@ -321,13 +321,13 @@
       "time": "Tijd",
       "setTime": "Tijd instellen · {{time}}",
       "photoStrip": {
-        "hintReorder": "Tik om te selecteren · lang indrukken om te herschikken · eerste is Cover",
+        "hintReorder": "Tik om te selecteren · lang indrukken om te herschikken",
         "hintSelect": "Tik om te selecteren voor verwijderen",
         "cover": "Cover",
         "a11yCover": "Coverfoto. Tik om te selecteren, lang indrukken om te herschikken.",
         "a11yPhoto": "Foto. Tik om te selecteren, lang indrukken om te herschikken."
       },
-      "draftBannerCriteria": "Geef minstens één criterium sterren om deze recensie af te ronden.",
+      "draftBannerCriteria": "Beoordeel minstens 1 criterium om deze recensie af te ronden.",
       "draftBannerWine": "Een wijn heeft nog sterren nodig."
     },
     "photos": {
@@ -388,10 +388,10 @@
   },
   "share": {
     "chooser": {
-      "gustraFile": "Gustra-bestand delen",
-      "gustraFileSubtitle": "Vrienden kunnen dit in Gustra importeren",
-      "visual": "Deel recensie via e-mail",
-      "visualSubtitle": "Stuur een mooie kaart van deze recensie",
+      "gustraFile": "Deel Gustra Package",
+      "gustraFileSubtitle": "Verstuur 1 of meerdere reviews zodat andere Gustra-gebruikers deze kunnen importeren",
+      "visual": "Deel via E-mail",
+      "visualSubtitle": "Verstuur een opgemaakte reviewkaart van 1 restaurant (voor iedereen)",
       "cancel": "Annuleren"
     },
     "nameSheet": {
@@ -400,7 +400,9 @@
       "placeholder": "Naam van de recensent",
       "cancel": "Annuleren",
       "continue": "Doorgaan"
-    }
+    },
+    "selectRestaurants": "Selecteer restaurants",
+    "selectOneRestaurant": "Selecter 1 restaurant"
   },
   "import": {
     "title": "Recensies importeren",

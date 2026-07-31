@@ -321,7 +321,7 @@
       "time": "Ora",
       "setTime": "Imposta ora · {{time}}",
       "photoStrip": {
-        "hintReorder": "Tocca per selezionare · tieni premuto per riordinare · la prima è Cover",
+        "hintReorder": "Tocca per selezionare · tieni premuto per riordinare",
         "hintSelect": "Tocca per selezionare e rimuovere",
         "cover": "Cover",
         "a11yCover": "Foto di copertina. Tocca per selezionare, tieni premuto per riordinare.",
@@ -388,10 +388,10 @@
   },
   "share": {
     "chooser": {
-      "gustraFile": "Condividi file Gustra",
-      "gustraFileSubtitle": "Per amici con Gustra",
-      "visual": "Condividi recensione via e-mail",
-      "visualSubtitle": "Invia una bella scheda di questa recensione",
+      "gustraFile": "Condividi Gustra Package",
+      "gustraFileSubtitle": "Invia 1 o più recensioni per consentire ad altri utenti di Gustra di importarle",
+      "visual": "Condividi via E-mail",
+      "visualSubtitle": "Invia una scheda di recensione stilizzata di 1 ristorante (per chiunque)",
       "cancel": "Annulla"
     },
     "nameSheet": {
@@ -400,7 +400,9 @@
       "placeholder": "Nome del recensore",
       "cancel": "Annulla",
       "continue": "Continua"
-    }
+    },
+    "selectRestaurants": "Seleziona ristoranti",
+    "selectOneRestaurant": "Seleziona 1 ristorante"
   },
   "import": {
     "title": "Importa recensioni",

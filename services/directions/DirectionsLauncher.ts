@@ -45,11 +45,20 @@ export const DirectionsLauncher = {
     const lng = asCoord(longitude);
     if (!restaurantHasCoordinates(lat, lng)) return;
 
-    const appURL = `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`;
-    const webURL = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-    const openedApp = await safeOpenURL(appURL, { alertOnFailure: false });
-    if (openedApp) return;
-    await safeOpenURL(webURL);
+    if (Platform.OS === 'ios') {
+      const appURL = `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`;
+      const webURL = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+      const openedApp = await safeOpenURL(appURL, { alertOnFailure: false });
+      if (openedApp) return;
+      await safeOpenURL(webURL);
+    } else {
+      // Android: Google Maps turn-by-turn navigation Intent starts directions directly
+      const navigationURL = `google.navigation:q=${lat},${lng}&mode=d`;
+      const webURL = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+      const openedApp = await safeOpenURL(navigationURL, { alertOnFailure: false });
+      if (openedApp) return;
+      await safeOpenURL(webURL);
+    }
   },
 
   async openWaze(latitude: number, longitude: number) {

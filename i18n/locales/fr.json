@@ -321,7 +321,7 @@
       "time": "Heure",
       "setTime": "Choisir l’heure · {{time}}",
       "photoStrip": {
-        "hintReorder": "Touchez pour sélectionner · appui long pour réordonner · la première est Cover",
+        "hintReorder": "Touchez pour sélectionner · appui long pour réordonner",
         "hintSelect": "Touchez pour sélectionner et supprimer",
         "cover": "Cover",
         "a11yCover": "Photo de couverture. Touchez pour sélectionner, appui long pour réordonner.",
@@ -388,10 +388,10 @@
   },
   "share": {
     "chooser": {
-      "gustraFile": "Partager un fichier Gustra",
-      "gustraFileSubtitle": "Les amis peuvent l’importer dans Gustra",
-      "visual": "Partager l’avis par e-mail",
-      "visualSubtitle": "Envoyer une belle carte de cet avis",
+      "gustraFile": "Partager le Gustra Package",
+      "gustraFileSubtitle": "Envoyer 1 ou plusieurs avis pour que d'autres utilisateurs de Gustra puissent les importer",
+      "visual": "Partager via E-mail",
+      "visualSubtitle": "Envoyer une fiche d'avis stylisée d'un restaurant (pour tout le monde)",
       "cancel": "Annuler"
     },
     "nameSheet": {
@@ -400,7 +400,9 @@
       "placeholder": "Nom de l’auteur de l’avis",
       "cancel": "Annuler",
       "continue": "Continuer"
-    }
+    },
+    "selectRestaurants": "Choisir les restaurants",
+    "selectOneRestaurant": "Choisir 1 restaurant"
   },
   "import": {
     "title": "Importer des avis",

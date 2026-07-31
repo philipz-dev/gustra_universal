@@ -1,8 +1,8 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-07-31T11:09:33Z
+Generated: 2026-07-31T15:59:22Z
 Root: /Users/philipzvar/Desktop/gustra_universal
-Files: 219
+Files: 220
 ================================================================================
 
 ================================================================================
@@ -361,7 +361,8 @@ const styles = StyleSheet.create({
 FILE: app/(tabs)/(main)/index.tsx
 ================================================================================
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
 
 import { houseAlert } from '@/components/ui/HouseAlert';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -378,9 +379,10 @@ import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseFAB } from '@/components/ui/HouseFAB';
 import { ReviewsHeader } from '@/components/ui/ReviewsHeader';
 import { GustraColors } from '@/constants/Colors';
-import { Theme } from '@/constants/Theme';
+import { Theme, bodyTextStyle } from '@/constants/Theme';
 import { useReviewerProfile } from '@/context/ReviewerProfile';
 import { useReviewsStore } from '@/context/ReviewsStore';
+import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { consumePendingEnableFriendsFilter } from '@/context/pendingFriendsFilter';
 import type { RestaurantVisitSummary, Review } from '@/data/types';
 import { resolveReviewOrigin } from '@/data/types';
@@ -388,8 +390,27 @@ import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { useSharedRestaurantFilters } from '@/hooks/useSharedRestaurantFilters';
 import { shareReviewsPackage } from '@/services/share/ReviewShareService';
 import { requestSwipeDelete } from '@/services/swipeDelete';
+import { Haptics } from '@/services/haptics';
+
+import { ShareReviewChooser } from '@/components/detail/ShareReviewChooser';
+import { ShareFlowSheet } from '@/components/share/ShareFlowSheet';
+import { PreparingRecommendationOverlay } from '@/components/share/PreparingRecommendationOverlay';
+import { shareReviewAsEmail } from '@/services/share/ReviewEmailShare';
+import { HouseErrorBoundary } from '@/components/ui/HouseErrorBoundary';
 
 export default function ReviewsFeedScreen() {
+  const { t } = useAppTranslation();
+  return (
+    <HouseErrorBoundary
+      fallbackTitle={t('tabs.reviews') || 'Reviews'}
+      fallbackMessage="We konden de reviews op dit moment niet laden. Probeer het scherm opnieuw te openen."
+    >
+      <ReviewsFeedContent />
+    </HouseErrorBoundary>
+  );
+}
+
+function ReviewsFeedContent() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -400,6 +421,20 @@ export default function ReviewsFeedScreen() {
   const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(
     () => new Set(),
   );
+
+  // Share / Selection states
+  const [isShareSelecting, setIsShareSelecting] = useState(false);
+  const [shareType, setShareType] = useState<'gustraPackage' | 'email' | null>(null);
+  const [selectedRestaurantIds, setSelectedRestaurantIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [isChooserVisible, setIsChooserVisible] = useState(false);
+  const [shareStep, setShareStep] = useState<'name' | 'message' | null>(null);
+  const [pendingSharedBy, setPendingSharedBy] = useState<string | null>(null);
+  const [preparingEmail, setPreparingEmail] = useState(false);
+
+  const { enabledCriteria } = useCriteriaSettings();
+
   const {
     filterState,
     setFilterState,
@@ -472,9 +507,11 @@ export default function ReviewsFeedScreen() {
   const visibleFeed = useMemo(
     () =>
       filtered.filter(
-        (summary) => !pendingDeleteIds.has(summary.restaurantId),
+        (summary) =>
+          !pendingDeleteIds.has(summary.restaurantId) &&
+          (!isShareSelecting || !summary.isDraft),
       ),
-    [filtered, pendingDeleteIds],
+    [filtered, pendingDeleteIds, isShareSelecting],
   );
 
   const requestDeleteRestaurant = useCallback(
@@ -511,19 +548,23 @@ export default function ReviewsFeedScreen() {
   const reviewsToShare = useMemo(() => {
     const list: Review[] = [];
     for (const summary of filtered) {
+      if (isShareSelecting && !selectedRestaurantIds.has(summary.restaurantId)) {
+        continue;
+      }
       for (const id of summary.reviewIds) {
         const review = getReview(id);
         if (review && resolveReviewOrigin(review) === 'own') list.push(review);
       }
     }
     return list;
-  }, [filtered, getReview]);
+  }, [filtered, getReview, isShareSelecting, selectedRestaurantIds]);
 
   const canShare = reviewsToShare.length > 0 && !sharing;
 
   const performShare = useCallback(
     async (sharedByOverride?: string) => {
-      if (reviewsToShare.length === 0) return;
+      const targetReviews = reviewsToShare;
+      if (targetReviews.length === 0) return;
       setSharing(true);
       try {
         const profile = await getBackupSnapshot();
@@ -532,12 +573,15 @@ export default function ReviewsFeedScreen() {
           throw new Error(t('alerts.share.needName'));
         }
         await shareReviewsPackage({
-          reviews: reviewsToShare,
+          reviews: targetReviews,
           restaurants,
           sharedBy,
           sharedById: profile.authorId,
           sharedByPhotoBase64: profile.photoBase64,
         });
+        setIsShareSelecting(false);
+        setShareType(null);
+        setSelectedRestaurantIds(new Set());
       } catch (error) {
         houseAlert(
           t('common.error'),
@@ -552,14 +596,126 @@ export default function ReviewsFeedScreen() {
     [getBackupSnapshot, restaurants, reviewsToShare, t],
   );
 
+  const selectedRestaurantId = Array.from(selectedRestaurantIds)[0];
+  const selectedRestaurant = selectedRestaurantId
+    ? restaurants.find((r) => r.id === selectedRestaurantId)
+    : null;
+
+  const selectedReview = useMemo(() => {
+    if (!selectedRestaurantId) return null;
+    const ids = filtered.find((s) => s.restaurantId === selectedRestaurantId)?.reviewIds ?? [];
+    for (const id of ids) {
+      const r = getReview(id);
+      if (r && resolveReviewOrigin(r) === 'own') return r;
+    }
+    return null;
+  }, [selectedRestaurantId, filtered, getReview]);
+
+  const performEmailShare = useCallback(
+    async (personalMessage?: string, sharedByOverride?: string) => {
+      if (!selectedReview || !selectedRestaurant) return;
+      setSharing(true);
+      setPreparingEmail(true);
+      try {
+        const profile = await getBackupSnapshot();
+        const sharedBy = (sharedByOverride ?? profile.name).trim();
+        await shareReviewAsEmail({
+          review: selectedReview,
+          restaurant: selectedRestaurant,
+          sharedBy,
+          enabledCriteria,
+          personalMessage,
+          onSnapshotReady: () => setPreparingEmail(false),
+        });
+        setIsShareSelecting(false);
+        setShareType(null);
+        setSelectedRestaurantIds(new Set());
+      } catch (error) {
+        houseAlert(
+          t('common.error'),
+          error instanceof Error ? error.message : t('alerts.share.failed'),
+        );
+      } finally {
+        setPreparingEmail(false);
+        setSharing(false);
+      }
+    },
+    [selectedReview, selectedRestaurant, getBackupSnapshot, enabledCriteria, t],
+  );
+
   const openShare = useCallback(() => {
-    if (!canShare) return;
+    setIsChooserVisible(true);
+  }, []);
+
+  const handleSelectShareType = (type: 'gustraPackage' | 'email') => {
+    setIsChooserVisible(false);
+    setShareType(type);
+    setIsShareSelecting(true);
+    setSelectedRestaurantIds(new Set());
+  };
+
+  const handleToggleSelect = (restaurantId: string) => {
+    Haptics.selectionChanged();
+    setSelectedRestaurantIds((prev) => {
+      const next = new Set<string>();
+      if (shareType === 'email') {
+        if (!prev.has(restaurantId)) {
+          next.add(restaurantId);
+        }
+      } else {
+        const existing = new Set(prev);
+        if (existing.has(restaurantId)) {
+          existing.delete(restaurantId);
+        } else {
+          existing.add(restaurantId);
+        }
+        return existing;
+      }
+      return next;
+    });
+  };
+
+  const handleConfirmSharing = () => {
+    if (selectedRestaurantIds.size === 0) return;
     if (!hasName) {
-      setNameModalVisible(true);
+      setShareStep('name');
+      return;
+    }
+    if (shareType === 'email') {
+      setShareStep('message');
       return;
     }
     void performShare();
-  }, [canShare, hasName, performShare]);
+  };
+
+  const handleCancelSharing = () => {
+    setIsShareSelecting(false);
+    setShareType(null);
+    setSelectedRestaurantIds(new Set());
+  };
+
+  const handleNameContinue = (name: string) => {
+    updateName(name);
+    setPendingSharedBy(name);
+    if (shareType === 'email') {
+      setShareStep('message');
+    } else {
+      setShareStep(null);
+      // Wait for modal transition then trigger share
+      setTimeout(() => {
+        void performShare(name);
+      }, 300);
+    }
+  };
+
+  const handleMessageContinue = (message: string) => {
+    setShareStep(null);
+    setPreparingEmail(true);
+    // Wait for modal transition then trigger share
+    setTimeout(() => {
+      void performEmailShare(message, pendingSharedBy ?? undefined);
+    }, 300);
+  };
 
   const emptyFromFilters =
     sourceSummaries.length > 0 &&
@@ -583,19 +739,65 @@ export default function ReviewsFeedScreen() {
     resetFilterState();
   }, [resetFilterState]);
 
+  const headerTitle = isShareSelecting
+    ? shareType === 'email'
+      ? t('share.selectOneRestaurant')
+      : t('share.selectRestaurants')
+    : undefined;
+
+  const selectAllOn = visibleFeed.length > 0 && selectedRestaurantIds.size === visibleFeed.length;
+
+  const handleToggleSelectAll = () => {
+    Haptics.selectionChanged();
+    if (selectAllOn) {
+      setSelectedRestaurantIds(new Set());
+    } else {
+      setSelectedRestaurantIds(new Set(visibleFeed.map((s) => s.restaurantId)));
+    }
+  };
+
+  const selectAllBar = isShareSelecting && shareType === 'gustraPackage' && visibleFeed.length > 0 ? (
+    <View style={styles.selectAllContainer}>
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: selectAllOn }}
+        onPress={handleToggleSelectAll}
+        style={({ pressed }) => [
+          styles.selectAllRow,
+          pressed && styles.pressed,
+        ]}>
+        <SymbolView
+          name={{
+            ios: selectAllOn ? 'checkmark.circle.fill' : 'circle',
+            android: selectAllOn ? 'check_circle' : 'radio_button_unchecked',
+            web: selectAllOn ? 'check_circle' : 'radio_button_unchecked',
+          }}
+          tintColor={selectAllOn ? GustraColors.forestGreen : 'rgba(35, 32, 26, 0.35)'}
+          size={24}
+        />
+        <Text style={styles.selectAllLabel}>{t('filters.selectAll')}</Text>
+      </Pressable>
+    </View>
+  ) : null;
+
   return (
     <View style={styles.screen}>
       <ReviewsHeader
+        title={headerTitle}
         showShare
         canShare={canShare}
         sharing={sharing}
         onShare={openShare}
-        showFilter
+        showFilter={!isShareSelecting}
         canFilter={canFilter}
         filterActive={filterActive}
         onFilter={() => setFilterModalVisible(true)}
+        isSelecting={isShareSelecting}
+        onCancelSelecting={handleCancelSharing}
+        onConfirmSelecting={handleConfirmSharing}
+        canConfirmSelecting={selectedRestaurantIds.size > 0}
       />
-      <FilterSearchBar value={query} onChangeText={setQuery} />
+      {!isShareSelecting ? <FilterSearchBar value={query} onChangeText={setQuery} /> : null}
       <ActiveFilterSummary
         state={filterState}
         visibleResultCount={filtered.length}
@@ -603,6 +805,7 @@ export default function ReviewsFeedScreen() {
         criterionTitleFor={criterionTitleFor}
         onChange={setFilterState}
       />
+      {selectAllBar}
       <View style={styles.body} collapsable={false}>
         {filtered.length === 0 ? (
           <HouseEmptyState
@@ -629,9 +832,15 @@ export default function ReviewsFeedScreen() {
           <FlatList
             style={styles.listFlex}
             data={visibleFeed}
-            extraData={filtered
-              .map((s) => `${s.restaurantId}:${s.photoUrl ?? ''}`)
-              .join('|')}
+            extraData={
+              filtered
+                .map((s) => `${s.restaurantId}:${s.photoUrl ?? ''}`)
+                .join('|') +
+              '|' +
+              isShareSelecting +
+              '|' +
+              Array.from(selectedRestaurantIds).join(',')
+            }
             keyExtractor={(item) => item.restaurantId}
             overScrollMode="never"
             onScrollBeginDrag={dismissOpenSwipeable}
@@ -658,6 +867,9 @@ export default function ReviewsFeedScreen() {
                   void setRestaurantFavorite(item.restaurantId, favorite);
                 }}
                 onDelete={() => requestDeleteRestaurant(item)}
+                shareSelecting={isShareSelecting}
+                selected={selectedRestaurantIds.has(item.restaurantId)}
+                onSelectToggle={() => handleToggleSelect(item.restaurantId)}
                 onPress={() => {
                   if (item.isDraft) {
                     const draftId =
@@ -687,27 +899,19 @@ export default function ReviewsFeedScreen() {
             )}
           />
         )}
-        <HouseFAB
-          collapsable={false}
-          style={{
-            bottom:
-              Theme.spacing.fabBottom +
-              Theme.spacing.floatingTabBarClearance +
-              insets.bottom,
-          }}
-          onPress={() => router.push('/add-review')}
-        />
+        {!isShareSelecting ? (
+          <HouseFAB
+            collapsable={false}
+            style={{
+              bottom:
+                Theme.spacing.fabBottom +
+                Theme.spacing.floatingTabBarClearance +
+                insets.bottom,
+            }}
+            onPress={() => router.push('/add-review')}
+          />
+        ) : null}
       </View>
-      <ShareReviewerNameModal
-        visible={nameModalVisible}
-        onCancel={() => setNameModalVisible(false)}
-        onContinue={(sharedBy) => {
-          updateName(sharedBy);
-          void performShare(sharedBy).finally(() => {
-            setNameModalVisible(false);
-          });
-        }}
-      />
       <FilterOptionsModal
         visible={filterModalVisible}
         value={filterState}
@@ -722,6 +926,24 @@ export default function ReviewsFeedScreen() {
         onReset={resetFilterState}
         onClose={() => setFilterModalVisible(false)}
       />
+
+      <ShareReviewChooser
+        visible={isChooserVisible}
+        onClose={() => setIsChooserVisible(false)}
+        onSelect={handleSelectShareType}
+      />
+
+      <ShareFlowSheet
+        visible={shareStep !== null}
+        step={shareStep ?? 'name'}
+        initialName={pendingSharedBy ?? undefined}
+        onClose={() => setShareStep(null)}
+        onSelectDestination={() => {}} // not used
+        onNameContinue={handleNameContinue}
+        onMessageContinue={handleMessageContinue}
+      />
+
+      <PreparingRecommendationOverlay visible={preparingEmail} />
     </View>
   );
 }
@@ -745,6 +967,29 @@ const styles = StyleSheet.create({
   },
   sep: {
     height: Theme.spacing.listRowVertical * 2,
+  },
+  selectAllContainer: {
+    paddingHorizontal: Theme.spacing.listRowHorizontal,
+    paddingTop: 12,
+    backgroundColor: GustraColors.cream,
+  },
+  selectAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(236, 227, 207, 0.45)',
+    borderRadius: Theme.radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  selectAllLabel: {
+    ...bodyTextStyle,
+    fontSize: 16,
+    fontWeight: '600',
+    color: GustraColors.ink,
+  },
+  pressed: {
+    opacity: 0.85,
   },
 });
 
@@ -2449,10 +2694,6 @@ import { LocationBlock } from '@/components/detail/LocationBlock';
 import { ProfilePhotoViewer } from '@/components/detail/ProfilePhotoViewer';
 import { RestaurantMapViewer } from '@/components/detail/RestaurantMapViewer';
 import { ReviewPhotoViewer } from '@/components/detail/ReviewPhotoViewer';
-import {
-  ReviewOptionsSheet,
-  type ReviewOptionsAction,
-} from '@/components/detail/ReviewOptionsSheet';
 import { ReviewWinesSection } from '@/components/detail/ReviewWinesSection';
 import type { ShareDestination } from '@/components/detail/ShareReviewChooser';
 import { PreparingRecommendationOverlay } from '@/components/share/PreparingRecommendationOverlay';
@@ -2463,6 +2704,7 @@ import {
 import { FavoriteHeartButton } from '@/components/ui/FavoriteHeartButton';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
+import { HousePrimaryButton } from '@/components/ui/HousePrimaryButton';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
@@ -2529,7 +2771,6 @@ export default function ReviewDetailScreen() {
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [showReviewerPhoto, setShowReviewerPhoto] = useState(false);
   const [showMap, setShowMap] = useState(false);
-  const [optionsVisible, setOptionsVisible] = useState(false);
   const [shareStep, setShareStep] = useState<ShareFlowStep | null>(null);
   const [pendingShare, setPendingShare] = useState<ShareDestination | null>(
     null,
@@ -2669,37 +2910,6 @@ export default function ReviewDetailScreen() {
     [pendingSharedBy, runShare],
   );
 
-  const onOptionsAction = useCallback(
-    (action: ReviewOptionsAction) => {
-      if (!review || !restaurant) return;
-      setOptionsVisible(false);
-      afterSheetDismiss(() => {
-        switch (action) {
-          case 'recordVisit':
-            router.push({
-              pathname: '/review-form',
-              params: { restaurantId: restaurant.id },
-            });
-            break;
-          case 'edit':
-            if (isFriendReview) return;
-            router.push({
-              pathname: '/review-form',
-              params: { reviewId: review.id },
-            });
-            break;
-          case 'shareGustra':
-            onSelectDestination('gustraPackage');
-            break;
-          case 'shareVisual':
-            onSelectDestination('email');
-            break;
-        }
-      });
-    },
-    [isFriendReview, onSelectDestination, restaurant, review, router],
-  );
-
   const addressLine = restaurant
     ? [restaurant.address, restaurant.city, restaurant.country]
         .filter(Boolean)
@@ -2827,16 +3037,19 @@ export default function ReviewDetailScreen() {
       showBack
       onBack={() => router.back()}
       right={
-        review ? (
+        review && !isFriendReview ? (
           <View style={styles.headerActions}>
             <HouseToolbarIconButton
-              iosName="ellipsis"
-              androidName="more-vert"
-              accessibilityLabel={t('detail.options.a11y')}
+              iosName="pencil"
+              androidName="edit"
+              accessibilityLabel={t('detail.review.edit')}
               disabled={sharing}
               onPress={() => {
                 Haptics.selectionChanged();
-                setOptionsVisible(true);
+                router.push({
+                  pathname: '/review-form',
+                  params: { reviewId: review.id },
+                });
               }}
             />
           </View>
@@ -2880,8 +3093,21 @@ export default function ReviewDetailScreen() {
           }}
         />
 
+        <View style={styles.recordVisitContainer}>
+          <HousePrimaryButton
+            title={t('detail.options.recordVisit')}
+            onPress={() => {
+              Haptics.selectionChanged();
+              router.push({
+                pathname: '/review-form',
+                params: { restaurantId: restaurant.id },
+              });
+            }}
+          />
+        </View>
+
         <View
-          style={[styles.content, polished && styles.contentPolished]}>
+          style={[styles.content, polished && styles.contentPolished, { paddingTop: 8 }]}>
           <View style={[styles.header, polished && styles.headerPolished]}>
             <View style={styles.headerRow}>
               <View style={styles.titleBlock}>
@@ -3008,13 +3234,6 @@ export default function ReviewDetailScreen() {
         onClose={() => setShowMap(false)}
       />
 
-      <ReviewOptionsSheet
-        visible={optionsVisible}
-        isFriendReview={isFriendReview}
-        onClose={() => setOptionsVisible(false)}
-        onAction={onOptionsAction}
-      />
-
       <ShareFlowSheet
         visible={shareStep !== null}
         step={shareStep ?? 'chooser'}
@@ -3036,6 +3255,11 @@ const styles = StyleSheet.create({
     backgroundColor: GustraColors.cream,
   },
   scroll: {},
+  recordVisitContainer: {
+    paddingHorizontal: Theme.spacing.detailContent,
+    paddingTop: 16,
+    paddingBottom: 4,
+  },
   content: {
     padding: Theme.spacing.detailContent,
     gap: Theme.spacing.detailSection,
@@ -4446,7 +4670,14 @@ export default function ReviewFormScreen() {
           <View style={styles.card}>
             <View style={styles.restaurantRow}>
               <View style={styles.restaurantCopy}>
-                <SerifText style={styles.restaurantName}>{draft.name}</SerifText>
+                <View style={styles.nameRow}>
+                  <SerifText style={styles.restaurantName}>{draft.name}</SerifText>
+                  {isDraftForm && (
+                    <View style={styles.editorialPill}>
+                      <Text style={styles.editorialPillText}>{t('reviews.draftLabel')}</Text>
+                    </View>
+                  )}
+                </View>
                 {addressLine ? (
                   <Text style={styles.address}>{addressLine}</Text>
                 ) : null}
@@ -4461,9 +4692,9 @@ export default function ReviewFormScreen() {
           </View>
 
           {isDraftForm && draftReason ? (
-            <View style={styles.draftBanner}>
-              <Text style={styles.draftBannerText}>
-                {draftReason === 'wine'
+            <View style={styles.subtleDraftHint}>
+              <Text style={styles.subtleDraftHintText}>
+                * {draftReason === 'wine'
                   ? t('forms.review.draftBannerWine')
                   : t('forms.review.draftBannerCriteria')}
               </Text>
@@ -4997,6 +5228,37 @@ const styles = StyleSheet.create({
     borderRadius: Theme.radius.xxl,
     padding: 16,
     gap: 12,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  editorialPill: {
+    backgroundColor: 'rgba(199, 71, 66, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(199, 71, 66, 0.25)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  editorialPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(199, 71, 66, 0.85)',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  subtleDraftHint: {
+    marginTop: -4,
+    paddingHorizontal: 16,
+  },
+  subtleDraftHintText: {
+    ...bodyTextStyle,
+    fontSize: 13,
+    fontStyle: 'italic',
+    color: 'rgba(35, 32, 26, 0.6)',
   },
   draftBanner: {
     backgroundColor: 'rgba(217, 162, 39, 0.14)',
@@ -7709,11 +7971,23 @@ function hasCoordinates(lat: number, lng: number): boolean {
   );
 }
 
+export default function MemoriesMapScreen() {
+  const { t } = useAppTranslation();
+  return (
+    <HouseErrorBoundary
+      fallbackTitle={t('tabs.map') || 'Mijn kaart'}
+      fallbackMessage="We konden de kaart op dit moment niet laden. Probeer het scherm opnieuw te openen."
+    >
+      <MemoriesMapContent />
+    </HouseErrorBoundary>
+  );
+}
+
 /**
  * My map — pins by ownership (own = gold, friends = house red).
  * Same shared filter state as Reviews / My Gustra (Sort by ignored here).
  */
-export default function MemoriesMapScreen() {
+function MemoriesMapContent() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -8286,8 +8560,21 @@ import { resolveReviewOrigin } from '@/data/types';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { useSharedRestaurantFilters } from '@/hooks/useSharedRestaurantFilters';
 import { formatScoreOutOfFive } from '@/services/reviews/ratings';
+import { HouseErrorBoundary } from '@/components/ui/HouseErrorBoundary';
 
 export default function CulinaryPassportScreen() {
+  const { t } = useAppTranslation();
+  return (
+    <HouseErrorBoundary
+      fallbackTitle={t('passport.title') || 'Culinair Paspoort'}
+      fallbackMessage="We konden je culinaire paspoort op dit moment niet berekenen. Probeer het scherm opnieuw te laden."
+    >
+      <CulinaryPassportContent />
+    </HouseErrorBoundary>
+  );
+}
+
+function CulinaryPassportContent() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -10698,7 +10985,8 @@ export default function ShareImportScreen() {
     <View style={styles.screen}>
       <HouseNavHeader
         title={navigationTitle}
-        titleSize={Theme.navigation.secondaryTitleSize}
+        titleSize={24}
+        numberOfLines={2}
         left={
           <HouseToolbarIconButton
             iosName="xmark"
@@ -10924,7 +11212,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       supportsTablet: true,
       // Must match the existing App Store Connect / Swift app.
       bundleIdentifier: 'com.philip.gustra',
-      buildNumber: '39',
+      buildNumber: '41',
       // Keep in sync with android.versionCode — deploy-store.sh bumps both together.
       entitlements: {
         'com.apple.security.application-groups': ['group.com.philip.gustra'],
@@ -10983,7 +11271,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
       package: 'net.gustra.app',
       // Keep in sync with ios.buildNumber — deploy-store.sh bumps both together.
-      versionCode: 39,
+      versionCode: 41,
       // Material / gesture navigation — cream surfaces bleed under system bars.
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: true,
@@ -11052,6 +11340,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins: [
       'expo-router',
       'expo-dev-client',
+      'expo-web-browser',
       [
         'expo-localization',
         {
@@ -12336,9 +12625,7 @@ import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 export type ReviewOptionsAction =
   | 'recordVisit'
-  | 'edit'
-  | 'shareGustra'
-  | 'shareVisual';
+  | 'edit';
 
 type ReviewOptionsSheetProps = {
   visible: boolean;
@@ -12411,29 +12698,6 @@ export function ReviewOptionsSheet({
                 onPress={() => onAction('edit')}
               />
             </InsetGroup>
-
-            <View style={styles.shareBlock}>
-              <Text style={styles.groupLabel}>
-                {t('detail.options.shareSection')}
-              </Text>
-              <InsetGroup>
-                <OptionRow
-                  title={t('share.chooser.gustraFile')}
-                  subtitle={t('share.chooser.gustraFileSubtitle')}
-                  iosName="doc.badge.arrow.up"
-                  androidName="upload_file"
-                  showBorder
-                  onPress={() => onAction('shareGustra')}
-                />
-                <OptionRow
-                  title={t('share.chooser.visual')}
-                  subtitle={t('share.chooser.visualSubtitle')}
-                  iosName="envelope.fill"
-                  androidName="email"
-                  onPress={() => onAction('shareVisual')}
-                />
-              </InsetGroup>
-            </View>
           </View>
         </View>
       </View>
@@ -13586,8 +13850,8 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: components/detail/photoViewer/ZoomablePhoto.tsx
 ================================================================================
-import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { StyleSheet, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Image, StyleSheet, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -13647,6 +13911,44 @@ export function ZoomablePhoto({
   onZoomChangeRef.current = onZoomChange;
   const mountedRef = useRef(true);
 
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    if (!uri) return;
+    Image.getSize(
+      uri,
+      (w, h) => {
+        if (mountedRef.current) {
+          setImageSize({ width: w, height: h });
+        }
+      },
+      () => {
+        if (mountedRef.current) {
+          setImageSize(null);
+        }
+      }
+    );
+  }, [uri]);
+
+  const displayedSize = useMemo(() => {
+    if (!imageSize) return { w: width, h: height };
+    const containerAspect = width / height;
+    const imageAspect = imageSize.width / imageSize.height;
+
+    let w = width;
+    let h = height;
+
+    if (imageAspect > containerAspect) {
+      w = width;
+      h = width / imageAspect;
+    } else {
+      h = height;
+      w = height * imageAspect;
+    }
+
+    return { w, h };
+  }, [imageSize, width, height]);
+
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -13657,9 +13959,9 @@ export function ZoomablePhoto({
   const canvasH = useSharedValue(height);
 
   useEffect(() => {
-    canvasW.value = width;
-    canvasH.value = height;
-  }, [width, height, canvasW, canvasH]);
+    canvasW.value = displayedSize.w;
+    canvasH.value = displayedSize.h;
+  }, [displayedSize, canvasW, canvasH]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -13948,7 +14250,7 @@ export function ActiveFilterSummary({
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.topRow}>
+      <View style={styles.chipsRow}>
         {showSort ? (
           <Chip
             title={sortKindTitle(state.sortKind, criterionTitleFor)}
@@ -13959,80 +14261,79 @@ export function ActiveFilterSummary({
               clear({ ...state, sortKind: { type: 'date' } })
             }
           />
-        ) : (
-          <View />
-        )}
-        <Text
-          style={styles.count}
-          accessibilityLabel={t('filters.resultsCount', {
-            shown: visibleResultCount,
-            total: totalResultCount,
-          })}>
-          {visibleResultCount}/{totalResultCount}
-        </Text>
+        ) : null}
+
+        {showFavorites ? (
+          <Chip
+            title={t('filters.chips.favorites')}
+            iosName="heart.fill"
+            androidName="favorite"
+            accessibilityHint={t('a11y.clearFavorites')}
+            onPress={() =>
+              clear({
+                ...state,
+                filters: state.filters.filter((flag) => flag !== 'favorites'),
+              })
+            }
+          />
+        ) : null}
+
+        {showFriends ? (
+          <Chip
+            title={t('filters.chips.friends')}
+            iosName="person.2.fill"
+            androidName="group"
+            accessibilityHint={t('a11y.clearFriends')}
+            onPress={() =>
+              clear({
+                ...state,
+                filters: state.filters.filter((flag) => flag !== 'friends'),
+              })
+            }
+          />
+        ) : null}
+
+        {showLocation ? (
+          <Chip
+            title={locationTitle}
+            iosName="mappin.and.ellipse"
+            androidName="place"
+            accessibilityHint={t('a11y.clearLocation')}
+            onPress={() =>
+              clear({
+                ...state,
+                filters: state.filters.filter((flag) => flag !== 'location'),
+                locationCities: [],
+              })
+            }
+          />
+        ) : null}
+
+        {showPlaceType ? (
+          <Chip
+            title={placeTypeTitle}
+            iosName="fork.knife"
+            androidName="restaurant"
+            accessibilityHint={t('a11y.clearCuisine')}
+            onPress={() =>
+              clear({
+                ...state,
+                filters: state.filters.filter((flag) => flag !== 'placeType'),
+                primaryTypes: [],
+              })
+            }
+          />
+        ) : null}
       </View>
 
-      {showFavorites ? (
-        <Chip
-          title={t('filters.chips.favorites')}
-          iosName="heart.fill"
-          androidName="favorite"
-          accessibilityHint={t('a11y.clearFavorites')}
-          onPress={() =>
-            clear({
-              ...state,
-              filters: state.filters.filter((flag) => flag !== 'favorites'),
-            })
-          }
-        />
-      ) : null}
-
-      {showFriends ? (
-        <Chip
-          title={t('filters.chips.friends')}
-          iosName="person.2.fill"
-          androidName="group"
-          accessibilityHint={t('a11y.clearFriends')}
-          onPress={() =>
-            clear({
-              ...state,
-              filters: state.filters.filter((flag) => flag !== 'friends'),
-            })
-          }
-        />
-      ) : null}
-
-      {showLocation ? (
-        <Chip
-          title={locationTitle}
-          iosName="mappin.and.ellipse"
-          androidName="place"
-          accessibilityHint={t('a11y.clearLocation')}
-          onPress={() =>
-            clear({
-              ...state,
-              filters: state.filters.filter((flag) => flag !== 'location'),
-              locationCities: [],
-            })
-          }
-        />
-      ) : null}
-
-      {showPlaceType ? (
-        <Chip
-          title={placeTypeTitle}
-          iosName="fork.knife"
-          androidName="restaurant"
-          accessibilityHint={t('a11y.clearCuisine')}
-          onPress={() =>
-            clear({
-              ...state,
-              filters: state.filters.filter((flag) => flag !== 'placeType'),
-              primaryTypes: [],
-            })
-          }
-        />
-      ) : null}
+      <Text
+        style={styles.count}
+        accessibilityLabel={t('filters.resultsCount', {
+          shown: visibleResultCount,
+          total: totalResultCount,
+        })}>
+        {visibleResultCount}/{totalResultCount}
+      </Text>
     </View>
   );
 }
@@ -14075,17 +14376,19 @@ function Chip({
 
 const styles = StyleSheet.create({
   wrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Theme.spacing.searchHorizontal,
     paddingBottom: Theme.spacing.searchVertical,
     gap: 8,
     backgroundColor: GustraColors.cream,
   },
-  topRow: {
+  chipsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-    minHeight: 32,
+    flexWrap: 'wrap',
+    gap: 6,
+    flex: 1,
   },
   count: {
     ...captionTextStyle,
@@ -15466,6 +15769,7 @@ export function MultiSelectFilterPanel({
               pressed && styles.pressed,
             ]}>
             <CheckboxIcon checked={selectAllOn} />
+            <Text style={styles.selectAllLabel}>{t('filters.selectAll')}</Text>
           </Pressable>
 
           {items.map((item) => {
@@ -15512,11 +15816,20 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   selectAllRow: {
-    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     backgroundColor: 'rgba(236, 227, 207, 0.45)',
     borderRadius: Theme.radius.lg,
     paddingHorizontal: 14,
     paddingVertical: 14,
+  },
+  selectAllLabel: {
+    ...bodyTextStyle,
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '600',
+    color: GustraColors.ink,
   },
   row: {
     flexDirection: 'row',
@@ -15543,6 +15856,7 @@ const styles = StyleSheet.create({
 FILE: components/feed/RestaurantFeedCard.tsx
 ================================================================================
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
 
 import { FeedSwipeDelete } from '@/components/feed/FeedSwipeDelete';
 import { RestaurantThumb } from '@/components/feed/RestaurantThumb';
@@ -15574,6 +15888,9 @@ type RestaurantFeedCardProps = {
    * instead of overall average — Swift `RestaurantFeedCardView.scoreOverride`.
    */
   scoreOverride?: number | null;
+  shareSelecting?: boolean;
+  selected?: boolean;
+  onSelectToggle?: () => void;
 };
 
 export function RestaurantFeedCard({
@@ -15582,6 +15899,9 @@ export function RestaurantFeedCard({
   onDelete,
   onFavoriteToggle,
   scoreOverride,
+  shareSelecting = false,
+  selected = false,
+  onSelectToggle,
 }: RestaurantFeedCardProps) {
   const { t } = useAppTranslation();
   const isDraft = Boolean(summary.isDraft);
@@ -15598,7 +15918,11 @@ export function RestaurantFeedCard({
       }
       onPress={() => {
         Haptics.light();
-        onPress();
+        if (shareSelecting) {
+          onSelectToggle?.();
+        } else {
+          onPress();
+        }
       }}
       android_ripple={
         Platform.OS === 'android'
@@ -15628,13 +15952,17 @@ export function RestaurantFeedCard({
               })}
         </Text>
         {summary.reviewerName ? (
-          <Text style={styles.reviewer}>{summary.reviewerName}</Text>
+          <Text style={styles.reviewer}>
+            {t('detail.review.reviewedBy', { name: summary.reviewerName })}
+          </Text>
         ) : null}
       </View>
 
       <View style={styles.trailing}>
         {isDraft ? (
-          <Text style={styles.draftBadge}>{t('reviews.draftLabel')}</Text>
+          <View style={styles.editorialPill}>
+            <Text style={styles.editorialPillText}>{t('reviews.draftLabel')}</Text>
+          </View>
         ) : (
           <>
             {displayScore > 0 ? (
@@ -15642,15 +15970,41 @@ export function RestaurantFeedCard({
                 {formatScoreOutOfFive(displayScore)}
               </SerifText>
             ) : null}
-            <FavoriteHeartButton
-              favorite={summary.isFavorite}
-              onToggle={onFavoriteToggle}
-            />
+            {!shareSelecting ? (
+              <FavoriteHeartButton
+                favorite={summary.isFavorite}
+                onToggle={onFavoriteToggle}
+              />
+            ) : null}
           </>
         )}
       </View>
     </Pressable>
   );
+
+  if (shareSelecting) {
+    return (
+      <View style={styles.shareRow}>
+        <Pressable
+          style={styles.checkboxContainer}
+          onPress={onSelectToggle}
+          hitSlop={8}>
+          <SymbolView
+            name={{
+              ios: selected ? 'checkmark.circle.fill' : 'circle',
+              android: selected ? 'check_circle' : 'radio_button_unchecked',
+              web: selected ? 'check_circle' : 'radio_button_unchecked',
+            }}
+            tintColor={selected ? GustraColors.forestGreen : 'rgba(35, 32, 26, 0.35)'}
+            size={24}
+          />
+        </Pressable>
+        <View style={styles.cardWrapper}>
+          {card}
+        </View>
+      </View>
+    );
+  }
 
   if (!onDelete) return card;
 
@@ -15710,6 +16064,22 @@ const styles = StyleSheet.create({
   score: {
     color: GustraColors.forestGreen,
   },
+  editorialPill: {
+    backgroundColor: 'rgba(199, 71, 66, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(199, 71, 66, 0.25)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    alignSelf: 'flex-end',
+  },
+  editorialPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(199, 71, 66, 0.85)',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
   draftBadge: {
     ...captionTextStyle,
     fontSize: 13,
@@ -15717,6 +16087,21 @@ const styles = StyleSheet.create({
     color: GustraColors.gold,
     letterSpacing: 0.3,
     textTransform: 'uppercase',
+  },
+  shareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+  },
+  checkboxContainer: {
+    paddingVertical: 12,
+    paddingRight: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardWrapper: {
+    flex: 1,
   },
 });
 
@@ -16065,7 +16450,7 @@ export function ShareReviewerNameModal({
       onRequestClose={onCancel}>
       <KeyboardAvoidingView
         style={styles.backdrop}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}>
         <Pressable style={styles.dismissArea} onPress={onCancel} />
         <View style={styles.sheet}>
           <View style={styles.handle} />
@@ -19433,7 +19818,7 @@ export function EmailPersonalMessageModal({
       onRequestClose={onCancel}>
       <KeyboardAvoidingView
         style={styles.backdrop}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}>
         <Pressable style={styles.dismissArea} onPress={onCancel} />
         <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
           <View style={styles.toolbar}>
@@ -20236,7 +20621,7 @@ export function ShareFlowSheet({
       onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.backdrop}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}>
         <Pressable style={styles.dismissArea} onPress={onClose} />
         <View style={[styles.sheet, { paddingBottom: insets.bottom + 24 }]}>
           <View style={styles.handle} />
@@ -20636,8 +21021,10 @@ FILE: components/ui/FavoriteHeartButton.tsx
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import Animated, {
+  cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
+  withSequence,
   withSpring,
 } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
@@ -20647,7 +21034,7 @@ import { Haptics } from '@/services/haptics';
 /** Same muted red as iOS SF Symbol heart fills tint. */
 const HEART_RED = '#C74742';
 const HEART_EMPTY = 'rgba(35, 32, 26, 0.35)';
-const PRESS_SPRING = { damping: 16, stiffness: 280 };
+const PRESS_SPRING = { damping: 16, stiffness: 280, mass: 0.6 };
 
 /** SF Symbol–like heart in a 24×24 viewBox. */
 const HEART_PATH =
@@ -20709,9 +21096,13 @@ export function FavoriteHeartButton({
       onPress={() => {
         const next = !favorite;
         Haptics.medium();
-        scale.value = withSpring(1.18, PRESS_SPRING, () => {
-          scale.value = withSpring(1, PRESS_SPRING);
-        });
+        // withSequence — nested withSpring completion callbacks recurse
+        // into valueSetter and blow the native call stack (Reanimated 4).
+        cancelAnimation(scale);
+        scale.value = withSequence(
+          withSpring(1.18, PRESS_SPRING),
+          withSpring(1, PRESS_SPRING),
+        );
         if (!isControlled) setFavorite(next);
         onToggle?.(next);
       }}
@@ -21768,6 +22159,101 @@ const styles = StyleSheet.create({
 
 
 ================================================================================
+FILE: components/ui/HouseErrorBoundary.tsx
+================================================================================
+import React, { Component, type ReactNode } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+
+import { HousePrimaryButton } from '@/components/ui/HousePrimaryButton';
+import { SerifText } from '@/components/ui/SerifText';
+import { GustraColors } from '@/constants/Colors';
+import { bodyTextStyle, Theme } from '@/constants/Theme';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { Sentry } from '@/services/monitoring/sentry';
+
+type Props = {
+  children: ReactNode;
+  fallbackTitle?: string;
+  fallbackMessage?: string;
+};
+
+type State = {
+  hasError: boolean;
+};
+
+/**
+ * Reusable screen-level React Error Boundary (Swift `CrashRecoveryContainer`).
+ * Isolates crashes to single views/tabs, logs to Sentry, and offers an in-app reset.
+ */
+export class HouseErrorBoundary extends Component<Props, State> {
+  state: State = { hasError: false };
+
+  static getDerivedStateFromError(): State {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    Sentry.captureException(error, { extra: errorInfo as never });
+    if (__DEV__) {
+      console.error('[HouseErrorBoundary] caught crash:', error, errorInfo);
+    }
+  }
+
+  handleReset = () => {
+    this.setState({ hasError: false });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={styles.container}>
+          <SerifText size={22} weight="bold" style={styles.title}>
+            {this.props.fallbackTitle ?? 'Er ging iets mis'}
+          </SerifText>
+          <Text style={styles.message}>
+            {this.props.fallbackMessage ??
+              'Dit scherm kon niet correct geladen worden. Onze excuses voor het ongemak.'}
+          </Text>
+          <HousePrimaryButton
+            title="Probeer opnieuw"
+            onPress={this.handleReset}
+            style={styles.button}
+          />
+        </View>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: GustraColors.cream,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    gap: 12,
+  },
+  title: {
+    color: GustraColors.ratingAvoid,
+    textAlign: 'center',
+  },
+  message: {
+    ...bodyTextStyle,
+    fontSize: 15,
+    color: 'rgba(35, 32, 26, 0.65)',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  button: {
+    paddingHorizontal: 24,
+  },
+});
+
+
+================================================================================
 FILE: components/ui/HouseFAB.tsx
 ================================================================================
 import {
@@ -21915,6 +22401,7 @@ type HouseNavHeaderProps = {
   /** Leading chevron that calls onBack (stack screens). */
   showBack?: boolean;
   onBack?: () => void;
+  numberOfLines?: number;
 };
 
 /**
@@ -21928,6 +22415,7 @@ export function HouseNavHeader({
   right,
   showBack = false,
   onBack,
+  numberOfLines = 1,
 }: HouseNavHeaderProps) {
   const insets = useSafeAreaInsets();
   // Serif descenders (y, g, j) need a taller line box than size+2.
@@ -21955,7 +22443,7 @@ export function HouseNavHeader({
 
         <View style={styles.titleWrap} pointerEvents="none">
           <Text
-            numberOfLines={1}
+            numberOfLines={numberOfLines}
             // Swift `titleLabel`: lineLimit(1) + minimumScaleFactor(0.75)
             adjustsFontSizeToFit
             minimumFontScale={0.75}
@@ -22137,11 +22625,11 @@ export function HouseToolbarIconButton({
   const color = disabled
     ? 'rgba(255, 255, 255, 0.35)'
     : emphasized
-      ? GustraColors.ratingNeutral
-      : '#FFFFFF';
+      ? GustraColors.forestGreen // Cut-out dark-green icon inside the white circle
+      : 'rgba(255, 255, 255, 0.85)'; // Clean, slightly translucent white for inactive
 
   // Slightly larger than Swift `.body` so toolbar glyphs read clearly on both platforms.
-  const iconSize = Platform.OS === 'ios' ? 26 : 28;
+  const iconSize = Platform.OS === 'ios' ? 24 : 26; // Scaled down slightly to fit beautifully inside the circle when active
 
   let icon = null;
   if (ionName) {
@@ -22170,6 +22658,7 @@ export function HouseToolbarIconButton({
       android_ripple={null}
       style={({ pressed }) => [
         styles.hit,
+        emphasized && styles.emphasizedBg,
         (pressed || disabled) && styles.pressed,
       ]}>
       {icon}
@@ -22183,6 +22672,11 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  emphasizedBg: {
+    backgroundColor: '#FFFFFF', // High-contrast, clean solid white background
+    borderRadius: 22, // Perfect circle (44/2)
+    transform: [{ scale: 0.8 }], // Scaled down to create a elegant inner toggle look inside the header
   },
   pressed: {
     opacity: 0.55,
@@ -22647,6 +23141,12 @@ type ReviewsHeaderProps = {
   /** Orange icon when filters are active. */
   filterActive?: boolean;
   onFilter?: () => void;
+
+  // Selection mode props
+  isSelecting?: boolean;
+  onCancelSelecting?: () => void;
+  onConfirmSelecting?: () => void;
+  canConfirmSelecting?: boolean;
 };
 
 /**
@@ -22662,11 +23162,25 @@ export function ReviewsHeader({
   canFilter = false,
   filterActive = false,
   onFilter,
+  isSelecting = false,
+  onCancelSelecting,
+  onConfirmSelecting,
+  canConfirmSelecting = false,
 }: ReviewsHeaderProps) {
   const { t } = useAppTranslation();
   const resolvedTitle = title ?? t('tabs.reviews');
 
-  const left = showShare ? (
+  const left = isSelecting ? (
+    <HouseToolbarIconButton
+      iosName="xmark"
+      androidName="close"
+      accessibilityLabel={t('common.cancel')}
+      onPress={() => {
+        Haptics.light();
+        onCancelSelecting?.();
+      }}
+    />
+  ) : showShare ? (
     <HouseToolbarIconButton
       iosName="square.and.arrow.up"
       androidName="share"
@@ -22679,24 +23193,35 @@ export function ReviewsHeader({
     />
   ) : null;
 
+  const right = isSelecting ? (
+    <HouseToolbarIconButton
+      iosName="checkmark"
+      androidName="check"
+      accessibilityLabel={t('common.done')}
+      disabled={!canConfirmSelecting}
+      onPress={() => {
+        Haptics.success();
+        onConfirmSelecting?.();
+      }}
+    />
+  ) : showFilter ? (
+    <HouseToolbarIconButton
+      ionName="funnel"
+      accessibilityLabel={t('a11y.filters')}
+      disabled={!canFilter}
+      emphasized={filterActive}
+      onPress={() => {
+        Haptics.selectionChanged();
+        onFilter?.();
+      }}
+    />
+  ) : null;
+
   return (
     <HouseNavHeader
       title={resolvedTitle}
       left={left}
-      right={
-        showFilter ? (
-          <HouseToolbarIconButton
-            ionName="funnel"
-            accessibilityLabel={t('a11y.filters')}
-            disabled={!canFilter}
-            emphasized={filterActive}
-            onPress={() => {
-              Haptics.selectionChanged();
-              onFilter?.();
-            }}
-          />
-        ) : null
-      }
+      right={right}
     />
   );
 }
@@ -29538,7 +30063,7 @@ FILE: i18n/locales/de.json
       "time": "Uhrzeit",
       "setTime": "Uhrzeit festlegen · {{time}}",
       "photoStrip": {
-        "hintReorder": "Tippen zum Auswählen · gedrückt halten zum Sortieren · erstes ist Cover",
+        "hintReorder": "Tippen zum Auswählen · gedrückt halten zum Sortieren",
         "hintSelect": "Tippen zum Auswählen zum Entfernen",
         "cover": "Cover",
         "a11yCover": "Cover-Foto. Tippen zum Auswählen, gedrückt halten zum Sortieren.",
@@ -29605,10 +30130,10 @@ FILE: i18n/locales/de.json
   },
   "share": {
     "chooser": {
-      "gustraFile": "Gustra-Datei teilen",
-      "gustraFileSubtitle": "Freunde können das in Gustra importieren",
-      "visual": "Bewertung per E-Mail teilen",
-      "visualSubtitle": "Schöne Karte dieser Bewertung senden",
+      "gustraFile": "Gustra Package teilen",
+      "gustraFileSubtitle": "Sende 1 oder mehr Bewertungen, damit andere Gustra-Nutzer sie importieren können",
+      "visual": "Per E-Mail teilen",
+      "visualSubtitle": "Sende eine gestaltete Bewertungskarte von 1 Restaurant (für jeden)",
       "cancel": "Abbrechen"
     },
     "nameSheet": {
@@ -29617,7 +30142,9 @@ FILE: i18n/locales/de.json
       "placeholder": "Name des Bewerters",
       "cancel": "Abbrechen",
       "continue": "Weiter"
-    }
+    },
+    "selectRestaurants": "Restaurants auswählen",
+    "selectOneRestaurant": "1 Restaurant auswählen"
   },
   "import": {
     "title": "Bewertungen importieren",
@@ -30252,7 +30779,7 @@ FILE: i18n/locales/en.json
       "time": "Time",
       "setTime": "Set time · {{time}}",
       "photoStrip": {
-        "hintReorder": "Tap to select · long-press to reorder · first is Cover",
+        "hintReorder": "Tap to select · long-press to reorder",
         "hintSelect": "Tap to select for removal",
         "cover": "Cover",
         "a11yCover": "Cover photo. Tap to select, long-press to reorder.",
@@ -30317,10 +30844,10 @@ FILE: i18n/locales/en.json
   },
   "share": {
     "chooser": {
-      "gustraFile": "Share Gustra file",
-      "gustraFileSubtitle": "Friends can import this into Gustra",
-      "visual": "Share review via email",
-      "visualSubtitle": "Send a nice card of this review",
+      "gustraFile": "Share Gustra Package",
+      "gustraFileSubtitle": "Send 1 or more reviews for other Gustra users to import",
+      "visual": "Share via Email",
+      "visualSubtitle": "Send a styled review card of 1 restaurant (for anyone)",
       "cancel": "Cancel"
     },
     "nameSheet": {
@@ -30329,7 +30856,9 @@ FILE: i18n/locales/en.json
       "placeholder": "Reviewer name",
       "cancel": "Cancel",
       "continue": "Continue"
-    }
+    },
+    "selectRestaurants": "Select restaurants",
+    "selectOneRestaurant": "Select 1 restaurant"
   },
   "import": {
     "title": "Import Reviews",
@@ -30962,7 +31491,7 @@ FILE: i18n/locales/es.json
       "time": "Hora",
       "setTime": "Elegir hora · {{time}}",
       "photoStrip": {
-        "hintReorder": "Toca para seleccionar · mantén pulsado para reordenar · la primera es Cover",
+        "hintReorder": "Toca para seleccionar · mantén pulsado para reordenar",
         "hintSelect": "Toca para seleccionar y eliminar",
         "cover": "Cover",
         "a11yCover": "Foto de portada. Toca para seleccionar, mantén pulsado para reordenar.",
@@ -31029,10 +31558,10 @@ FILE: i18n/locales/es.json
   },
   "share": {
     "chooser": {
-      "gustraFile": "Compartir archivo Gustra",
-      "gustraFileSubtitle": "Tus amigos pueden importar esto en Gustra",
-      "visual": "Compartir reseña por correo",
-      "visualSubtitle": "Envía una tarjeta bonita de esta reseña",
+      "gustraFile": "Compartir Gustra Package",
+      "gustraFileSubtitle": "Envía 1 o más reseñas para que otros usuarios de Gustra las importen",
+      "visual": "Compartir por correo",
+      "visualSubtitle": "Envía una tarjeta de reseña diseñada de 1 restaurante (para cualquiera)",
       "cancel": "Cancelar"
     },
     "nameSheet": {
@@ -31041,7 +31570,9 @@ FILE: i18n/locales/es.json
       "placeholder": "Nombre del reseñador",
       "cancel": "Cancelar",
       "continue": "Continuar"
-    }
+    },
+    "selectRestaurants": "Seleccionar restaurantes",
+    "selectOneRestaurant": "Seleccionar 1 restaurante"
   },
   "import": {
     "title": "Importar reseñas",
@@ -31674,7 +32205,7 @@ FILE: i18n/locales/fr.json
       "time": "Heure",
       "setTime": "Choisir l’heure · {{time}}",
       "photoStrip": {
-        "hintReorder": "Touchez pour sélectionner · appui long pour réordonner · la première est Cover",
+        "hintReorder": "Touchez pour sélectionner · appui long pour réordonner",
         "hintSelect": "Touchez pour sélectionner et supprimer",
         "cover": "Cover",
         "a11yCover": "Photo de couverture. Touchez pour sélectionner, appui long pour réordonner.",
@@ -31741,10 +32272,10 @@ FILE: i18n/locales/fr.json
   },
   "share": {
     "chooser": {
-      "gustraFile": "Partager un fichier Gustra",
-      "gustraFileSubtitle": "Les amis peuvent l’importer dans Gustra",
-      "visual": "Partager l’avis par e-mail",
-      "visualSubtitle": "Envoyer une belle carte de cet avis",
+      "gustraFile": "Partager le Gustra Package",
+      "gustraFileSubtitle": "Envoyer 1 ou plusieurs avis pour que d'autres utilisateurs de Gustra puissent les importer",
+      "visual": "Partager via E-mail",
+      "visualSubtitle": "Envoyer une fiche d'avis stylisée d'un restaurant (pour tout le monde)",
       "cancel": "Annuler"
     },
     "nameSheet": {
@@ -31753,7 +32284,9 @@ FILE: i18n/locales/fr.json
       "placeholder": "Nom de l’auteur de l’avis",
       "cancel": "Annuler",
       "continue": "Continuer"
-    }
+    },
+    "selectRestaurants": "Choisir les restaurants",
+    "selectOneRestaurant": "Choisir 1 restaurant"
   },
   "import": {
     "title": "Importer des avis",
@@ -32386,7 +32919,7 @@ FILE: i18n/locales/it.json
       "time": "Ora",
       "setTime": "Imposta ora · {{time}}",
       "photoStrip": {
-        "hintReorder": "Tocca per selezionare · tieni premuto per riordinare · la prima è Cover",
+        "hintReorder": "Tocca per selezionare · tieni premuto per riordinare",
         "hintSelect": "Tocca per selezionare e rimuovere",
         "cover": "Cover",
         "a11yCover": "Foto di copertina. Tocca per selezionare, tieni premuto per riordinare.",
@@ -32453,10 +32986,10 @@ FILE: i18n/locales/it.json
   },
   "share": {
     "chooser": {
-      "gustraFile": "Condividi file Gustra",
-      "gustraFileSubtitle": "Per amici con Gustra",
-      "visual": "Condividi recensione via e-mail",
-      "visualSubtitle": "Invia una bella scheda di questa recensione",
+      "gustraFile": "Condividi Gustra Package",
+      "gustraFileSubtitle": "Invia 1 o più recensioni per consentire ad altri utenti di Gustra di importarle",
+      "visual": "Condividi via E-mail",
+      "visualSubtitle": "Invia una scheda di recensione stilizzata di 1 ristorante (per chiunque)",
       "cancel": "Annulla"
     },
     "nameSheet": {
@@ -32465,7 +32998,9 @@ FILE: i18n/locales/it.json
       "placeholder": "Nome del recensore",
       "cancel": "Annulla",
       "continue": "Continua"
-    }
+    },
+    "selectRestaurants": "Seleziona ristoranti",
+    "selectOneRestaurant": "Seleziona 1 ristorante"
   },
   "import": {
     "title": "Importa recensioni",
@@ -33098,13 +33633,13 @@ FILE: i18n/locales/nl.json
       "time": "Tijd",
       "setTime": "Tijd instellen · {{time}}",
       "photoStrip": {
-        "hintReorder": "Tik om te selecteren · lang indrukken om te herschikken · eerste is Cover",
+        "hintReorder": "Tik om te selecteren · lang indrukken om te herschikken",
         "hintSelect": "Tik om te selecteren voor verwijderen",
         "cover": "Cover",
         "a11yCover": "Coverfoto. Tik om te selecteren, lang indrukken om te herschikken.",
         "a11yPhoto": "Foto. Tik om te selecteren, lang indrukken om te herschikken."
       },
-      "draftBannerCriteria": "Geef minstens één criterium sterren om deze recensie af te ronden.",
+      "draftBannerCriteria": "Beoordeel minstens 1 criterium om deze recensie af te ronden.",
       "draftBannerWine": "Een wijn heeft nog sterren nodig."
     },
     "photos": {
@@ -33165,10 +33700,10 @@ FILE: i18n/locales/nl.json
   },
   "share": {
     "chooser": {
-      "gustraFile": "Gustra-bestand delen",
-      "gustraFileSubtitle": "Vrienden kunnen dit in Gustra importeren",
-      "visual": "Deel recensie via e-mail",
-      "visualSubtitle": "Stuur een mooie kaart van deze recensie",
+      "gustraFile": "Deel Gustra Package",
+      "gustraFileSubtitle": "Verstuur 1 of meerdere reviews zodat andere Gustra-gebruikers deze kunnen importeren",
+      "visual": "Deel via E-mail",
+      "visualSubtitle": "Verstuur een opgemaakte reviewkaart van 1 restaurant (voor iedereen)",
       "cancel": "Annuleren"
     },
     "nameSheet": {
@@ -33177,7 +33712,9 @@ FILE: i18n/locales/nl.json
       "placeholder": "Naam van de recensent",
       "cancel": "Annuleren",
       "continue": "Doorgaan"
-    }
+    },
+    "selectRestaurants": "Selecteer restaurants",
+    "selectOneRestaurant": "Selecter 1 restaurant"
   },
   "import": {
     "title": "Recensies importeren",
@@ -33666,49 +34203,50 @@ FILE: package.json
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "9.1.0",
     "@sentry/react-native": "~7.11.0",
-    "expo": "~57.0.7",
+    "expo": "^57.0.9",
     "expo-constants": "~57.0.6",
     "expo-crypto": "~57.0.1",
-    "expo-dev-client": "~57.0.8",
+    "expo-dev-client": "~57.0.10",
     "expo-document-picker": "~57.0.1",
     "expo-file-system": "~57.0.1",
     "expo-font": "~57.0.1",
     "expo-haptics": "~57.0.1",
-    "expo-image-manipulator": "~57.0.5",
-    "expo-image-picker": "~57.0.5",
+    "expo-image-manipulator": "~57.0.7",
+    "expo-image-picker": "~57.0.7",
     "expo-linear-gradient": "~57.0.1",
-    "expo-linking": "~57.0.3",
+    "expo-linking": "~57.0.4",
     "expo-localization": "~57.0.1",
-    "expo-location": "~57.0.5",
+    "expo-location": "~57.0.7",
     "expo-mail-composer": "~57.0.1",
     "expo-media-library": "~57.0.3",
     "expo-navigation-bar": "^57.0.2",
     "expo-ocr-kit": "^0.1.4",
-    "expo-router": "~57.0.7",
+    "expo-router": "~57.0.9",
     "expo-screen-orientation": "~57.0.1",
-    "expo-sharing": "~57.0.6",
-    "expo-splash-screen": "~57.0.4",
+    "expo-sharing": "~57.0.8",
+    "expo-splash-screen": "~57.0.5",
     "expo-sqlite": "^57.0.1",
     "expo-status-bar": "~57.0.1",
     "expo-symbols": "~57.0.1",
-    "expo-system-ui": "^57.0.1",
-    "expo-web-browser": "~57.0.1",
+    "expo-system-ui": "~57.0.2",
+    "expo-web-browser": "~57.0.2",
     "i18next": "^26.3.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-i18next": "^17.0.11",
-    "react-native": "0.86.0",
+    "react-native": "0.86.2",
     "react-native-draggable-flatlist": "^4.0.3",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-maps": "1.27.2",
-    "react-native-reanimated": "4.5.0",
+    "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
-    "react-native-screens": "4.25.2",
+    "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
     "react-native-view-shot": "5.1.0",
     "react-native-web": "~0.21.0",
     "react-native-webview": "13.16.1",
-    "react-native-worklets": "0.10.0"
+    "react-native-worklets": "0.10.1",
+    "react-native-worklets-core": "1.6.3"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
@@ -35516,11 +36054,20 @@ export const DirectionsLauncher = {
     const lng = asCoord(longitude);
     if (!restaurantHasCoordinates(lat, lng)) return;
 
-    const appURL = `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`;
-    const webURL = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-    const openedApp = await safeOpenURL(appURL, { alertOnFailure: false });
-    if (openedApp) return;
-    await safeOpenURL(webURL);
+    if (Platform.OS === 'ios') {
+      const appURL = `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`;
+      const webURL = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+      const openedApp = await safeOpenURL(appURL, { alertOnFailure: false });
+      if (openedApp) return;
+      await safeOpenURL(webURL);
+    } else {
+      // Android: Google Maps turn-by-turn navigation Intent starts directions directly
+      const navigationURL = `google.navigation:q=${lat},${lng}&mode=d`;
+      const webURL = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+      const openedApp = await safeOpenURL(navigationURL, { alertOnFailure: false });
+      if (openedApp) return;
+      await safeOpenURL(webURL);
+    }
   },
 
   async openWaze(latitude: number, longitude: number) {
@@ -39725,16 +40272,6 @@ export function makeCompanionHTML(args: {
 
   return `<!DOCTYPE html>
 <html lang="${lang}" bgcolor="${CREAM}" style="background-color:${CREAM} !important;margin:0;padding:0;height:100%;">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light only">
-  <meta name="supported-color-schemes" content="light only">
-  <title>Share review</title>
-  <style type="text/css">
-    html, body { background-color: ${CREAM} !important; margin: 0 !important; padding: 0 !important; }
-  </style>
-</head>
 <body bgcolor="${CREAM}" style="margin:0;padding:0;background-color:${CREAM} !important;-webkit-text-size-adjust:100%;width:100%;">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${preheader}</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${CREAM}" style="width:100%;min-width:100%;background-color:${CREAM};">

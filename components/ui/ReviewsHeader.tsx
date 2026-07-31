@@ -14,6 +14,12 @@ type ReviewsHeaderProps = {
   /** Orange icon when filters are active. */
   filterActive?: boolean;
   onFilter?: () => void;
+
+  // Selection mode props
+  isSelecting?: boolean;
+  onCancelSelecting?: () => void;
+  onConfirmSelecting?: () => void;
+  canConfirmSelecting?: boolean;
 };
 
 /**
@@ -29,11 +35,25 @@ export function ReviewsHeader({
   canFilter = false,
   filterActive = false,
   onFilter,
+  isSelecting = false,
+  onCancelSelecting,
+  onConfirmSelecting,
+  canConfirmSelecting = false,
 }: ReviewsHeaderProps) {
   const { t } = useAppTranslation();
   const resolvedTitle = title ?? t('tabs.reviews');
 
-  const left = showShare ? (
+  const left = isSelecting ? (
+    <HouseToolbarIconButton
+      iosName="xmark"
+      androidName="close"
+      accessibilityLabel={t('common.cancel')}
+      onPress={() => {
+        Haptics.light();
+        onCancelSelecting?.();
+      }}
+    />
+  ) : showShare ? (
     <HouseToolbarIconButton
       iosName="square.and.arrow.up"
       androidName="share"
@@ -46,24 +66,35 @@ export function ReviewsHeader({
     />
   ) : null;
 
+  const right = isSelecting ? (
+    <HouseToolbarIconButton
+      iosName="checkmark"
+      androidName="check"
+      accessibilityLabel={t('common.done')}
+      disabled={!canConfirmSelecting}
+      onPress={() => {
+        Haptics.success();
+        onConfirmSelecting?.();
+      }}
+    />
+  ) : showFilter ? (
+    <HouseToolbarIconButton
+      ionName="funnel"
+      accessibilityLabel={t('a11y.filters')}
+      disabled={!canFilter}
+      emphasized={filterActive}
+      onPress={() => {
+        Haptics.selectionChanged();
+        onFilter?.();
+      }}
+    />
+  ) : null;
+
   return (
     <HouseNavHeader
       title={resolvedTitle}
       left={left}
-      right={
-        showFilter ? (
-          <HouseToolbarIconButton
-            ionName="funnel"
-            accessibilityLabel={t('a11y.filters')}
-            disabled={!canFilter}
-            emphasized={filterActive}
-            onPress={() => {
-              Haptics.selectionChanged();
-              onFilter?.();
-            }}
-          />
-        ) : null
-      }
+      right={right}
     />
   );
 }

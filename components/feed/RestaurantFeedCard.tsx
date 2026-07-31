@@ -1,4 +1,5 @@
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
 
 import { FeedSwipeDelete } from '@/components/feed/FeedSwipeDelete';
 import { RestaurantThumb } from '@/components/feed/RestaurantThumb';
@@ -30,6 +31,9 @@ type RestaurantFeedCardProps = {
    * instead of overall average — Swift `RestaurantFeedCardView.scoreOverride`.
    */
   scoreOverride?: number | null;
+  shareSelecting?: boolean;
+  selected?: boolean;
+  onSelectToggle?: () => void;
 };
 
 export function RestaurantFeedCard({
@@ -38,6 +42,9 @@ export function RestaurantFeedCard({
   onDelete,
   onFavoriteToggle,
   scoreOverride,
+  shareSelecting = false,
+  selected = false,
+  onSelectToggle,
 }: RestaurantFeedCardProps) {
   const { t } = useAppTranslation();
   const isDraft = Boolean(summary.isDraft);
@@ -54,7 +61,11 @@ export function RestaurantFeedCard({
       }
       onPress={() => {
         Haptics.light();
-        onPress();
+        if (shareSelecting) {
+          onSelectToggle?.();
+        } else {
+          onPress();
+        }
       }}
       android_ripple={
         Platform.OS === 'android'
@@ -84,13 +95,17 @@ export function RestaurantFeedCard({
               })}
         </Text>
         {summary.reviewerName ? (
-          <Text style={styles.reviewer}>{summary.reviewerName}</Text>
+          <Text style={styles.reviewer}>
+            {t('detail.review.reviewedBy', { name: summary.reviewerName })}
+          </Text>
         ) : null}
       </View>
 
       <View style={styles.trailing}>
         {isDraft ? (
-          <Text style={styles.draftBadge}>{t('reviews.draftLabel')}</Text>
+          <View style={styles.editorialPill}>
+            <Text style={styles.editorialPillText}>{t('reviews.draftLabel')}</Text>
+          </View>
         ) : (
           <>
             {displayScore > 0 ? (
@@ -98,15 +113,41 @@ export function RestaurantFeedCard({
                 {formatScoreOutOfFive(displayScore)}
               </SerifText>
             ) : null}
-            <FavoriteHeartButton
-              favorite={summary.isFavorite}
-              onToggle={onFavoriteToggle}
-            />
+            {!shareSelecting ? (
+              <FavoriteHeartButton
+                favorite={summary.isFavorite}
+                onToggle={onFavoriteToggle}
+              />
+            ) : null}
           </>
         )}
       </View>
     </Pressable>
   );
+
+  if (shareSelecting) {
+    return (
+      <View style={styles.shareRow}>
+        <Pressable
+          style={styles.checkboxContainer}
+          onPress={onSelectToggle}
+          hitSlop={8}>
+          <SymbolView
+            name={{
+              ios: selected ? 'checkmark.circle.fill' : 'circle',
+              android: selected ? 'check_circle' : 'radio_button_unchecked',
+              web: selected ? 'check_circle' : 'radio_button_unchecked',
+            }}
+            tintColor={selected ? GustraColors.forestGreen : 'rgba(35, 32, 26, 0.35)'}
+            size={24}
+          />
+        </Pressable>
+        <View style={styles.cardWrapper}>
+          {card}
+        </View>
+      </View>
+    );
+  }
 
   if (!onDelete) return card;
 
@@ -166,6 +207,22 @@ const styles = StyleSheet.create({
   score: {
     color: GustraColors.forestGreen,
   },
+  editorialPill: {
+    backgroundColor: 'rgba(199, 71, 66, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(199, 71, 66, 0.25)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    alignSelf: 'flex-end',
+  },
+  editorialPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(199, 71, 66, 0.85)',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
   draftBadge: {
     ...captionTextStyle,
     fontSize: 13,
@@ -173,5 +230,20 @@ const styles = StyleSheet.create({
     color: GustraColors.gold,
     letterSpacing: 0.3,
     textTransform: 'uppercase',
+  },
+  shareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+  },
+  checkboxContainer: {
+    paddingVertical: 12,
+    paddingRight: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardWrapper: {
+    flex: 1,
   },
 });

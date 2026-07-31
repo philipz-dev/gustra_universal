@@ -39,11 +39,11 @@ export function HouseToolbarIconButton({
   const color = disabled
     ? 'rgba(255, 255, 255, 0.35)'
     : emphasized
-      ? GustraColors.ratingNeutral
-      : '#FFFFFF';
+      ? GustraColors.forestGreen // Cut-out dark-green icon inside the white circle
+      : 'rgba(255, 255, 255, 0.85)'; // Clean, slightly translucent white for inactive
 
   // Slightly larger than Swift `.body` so toolbar glyphs read clearly on both platforms.
-  const iconSize = Platform.OS === 'ios' ? 26 : 28;
+  const iconSize = Platform.OS === 'ios' ? 24 : 26; // Scaled down slightly to fit beautifully inside the circle when active
 
   let icon = null;
   if (ionName) {
@@ -72,6 +72,7 @@ export function HouseToolbarIconButton({
       android_ripple={null}
       style={({ pressed }) => [
         styles.hit,
+        emphasized && styles.emphasizedBg,
         (pressed || disabled) && styles.pressed,
       ]}>
       {icon}
@@ -85,6 +86,11 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  emphasizedBg: {
+    backgroundColor: '#FFFFFF', // High-contrast, clean solid white background
+    borderRadius: 22, // Perfect circle (44/2)
+    transform: [{ scale: 0.8 }], // Scaled down to create a elegant inner toggle look inside the header
   },
   pressed: {
     opacity: 0.55,

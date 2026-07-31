@@ -26,8 +26,21 @@ import { resolveReviewOrigin } from '@/data/types';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { useSharedRestaurantFilters } from '@/hooks/useSharedRestaurantFilters';
 import { formatScoreOutOfFive } from '@/services/reviews/ratings';
+import { HouseErrorBoundary } from '@/components/ui/HouseErrorBoundary';
 
 export default function CulinaryPassportScreen() {
+  const { t } = useAppTranslation();
+  return (
+    <HouseErrorBoundary
+      fallbackTitle={t('passport.title') || 'Culinair Paspoort'}
+      fallbackMessage="We konden je culinaire paspoort op dit moment niet berekenen. Probeer het scherm opnieuw te laden."
+    >
+      <CulinaryPassportContent />
+    </HouseErrorBoundary>
+  );
+}
+
+function CulinaryPassportContent() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();

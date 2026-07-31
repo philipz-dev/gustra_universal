@@ -69,7 +69,7 @@ export function ShareFlowSheet({
       onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.backdrop}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}>
         <Pressable style={styles.dismissArea} onPress={onClose} />
         <View style={[styles.sheet, { paddingBottom: insets.bottom + 24 }]}>
           <View style={styles.handle} />

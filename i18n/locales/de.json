@@ -321,7 +321,7 @@
       "time": "Uhrzeit",
       "setTime": "Uhrzeit festlegen · {{time}}",
       "photoStrip": {
-        "hintReorder": "Tippen zum Auswählen · gedrückt halten zum Sortieren · erstes ist Cover",
+        "hintReorder": "Tippen zum Auswählen · gedrückt halten zum Sortieren",
         "hintSelect": "Tippen zum Auswählen zum Entfernen",
         "cover": "Cover",
         "a11yCover": "Cover-Foto. Tippen zum Auswählen, gedrückt halten zum Sortieren.",
@@ -388,10 +388,10 @@
   },
   "share": {
     "chooser": {
-      "gustraFile": "Gustra-Datei teilen",
-      "gustraFileSubtitle": "Freunde können das in Gustra importieren",
-      "visual": "Bewertung per E-Mail teilen",
-      "visualSubtitle": "Schöne Karte dieser Bewertung senden",
+      "gustraFile": "Gustra Package teilen",
+      "gustraFileSubtitle": "Sende 1 oder mehr Bewertungen, damit andere Gustra-Nutzer sie importieren können",
+      "visual": "Per E-Mail teilen",
+      "visualSubtitle": "Sende eine gestaltete Bewertungskarte von 1 Restaurant (für jeden)",
       "cancel": "Abbrechen"
     },
     "nameSheet": {
@@ -400,7 +400,9 @@
       "placeholder": "Name des Bewerters",
       "cancel": "Abbrechen",
       "continue": "Weiter"
-    }
+    },
+    "selectRestaurants": "Restaurants auswählen",
+    "selectOneRestaurant": "1 Restaurant auswählen"
   },
   "import": {
     "title": "Bewertungen importieren",

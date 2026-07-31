@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { StyleSheet, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Image, StyleSheet, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -59,6 +59,44 @@ export function ZoomablePhoto({
   onZoomChangeRef.current = onZoomChange;
   const mountedRef = useRef(true);
 
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    if (!uri) return;
+    Image.getSize(
+      uri,
+      (w, h) => {
+        if (mountedRef.current) {
+          setImageSize({ width: w, height: h });
+        }
+      },
+      () => {
+        if (mountedRef.current) {
+          setImageSize(null);
+        }
+      }
+    );
+  }, [uri]);
+
+  const displayedSize = useMemo(() => {
+    if (!imageSize) return { w: width, h: height };
+    const containerAspect = width / height;
+    const imageAspect = imageSize.width / imageSize.height;
+
+    let w = width;
+    let h = height;
+
+    if (imageAspect > containerAspect) {
+      w = width;
+      h = width / imageAspect;
+    } else {
+      h = height;
+      w = height * imageAspect;
+    }
+
+    return { w, h };
+  }, [imageSize, width, height]);
+
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -69,9 +107,9 @@ export function ZoomablePhoto({
   const canvasH = useSharedValue(height);
 
   useEffect(() => {
-    canvasW.value = width;
-    canvasH.value = height;
-  }, [width, height, canvasW, canvasH]);
+    canvasW.value = displayedSize.w;
+    canvasH.value = displayedSize.h;
+  }, [displayedSize, canvasW, canvasH]);
 
   useEffect(() => {
     mountedRef.current = true;

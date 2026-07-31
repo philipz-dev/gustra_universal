@@ -48,7 +48,7 @@ export function EmailPersonalMessageModal({
       onRequestClose={onCancel}>
       <KeyboardAvoidingView
         style={styles.backdrop}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}>
         <Pressable style={styles.dismissArea} onPress={onCancel} />
         <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
           <View style={styles.toolbar}>

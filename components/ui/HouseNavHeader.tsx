@@ -17,6 +17,7 @@ type HouseNavHeaderProps = {
   /** Leading chevron that calls onBack (stack screens). */
   showBack?: boolean;
   onBack?: () => void;
+  numberOfLines?: number;
 };
 
 /**
@@ -30,6 +31,7 @@ export function HouseNavHeader({
   right,
   showBack = false,
   onBack,
+  numberOfLines = 1,
 }: HouseNavHeaderProps) {
   const insets = useSafeAreaInsets();
   // Serif descenders (y, g, j) need a taller line box than size+2.
@@ -57,7 +59,7 @@ export function HouseNavHeader({
 
         <View style={styles.titleWrap} pointerEvents="none">
           <Text
-            numberOfLines={1}
+            numberOfLines={numberOfLines}
             // Swift `titleLabel`: lineLimit(1) + minimumScaleFactor(0.75)
             adjustsFontSizeToFit
             minimumFontScale={0.75}

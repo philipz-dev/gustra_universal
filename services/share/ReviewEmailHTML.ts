@@ -84,16 +84,6 @@ export function makeCompanionHTML(args: {
 
   return `<!DOCTYPE html>
 <html lang="${lang}" bgcolor="${CREAM}" style="background-color:${CREAM} !important;margin:0;padding:0;height:100%;">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light only">
-  <meta name="supported-color-schemes" content="light only">
-  <title>Share review</title>
-  <style type="text/css">
-    html, body { background-color: ${CREAM} !important; margin: 0 !important; padding: 0 !important; }
-  </style>
-</head>
 <body bgcolor="${CREAM}" style="margin:0;padding:0;background-color:${CREAM} !important;-webkit-text-size-adjust:100%;width:100%;">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${preheader}</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${CREAM}" style="width:100%;min-width:100%;background-color:${CREAM};">

@@ -75,7 +75,7 @@ export function ActiveFilterSummary({
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.topRow}>
+      <View style={styles.chipsRow}>
         {showSort ? (
           <Chip
             title={sortKindTitle(state.sortKind, criterionTitleFor)}
@@ -86,80 +86,79 @@ export function ActiveFilterSummary({
               clear({ ...state, sortKind: { type: 'date' } })
             }
           />
-        ) : (
-          <View />
-        )}
-        <Text
-          style={styles.count}
-          accessibilityLabel={t('filters.resultsCount', {
-            shown: visibleResultCount,
-            total: totalResultCount,
-          })}>
-          {visibleResultCount}/{totalResultCount}
-        </Text>
+        ) : null}
+
+        {showFavorites ? (
+          <Chip
+            title={t('filters.chips.favorites')}
+            iosName="heart.fill"
+            androidName="favorite"
+            accessibilityHint={t('a11y.clearFavorites')}
+            onPress={() =>
+              clear({
+                ...state,
+                filters: state.filters.filter((flag) => flag !== 'favorites'),
+              })
+            }
+          />
+        ) : null}
+
+        {showFriends ? (
+          <Chip
+            title={t('filters.chips.friends')}
+            iosName="person.2.fill"
+            androidName="group"
+            accessibilityHint={t('a11y.clearFriends')}
+            onPress={() =>
+              clear({
+                ...state,
+                filters: state.filters.filter((flag) => flag !== 'friends'),
+              })
+            }
+          />
+        ) : null}
+
+        {showLocation ? (
+          <Chip
+            title={locationTitle}
+            iosName="mappin.and.ellipse"
+            androidName="place"
+            accessibilityHint={t('a11y.clearLocation')}
+            onPress={() =>
+              clear({
+                ...state,
+                filters: state.filters.filter((flag) => flag !== 'location'),
+                locationCities: [],
+              })
+            }
+          />
+        ) : null}
+
+        {showPlaceType ? (
+          <Chip
+            title={placeTypeTitle}
+            iosName="fork.knife"
+            androidName="restaurant"
+            accessibilityHint={t('a11y.clearCuisine')}
+            onPress={() =>
+              clear({
+                ...state,
+                filters: state.filters.filter((flag) => flag !== 'placeType'),
+                primaryTypes: [],
+              })
+            }
+          />
+        ) : null}
       </View>
 
-      {showFavorites ? (
-        <Chip
-          title={t('filters.chips.favorites')}
-          iosName="heart.fill"
-          androidName="favorite"
-          accessibilityHint={t('a11y.clearFavorites')}
-          onPress={() =>
-            clear({
-              ...state,
-              filters: state.filters.filter((flag) => flag !== 'favorites'),
-            })
-          }
-        />
-      ) : null}
-
-      {showFriends ? (
-        <Chip
-          title={t('filters.chips.friends')}
-          iosName="person.2.fill"
-          androidName="group"
-          accessibilityHint={t('a11y.clearFriends')}
-          onPress={() =>
-            clear({
-              ...state,
-              filters: state.filters.filter((flag) => flag !== 'friends'),
-            })
-          }
-        />
-      ) : null}
-
-      {showLocation ? (
-        <Chip
-          title={locationTitle}
-          iosName="mappin.and.ellipse"
-          androidName="place"
-          accessibilityHint={t('a11y.clearLocation')}
-          onPress={() =>
-            clear({
-              ...state,
-              filters: state.filters.filter((flag) => flag !== 'location'),
-              locationCities: [],
-            })
-          }
-        />
-      ) : null}
-
-      {showPlaceType ? (
-        <Chip
-          title={placeTypeTitle}
-          iosName="fork.knife"
-          androidName="restaurant"
-          accessibilityHint={t('a11y.clearCuisine')}
-          onPress={() =>
-            clear({
-              ...state,
-              filters: state.filters.filter((flag) => flag !== 'placeType'),
-              primaryTypes: [],
-            })
-          }
-        />
-      ) : null}
+      <Text
+        style={styles.count}
+        accessibilityLabel={t('filters.resultsCount', {
+          shown: visibleResultCount,
+          total: totalResultCount,
+        })}>
+        {visibleResultCount}/{totalResultCount}
+      </Text>
     </View>
   );
 }
@@ -202,17 +201,19 @@ function Chip({
 
 const styles = StyleSheet.create({
   wrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Theme.spacing.searchHorizontal,
     paddingBottom: Theme.spacing.searchVertical,
     gap: 8,
     backgroundColor: GustraColors.cream,
   },
-  topRow: {
+  chipsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-    minHeight: 32,
+    flexWrap: 'wrap',
+    gap: 6,
+    flex: 1,
   },
   count: {
     ...captionTextStyle,

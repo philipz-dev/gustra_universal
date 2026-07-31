@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import Animated, {
+  cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
+  withSequence,
   withSpring,
 } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
@@ -12,7 +14,7 @@ import { Haptics } from '@/services/haptics';
 /** Same muted red as iOS SF Symbol heart fills tint. */
 const HEART_RED = '#C74742';
 const HEART_EMPTY = 'rgba(35, 32, 26, 0.35)';
-const PRESS_SPRING = { damping: 16, stiffness: 280 };
+const PRESS_SPRING = { damping: 16, stiffness: 280, mass: 0.6 };
 
 /** SF Symbol–like heart in a 24×24 viewBox. */
 const HEART_PATH =
@@ -74,9 +76,13 @@ export function FavoriteHeartButton({
       onPress={() => {
         const next = !favorite;
         Haptics.medium();
-        scale.value = withSpring(1.18, PRESS_SPRING, () => {
-          scale.value = withSpring(1, PRESS_SPRING);
-        });
+        // withSequence — nested withSpring completion callbacks recurse
+        // into valueSetter and blow the native call stack (Reanimated 4).
+        cancelAnimation(scale);
+        scale.value = withSequence(
+          withSpring(1.18, PRESS_SPRING),
+          withSpring(1, PRESS_SPRING),
+        );
         if (!isControlled) setFavorite(next);
         onToggle?.(next);
       }}

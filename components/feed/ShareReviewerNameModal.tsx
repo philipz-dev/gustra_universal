@@ -52,7 +52,7 @@ export function ShareReviewerNameModal({
       onRequestClose={onCancel}>
       <KeyboardAvoidingView
         style={styles.backdrop}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}>
         <Pressable style={styles.dismissArea} onPress={onCancel} />
         <View style={styles.sheet}>
           <View style={styles.handle} />

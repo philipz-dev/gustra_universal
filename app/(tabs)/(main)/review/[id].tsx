@@ -21,10 +21,6 @@ import { LocationBlock } from '@/components/detail/LocationBlock';
 import { ProfilePhotoViewer } from '@/components/detail/ProfilePhotoViewer';
 import { RestaurantMapViewer } from '@/components/detail/RestaurantMapViewer';
 import { ReviewPhotoViewer } from '@/components/detail/ReviewPhotoViewer';
-import {
-  ReviewOptionsSheet,
-  type ReviewOptionsAction,
-} from '@/components/detail/ReviewOptionsSheet';
 import { ReviewWinesSection } from '@/components/detail/ReviewWinesSection';
 import type { ShareDestination } from '@/components/detail/ShareReviewChooser';
 import { PreparingRecommendationOverlay } from '@/components/share/PreparingRecommendationOverlay';
@@ -35,6 +31,7 @@ import {
 import { FavoriteHeartButton } from '@/components/ui/FavoriteHeartButton';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
+import { HousePrimaryButton } from '@/components/ui/HousePrimaryButton';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
@@ -101,7 +98,6 @@ export default function ReviewDetailScreen() {
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [showReviewerPhoto, setShowReviewerPhoto] = useState(false);
   const [showMap, setShowMap] = useState(false);
-  const [optionsVisible, setOptionsVisible] = useState(false);
   const [shareStep, setShareStep] = useState<ShareFlowStep | null>(null);
   const [pendingShare, setPendingShare] = useState<ShareDestination | null>(
     null,
@@ -241,37 +237,6 @@ export default function ReviewDetailScreen() {
     [pendingSharedBy, runShare],
   );
 
-  const onOptionsAction = useCallback(
-    (action: ReviewOptionsAction) => {
-      if (!review || !restaurant) return;
-      setOptionsVisible(false);
-      afterSheetDismiss(() => {
-        switch (action) {
-          case 'recordVisit':
-            router.push({
-              pathname: '/review-form',
-              params: { restaurantId: restaurant.id },
-            });
-            break;
-          case 'edit':
-            if (isFriendReview) return;
-            router.push({
-              pathname: '/review-form',
-              params: { reviewId: review.id },
-            });
-            break;
-          case 'shareGustra':
-            onSelectDestination('gustraPackage');
-            break;
-          case 'shareVisual':
-            onSelectDestination('email');
-            break;
-        }
-      });
-    },
-    [isFriendReview, onSelectDestination, restaurant, review, router],
-  );
-
   const addressLine = restaurant
     ? [restaurant.address, restaurant.city, restaurant.country]
         .filter(Boolean)
@@ -399,16 +364,19 @@ export default function ReviewDetailScreen() {
       showBack
       onBack={() => router.back()}
       right={
-        review ? (
+        review && !isFriendReview ? (
           <View style={styles.headerActions}>
             <HouseToolbarIconButton
-              iosName="ellipsis"
-              androidName="more-vert"
-              accessibilityLabel={t('detail.options.a11y')}
+              iosName="pencil"
+              androidName="edit"
+              accessibilityLabel={t('detail.review.edit')}
               disabled={sharing}
               onPress={() => {
                 Haptics.selectionChanged();
-                setOptionsVisible(true);
+                router.push({
+                  pathname: '/review-form',
+                  params: { reviewId: review.id },
+                });
               }}
             />
           </View>
@@ -452,8 +420,21 @@ export default function ReviewDetailScreen() {
           }}
         />
 
+        <View style={styles.recordVisitContainer}>
+          <HousePrimaryButton
+            title={t('detail.options.recordVisit')}
+            onPress={() => {
+              Haptics.selectionChanged();
+              router.push({
+                pathname: '/review-form',
+                params: { restaurantId: restaurant.id },
+              });
+            }}
+          />
+        </View>
+
         <View
-          style={[styles.content, polished && styles.contentPolished]}>
+          style={[styles.content, polished && styles.contentPolished, { paddingTop: 8 }]}>
           <View style={[styles.header, polished && styles.headerPolished]}>
             <View style={styles.headerRow}>
               <View style={styles.titleBlock}>
@@ -580,13 +561,6 @@ export default function ReviewDetailScreen() {
         onClose={() => setShowMap(false)}
       />
 
-      <ReviewOptionsSheet
-        visible={optionsVisible}
-        isFriendReview={isFriendReview}
-        onClose={() => setOptionsVisible(false)}
-        onAction={onOptionsAction}
-      />
-
       <ShareFlowSheet
         visible={shareStep !== null}
         step={shareStep ?? 'chooser'}
@@ -608,6 +582,11 @@ const styles = StyleSheet.create({
     backgroundColor: GustraColors.cream,
   },
   scroll: {},
+  recordVisitContainer: {
+    paddingHorizontal: Theme.spacing.detailContent,
+    paddingTop: 16,
+    paddingBottom: 4,
+  },
   content: {
     padding: Theme.spacing.detailContent,
     gap: Theme.spacing.detailSection,

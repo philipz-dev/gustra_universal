@@ -63,11 +63,23 @@ function hasCoordinates(lat: number, lng: number): boolean {
   );
 }
 
+export default function MemoriesMapScreen() {
+  const { t } = useAppTranslation();
+  return (
+    <HouseErrorBoundary
+      fallbackTitle={t('tabs.map') || 'Mijn kaart'}
+      fallbackMessage="We konden de kaart op dit moment niet laden. Probeer het scherm opnieuw te openen."
+    >
+      <MemoriesMapContent />
+    </HouseErrorBoundary>
+  );
+}
+
 /**
  * My map — pins by ownership (own = gold, friends = house red).
  * Same shared filter state as Reviews / My Gustra (Sort by ignored here).
  */
-export default function MemoriesMapScreen() {
+function MemoriesMapContent() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();

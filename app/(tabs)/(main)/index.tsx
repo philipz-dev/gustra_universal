@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
 
 import { houseAlert } from '@/components/ui/HouseAlert';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -16,9 +17,10 @@ import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseFAB } from '@/components/ui/HouseFAB';
 import { ReviewsHeader } from '@/components/ui/ReviewsHeader';
 import { GustraColors } from '@/constants/Colors';
-import { Theme } from '@/constants/Theme';
+import { Theme, bodyTextStyle } from '@/constants/Theme';
 import { useReviewerProfile } from '@/context/ReviewerProfile';
 import { useReviewsStore } from '@/context/ReviewsStore';
+import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { consumePendingEnableFriendsFilter } from '@/context/pendingFriendsFilter';
 import type { RestaurantVisitSummary, Review } from '@/data/types';
 import { resolveReviewOrigin } from '@/data/types';
@@ -26,8 +28,27 @@ import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { useSharedRestaurantFilters } from '@/hooks/useSharedRestaurantFilters';
 import { shareReviewsPackage } from '@/services/share/ReviewShareService';
 import { requestSwipeDelete } from '@/services/swipeDelete';
+import { Haptics } from '@/services/haptics';
+
+import { ShareReviewChooser } from '@/components/detail/ShareReviewChooser';
+import { ShareFlowSheet } from '@/components/share/ShareFlowSheet';
+import { PreparingRecommendationOverlay } from '@/components/share/PreparingRecommendationOverlay';
+import { shareReviewAsEmail } from '@/services/share/ReviewEmailShare';
+import { HouseErrorBoundary } from '@/components/ui/HouseErrorBoundary';
 
 export default function ReviewsFeedScreen() {
+  const { t } = useAppTranslation();
+  return (
+    <HouseErrorBoundary
+      fallbackTitle={t('tabs.reviews') || 'Reviews'}
+      fallbackMessage="We konden de reviews op dit moment niet laden. Probeer het scherm opnieuw te openen."
+    >
+      <ReviewsFeedContent />
+    </HouseErrorBoundary>
+  );
+}
+
+function ReviewsFeedContent() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -38,6 +59,20 @@ export default function ReviewsFeedScreen() {
   const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(
     () => new Set(),
   );
+
+  // Share / Selection states
+  const [isShareSelecting, setIsShareSelecting] = useState(false);
+  const [shareType, setShareType] = useState<'gustraPackage' | 'email' | null>(null);
+  const [selectedRestaurantIds, setSelectedRestaurantIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [isChooserVisible, setIsChooserVisible] = useState(false);
+  const [shareStep, setShareStep] = useState<'name' | 'message' | null>(null);
+  const [pendingSharedBy, setPendingSharedBy] = useState<string | null>(null);
+  const [preparingEmail, setPreparingEmail] = useState(false);
+
+  const { enabledCriteria } = useCriteriaSettings();
+
   const {
     filterState,
     setFilterState,
@@ -110,9 +145,11 @@ export default function ReviewsFeedScreen() {
   const visibleFeed = useMemo(
     () =>
       filtered.filter(
-        (summary) => !pendingDeleteIds.has(summary.restaurantId),
+        (summary) =>
+          !pendingDeleteIds.has(summary.restaurantId) &&
+          (!isShareSelecting || !summary.isDraft),
       ),
-    [filtered, pendingDeleteIds],
+    [filtered, pendingDeleteIds, isShareSelecting],
   );
 
   const requestDeleteRestaurant = useCallback(
@@ -149,19 +186,23 @@ export default function ReviewsFeedScreen() {
   const reviewsToShare = useMemo(() => {
     const list: Review[] = [];
     for (const summary of filtered) {
+      if (isShareSelecting && !selectedRestaurantIds.has(summary.restaurantId)) {
+        continue;
+      }
       for (const id of summary.reviewIds) {
         const review = getReview(id);
         if (review && resolveReviewOrigin(review) === 'own') list.push(review);
       }
     }
     return list;
-  }, [filtered, getReview]);
+  }, [filtered, getReview, isShareSelecting, selectedRestaurantIds]);
 
   const canShare = reviewsToShare.length > 0 && !sharing;
 
   const performShare = useCallback(
     async (sharedByOverride?: string) => {
-      if (reviewsToShare.length === 0) return;
+      const targetReviews = reviewsToShare;
+      if (targetReviews.length === 0) return;
       setSharing(true);
       try {
         const profile = await getBackupSnapshot();
@@ -170,12 +211,15 @@ export default function ReviewsFeedScreen() {
           throw new Error(t('alerts.share.needName'));
         }
         await shareReviewsPackage({
-          reviews: reviewsToShare,
+          reviews: targetReviews,
           restaurants,
           sharedBy,
           sharedById: profile.authorId,
           sharedByPhotoBase64: profile.photoBase64,
         });
+        setIsShareSelecting(false);
+        setShareType(null);
+        setSelectedRestaurantIds(new Set());
       } catch (error) {
         houseAlert(
           t('common.error'),
@@ -190,14 +234,126 @@ export default function ReviewsFeedScreen() {
     [getBackupSnapshot, restaurants, reviewsToShare, t],
   );
 
+  const selectedRestaurantId = Array.from(selectedRestaurantIds)[0];
+  const selectedRestaurant = selectedRestaurantId
+    ? restaurants.find((r) => r.id === selectedRestaurantId)
+    : null;
+
+  const selectedReview = useMemo(() => {
+    if (!selectedRestaurantId) return null;
+    const ids = filtered.find((s) => s.restaurantId === selectedRestaurantId)?.reviewIds ?? [];
+    for (const id of ids) {
+      const r = getReview(id);
+      if (r && resolveReviewOrigin(r) === 'own') return r;
+    }
+    return null;
+  }, [selectedRestaurantId, filtered, getReview]);
+
+  const performEmailShare = useCallback(
+    async (personalMessage?: string, sharedByOverride?: string) => {
+      if (!selectedReview || !selectedRestaurant) return;
+      setSharing(true);
+      setPreparingEmail(true);
+      try {
+        const profile = await getBackupSnapshot();
+        const sharedBy = (sharedByOverride ?? profile.name).trim();
+        await shareReviewAsEmail({
+          review: selectedReview,
+          restaurant: selectedRestaurant,
+          sharedBy,
+          enabledCriteria,
+          personalMessage,
+          onSnapshotReady: () => setPreparingEmail(false),
+        });
+        setIsShareSelecting(false);
+        setShareType(null);
+        setSelectedRestaurantIds(new Set());
+      } catch (error) {
+        houseAlert(
+          t('common.error'),
+          error instanceof Error ? error.message : t('alerts.share.failed'),
+        );
+      } finally {
+        setPreparingEmail(false);
+        setSharing(false);
+      }
+    },
+    [selectedReview, selectedRestaurant, getBackupSnapshot, enabledCriteria, t],
+  );
+
   const openShare = useCallback(() => {
-    if (!canShare) return;
+    setIsChooserVisible(true);
+  }, []);
+
+  const handleSelectShareType = (type: 'gustraPackage' | 'email') => {
+    setIsChooserVisible(false);
+    setShareType(type);
+    setIsShareSelecting(true);
+    setSelectedRestaurantIds(new Set());
+  };
+
+  const handleToggleSelect = (restaurantId: string) => {
+    Haptics.selectionChanged();
+    setSelectedRestaurantIds((prev) => {
+      const next = new Set<string>();
+      if (shareType === 'email') {
+        if (!prev.has(restaurantId)) {
+          next.add(restaurantId);
+        }
+      } else {
+        const existing = new Set(prev);
+        if (existing.has(restaurantId)) {
+          existing.delete(restaurantId);
+        } else {
+          existing.add(restaurantId);
+        }
+        return existing;
+      }
+      return next;
+    });
+  };
+
+  const handleConfirmSharing = () => {
+    if (selectedRestaurantIds.size === 0) return;
     if (!hasName) {
-      setNameModalVisible(true);
+      setShareStep('name');
+      return;
+    }
+    if (shareType === 'email') {
+      setShareStep('message');
       return;
     }
     void performShare();
-  }, [canShare, hasName, performShare]);
+  };
+
+  const handleCancelSharing = () => {
+    setIsShareSelecting(false);
+    setShareType(null);
+    setSelectedRestaurantIds(new Set());
+  };
+
+  const handleNameContinue = (name: string) => {
+    updateName(name);
+    setPendingSharedBy(name);
+    if (shareType === 'email') {
+      setShareStep('message');
+    } else {
+      setShareStep(null);
+      // Wait for modal transition then trigger share
+      setTimeout(() => {
+        void performShare(name);
+      }, 300);
+    }
+  };
+
+  const handleMessageContinue = (message: string) => {
+    setShareStep(null);
+    setPreparingEmail(true);
+    // Wait for modal transition then trigger share
+    setTimeout(() => {
+      void performEmailShare(message, pendingSharedBy ?? undefined);
+    }, 300);
+  };
 
   const emptyFromFilters =
     sourceSummaries.length > 0 &&
@@ -221,19 +377,65 @@ export default function ReviewsFeedScreen() {
     resetFilterState();
   }, [resetFilterState]);
 
+  const headerTitle = isShareSelecting
+    ? shareType === 'email'
+      ? t('share.selectOneRestaurant')
+      : t('share.selectRestaurants')
+    : undefined;
+
+  const selectAllOn = visibleFeed.length > 0 && selectedRestaurantIds.size === visibleFeed.length;
+
+  const handleToggleSelectAll = () => {
+    Haptics.selectionChanged();
+    if (selectAllOn) {
+      setSelectedRestaurantIds(new Set());
+    } else {
+      setSelectedRestaurantIds(new Set(visibleFeed.map((s) => s.restaurantId)));
+    }
+  };
+
+  const selectAllBar = isShareSelecting && shareType === 'gustraPackage' && visibleFeed.length > 0 ? (
+    <View style={styles.selectAllContainer}>
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: selectAllOn }}
+        onPress={handleToggleSelectAll}
+        style={({ pressed }) => [
+          styles.selectAllRow,
+          pressed && styles.pressed,
+        ]}>
+        <SymbolView
+          name={{
+            ios: selectAllOn ? 'checkmark.circle.fill' : 'circle',
+            android: selectAllOn ? 'check_circle' : 'radio_button_unchecked',
+            web: selectAllOn ? 'check_circle' : 'radio_button_unchecked',
+          }}
+          tintColor={selectAllOn ? GustraColors.forestGreen : 'rgba(35, 32, 26, 0.35)'}
+          size={24}
+        />
+        <Text style={styles.selectAllLabel}>{t('filters.selectAll')}</Text>
+      </Pressable>
+    </View>
+  ) : null;
+
   return (
     <View style={styles.screen}>
       <ReviewsHeader
+        title={headerTitle}
         showShare
         canShare={canShare}
         sharing={sharing}
         onShare={openShare}
-        showFilter
+        showFilter={!isShareSelecting}
         canFilter={canFilter}
         filterActive={filterActive}
         onFilter={() => setFilterModalVisible(true)}
+        isSelecting={isShareSelecting}
+        onCancelSelecting={handleCancelSharing}
+        onConfirmSelecting={handleConfirmSharing}
+        canConfirmSelecting={selectedRestaurantIds.size > 0}
       />
-      <FilterSearchBar value={query} onChangeText={setQuery} />
+      {!isShareSelecting ? <FilterSearchBar value={query} onChangeText={setQuery} /> : null}
       <ActiveFilterSummary
         state={filterState}
         visibleResultCount={filtered.length}
@@ -241,6 +443,7 @@ export default function ReviewsFeedScreen() {
         criterionTitleFor={criterionTitleFor}
         onChange={setFilterState}
       />
+      {selectAllBar}
       <View style={styles.body} collapsable={false}>
         {filtered.length === 0 ? (
           <HouseEmptyState
@@ -267,9 +470,15 @@ export default function ReviewsFeedScreen() {
           <FlatList
             style={styles.listFlex}
             data={visibleFeed}
-            extraData={filtered
-              .map((s) => `${s.restaurantId}:${s.photoUrl ?? ''}`)
-              .join('|')}
+            extraData={
+              filtered
+                .map((s) => `${s.restaurantId}:${s.photoUrl ?? ''}`)
+                .join('|') +
+              '|' +
+              isShareSelecting +
+              '|' +
+              Array.from(selectedRestaurantIds).join(',')
+            }
             keyExtractor={(item) => item.restaurantId}
             overScrollMode="never"
             onScrollBeginDrag={dismissOpenSwipeable}
@@ -296,6 +505,9 @@ export default function ReviewsFeedScreen() {
                   void setRestaurantFavorite(item.restaurantId, favorite);
                 }}
                 onDelete={() => requestDeleteRestaurant(item)}
+                shareSelecting={isShareSelecting}
+                selected={selectedRestaurantIds.has(item.restaurantId)}
+                onSelectToggle={() => handleToggleSelect(item.restaurantId)}
                 onPress={() => {
                   if (item.isDraft) {
                     const draftId =
@@ -325,27 +537,19 @@ export default function ReviewsFeedScreen() {
             )}
           />
         )}
-        <HouseFAB
-          collapsable={false}
-          style={{
-            bottom:
-              Theme.spacing.fabBottom +
-              Theme.spacing.floatingTabBarClearance +
-              insets.bottom,
-          }}
-          onPress={() => router.push('/add-review')}
-        />
+        {!isShareSelecting ? (
+          <HouseFAB
+            collapsable={false}
+            style={{
+              bottom:
+                Theme.spacing.fabBottom +
+                Theme.spacing.floatingTabBarClearance +
+                insets.bottom,
+            }}
+            onPress={() => router.push('/add-review')}
+          />
+        ) : null}
       </View>
-      <ShareReviewerNameModal
-        visible={nameModalVisible}
-        onCancel={() => setNameModalVisible(false)}
-        onContinue={(sharedBy) => {
-          updateName(sharedBy);
-          void performShare(sharedBy).finally(() => {
-            setNameModalVisible(false);
-          });
-        }}
-      />
       <FilterOptionsModal
         visible={filterModalVisible}
         value={filterState}
@@ -360,6 +564,24 @@ export default function ReviewsFeedScreen() {
         onReset={resetFilterState}
         onClose={() => setFilterModalVisible(false)}
       />
+
+      <ShareReviewChooser
+        visible={isChooserVisible}
+        onClose={() => setIsChooserVisible(false)}
+        onSelect={handleSelectShareType}
+      />
+
+      <ShareFlowSheet
+        visible={shareStep !== null}
+        step={shareStep ?? 'name'}
+        initialName={pendingSharedBy ?? undefined}
+        onClose={() => setShareStep(null)}
+        onSelectDestination={() => {}} // not used
+        onNameContinue={handleNameContinue}
+        onMessageContinue={handleMessageContinue}
+      />
+
+      <PreparingRecommendationOverlay visible={preparingEmail} />
     </View>
   );
 }
@@ -383,5 +605,28 @@ const styles = StyleSheet.create({
   },
   sep: {
     height: Theme.spacing.listRowVertical * 2,
+  },
+  selectAllContainer: {
+    paddingHorizontal: Theme.spacing.listRowHorizontal,
+    paddingTop: 12,
+    backgroundColor: GustraColors.cream,
+  },
+  selectAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(236, 227, 207, 0.45)',
+    borderRadius: Theme.radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  selectAllLabel: {
+    ...bodyTextStyle,
+    fontSize: 16,
+    fontWeight: '600',
+    color: GustraColors.ink,
+  },
+  pressed: {
+    opacity: 0.85,
   },
 });
