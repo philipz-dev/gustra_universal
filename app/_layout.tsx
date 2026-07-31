@@ -25,7 +25,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { AppState, Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
@@ -80,6 +80,18 @@ const GustraNavigationTheme = {
   },
 };
 
+/**
+ * Cream UI → dark 3-button icons.
+ * Expo Kotlin (`NavigationBarModule`): style "dark" ⇒
+ *   hasLightBackground=true ⇒ isAppearanceLightNavigationBars=true.
+ * Plugin: style "dark" ⇒ windowLightNavigationBar=true.
+ * Docs require enforceContrast=false or setStyle is ignored.
+ */
+function applyAndroidNavigationChrome() {
+  if (Platform.OS !== 'android') return;
+  NavigationBar.setStyle('dark');
+}
+
 function RootLayout() {
   const navigationRef = useNavigationContainerRef();
   const [loaded, error] = useFonts({
@@ -109,14 +121,18 @@ function RootLayout() {
   }, [loaded]);
 
   useEffect(() => {
-    void SystemUI.setBackgroundColorAsync(GustraColors.cream);
-    if (Platform.OS === 'android') {
-      // SDK 57: `setStyle` — `light` = dark buttons on a light bar (cream UI).
-      NavigationBar.setStyle('light');
-    }
+    const applyChrome = () => {
+      void SystemUI.setBackgroundColorAsync(GustraColors.cream);
+      applyAndroidNavigationChrome();
+    };
+    applyChrome();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') applyChrome();
+    });
     // Info.plist allows all orientations so the photo viewer can rotate;
     // keep the rest of the app locked to portrait (Swift OrientationLock).
     void lockAppPortraitOrientation();
+    return () => sub.remove();
   }, []);
 
   if (!loaded) {
@@ -137,6 +153,10 @@ function RootLayout() {
                         <ThemeProvider value={GustraNavigationTheme}>
                           <GlobalKeyboardDismiss>
                             <View style={styles.root}>
+                              {/* Declarative nav bar (same style as setStyle). */}
+                              {Platform.OS === 'android' ? (
+                                <NavigationBar.NavigationBar style="dark" />
+                              ) : null}
                               <StatusBar style="light" />
                               <Stack screenOptions={{ headerShown: false }}>
                                 <Stack.Screen name="(tabs)" />

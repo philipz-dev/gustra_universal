@@ -27,6 +27,7 @@ import {
 import type { WineLabelFiche } from '@/data/types';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
 import { Haptics } from '@/services/haptics';
 import { RatingValue } from '@/services/reviews/ratings';
 import { setPendingWineLabelResult } from '@/services/wine/pendingWineLabelResult';
@@ -194,8 +195,15 @@ export default function WineLabelFicheScreen() {
     Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
   const cutout = WineFichePresentation.isCutoutHeroEnabled;
   const cutoutOverlap = cutout ? WINE_FICHE_CUTOUT_HEADER_OVERLAP : 0;
-  const scrollRef = useRef<ScrollView>(null);
-  const scrollYRef = useRef(0);
+  const {
+    scrollRef,
+    scrollYRef,
+    keyboardHeight,
+    scrollInputIntoView,
+    onScroll,
+  } = useScrollInputIntoView();
+  const scrollBottomPad =
+    keyboardHeight > 0 ? keyboardHeight + 24 : bottomPad;
 
   return (
     <View style={styles.screen}>
@@ -234,21 +242,20 @@ export default function WineLabelFicheScreen() {
           style={cutout ? { marginTop: -cutoutOverlap } : undefined}
           contentContainerStyle={[
             styles.pad,
-            { paddingBottom: bottomPad, paddingTop: cutoutOverlap },
+            { paddingBottom: scrollBottomPad, paddingTop: cutoutOverlap },
           ]}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
           overScrollMode="never"
           showsVerticalScrollIndicator={!cutout}
-          onScroll={(e) => {
-            scrollYRef.current = e.nativeEvent.contentOffset.y;
-          }}
+          onScroll={onScroll}
           scrollEventThrottle={16}>
           <WineLabelFicheView
             fiche={fiche!}
             showUserRating={!isEdit}
             scrollRef={scrollRef}
             scrollYRef={scrollYRef}
-            scrollBottomInset={bottomPad}
+            scrollBottomInset={scrollBottomPad}
             ratingSlot={
               isEdit ? (
                 <>
@@ -257,6 +264,8 @@ export default function WineLabelFicheScreen() {
                     onRatingChange={setRating}
                     note={note}
                     onNoteChange={setNote}
+                    onNoteFocus={(input) => scrollInputIntoView(input)}
+                    onNoteResize={(input) => scrollInputIntoView(input, 0)}
                   />
                   {!canConfirm ? (
                     <Text style={styles.ratingHint}>

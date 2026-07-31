@@ -28,6 +28,7 @@ import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { SERIF_FONT, Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useGoogleApiTracker } from '@/context/GoogleApiTracker';
 import { useLanguageSettings } from '@/context/LanguageSettings';
+import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import { usePassportDisplaySettings } from '@/context/PassportDisplaySettings';
 import { usePhotoQualitySettings } from '@/context/PhotoQualitySettings';
 import {
@@ -69,6 +70,7 @@ function languagePreferenceLabel(
 export default function SettingsScreen() {
   const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardBottomInset();
   const nameInputRef = useRef<TextInput>(null);
   const { preference, setPreference } = useLanguageSettings();
   const [languagePickerOpen, setLanguagePickerOpen] = useState(false);
@@ -280,11 +282,14 @@ export default function SettingsScreen() {
         styles.content,
         {
           paddingBottom:
-            Theme.spacing.floatingTabBarClearance + insets.bottom + 24,
+            (keyboardHeight > 0
+              ? keyboardHeight
+              : Theme.spacing.floatingTabBarClearance + insets.bottom) + 24,
         },
       ]}
       overScrollMode="never"
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
       showsVerticalScrollIndicator={false}>
       <SettingsSection title={t('settings.sectionReviewer')}>
         <View style={styles.reviewerBlock}>

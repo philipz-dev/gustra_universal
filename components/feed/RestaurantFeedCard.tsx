@@ -40,12 +40,18 @@ export function RestaurantFeedCard({
   scoreOverride,
 }: RestaurantFeedCardProps) {
   const { t } = useAppTranslation();
+  const isDraft = Boolean(summary.isDraft);
   const displayScore =
     typeof scoreOverride === 'number' ? scoreOverride : summary.averageScore;
 
   const card = (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={
+        isDraft
+          ? `${summary.name}, ${t('reviews.draftLabel')}`
+          : undefined
+      }
       onPress={() => {
         Haptics.light();
         onPress();
@@ -66,7 +72,7 @@ export function RestaurantFeedCard({
           {summary.name}
         </SerifText>
         {summary.city ? <Text style={styles.city}>{summary.city}</Text> : null}
-        {displayScore > 0 ? (
+        {!isDraft && displayScore > 0 ? (
           <FractionalStarRating score={displayScore} size={24} />
         ) : null}
         <Text style={styles.meta}>
@@ -83,15 +89,21 @@ export function RestaurantFeedCard({
       </View>
 
       <View style={styles.trailing}>
-        {displayScore > 0 ? (
-          <SerifText size={20} weight="bold" style={styles.score}>
-            {formatScoreOutOfFive(displayScore)}
-          </SerifText>
-        ) : null}
-        <FavoriteHeartButton
-          favorite={summary.isFavorite}
-          onToggle={onFavoriteToggle}
-        />
+        {isDraft ? (
+          <Text style={styles.draftBadge}>{t('reviews.draftLabel')}</Text>
+        ) : (
+          <>
+            {displayScore > 0 ? (
+              <SerifText size={20} weight="bold" style={styles.score}>
+                {formatScoreOutOfFive(displayScore)}
+              </SerifText>
+            ) : null}
+            <FavoriteHeartButton
+              favorite={summary.isFavorite}
+              onToggle={onFavoriteToggle}
+            />
+          </>
+        )}
       </View>
     </Pressable>
   );
@@ -153,5 +165,13 @@ const styles = StyleSheet.create({
   },
   score: {
     color: GustraColors.forestGreen,
+  },
+  draftBadge: {
+    ...captionTextStyle,
+    fontSize: 13,
+    fontWeight: '700',
+    color: GustraColors.gold,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
 });

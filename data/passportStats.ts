@@ -1,4 +1,5 @@
 import type { Restaurant, Review } from '@/data/types';
+import { isReviewDraft } from '@/services/reviews/draftReview';
 import {
   RatingValue,
   overallScoreFromCriteria,
@@ -75,9 +76,10 @@ export function getPassportStats(
 ): PassportStats {
   const enabledIds = new Set(enabledCriteria.map((c) => c.id));
   const restaurantById = new Map(restaurants.map((r) => [r.id, r]));
-  const reviews = [...sourceReviews].sort(
-    (a, b) => +new Date(b.date) - +new Date(a.date),
-  );
+  // Drafts (no criterion stars, or unrated wines) do not count toward passport.
+  const reviews = sourceReviews
+    .filter((r) => !isReviewDraft(r))
+    .sort((a, b) => +new Date(b.date) - +new Date(a.date));
   const totalReviews = reviews.length;
 
   if (totalReviews === 0) {

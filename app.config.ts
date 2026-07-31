@@ -265,7 +265,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       [
         'expo-navigation-bar',
         {
-          // `dark` = dark Back/Home/Recents on cream; no contrast scrim.
+          // Plugin + Kotlin: style "dark" → windowLightNavigationBar=true → dark icons.
+          // (Docs NavigationBarStyle wording is inverted vs the implementation.)
+          // setStyle only applies when enforceContrast is false (Expo SDK 57).
           style: 'dark',
           enforceContrast: false,
         },

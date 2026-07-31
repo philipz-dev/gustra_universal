@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { InteractiveStarRating } from '@/components/review/InteractiveStarRating';
@@ -13,6 +14,10 @@ type WineUserRatingFieldsProps = {
   note: string;
   onNoteChange: (note: string) => void;
   onScrubbingChange?: (scrubbing: boolean) => void;
+  /** Keep the note field above the keyboard (parent ScrollView). */
+  onNoteFocus?: (input: TextInput | null) => void;
+  /** Re-scroll when the multiline note grows while typing. */
+  onNoteResize?: (input: TextInput | null) => void;
 };
 
 /** Stars (required) + optional note (only after stars) — scan result & wine edit. */
@@ -22,8 +27,11 @@ export function WineUserRatingFields({
   note,
   onNoteChange,
   onScrubbingChange,
+  onNoteFocus,
+  onNoteResize,
 }: WineUserRatingFieldsProps) {
   const { t } = useAppTranslation();
+  const noteRef = useRef<TextInput>(null);
   const showNote = RatingValue.isStarRating(rating);
 
   return (
@@ -36,8 +44,11 @@ export function WineUserRatingFields({
       />
       {showNote ? (
         <TextInput
+          ref={noteRef}
           value={note}
           onChangeText={onNoteChange}
+          onFocus={() => onNoteFocus?.(noteRef.current)}
+          onContentSizeChange={() => onNoteResize?.(noteRef.current)}
           placeholder={t('wineScan.drinksCommentPlaceholder')}
           placeholderTextColor="rgba(35, 32, 26, 0.4)"
           multiline

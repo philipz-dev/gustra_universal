@@ -115,7 +115,7 @@ export function WineTasteProfileSection({
   const grapes = wineLabelGrapeDisplay(fiche);
   const serving = fiche.servingTempHint?.trim() ?? '';
   const aeration = fiche.aerationHint?.trim() ?? '';
-  const drinkWindow = fiche.drinkWindowHint?.trim() ?? '';
+  // drinkWindowHint is subjective — never shown in UI.
 
   return (
     <View ref={sectionRef} style={styles.section} collapsable={false}>
@@ -211,7 +211,7 @@ export function WineTasteProfileSection({
             </View>
           ) : null}
 
-          {serving || aeration || drinkWindow ? (
+          {serving || aeration ? (
             <View style={styles.serviceList}>
               {serving ? (
                 <ServiceRow
@@ -227,14 +227,6 @@ export function WineTasteProfileSection({
                   android="hourglass_empty"
                   web="hourglass_empty"
                   text={aeration}
-                />
-              ) : null}
-              {drinkWindow ? (
-                <ServiceRow
-                  ios="calendar"
-                  android="calendar_month"
-                  web="calendar_month"
-                  text={drinkWindow}
                 />
               ) : null}
             </View>

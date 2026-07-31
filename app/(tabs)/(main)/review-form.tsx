@@ -49,7 +49,6 @@ import {
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import type { CriterionRating, WineLabelFiche } from '@/data/types';
-import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
 import { stripWineLabelUrisFromPhotoUrls } from '@/services/backup/photos';
 import { safeOpenSettings } from '@/services/linking/safeLinking';
@@ -79,7 +78,12 @@ import {
   deleteReviewPhotoFiles,
   saveReviewPhoto,
 } from '@/services/reviews/photoStorage';
-import { RatingValue, hasStarRating, formatScoreOutOfFive } from '@/services/reviews/ratings';
+import {
+  formDraftReason,
+  isFormDraft,
+  isReviewDraft,
+} from '@/services/reviews/draftReview';
+import { RatingValue, formatScoreOutOfFive } from '@/services/reviews/ratings';
 import { criterionIcon } from '@/services/reviews/criterionIcons';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { i18n } from '@/i18n';
@@ -144,12 +148,12 @@ export default function ReviewFormScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const keyboardInset = useKeyboardBottomInset();
   const {
     scrollRef,
     scrollInputIntoView,
     onScroll,
     clearFocusedInput,
+    keyboardHeight,
   } = useScrollInputIntoView();
   const commentInputRefs = useRef<Record<string, TextInput | null>>({});
   const generalCommentRef = useRef<TextInput | null>(null);
@@ -374,13 +378,18 @@ export default function ReviewFormScreen() {
   ]);
 
   const revisitCount = priorVisits.length;
+  const scoredPriorVisits = priorVisits.filter((r) => !isReviewDraft(r));
   const revisitAverage =
-    revisitCount > 0
-      ? priorVisits.reduce((s, r) => s + r.overallScore, 0) / revisitCount
+    scoredPriorVisits.length > 0
+      ? scoredPriorVisits.reduce((s, r) => s + r.overallScore, 0) /
+        scoredPriorVisits.length
       : 0;
   const lastVisitIso = priorVisits[0]?.date;
 
-  const showsDone = hasStarRating(criteriaList);
+  // Restaurant alone is enough to save as Draft; Done always available on this form.
+  const showsDone = Boolean(draft);
+  const draftReason = formDraftReason(criteriaList, wineLabels);
+  const isDraftForm = isFormDraft(criteriaList, wineLabels);
 
   const customCriterionNames = useMemo(
     () => customCriteria.map((c) => c.name.trim()).filter(Boolean),
@@ -413,6 +422,8 @@ export default function ReviewFormScreen() {
   ]);
 
   const hasPersistableContent = useCallback(() => {
+    // Restaurant selected → can save as draft even with no ratings yet.
+    if (draft) return true;
     if (isFavorite) return true;
     if (generalComment.trim()) return true;
     if (photoUrls.length > 0) return true;
@@ -421,7 +432,14 @@ export default function ReviewFormScreen() {
       (c) =>
         RatingValue.isStarRating(c.rating) || c.comment.trim().length > 0,
     );
-  }, [criteriaList, generalComment, isFavorite, photoUrls.length, wineLabels.length]);
+  }, [
+    criteriaList,
+    draft,
+    generalComment,
+    isFavorite,
+    photoUrls.length,
+    wineLabels.length,
+  ]);
 
   const persistNow = useCallback(
     async (markBusy = false): Promise<boolean> => {
@@ -434,10 +452,6 @@ export default function ReviewFormScreen() {
           !activeReviewIdRef.current &&
           !existingReview
         ) {
-          return false;
-        }
-        // Explicit save (Done / Yes) requires at least one criterion rating.
-        if (markBusy && !hasStarRating(input.criteria)) {
           return false;
         }
         if (markBusy) setIsSaving(true);
@@ -713,7 +727,7 @@ export default function ReviewFormScreen() {
               Haptics.warning();
               houseAlert(
                 t('forms.review.title'),
-                t('alerts.reviewForm.needStars'),
+                t('alerts.reviewForm.saveFailed'),
               );
               return;
             }
@@ -770,7 +784,7 @@ export default function ReviewFormScreen() {
     const ok = await persistNow(true);
     if (!ok) {
       Haptics.warning();
-      houseAlert(t('forms.review.title'), t('alerts.reviewForm.needStars'));
+      houseAlert(t('forms.review.title'), t('alerts.reviewForm.saveFailed'));
       return;
     }
     Haptics.success();
@@ -1209,13 +1223,11 @@ export default function ReviewFormScreen() {
     ]);
   };
 
-  // Tab bar hides while the keyboard is up. iOS uses ScrollView keyboard insets;
-  // Android resize + manual pad when the inset reports a height.
+  // Tab bar hides while the keyboard is up — pad by keyboard height so comments
+  // can scroll clear (same approach as wine note fields).
   const bottomPad =
-    keyboardInset > 0
-      ? Platform.OS === 'ios'
-        ? 24
-        : keyboardInset + 24
+    keyboardHeight > 0
+      ? keyboardHeight + 24
       : Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
   const addressLine = draft ? draftAddressLine(draft) : null;
 
@@ -1260,7 +1272,6 @@ export default function ReviewFormScreen() {
         scrollEnabled={!photoDragging && !ratingScrubbing}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
-        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         onScroll={onScroll}
         scrollEventThrottle={16}
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
@@ -1281,6 +1292,16 @@ export default function ReviewFormScreen() {
               />
             </View>
           </View>
+
+          {isDraftForm && draftReason ? (
+            <View style={styles.draftBanner}>
+              <Text style={styles.draftBannerText}>
+                {draftReason === 'wine'
+                  ? t('forms.review.draftBannerWine')
+                  : t('forms.review.draftBannerCriteria')}
+              </Text>
+            </View>
+          ) : null}
 
           {revisitCount > 0 ? (
             <View style={styles.card}>
@@ -1533,33 +1554,27 @@ export default function ReviewFormScreen() {
                               router.push('/wine-label-scan');
                             }}
                             accessibilityRole="button"
-                            accessibilityLabel={
-                              wineLabels.length > 0
-                                ? t('wineScan.scanAnotherA11y')
-                                : t('wineScan.scanButtonA11y')
-                            }
+                            accessibilityLabel={t('wineScan.addButtonA11y')}
                             style={({ pressed }) => [
                               styles.wineScanChip,
                               pressed && styles.wineScanChipPressed,
                             ]}>
                             {Platform.OS === 'ios' ? (
                               <SymbolView
-                                name="camera.viewfinder"
+                                name="plus"
                                 size={14}
                                 tintColor={GustraColors.forestGreen}
                                 weight="semibold"
                               />
                             ) : (
                               <MaterialIcons
-                                name="document-scanner"
+                                name="add"
                                 size={16}
                                 color={GustraColors.forestGreen}
                               />
                             )}
                             <Text style={styles.wineScanChipText}>
-                              {wineLabels.length > 0
-                                ? t('wineScan.scanAnother')
-                                : t('wineScan.scanButton')}
+                              {t('wineScan.addButton')}
                             </Text>
                           </Pressable>
                         </View>
@@ -1815,6 +1830,18 @@ const styles = StyleSheet.create({
     borderRadius: Theme.radius.xxl,
     padding: 16,
     gap: 12,
+  },
+  draftBanner: {
+    backgroundColor: 'rgba(217, 162, 39, 0.14)',
+    borderRadius: Theme.radius.xxl,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  draftBannerText: {
+    ...bodyTextStyle,
+    fontSize: 14,
+    fontWeight: '600',
+    color: GustraColors.gold,
   },
   restaurantRow: {
     flexDirection: 'row',

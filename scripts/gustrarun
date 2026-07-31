@@ -20,18 +20,26 @@ READY_SECONDS="${GUSTRA_READY_SECONDS:-180}"
 
 usage() {
   cat <<'EOF'
-gustrarun — Metro + open Gustra on running emulators
+gustrarun — Metro (dev client) + open Gustra on already-running emulators
 
   npm run gustrarun
   bash scripts/gustrarun [--ios-only|--android-only] [--clear] [--skip-prewarm]
 
   1) Stops leftover expo/metro processes and frees :8081
-  2) Starts Metro (dev client, --localhost) in the background
+  2) Starts Metro (dev client, --localhost --scheme gustra)
   3) Waits until Metro /status is ready
   4) Prewarms the JS bundle (avoids “Could not connect” on first open)
-  5) Opens the app on booted iOS Simulator / Android emulator
+  5) Opens the installed Gustra dev client on booted Simulator / emulator
 
-Simulators/emulators should already be running.
+Does NOT run a native Gradle/Xcode build. First install (or after native
+deps / app.config plugins change):
+  npx expo run:ios
+  npx expo run:android
+
+Simulators/emulators must already be running. Prefer one platform when RAM
+is tight:
+  npm run gustrarun -- --ios-only
+  npm run gustrarun -- --android-only
 EOF
 }
 
@@ -226,6 +234,10 @@ if [[ "$PREWARM" -eq 1 ]]; then
   fi
 fi
 
+if [[ "$LAUNCH_IOS" -eq 1 && "$LAUNCH_ANDROID" -eq 1 ]]; then
+  echo "› Tip: bij weinig RAM liever één device — npm run gustrarun -- --ios-only of --android-only"
+fi
+
 if [[ "$LAUNCH_IOS" -eq 1 ]]; then
   open_ios
 fi
@@ -233,6 +245,6 @@ if [[ "$LAUNCH_ANDROID" -eq 1 ]]; then
   open_android
 fi
 
-echo "› Metro blijft draaien (Ctrl+C stopt)."
+echo "› Metro blijft draaien (Ctrl+C stopt). Native rebuild: npx expo run:ios|android"
 # Wait on the pipeline (tee). Also trap expo children on exit.
 wait "${METRO_PID}" || true

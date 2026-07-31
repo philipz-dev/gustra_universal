@@ -19,7 +19,6 @@ import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { GustraColors } from '@/constants/Colors';
 import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
-import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
 import { Haptics } from '@/services/haptics';
 import { resolveCurrentLocation } from '@/services/location/resolveCurrentLocation';
@@ -44,8 +43,12 @@ export default function ManualEntryScreen() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const keyboardInset = useKeyboardBottomInset();
-  const { scrollRef, scrollInputIntoView, onScroll } = useScrollInputIntoView();
+  const {
+    scrollRef,
+    scrollInputIntoView,
+    onScroll,
+    keyboardHeight,
+  } = useScrollInputIntoView();
   const nameRef = useRef<TextInput | null>(null);
   const cityRef = useRef<TextInput | null>(null);
   const countryRef = useRef<TextInput | null>(null);
@@ -161,8 +164,8 @@ export default function ManualEntryScreen() {
   };
 
   const scrollBottomPad =
-    keyboardInset > 0
-      ? keyboardInset + 24
+    keyboardHeight > 0
+      ? keyboardHeight + 24
       : Theme.spacing.floatingTabBarClearance + insets.bottom + 16;
   const footerPad =
     Theme.spacing.floatingTabBarClearance + insets.bottom + 16;
@@ -185,7 +188,6 @@ export default function ManualEntryScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
-        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         onScroll={onScroll}
         scrollEventThrottle={16}
         overScrollMode="never">

@@ -123,10 +123,10 @@ export default function CulinaryPassportScreen() {
             }
             systemImage={
               emptyFromFilters
-                ? 'line.3.horizontal.decrease'
+                ? 'magnifyingglass'
                 : 'chart.bar.doc.horizontal'
             }
-            androidImage={emptyFromFilters ? 'filter_list' : 'bar_chart'}
+            androidImage={emptyFromFilters ? 'search_off' : 'bar_chart'}
             actionTitle={
               emptyFromFilters
                 ? t('reviews.empty.clearFilters')

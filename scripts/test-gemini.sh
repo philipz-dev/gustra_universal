@@ -149,7 +149,7 @@ Return STRICT JSON only (no markdown) with these keys:
   "nameAndEstate": "Wine name & winery/estate as on the label",
   "typeStyle": "red" | "white" | "rose" | "sparkling" | "fortified" | "orange",
   "countryRegion": "Country and region in Dutch",
-  "vintage": "Harvest year on the bottle or null",
+  "vintage": "1998" or "2016" or null,
   "grapeVarieties": ["Grenache", "Syrah"] or null,
   "grapes": "Grenache, Syrah" or null,
   "alcoholPercent": number or null,

@@ -16,6 +16,7 @@ type HouseEmptyStateProps = {
     | 'gearshape'
     | 'person.2'
     | 'line.3.horizontal.decrease'
+    | 'magnifyingglass'
     | 'mappin.and.ellipse'
     | 'location.slash'
     | 'square.and.arrow.down';
@@ -27,6 +28,7 @@ type HouseEmptyStateProps = {
     | 'settings'
     | 'group'
     | 'filter_list'
+    | 'search_off'
     | 'place'
     | 'location_off'
     | 'download';

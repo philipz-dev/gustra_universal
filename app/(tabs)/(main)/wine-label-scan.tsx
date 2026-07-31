@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useNavigation, useRouter } from 'expo-router';
@@ -16,14 +17,17 @@ import { WineLabelFicheView } from '@/components/wine/WineLabelFicheView';
 import { WineUserRatingFields } from '@/components/wine/WineUserRatingFields';
 import { houseAlert, houseSaveChangesAlert } from '@/components/ui/HouseAlert';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
+import { HousePrimaryButton } from '@/components/ui/HousePrimaryButton';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { PhotoSourceChooserBody } from '@/components/ui/PhotoSourceChooser';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
+import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import type { WineLabelFiche } from '@/data/types';
 import { useLanguageSettings } from '@/context/LanguageSettings';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
 import { GeminiAPIConfig } from '@/constants/GeminiAPIConfig';
 import { Haptics } from '@/services/haptics';
 import { safeOpenSettings } from '@/services/linking/safeLinking';
@@ -35,17 +39,20 @@ import {
 } from '@/services/photos/labelCrop';
 import { RatingValue } from '@/services/reviews/ratings';
 import { saveReviewPhoto } from '@/services/reviews/photoStorage';
-import { identifyWineLabel } from '@/services/wine/identifyWineLabel';
+import {
+  identifyWineByText,
+  identifyWineLabel,
+} from '@/services/wine/identifyWineLabel';
 import { setPendingWineLabelResult } from '@/services/wine/pendingWineLabelResult';
 import {
   hasSeenWineVisionUploadNotice,
   markWineVisionUploadNoticeSeen,
 } from '@/services/wine/wineVisionConsent';
 
-type Step = 'pick' | 'crop' | 'result';
+type Step = 'method' | 'pick' | 'crop' | 'search' | 'result';
 
 /**
- * Drinks → Scan wine label: photo → crop → Gemini Vision → fiche → confirm ✓.
+ * Drinks → Add wine: scan label or search by name → fiche → confirm ✓.
  */
 export default function WineLabelScanScreen() {
   const { t } = useAppTranslation();
@@ -54,30 +61,65 @@ export default function WineLabelScanScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
 
-  const [step, setStep] = useState<Step>('pick');
+  const [step, setStep] = useState<Step>('method');
   const [draftUri, setDraftUri] = useState<string | null>(null);
   const [labelPhotoUri, setLabelPhotoUri] = useState<string | null>(null);
   const [fiche, setFiche] = useState<WineLabelFiche | null>(null);
   const [busy, setBusy] = useState(false);
   const [drinksRating, setDrinksRating] = useState(RatingValue.unrated);
   const [drinksNote, setDrinksNote] = useState('');
+  const [searchName, setSearchName] = useState('');
+  const [searchEstate, setSearchEstate] = useState('');
+  const [searchYear, setSearchYear] = useState('');
 
   const allowLeaveRef = useRef(false);
   const imageSizeRef = useRef<ImageSize | null>(null);
+  const searchNameRef = useRef<TextInput | null>(null);
+  const searchEstateRef = useRef<TextInput | null>(null);
+  const searchYearRef = useRef<TextInput | null>(null);
   const transformRef = useRef<CropTransform>({
     scale: 1,
     offsetX: 0,
     offsetY: 0,
   });
   const viewportRef = useRef<LabelCropViewport>({ width: 280, height: 400 });
+  const [busyKind, setBusyKind] = useState<'scan' | 'search'>('scan');
 
   const hasUnsavedWork = useMemo(() => {
     if (fiche) return true;
     if (step === 'crop' && draftUri) return true;
-    if (step === 'result' && (labelPhotoUri || draftUri)) return true;
+    if (step === 'result' && (labelPhotoUri || draftUri || fiche)) return true;
+    if (
+      step === 'search' &&
+      (searchName.trim() || searchEstate.trim() || searchYear.trim())
+    ) {
+      return true;
+    }
     if (RatingValue.isStarRating(drinksRating) || drinksNote.trim()) return true;
     return false;
-  }, [draftUri, drinksNote, drinksRating, fiche, labelPhotoUri, step]);
+  }, [
+    draftUri,
+    drinksNote,
+    drinksRating,
+    fiche,
+    labelPhotoUri,
+    searchEstate,
+    searchName,
+    searchYear,
+    step,
+  ]);
+
+  const resetToMethod = useCallback(() => {
+    setDraftUri(null);
+    setLabelPhotoUri(null);
+    setFiche(null);
+    setDrinksRating(RatingValue.unrated);
+    setDrinksNote('');
+    setSearchName('');
+    setSearchEstate('');
+    setSearchYear('');
+    setStep('method');
+  }, []);
 
   const openSettingsAlert = useCallback(
     (message: string) => {
@@ -166,6 +208,7 @@ export default function WineLabelScanScreen() {
     if (!ok) return;
 
     setBusy(true);
+    setBusyKind('scan');
     try {
       const cropped = await renderCroppedLabel({
         uri: draftUri,
@@ -175,7 +218,6 @@ export default function WineLabelScanScreen() {
       });
       const savedCrop = await saveReviewPhoto(cropped);
 
-      // One Vision call — human-readable fields in active app language.
       const result = await identifyWineLabel(draftUri, { language });
       if (!result.fiche) {
         setLabelPhotoUri(savedCrop);
@@ -203,6 +245,49 @@ export default function WineLabelScanScreen() {
       setBusy(false);
     }
   }, [draftUri, ensureUploadNotice, language, t]);
+
+  const runTextSearch = useCallback(async () => {
+    const name = searchName.trim();
+    if (!name) {
+      houseAlert(t('common.error'), t('wineScan.nameRequired'));
+      return;
+    }
+    if (!GeminiAPIConfig.isConfigured) {
+      houseAlert(t('common.error'), t('wineScan.missingKeyBody'));
+      return;
+    }
+
+    setBusy(true);
+    setBusyKind('search');
+    try {
+      const result = await identifyWineByText(
+        {
+          name,
+          estate: searchEstate.trim() || undefined,
+          vintage: searchYear.trim() || undefined,
+        },
+        { language },
+      );
+      if (!result.fiche) {
+        setLabelPhotoUri(null);
+        setFiche(null);
+        setStep('result');
+        houseAlert(t('wineScan.noMatchTitle'), t('wineScan.noMatchSearchBody'));
+        return;
+      }
+      setLabelPhotoUri(null);
+      setFiche(result.fiche);
+      setStep('result');
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : t('wineScan.failedSearchBody');
+      houseAlert(t('common.error'), message);
+    } finally {
+      setBusy(false);
+    }
+  }, [language, searchEstate, searchName, searchYear, t]);
 
   const canConfirm =
     Boolean(fiche) && RatingValue.isStarRating(drinksRating);
@@ -272,8 +357,23 @@ export default function WineLabelScanScreen() {
 
   const bottomPad =
     Theme.spacing.floatingTabBarClearance + insets.bottom + 16;
-  const resultScrollRef = useRef<ScrollView>(null);
-  const resultScrollYRef = useRef(0);
+  const {
+    scrollRef: resultScrollRef,
+    scrollYRef: resultScrollYRef,
+    keyboardHeight,
+    scrollInputIntoView,
+    onScroll: onResultScroll,
+  } = useScrollInputIntoView();
+  const {
+    scrollRef: searchScrollRef,
+    keyboardHeight: searchKeyboardHeight,
+    scrollInputIntoView: scrollSearchInputIntoView,
+    onScroll: onSearchScroll,
+  } = useScrollInputIntoView();
+  const resultBottomPad =
+    keyboardHeight > 0 ? keyboardHeight + 24 : bottomPad;
+  const searchBottomPad =
+    searchKeyboardHeight > 0 ? searchKeyboardHeight + 24 : bottomPad;
 
   const headerRight =
     step === 'result' && fiche ? (
@@ -286,14 +386,71 @@ export default function WineLabelScanScreen() {
       />
     ) : null;
 
+  const onHeaderBack = () => {
+    if (step === 'pick' || step === 'search') {
+      if (step === 'search' && hasUnsavedWork) {
+        requestLeave(() => {
+          setSearchName('');
+          setSearchEstate('');
+          setSearchYear('');
+          setStep('method');
+        });
+        return;
+      }
+      setStep('method');
+      return;
+    }
+    if (step === 'crop') {
+      requestLeave(() => {
+        setDraftUri(null);
+        setStep('pick');
+      });
+      return;
+    }
+    if (step === 'result') {
+      requestLeave(resetToMethod);
+      return;
+    }
+    requestLeave(() => router.back());
+  };
+
   return (
     <View style={styles.screen}>
       <HouseNavHeader
         title={t('wineScan.title')}
         showBack
-        onBack={() => requestLeave(() => router.back())}
+        onBack={onHeaderBack}
         right={headerRight}
       />
+
+      {step === 'method' ? (
+        <ScrollView
+          contentContainerStyle={[styles.pickPad, { paddingBottom: bottomPad }]}
+          overScrollMode="never">
+          <SerifText size={22} weight="semibold" style={styles.lead}>
+            {t('wineScan.methodLead')}
+          </SerifText>
+          <Text style={styles.hint}>{t('wineScan.methodHint')}</Text>
+          <View style={styles.chooserCard}>
+            <View style={styles.methodBody}>
+              <HousePrimaryButton
+                title={t('wineScan.methodScan')}
+                onPress={() => {
+                  Haptics.selectionChanged();
+                  setStep('pick');
+                }}
+              />
+              <HousePrimaryButton
+                title={t('wineScan.methodSearch')}
+                onPress={() => {
+                  Haptics.selectionChanged();
+                  setStep('search');
+                }}
+              />
+            </View>
+          </View>
+        </ScrollView>
+      ) : null}
 
       {step === 'pick' ? (
         <ScrollView
@@ -310,6 +467,96 @@ export default function WineLabelScanScreen() {
               onImportPhoto={() => void importPhoto()}
             />
           </View>
+        </ScrollView>
+      ) : null}
+
+      {step === 'search' ? (
+        <ScrollView
+          ref={searchScrollRef}
+          contentContainerStyle={[
+            styles.pickPad,
+            { paddingBottom: searchBottomPad },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          overScrollMode="never"
+          onScroll={onSearchScroll}
+          scrollEventThrottle={16}>
+          <SerifText size={22} weight="semibold" style={styles.lead}>
+            {t('wineScan.searchLead')}
+          </SerifText>
+          <Text style={styles.hint}>{t('wineScan.searchHint')}</Text>
+
+          <View style={styles.fieldBlock}>
+            <Text style={styles.fieldLabel}>{t('wineScan.searchName')}</Text>
+            <TextInput
+              ref={searchNameRef}
+              value={searchName}
+              onChangeText={setSearchName}
+              placeholder={t('wineScan.searchNamePlaceholder')}
+              placeholderTextColor="rgba(35, 32, 26, 0.35)"
+              autoCapitalize="words"
+              autoCorrect={false}
+              returnKeyType="next"
+              keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
+              style={styles.fieldInput}
+              onFocus={() => scrollSearchInputIntoView(searchNameRef.current)}
+            />
+          </View>
+
+          <View style={styles.fieldBlock}>
+            <Text style={styles.fieldLabel}>{t('wineScan.searchEstate')}</Text>
+            <Text style={styles.fieldRecommend}>
+              {t('wineScan.searchRecommended')}
+            </Text>
+            <TextInput
+              ref={searchEstateRef}
+              value={searchEstate}
+              onChangeText={setSearchEstate}
+              placeholder={t('wineScan.searchEstatePlaceholder')}
+              placeholderTextColor="rgba(35, 32, 26, 0.35)"
+              autoCapitalize="words"
+              autoCorrect={false}
+              returnKeyType="next"
+              keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
+              style={styles.fieldInput}
+              onFocus={() => scrollSearchInputIntoView(searchEstateRef.current)}
+            />
+          </View>
+
+          <View style={styles.fieldBlock}>
+            <Text style={styles.fieldLabel}>{t('wineScan.searchYear')}</Text>
+            <Text style={styles.fieldRecommend}>
+              {t('wineScan.searchRecommended')}
+            </Text>
+            <TextInput
+              ref={searchYearRef}
+              value={searchYear}
+              onChangeText={setSearchYear}
+              placeholder={t('wineScan.searchYearPlaceholder')}
+              placeholderTextColor="rgba(35, 32, 26, 0.35)"
+              keyboardType="number-pad"
+              maxLength={4}
+              returnKeyType="done"
+              keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
+              style={styles.fieldInput}
+              onFocus={() => scrollSearchInputIntoView(searchYearRef.current)}
+              onSubmitEditing={() => void runTextSearch()}
+            />
+          </View>
+
+          <Pressable
+            onPress={() => void runTextSearch()}
+            disabled={busy || !searchName.trim()}
+            accessibilityRole="button"
+            accessibilityLabel={t('wineScan.searchAction')}
+            style={({ pressed }) => [
+              styles.scanBtn,
+              (busy || !searchName.trim()) && styles.scanBtnDisabled,
+              pressed && !busy && styles.scanBtnPressed,
+            ]}>
+            <Text style={styles.scanBtnText}>{t('wineScan.searchAction')}</Text>
+          </Pressable>
         </ScrollView>
       ) : null}
 
@@ -358,54 +605,44 @@ export default function WineLabelScanScreen() {
           ref={resultScrollRef}
           contentContainerStyle={[
             styles.resultPad,
-            { paddingBottom: bottomPad },
+            { paddingBottom: resultBottomPad },
           ]}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
           overScrollMode="never"
-          onScroll={(e) => {
-            resultScrollYRef.current = e.nativeEvent.contentOffset.y;
-          }}
+          onScroll={onResultScroll}
           scrollEventThrottle={16}>
           {fiche ? (
-            <>
-              <WineLabelFicheView
-                fiche={fiche}
-                showUserRating={false}
-                scrollRef={resultScrollRef}
-                scrollYRef={resultScrollYRef}
-                scrollBottomInset={bottomPad}
-                ratingSlot={
-                  <>
-                    <WineUserRatingFields
-                      rating={drinksRating}
-                      onRatingChange={setDrinksRating}
-                      note={drinksNote}
-                      onNoteChange={setDrinksNote}
-                    />
-                    {!canConfirm ? (
-                      <Text style={styles.ratingHint}>
-                        {t('wineScan.ratingRequired')}
-                      </Text>
-                    ) : null}
-                  </>
-                }
-              />
-            </>
+            <WineLabelFicheView
+              fiche={fiche}
+              showUserRating={false}
+              scrollRef={resultScrollRef}
+              scrollYRef={resultScrollYRef}
+              scrollBottomInset={resultBottomPad}
+              ratingSlot={
+                <>
+                  <WineUserRatingFields
+                    rating={drinksRating}
+                    onRatingChange={setDrinksRating}
+                    note={drinksNote}
+                    onNoteChange={setDrinksNote}
+                    onNoteFocus={(input) => scrollInputIntoView(input)}
+                    onNoteResize={(input) => scrollInputIntoView(input, 0)}
+                  />
+                  {!canConfirm ? (
+                    <Text style={styles.ratingHint}>
+                      {t('wineScan.ratingRequired')}
+                    </Text>
+                  ) : null}
+                </>
+              }
+            />
           ) : (
             <Text style={styles.noMatch}>{t('wineScan.noMatchBody')}</Text>
           )}
 
-          <Pressable
-            onPress={() => {
-              setDraftUri(null);
-              setLabelPhotoUri(null);
-              setFiche(null);
-              setDrinksRating(RatingValue.unrated);
-              setDrinksNote('');
-              setStep('pick');
-            }}
-            style={styles.secondaryBtn}>
-            <Text style={styles.secondaryBtnText}>{t('wineScan.retake')}</Text>
+          <Pressable onPress={resetToMethod} style={styles.secondaryBtn}>
+            <Text style={styles.secondaryBtnText}>{t('wineScan.tryAgain')}</Text>
           </Pressable>
         </ScrollView>
       ) : null}
@@ -413,7 +650,11 @@ export default function WineLabelScanScreen() {
       {busy ? (
         <View style={styles.busyOverlay} pointerEvents="auto">
           <ActivityIndicator size="large" color={GustraColors.forestGreen} />
-          <Text style={styles.busyText}>{t('wineScan.thinking')}</Text>
+          <Text style={styles.busyText}>
+            {busyKind === 'search'
+              ? t('wineScan.searching')
+              : t('wineScan.thinking')}
+          </Text>
         </View>
       ) : null}
     </View>
@@ -442,6 +683,33 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(236, 227, 207, 0.55)',
     borderRadius: 16,
     overflow: 'hidden',
+  },
+  methodBody: {
+    padding: 20,
+    gap: 12,
+  },
+  fieldBlock: {
+    gap: 4,
+  },
+  fieldLabel: {
+    ...captionTextStyle,
+    fontWeight: '700',
+    color: 'rgba(35, 32, 26, 0.72)',
+  },
+  fieldRecommend: {
+    ...captionTextStyle,
+    fontSize: 12,
+    color: 'rgba(35, 32, 26, 0.48)',
+    marginBottom: 2,
+  },
+  fieldInput: {
+    ...bodyTextStyle,
+    fontSize: 17,
+    color: GustraColors.ink,
+    backgroundColor: 'rgba(236, 227, 207, 0.55)',
+    borderRadius: Theme.radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   cropStage: {
     flex: 1,

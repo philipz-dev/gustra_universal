@@ -71,7 +71,7 @@ export function makeCompanionHTML(args: {
   const preheader = escapeHtml(
     `${args.sharedBy} shared a Gustra review of ${restaurant}${
       city ? ` in ${city}` : ''
-    } — making food memories.`,
+    } — creating food memories.`,
   );
   const introHTML = htmlIntroMarkup(args.introMessage, args.sharedBy);
   const reviewBelow = escapeHtml(

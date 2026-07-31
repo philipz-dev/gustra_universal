@@ -248,10 +248,10 @@ export default function ReviewsFeedScreen() {
             description={emptyDescription}
             systemImage={
               emptyFromFilters
-                ? 'line.3.horizontal.decrease'
+                ? 'magnifyingglass'
                 : 'book.closed'
             }
-            androidImage={emptyFromFilters ? 'filter_list' : 'menu_book'}
+            androidImage={emptyFromFilters ? 'search_off' : 'menu_book'}
             actionTitle={
               emptyFromFilters
                 ? t('reviews.empty.clearFilters')
@@ -297,6 +297,17 @@ export default function ReviewsFeedScreen() {
                 }}
                 onDelete={() => requestDeleteRestaurant(item)}
                 onPress={() => {
+                  if (item.isDraft) {
+                    const draftId =
+                      item.draftReviewId ?? item.reviewIds[0];
+                    if (draftId) {
+                      router.push({
+                        pathname: '/review-form',
+                        params: { reviewId: draftId },
+                      });
+                      return;
+                    }
+                  }
                   if (item.visitCount <= 1) {
                     router.push(`/review/${item.reviewIds[0]}`);
                   } else {

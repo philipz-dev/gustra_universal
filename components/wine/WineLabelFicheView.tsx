@@ -9,7 +9,6 @@ import {
   type ScrollView,
 } from 'react-native';
 
-import { PhotoPlaceholder } from '@/components/ui/PhotoPlaceholder';
 import { SerifText } from '@/components/ui/SerifText';
 import { StaticStarRating } from '@/components/ui/StarRating';
 import { WineTasteProfileSection } from '@/components/wine/WineTasteProfileSection';
@@ -107,7 +106,7 @@ export function WineLabelFicheView({
   const region = fiche.countryRegion?.trim() ?? '';
   const vintage = fiche.vintage?.trim() ?? '';
   const pairings = fiche.foodPairings?.trim() ?? '';
-  const subline = [region, vintage].filter(Boolean).join(' · ');
+  const subline = region;
 
   const hasStars =
     showUserRating && RatingValue.isStarRating(fiche.userRating ?? 0);
@@ -119,6 +118,9 @@ export function WineLabelFicheView({
     label: t('wineScan.fiche.typeStyle'),
     value: profileLabel,
   });
+  if (vintage) {
+    metaCells.push({ label: t('wineScan.fiche.vintage'), value: vintage });
+  }
   // When Smaakprofiel is visible, grapes live there (with optional %).
   if (grapesLabel && !showTasteProfile) {
     metaCells.push({ label: t('wineScan.fiche.grapes'), value: grapesLabel });
@@ -129,27 +131,29 @@ export function WineLabelFicheView({
 
   const hasBody =
     metaCells.length > 0 || pairings.length > 0 || showTasteProfile;
+  const showHero = Boolean(uri);
 
   return (
     <View style={styles.wrap}>
-      <View style={[styles.heroPad, cutout && styles.heroPadCutout]}>
-        {cutout ? <View style={styles.cutoutGlow} pointerEvents="none" /> : null}
-        <View style={[styles.photoCard, cutout && styles.photoCardCutout]}>
-          {uri ? (
+      {showHero ? (
+        <View style={[styles.heroPad, cutout && styles.heroPadCutout]}>
+          {cutout ? (
+            <View style={styles.cutoutGlow} pointerEvents="none" />
+          ) : null}
+          <View style={[styles.photoCard, cutout && styles.photoCardCutout]}>
             <Image source={{ uri }} style={styles.photo} resizeMode="cover" />
-          ) : (
-            <PhotoPlaceholder iconSize={cutout ? 40 : 48} />
-          )}
+          </View>
+          {cutout ? (
+            <View style={styles.cutoutShadow} pointerEvents="none" />
+          ) : null}
         </View>
-        {cutout ? (
-          <View style={styles.cutoutShadow} pointerEvents="none" />
-        ) : null}
-      </View>
+      ) : null}
 
       <Animated.View
         style={[
           styles.identityHead,
           cutout && styles.identityHeadCutout,
+          !showHero && styles.identityHeadNoPhoto,
           { opacity: fade, transform: [{ translateY: slide }] },
         ]}>
         <SerifText size={28} weight="bold" style={styles.title}>
@@ -315,6 +319,9 @@ const styles = StyleSheet.create({
   },
   identityHeadCutout: {
     paddingTop: 12,
+  },
+  identityHeadNoPhoto: {
+    paddingTop: 8,
   },
   title: {
     color: GustraColors.ink,

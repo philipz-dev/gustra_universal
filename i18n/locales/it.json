@@ -5,6 +5,7 @@
     "no": "No",
     "cancel": "Annulla",
     "delete": "Elimina",
+    "deleteSwipe": "Elimina",
     "remove": "Rimuovi",
     "done": "Fine",
     "back": "Indietro",
@@ -86,7 +87,8 @@
       "clearFilters": "Cancella filtri",
       "importReviews": "Importa recensioni",
       "addReview": "Aggiungi recensione"
-    }
+    },
+    "draftLabel": "Draft"
   },
   "filters": {
     "title": "Opzioni filtro",
@@ -324,7 +326,9 @@
         "cover": "Cover",
         "a11yCover": "Foto di copertina. Tocca per selezionare, tieni premuto per riordinare.",
         "a11yPhoto": "Foto. Tocca per selezionare, tieni premuto per riordinare."
-      }
+      },
+      "draftBannerCriteria": "Valuta almeno un criterio per completare questa recensione.",
+      "draftBannerWine": "Un vino ha ancora bisogno di una valutazione."
     },
     "photos": {
       "takePhoto": "Scatta foto",
@@ -506,7 +510,8 @@
       "deleteBody": "Questa recensione verrà eliminata.",
       "discardEdits": {
         "title": "Salvare le modifiche?"
-      }
+      },
+      "saveFailed": "Impossibile salvare questa recensione."
     },
     "recovery": {
       "confirmTitle": "Recuperare le recensioni precedenti?",
@@ -546,7 +551,7 @@
     }
   },
   "wineScan": {
-    "title": "Scansiona etichetta",
+    "title": "Aggiungi vino",
     "lead": "Fotografa l’etichetta della bottiglia",
     "hint": "Ritaglia l’etichetta; poi leggiamo il testo sul dispositivo.",
     "chooserTitle": "Foto dell’etichetta",
@@ -564,10 +569,10 @@
     "confirmA11y": "Aggiungi vino a Bevande",
     "resultRatingTitle": "Valuta questa bottiglia",
     "ratingRequired": "Aggiungi le stelle per salvare questo vino.",
-    "scanButton": "Scansiona etichetta",
-    "scanButtonA11y": "Scansiona etichetta vino per Bevande",
-    "scanAnother": "Scansiona un’altra etichetta",
-    "scanAnotherA11y": "Scansiona un’altra etichetta vino per Bevande",
+    "scanButton": "Aggiungi vino",
+    "scanButtonA11y": "Aggiungi vino a Bevande",
+    "scanAnother": "Aggiungi vino",
+    "scanAnotherA11y": "Aggiungi vino a Bevande",
     "clearDrinksWithWinesTitle": "Cancellare il voto Bevande?",
     "clearDrinksWithWinesBody": "Anche i vini scansionati di questa visita verranno rimossi.",
     "clearWinesWithRatingsTitle": "Cancellare il voto Vini?",
@@ -662,7 +667,28 @@
         }
       }
     },
-    "deleteWineUndo": "“{{name}}” rimosso"
+    "deleteWineUndo": "“{{name}}” rimosso",
+    "methodLead": "Come vuoi aggiungere questo vino?",
+    "methodHint": "Scansiona l’etichetta, o cerca per nome.",
+    "methodScan": "Scansiona etichetta",
+    "methodSearch": "Cerca per nome",
+    "searchLead": "Cerca per nome",
+    "searchHint": "Il nome del vino è obbligatorio. Tenuta e anno aiutano molto.",
+    "searchName": "Nome del vino",
+    "searchNamePlaceholder": "es. Love by Léoube",
+    "searchEstate": "Tenuta / domaine",
+    "searchEstatePlaceholder": "es. Château Léoube",
+    "searchYear": "Anno",
+    "searchYearPlaceholder": "es. 2022",
+    "searchRecommended": "Fortemente consigliato",
+    "searchAction": "Cerca",
+    "searching": "Ricerca del vino…",
+    "nameRequired": "Inserisci un nome di vino.",
+    "noMatchSearchBody": "Non siamo riusciti a riconoscere quel vino. Controlla l’ortografia o aggiungi tenuta e anno.",
+    "failedSearchBody": "Impossibile cercare il vino. Controlla la connessione e riprova.",
+    "tryAgain": "Altro modo",
+    "addButton": "Aggiungi vino",
+    "addButtonA11y": "Aggiungi vino a Bevande"
   },
   "setup": {
     "welcome": {

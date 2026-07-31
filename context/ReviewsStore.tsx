@@ -50,6 +50,7 @@ import {
 import { findExistingRestaurant } from '@/services/places/RestaurantMatcher';
 import type { RestaurantDraft } from '@/services/places/types';
 import { deleteReviewPhotoFiles } from '@/services/reviews/photoStorage';
+import { isReviewDraft } from '@/services/reviews/draftReview';
 import { planImportedReviewCollapse } from '@/services/share/ShareImportService';
 import {
   RatingValue,
@@ -328,29 +329,48 @@ function buildFeedSummaries(
       .filter((r) => r.restaurantId === restaurant.id)
       .sort((a, b) => +new Date(b.date) - +new Date(a.date));
     if (visits.length === 0) continue;
+
+    const completeVisits = visits.filter((v) => !isReviewDraft(v));
+    const draftVisits = visits.filter((v) => isReviewDraft(v));
+    const isDraft = completeVisits.length === 0;
+    const scoreSource = isDraft ? visits : completeVisits;
     const averageScore =
-      visits.reduce((sum, v) => sum + v.overallScore, 0) / visits.length;
-    const latestPhoto = coverPhotoForRestaurant(restaurant.id, visits);
+      scoreSource.length === 0
+        ? 0
+        : scoreSource.reduce((sum, v) => sum + v.overallScore, 0) /
+          scoreSource.length;
+    // Cover / recency: prefer complete visits; fall back to drafts.
+    const timeline = isDraft ? visits : completeVisits;
+    const latestPhoto = coverPhotoForRestaurant(
+      restaurant.id,
+      isDraft ? visits : completeVisits.length > 0 ? completeVisits : visits,
+    );
     summaries.push({
       restaurantId: restaurant.id,
       name: restaurant.name,
       city: restaurant.city,
       primaryType: restaurant.primaryType ?? '',
-      averageScore,
+      averageScore: isDraft ? 0 : averageScore,
       visitCount: visits.length,
-      lastVisitDate: formatAbbreviated(visits[0].date),
-      lastVisitAt: +new Date(visits[0].date),
-      // Owner name is not shown on My reviews — only friends' authors on Friends' feed.
+      lastVisitDate: formatAbbreviated(timeline[0]!.date),
+      lastVisitAt: +new Date(timeline[0]!.date),
       reviewerName:
         origin === 'imported' ? reviewerNamesForVisits(visits) : undefined,
       thumbnailColor: restaurant.thumbnailColor,
       photoUrl: latestPhoto,
       isFavorite: restaurant.isFavorite,
       reviewIds: visits.map((v) => v.id),
+      isDraft,
+      ...(isDraft && draftVisits[0]
+        ? { draftReviewId: draftVisits[0].id }
+        : {}),
     });
   }
-  // Default order: most recent visit first (filters may re-rank).
+  // Drafts first, then most recent visit.
   return summaries.sort((a, b) => {
+    const aDraft = a.isDraft ? 1 : 0;
+    const bDraft = b.isDraft ? 1 : 0;
+    if (aDraft !== bDraft) return bDraft - aDraft;
     if (a.lastVisitAt !== b.lastVisitAt) return b.lastVisitAt - a.lastVisitAt;
     return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
   });

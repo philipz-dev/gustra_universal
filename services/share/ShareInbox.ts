@@ -13,28 +13,38 @@ const FILENAME_KEY = 'gustra.share.pendingShareFilename';
 /**
  * Stage a share package into Documents/ShareInbox.
  *
- * Android DocumentPicker cache URIs often reject `copyAsync` ("isn't readable").
- * Prefer UTF-8 read/write there; use copyAsync on iOS / other local paths.
+ * - `content://` (WhatsApp, Downloads, …): only `copyAsync` supports the scheme;
+ *   `readAsStringAsync` throws "Unsupported scheme".
+ * - Android DocumentPicker `file://` cache URIs often reject `copyAsync`
+ *   ("isn't readable") — prefer UTF-8 / Base64 read-write there.
+ * - Other local paths: `copyAsync` first, then read/write fallback.
  */
 async function copySharePackageToInbox(
   sourceUri: string,
   destination: string,
 ): Promise<void> {
+  const trimmed = sourceUri.trim();
+  const isContentUri = /^content:\/\//i.test(trimmed);
+
+  if (isContentUri) {
+    await FileSystem.copyAsync({ from: trimmed, to: destination });
+    return;
+  }
+
   const preferReadWrite =
-    Platform.OS === 'android' ||
-    /DocumentPicker|content:\/\//i.test(sourceUri);
+    Platform.OS === 'android' || /DocumentPicker/i.test(trimmed);
 
   if (!preferReadWrite) {
     try {
-      await FileSystem.copyAsync({ from: sourceUri, to: destination });
+      await FileSystem.copyAsync({ from: trimmed, to: destination });
       return;
     } catch {
-      // Fall through — rare iOS / content-URI quirks.
+      // Fall through — rare iOS path quirks.
     }
   }
 
   try {
-    const raw = await FileSystem.readAsStringAsync(sourceUri, {
+    const raw = await FileSystem.readAsStringAsync(trimmed, {
       encoding: FileSystem.EncodingType.UTF8,
     });
     await FileSystem.writeAsStringAsync(destination, raw, {
@@ -42,7 +52,7 @@ async function copySharePackageToInbox(
     });
   } catch {
     // Last resort: binary-safe path for odd encodings / SAF quirks.
-    const raw = await FileSystem.readAsStringAsync(sourceUri, {
+    const raw = await FileSystem.readAsStringAsync(trimmed, {
       encoding: FileSystem.EncodingType.Base64,
     });
     await FileSystem.writeAsStringAsync(destination, raw, {
@@ -133,8 +143,8 @@ export const ShareInbox = {
    * Copy a share package into the inbox and mark it pending
    * (Swift `ShareInbox.stageShareFile`).
    *
-   * On Android (esp. Expo Go), DocumentPicker cache URIs often fail
-   * `copyAsync` with "isn't readable" — fall back to UTF-8 read/write.
+   * Android `content://` (WhatsApp) uses `copyAsync`; DocumentPicker
+   * `file://` cache URIs fall back to UTF-8 / Base64 read-write.
    */
   async stageShareFile(
     sourceUri: string,

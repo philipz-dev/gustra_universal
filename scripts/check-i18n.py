@@ -58,6 +58,7 @@ ALLOW_IDENTICAL_VALUES = {
     "Import",
     "OK",
     "Rosé",
+    "Draft",
 }
 
 # Keys that may keep the English value even when not in ALLOW_IDENTICAL_VALUES.
@@ -103,6 +104,7 @@ ALLOW_IDENTICAL_KEYS = {
     "rating.labels.okay",
     "criteria.service",
     "setup.criteria.tip",
+    "reviews.draftLabel",
 }
 
 

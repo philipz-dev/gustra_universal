@@ -5,6 +5,7 @@
     "no": "Non",
     "cancel": "Annuler",
     "delete": "Supprimer",
+    "deleteSwipe": "Supprimer",
     "remove": "Retirer",
     "done": "OK",
     "back": "Retour",
@@ -86,7 +87,8 @@
       "clearFilters": "Effacer les filtres",
       "importReviews": "Importer des avis",
       "addReview": "Ajouter un avis"
-    }
+    },
+    "draftLabel": "Draft"
   },
   "filters": {
     "title": "Options de filtre",
@@ -189,7 +191,7 @@
     "usageToday": "{{today}} aujourd’hui / {{allTime}} au total",
     "resetCounters": "Réinitialiser les compteurs",
     "namePlaceholder": "Votre nom",
-    "nameA11y": "Nom du critique",
+    "nameA11y": "Nom de l’auteur de l’avis",
     "photoA11y": "Photo de profil",
     "editPhotoA11y": "Modifier la photo de profil",
     "addPhotoA11y": "Ajouter une photo de profil",
@@ -324,7 +326,9 @@
         "cover": "Cover",
         "a11yCover": "Photo de couverture. Touchez pour sélectionner, appui long pour réordonner.",
         "a11yPhoto": "Photo. Touchez pour sélectionner, appui long pour réordonner."
-      }
+      },
+      "draftBannerCriteria": "Notez au moins un critère pour terminer cet avis.",
+      "draftBannerWine": "Un vin doit encore être noté."
     },
     "photos": {
       "takePhoto": "Prendre une photo",
@@ -393,7 +397,7 @@
     "nameSheet": {
       "title": "Votre nom",
       "body": "Votre nom est inclus lorsque vous partagez des avis avec des amis.",
-      "placeholder": "Nom du critique",
+      "placeholder": "Nom de l’auteur de l’avis",
       "cancel": "Annuler",
       "continue": "Continuer"
     }
@@ -506,7 +510,8 @@
       "deleteBody": "Cet avis sera supprimé.",
       "discardEdits": {
         "title": "Enregistrer les modifications ?"
-      }
+      },
+      "saveFailed": "Impossible d’enregistrer cet avis."
     },
     "recovery": {
       "confirmTitle": "Récupérer les avis précédents ?",
@@ -546,7 +551,7 @@
     }
   },
   "wineScan": {
-    "title": "Scanner une étiquette de vin",
+    "title": "Ajouter un vin",
     "lead": "Photographiez l’étiquette de la bouteille",
     "hint": "Recadrez l’étiquette, puis nous lirons le texte sur l’appareil.",
     "chooserTitle": "Photo de l’étiquette",
@@ -564,10 +569,10 @@
     "confirmA11y": "Ajouter le vin à Boissons",
     "resultRatingTitle": "Notez cette bouteille",
     "ratingRequired": "Ajoutez des étoiles pour enregistrer ce vin.",
-    "scanButton": "Scanner l’étiquette",
-    "scanButtonA11y": "Scanner l’étiquette pour Boissons",
-    "scanAnother": "Scanner une autre étiquette",
-    "scanAnotherA11y": "Scanner une autre étiquette de vin pour Boissons",
+    "scanButton": "Ajouter un vin",
+    "scanButtonA11y": "Ajouter un vin aux Boissons",
+    "scanAnother": "Ajouter un vin",
+    "scanAnotherA11y": "Ajouter un vin aux Boissons",
     "clearDrinksWithWinesTitle": "Effacer la note Boissons ?",
     "clearDrinksWithWinesBody": "Les vins scannés de cette visite seront aussi supprimés.",
     "clearWinesWithRatingsTitle": "Effacer la note Vins ?",
@@ -662,7 +667,28 @@
         }
       }
     },
-    "deleteWineUndo": "« {{name}} » retiré"
+    "deleteWineUndo": "« {{name}} » retiré",
+    "methodLead": "Comment voulez-vous ajouter ce vin ?",
+    "methodHint": "Scannez l’étiquette, ou recherchez par nom.",
+    "methodScan": "Scanner l’étiquette",
+    "methodSearch": "Rechercher par nom",
+    "searchLead": "Rechercher par nom",
+    "searchHint": "Le nom du vin est obligatoire. Le domaine et l’année aident beaucoup.",
+    "searchName": "Nom du vin",
+    "searchNamePlaceholder": "ex. Love by Léoube",
+    "searchEstate": "Domaine",
+    "searchEstatePlaceholder": "ex. Château Léoube",
+    "searchYear": "Année",
+    "searchYearPlaceholder": "ex. 2022",
+    "searchRecommended": "Fortement recommandé",
+    "searchAction": "Rechercher",
+    "searching": "Recherche du vin…",
+    "nameRequired": "Indiquez un nom de vin.",
+    "noMatchSearchBody": "Nous n’avons pas pu identifier ce vin. Vérifiez l’orthographe ou ajoutez le domaine et l’année.",
+    "failedSearchBody": "Impossible de rechercher le vin. Vérifiez votre connexion et réessayez.",
+    "tryAgain": "Autre méthode",
+    "addButton": "Ajouter un vin",
+    "addButtonA11y": "Ajouter un vin aux Boissons"
   },
   "setup": {
     "welcome": {
@@ -672,7 +698,7 @@
     "criteria": {
       "title": "Configuration initiale",
       "headline": "Personnalisez votre expérience",
-      "body": "Choisissez les critères importants pour une critique. Vous pourrez les modifier plus tard dans Réglages.",
+      "body": "Choisissez les critères importants pour un avis. Vous pourrez les modifier plus tard dans Réglages.",
       "minOne": "Choisissez au moins un critère.",
       "tip": "Astuce",
       "idealThree": " : 3 critères, c'est l'idéal"

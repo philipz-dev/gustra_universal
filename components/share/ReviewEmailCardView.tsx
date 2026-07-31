@@ -107,7 +107,7 @@ export function ReviewEmailCardView({
           <SerifText size={28} weight="bold" style={styles.headerBrand}>
             Gustra
           </SerifText>
-          <Text style={styles.headerTagline}>making food memories</Text>
+          <Text style={styles.headerTagline}>creating food memories</Text>
         </View>
 
         <Text style={styles.intro}>
@@ -192,7 +192,7 @@ export function ReviewEmailCardView({
 
         <View style={styles.footer}>
           <Text style={styles.footerTitle}>Powered by Gustra</Text>
-          <Text style={styles.footerTagline}>making food memories</Text>
+          <Text style={styles.footerTagline}>creating food memories</Text>
         </View>
       </View>
     </View>

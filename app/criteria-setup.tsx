@@ -36,6 +36,7 @@ import {
   useCriteriaSettings,
 } from '@/context/CriteriaSettings';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import { Haptics } from '@/services/haptics';
 import { criterionIcon } from '@/services/reviews/criterionIcons';
 
@@ -107,7 +108,7 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
         <SerifText size={32} weight="bold" style={styles.welcomeTitle}>
           {t('setup.welcome.title')}
         </SerifText>
-        <Text style={styles.welcomeTagline}>making food memories</Text>
+        <Text style={styles.welcomeTagline}>creating food memories</Text>
       </Animated.View>
       <Animated.Text
         style={[
@@ -128,6 +129,7 @@ export default function CriteriaSetupScreen() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardBottomInset();
   const {
     customCriteria,
     isStandardEnabled,
@@ -195,9 +197,15 @@ export default function CriteriaSetupScreen() {
         style={styles.flex}
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: 24 + Math.max(insets.bottom, 12) },
+          {
+            paddingBottom:
+              (keyboardHeight > 0
+                ? keyboardHeight
+                : Math.max(insets.bottom, 12)) + 24,
+          },
         ]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
         showsVerticalScrollIndicator={false}
         overScrollMode="never">
         <View style={styles.hero}>

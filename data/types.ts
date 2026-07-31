@@ -252,6 +252,13 @@ export type RestaurantVisitSummary = {
   photoUrl: string;
   isFavorite: boolean;
   reviewIds: string[];
+  /**
+   * True when every visit for this restaurant is still a draft
+   * (no criterion stars and/or unrated wine). Additive — older clients ignore.
+   */
+  isDraft?: boolean;
+  /** Newest draft review id when `isDraft` (for open-in-edit). */
+  draftReviewId?: string;
 };
 
 export function satisfactionFromScore(score: number): SatisfactionLevel {

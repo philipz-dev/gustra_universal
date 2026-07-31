@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Dimensions,
   Keyboard,
@@ -10,21 +10,24 @@ import {
 } from 'react-native';
 
 /** Match Swift `scrollCommentIntoView` delay after focus (keyboard animation). */
-const FOCUS_DELAY_MS = Platform.OS === 'ios' ? 280 : 120;
+const FOCUS_DELAY_MS = Platform.OS === 'ios' ? 300 : 140;
 /** Gap between input bottom and keyboard top. */
-const KEYBOARD_GAP = 28;
+const KEYBOARD_GAP = 36;
 
 /**
  * Keeps the focused TextInput visible above the keyboard inside a ScrollView
  * (Swift `ReviewFormView.scrollCommentIntoView` / CommentField keep-visible).
  *
  * Uses window coordinates + live keyboard height so RNGH/RN ScrollViews both work.
+ * Expose `keyboardHeight` so callers can grow `contentContainerStyle.paddingBottom`
+ * — without that, there often isn’t enough room to scroll the field clear.
  */
 export function useScrollInputIntoView() {
   const scrollRef = useRef<ScrollView | null>(null);
   const scrollYRef = useRef(0);
   const focusedInputRef = useRef<TextInput | null>(null);
   const keyboardHeightRef = useRef(0);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearTimer = () => {
@@ -78,21 +81,24 @@ export function useScrollInputIntoView() {
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
     const showSub = Keyboard.addListener(showEvent, (event) => {
-      keyboardHeightRef.current = event.endCoordinates.height;
+      const height = event.endCoordinates.height;
+      keyboardHeightRef.current = height;
+      setKeyboardHeight(height);
       const focused = focusedInputRef.current;
       if (focused) {
-        // Re-run after keyboard frame settles.
+        // Re-run after padding reflow + keyboard frame settle.
         clearTimer();
         timerRef.current = setTimeout(() => {
           timerRef.current = null;
           if (focusedInputRef.current) {
             performScroll(focusedInputRef.current);
           }
-        }, Platform.OS === 'ios' ? 40 : 80);
+        }, Platform.OS === 'ios' ? 80 : 120);
       }
     });
     const hideSub = Keyboard.addListener(hideEvent, () => {
       keyboardHeightRef.current = 0;
+      setKeyboardHeight(0);
     });
 
     return () => {
@@ -115,6 +121,8 @@ export function useScrollInputIntoView() {
 
   return {
     scrollRef,
+    scrollYRef,
+    keyboardHeight,
     scrollInputIntoView,
     onScroll,
     clearFocusedInput,

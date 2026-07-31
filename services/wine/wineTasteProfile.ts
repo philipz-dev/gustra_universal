@@ -33,9 +33,7 @@ export function shouldShowTasteProfile(
 
   const grapes = wineLabelGrapeDisplay(fiche);
   const hasService = Boolean(
-    fiche.servingTempHint?.trim() ||
-      fiche.aerationHint?.trim() ||
-      fiche.drinkWindowHint?.trim(),
+    fiche.servingTempHint?.trim() || fiche.aerationHint?.trim(),
   );
 
   if (fiche.tasteProfileConfidence === 'high' || fiche.tasteProfileConfidence === 'medium') {

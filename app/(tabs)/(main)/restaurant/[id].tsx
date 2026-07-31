@@ -18,6 +18,7 @@ import {
   formatScoreOutOfFive,
   RatingValue,
 } from '@/services/reviews/ratings';
+import { isReviewDraft } from '@/services/reviews/draftReview';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { requestSwipeDelete } from '@/services/swipeDelete';
 
@@ -62,6 +63,7 @@ export default function RestaurantVisitsScreen() {
   const averageScore = useMemo(() => {
     const enabledIds = new Set(enabledCriteria.map((c) => c.id));
     const scores = reviews
+      .filter((review) => !isReviewDraft(review))
       .map((review) => {
         const rated = review.criteria
           .filter(
@@ -168,7 +170,16 @@ export default function RestaurantVisitsScreen() {
           renderItem={({ item }) => (
             <VisitRowCard
               review={item}
-              onPress={() => router.push(`/review/${item.id}`)}
+              onPress={() => {
+                if (isReviewDraft(item)) {
+                  router.push({
+                    pathname: '/review-form',
+                    params: { reviewId: item.id },
+                  });
+                  return;
+                }
+                router.push(`/review/${item.id}`);
+              }}
               onDelete={() => confirmDeleteVisit(item)}
             />
           )}

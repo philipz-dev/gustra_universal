@@ -14,6 +14,9 @@ import { GustraColors } from '@/constants/Colors';
 import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useReviewsStore } from '@/context/ReviewsStore';
+import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { activeIntlLocale } from '@/i18n/formatDates';
 import {
   decryptBackup,
   deleteLocalBackup,
@@ -30,8 +33,6 @@ import {
   isValidBackupPassword,
 } from '@/services/backup/passwordPolicy';
 import type { BackupImportMode, LocalBackupFile } from '@/services/backup/types';
-import { useAppTranslation } from '@/hooks/useAppTranslation';
-import { activeIntlLocale } from '@/i18n/formatDates';
 
 type Step =
   | 'home'
@@ -56,6 +57,7 @@ function titleForStep(step: Step, t: (key: string) => string): string {
 export default function EncryptedBackupScreen() {
   const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardBottomInset();
   const navigation = useNavigation();
   const { reviews, createEncryptedBackup, importEncryptedBackup } =
     useReviewsStore();
@@ -304,13 +306,16 @@ export default function EncryptedBackupScreen() {
   };
 
   const bottomPad =
-    Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
+    (keyboardHeight > 0
+      ? keyboardHeight
+      : Theme.spacing.floatingTabBarClearance + insets.bottom) + 24;
 
   return (
     <View style={styles.screen}>
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
         overScrollMode="never">
         {step === 'home' ? (
           <View style={styles.home}>

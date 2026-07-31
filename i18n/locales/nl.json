@@ -5,6 +5,7 @@
     "no": "Nee",
     "cancel": "Annuleren",
     "delete": "Verwijderen",
+    "deleteSwipe": "Verwijder",
     "remove": "Verwijderen",
     "done": "Klaar",
     "back": "Terug",
@@ -47,21 +48,21 @@
     "map": "Mijn kaart",
     "passport": "Mijn Gustra",
     "settings": "Instellingen",
-    "editCriteria": "Reviewcriteria bewerken",
+    "editCriteria": "Recensiecriteria bewerken",
     "profilePhoto": "Profielfoto",
     "backupRestore": "Back-up / Herstellen"
   },
   "a11y": {
-    "importReviews": "Reviews importeren",
+    "importReviews": "Recensies importeren",
     "share": "Delen",
     "filters": "Filters",
-    "addReview": "Review toevoegen",
+    "addReview": "Recensie toevoegen",
     "myLocation": "Mijn locatie",
     "mapLegend": "Legenda kaartspelden",
     "clearLocation": "Locatiefilter wissen",
     "clearCuisine": "Keukenfilter wissen",
     "clearFavorites": "Favorietenfilter wissen",
-    "clearFriends": "Filter vriendenreviews wissen",
+    "clearFriends": "Filter vriendenrecensies wissen",
     "clearSort": "Sortering wissen",
     "delete": "Verwijderen"
   },
@@ -70,30 +71,31 @@
     "visitCount_one": "{{count}} bezoek · {{date}}",
     "visitCount_other": "{{count}} bezoeken · {{date}}",
     "source": {
-      "mine": "Mijn reviews",
-      "friends": "Reviews van vrienden"
+      "mine": "Mijn recensies",
+      "friends": "Recensies van vrienden"
     },
     "empty": {
       "noMatchesTitle": "Geen restaurants gevonden",
       "noMatchesBody": "Geen restaurants komen overeen met je huidige filters.",
       "noMatchesShort": "Geen resultaten",
-      "noFriendsTitle": "Geen reviews van vrienden",
-      "noFriendsBody": "Importeer gedeelde reviews van vrienden om ze hier te zien.",
-      "noReviewsTitle": "Nog geen reviews",
-      "noReviewsBody": "Voeg je eerste restaurantreview toe om te beginnen.",
+      "noFriendsTitle": "Geen recensies van vrienden",
+      "noFriendsBody": "Importeer gedeelde recensies van vrienden om ze hier te zien.",
+      "noReviewsTitle": "Nog geen recensies",
+      "noReviewsBody": "Voeg je eerste restaurantrecensie toe om te beginnen.",
       "tryAnotherSearch": "Probeer een andere restaurantnaam, stad, reactie of tekst van een foto.",
       "noCriterionRating": "Nog geen restaurants met een score voor dit criterium.",
       "clearFilters": "Filters wissen",
-      "importReviews": "Reviews importeren",
-      "addReview": "Review toevoegen"
-    }
+      "importReviews": "Recensies importeren",
+      "addReview": "Recensie toevoegen"
+    },
+    "draftLabel": "Draft"
   },
   "filters": {
     "title": "Filteropties",
     "filters": "Filters",
     "none": "Geen",
     "favorites": "Favorieten",
-    "friendsReviews": "Reviews van vrienden meenemen",
+    "friendsReviews": "Recensies van vrienden meenemen",
     "location": "Locatie",
     "cuisine": "Type keuken",
     "sortBy": "Sorteren op",
@@ -108,7 +110,7 @@
     "restaurantCount": "{{shown}} van {{total}} restaurants",
     "resultsCount": "{{shown}} van {{total}} resultaten",
     "emptyLocationTitle": "Nog geen locaties",
-    "emptyLocationBody": "Locaties verschijnen wanneer je reviews een stad of land bevatten.",
+    "emptyLocationBody": "Locaties verschijnen wanneer je recensies een stad of land bevatten.",
     "emptyCuisineTitle": "Nog geen keukentypes",
     "emptyCuisineBody": "Keukentypes verschijnen wanneer restaurants categorieën hebben.",
     "sort": {
@@ -120,7 +122,7 @@
       "location": "Locatie",
       "cuisine": "Type keuken",
       "favorites": "Favorieten",
-      "friends": "Inclusief vriendenreviews"
+      "friends": "Inclusief vriendenrecensies"
     }
   },
   "map": {
@@ -128,24 +130,24 @@
     "friendSuffix": "(vriend)",
     "legend": {
       "title": "Spelden",
-      "own": "Mijn reviews",
-      "friends": "Reviews van vrienden"
+      "own": "Mijn recensies",
+      "friends": "Recensies van vrienden"
     },
     "empty": {
       "noMatchesTitle": "Geen resultaten",
       "noMatchesBody": "Geen restaurants komen overeen met je huidige filters.",
       "noMemoriesTitle": "Nog geen kaartherinneringen",
-      "noMemoriesBody": "Voeg een review met locatie toe om die op je kaart te zien.",
+      "noMemoriesBody": "Voeg een recensie met locatie toe om die op je kaart te zien.",
       "clearFilters": "Filters wissen",
-      "addReview": "Review toevoegen"
+      "addReview": "Recensie toevoegen"
     }
   },
   "passport": {
-    "emptyTitle": "Nog geen reviews",
-    "emptyBody": "Je proefpaspoort vult zich naarmate je restaurantreviews toevoegt.",
-    "addReview": "Review toevoegen",
+    "emptyTitle": "Nog geen recensies",
+    "emptyBody": "Je proefpaspoort vult zich naarmate je restaurantrecensies toevoegt.",
+    "addReview": "Recensie toevoegen",
     "overview": "Overzicht",
-    "totalReviews": "Totaal reviews",
+    "totalReviews": "Totaal recensies",
     "averageOverall": "Gemiddelde totaal",
     "bestRestaurant": "Beste restaurant",
     "bestRestaurants": "Beste restaurants",
@@ -163,7 +165,7 @@
     "languageItalian": "Italiano",
     "sectionReviewer": "Jij",
     "sectionReviewing": "Beoordelen",
-    "sectionCriteria": "Reviewcriteria",
+    "sectionCriteria": "Recensiecriteria",
     "sectionPassport": "Mijn Gustra",
     "sectionStorage": "Opslag",
     "sectionData": "Data & back-up",
@@ -173,12 +175,12 @@
     "advancedExpandA11y": "Geavanceerde instellingen tonen",
     "advancedCollapseA11y": "Geavanceerde instellingen verbergen",
     "editPhotoHint": "Tik op de foto om te wijzigen",
-    "editCriteria": "Reviewcriteria bewerken",
+    "editCriteria": "Recensiecriteria bewerken",
     "dataSavings": "Databesparing voor foto’s",
     "dataSavingsOn": "Lagere resolutie",
     "dataSavingsOff": "Hogere resolutie",
     "photos": "Foto’s",
-    "importShared": "Gedeelde reviews importeren",
+    "importShared": "Gedeelde recensies importeren",
     "importSharedSubtitle": "Open een .gustrashare-bestand van een vriend",
     "recoverPrevious": "Vorige Gustra-gegevens herstellen",
     "recoverScanSubtitle": "Zoek op deze iPhone naar de oude Swift-database en foto’s",
@@ -189,7 +191,7 @@
     "usageToday": "{{today}} vandaag / {{allTime}} totaal",
     "resetCounters": "Tellers resetten",
     "namePlaceholder": "Jouw naam",
-    "nameA11y": "Naam van de reviewer",
+    "nameA11y": "Naam van de recensent",
     "photoA11y": "Profielfoto",
     "editPhotoA11y": "Profielfoto bewerken",
     "addPhotoA11y": "Profielfoto toevoegen",
@@ -204,7 +206,7 @@
       "photos": "{{count}} foto’s",
       "backups": "{{count}} back-upbestand(en)",
       "alreadyRecovered": "al hersteld",
-      "photosOnly": "{{count}} oude foto’s gevonden, maar geen database — reviews hebben een .gustra-back-up of de Swift-store nodig",
+      "photosOnly": "{{count}} oude foto’s gevonden, maar geen database — recensies hebben een .gustra-back-up of de Swift-store nodig",
       "backupsOnly": "{{count}} back-upbestand(en) in Backups — gebruik Back-up / Herstellen",
       "unreadable": "{{count}} DB-bestand(en) gevonden maar niet leesbaar als Gustra-gegevens",
       "none": "Geen eerdere Swift-gegevens gevonden op dit apparaat"
@@ -221,7 +223,7 @@
       "deleteTitle": "Criterium verwijderen",
       "deleteBody": "“{{name}}” verwijderen?",
       "custom": "Aangepast",
-      "footer": "Aangepaste namen verschijnen bij nieuwe reviews. Uitgeschakelde criteria zijn verborgen bij beoordelen.",
+      "footer": "Aangepaste namen verschijnen bij nieuwe recensies. Uitgeschakelde criteria zijn verborgen bij beoordelen.",
       "discardEdits": {
         "title": "Wijzigingen opslaan?"
       }
@@ -261,13 +263,13 @@
   },
   "forms": {
     "addReview": {
-      "title": "Review toevoegen",
+      "title": "Recensie toevoegen",
       "nearby": "Toon restaurants in de buurt",
       "mapSearch": "Zoeken op kaart",
       "manual": "Handmatig invoeren"
     },
     "nearby": {
-      "startReview": "Review starten",
+      "startReview": "Recensie starten",
       "loadFailed": "Kon restaurants in de buurt niet laden.",
       "noNearby": "Geen restaurants in de buurt gevonden.",
       "searchNearby": "Zoek in de buurt",
@@ -281,7 +283,7 @@
     "mapSearch": {
       "title": "Zoeken op kaart",
       "searchArea": "Zoek in dit gebied",
-      "startReview": "Review starten",
+      "startReview": "Recensie starten",
       "hint": "Verplaats de kaart en tik op Zoek in dit gebied.",
       "searchAreaHint": "Zoek restaurants in het zichtbare kaartgebied"
     },
@@ -324,7 +326,9 @@
         "cover": "Cover",
         "a11yCover": "Coverfoto. Tik om te selecteren, lang indrukken om te herschikken.",
         "a11yPhoto": "Foto. Tik om te selecteren, lang indrukken om te herschikken."
-      }
+      },
+      "draftBannerCriteria": "Geef minstens één criterium sterren om deze recensie af te ronden.",
+      "draftBannerWine": "Een wijn heeft nog sterren nodig."
     },
     "photos": {
       "takePhoto": "Foto maken",
@@ -350,15 +354,15 @@
       "title": "Opties",
       "a11y": "Opties",
       "recordVisit": "Nieuw bezoek vastleggen",
-      "editReview": "Review bewerken",
-      "cannotEditFriend": "Je kunt een review van een vriend niet bewerken",
-      "deleteReview": "Review verwijderen",
+      "editReview": "Recensie bewerken",
+      "cannotEditFriend": "Je kunt een recensie van een vriend niet bewerken",
+      "deleteReview": "Recensie verwijderen",
       "shareSection": "Delen"
     },
     "restaurant": {
       "title": "Restaurant",
       "noVisits": "Geen bezoeken",
-      "noReviews": "Dit restaurant heeft nog geen reviews.",
+      "noReviews": "Dit restaurant heeft nog geen recensies.",
       "visitCount_one": "{{count}} bezoek",
       "visitCount_other": "{{count}} bezoeken",
       "visits": "Bezoeken"
@@ -386,30 +390,30 @@
     "chooser": {
       "gustraFile": "Gustra-bestand delen",
       "gustraFileSubtitle": "Vrienden kunnen dit in Gustra importeren",
-      "visual": "Deel review via e-mail",
-      "visualSubtitle": "Stuur een mooie kaart van deze review",
+      "visual": "Deel recensie via e-mail",
+      "visualSubtitle": "Stuur een mooie kaart van deze recensie",
       "cancel": "Annuleren"
     },
     "nameSheet": {
       "title": "Jouw naam",
-      "body": "Je naam wordt meegenomen wanneer je reviews deelt met vrienden.",
-      "placeholder": "Naam van de reviewer",
+      "body": "Je naam wordt meegenomen wanneer je recensies deelt met vrienden.",
+      "placeholder": "Naam van de recensent",
       "cancel": "Annuleren",
       "continue": "Doorgaan"
     }
   },
   "import": {
-    "title": "Reviews importeren",
-    "from": "Reviews van {{name}}",
+    "title": "Recensies importeren",
+    "from": "Recensies van {{name}}",
     "unknownRestaurant": "Onbekend restaurant",
-    "noReviews": "Geen reviews",
-    "noReviewsBody": "Dit gedeelde bestand bevat geen reviews.",
+    "noReviews": "Geen recensies",
+    "noReviewsBody": "Dit gedeelde bestand bevat geen recensies.",
     "selectAll": "Alles selecteren",
     "selectNone": "Niets selecteren"
   },
   "backup": {
     "encryptedTitle": "Versleutelde back-up",
-    "encryptedBody": "Maak een met wachtwoord beveiligde back-up van je reviews, of herstel vanaf een eerdere back-up.",
+    "encryptedBody": "Maak een met wachtwoord beveiligde back-up van je recensies, of herstel vanaf een eerdere back-up.",
     "create": "Back-up maken",
     "restore": "Herstellen",
     "restoreTitle": "Back-up herstellen",
@@ -432,13 +436,13 @@
     "passwordNeedsNumber": "Wachtwoord moet minstens één cijfer bevatten.",
     "passwordNeedsSymbol": "Wachtwoord moet minstens één symbool bevatten.",
     "passwordMismatch": "Wachtwoorden komen niet overeen.",
-    "needReviewFirst": "Voeg minstens één review toe voordat je een back-up maakt.",
+    "needReviewFirst": "Voeg minstens één recensie toe voordat je een back-up maakt.",
     "choosePasswordHint": "Kies een wachtwoord dat je later nodig hebt om deze back-up te herstellen.",
     "localFolderHint": "Lokale back-ups worden opgeslagen in de Back-ups-map van de app op dit apparaat.",
     "enterRestorePassword": "Voer het wachtwoord in dat bij het maken van deze back-up is gebruikt.",
     "applyHow": "Hoe moet deze back-up worden toegepast?",
     "mergeHint": "Behoud bestaande restaurants en voeg items uit de back-up toe of werk ze bij.",
-    "overwriteHint": "Vervang alle restaurants en reviews door de back-up.",
+    "overwriteHint": "Vervang alle restaurants en recensies door de back-up.",
     "encryptFailed": "Kon het back-upbestand niet versleutelen.",
     "shareFailed": "Kon de back-up niet delen.",
     "readFailed": "Kon het back-upbestand niet lezen.",
@@ -479,9 +483,9 @@
       "undoMessage": "Bezoek verwijderd"
     },
     "share": {
-      "failed": "Kon reviews niet delen.",
-      "reviewFailed": "Kon deze review niet delen.",
-      "needName": "Voeg je naam toe in Instellingen voordat je reviews deelt."
+      "failed": "Kon recensies niet delen.",
+      "reviewFailed": "Kon deze recensie niet delen.",
+      "needName": "Voeg je naam toe in Instellingen voordat je recensies deelt."
     },
     "location": {
       "deniedTitle": "Locatie nodig",
@@ -496,23 +500,24 @@
       "camera": "Toegang tot de camera is vereist."
     },
     "reviewForm": {
-      "needStars": "Voeg minstens één sterscore toe om deze review op te slaan.",
+      "needStars": "Voeg minstens één sterscore toe om deze recensie op te slaan.",
       "removePhotosTitle": "Foto’s verwijderen?",
-      "removePhotosBody": "Geselecteerde foto’s worden uit deze review verwijderd.",
+      "removePhotosBody": "Geselecteerde foto’s worden uit deze recensie verwijderd.",
       "photosSaveFailed": "Kon foto’s niet opslaan.",
       "photoLimitTitle": "Fotolimiet",
-      "photoLimitBody": "Je kunt maximaal {{max}} foto’s toevoegen aan een review.",
+      "photoLimitBody": "Je kunt maximaal {{max}} foto’s toevoegen aan een recensie.",
       "deleteTitle": "Verwijderen?",
-      "deleteBody": "Deze review wordt verwijderd.",
+      "deleteBody": "Deze recensie wordt verwijderd.",
       "discardEdits": {
         "title": "Wijzigingen opslaan?"
-      }
+      },
+      "saveFailed": "Deze recensie kon niet worden opgeslagen."
     },
     "recovery": {
-      "confirmTitle": "Vorige reviews herstellen?",
+      "confirmTitle": "Vorige recensies herstellen?",
       "confirmBody": "Scant deze iPhone op de oude Swift-database (elke .store/.sqlite onder Application Support, Documents, Library) en foto’s. Huidige Expo-gegevens worden eerst automatisch opgeslagen in Backups. Versleutelde .gustra-back-ups zijn apart — gebruik daarvoor Back-up / Herstellen.",
       "completeTitle": "Herstel voltooid",
-      "completeBody": "{{reviewCount}} reviews geïmporteerd over {{restaurantCount}} restaurants ({{photosCopied}} foto’s gekopieerd, {{mode}}).",
+      "completeBody": "{{reviewCount}} recensies geïmporteerd over {{restaurantCount}} restaurants ({{photosCopied}} foto’s gekopieerd, {{mode}}).",
       "failedTitle": "Herstel mislukt",
       "failedBody": "Kon vorige Gustra-gegevens niet importeren."
     },
@@ -522,14 +527,14 @@
     },
     "backup": {
       "overwriteTitle": "Bestaande gegevens overschrijven?",
-      "overwriteBody": "Je huidige reviews worden vervangen door de back-up.",
+      "overwriteBody": "Je huidige recensies worden vervangen door de back-up.",
       "deleteFileTitle": "Back-upbestand verwijderen?",
       "deleteFileBody": "Dit verwijdert de geselecteerde back-up van dit apparaat."
     },
     "import": {
       "readFailed": "Kon het deelbestand niet lezen.",
       "openFailed": "Kon het deelbestand niet openen.",
-      "importFailed": "Kon reviews niet importeren."
+      "importFailed": "Kon recensies niet importeren."
     },
     "linking": {
       "unableTitle": "Kan niet openen",
@@ -546,7 +551,7 @@
     }
   },
   "wineScan": {
-    "title": "Wijnetiket scannen",
+    "title": "Voeg wijn toe",
     "lead": "Fotografeer het etiket",
     "hint": "Snijd het etiket bij; daarna lezen we de tekst op je toestel.",
     "chooserTitle": "Foto van wijnetiket",
@@ -564,10 +569,10 @@
     "confirmA11y": "Wijn toevoegen bij Dranken",
     "resultRatingTitle": "Beoordeel deze fles",
     "ratingRequired": "Geef sterren om deze wijn te bewaren.",
-    "scanButton": "Wijnetiket scannen",
-    "scanButtonA11y": "Wijnetiket scannen voor Dranken",
-    "scanAnother": "Scan nog een etiket",
-    "scanAnotherA11y": "Nog een wijnetiket scannen voor Dranken",
+    "scanButton": "Voeg wijn toe",
+    "scanButtonA11y": "Wijn toevoegen bij Dranken",
+    "scanAnother": "Voeg wijn toe",
+    "scanAnotherA11y": "Wijn toevoegen bij Dranken",
     "clearDrinksWithWinesTitle": "Dranken-beoordeling wissen?",
     "clearDrinksWithWinesBody": "Gescande wijnen bij dit bezoek worden dan ook verwijderd.",
     "clearWinesWithRatingsTitle": "Wijnen-beoordeling wissen?",
@@ -662,7 +667,28 @@
         }
       }
     },
-    "deleteWineUndo": "“{{name}}” verwijderd"
+    "deleteWineUndo": "“{{name}}” verwijderd",
+    "methodLead": "Hoe wil je deze wijn toevoegen?",
+    "methodHint": "Scan het flesetiket, of zoek op naam.",
+    "methodScan": "Scan etiket",
+    "methodSearch": "Zoek op naam",
+    "searchLead": "Zoek op naam",
+    "searchHint": "Wijnnaam is verplicht. Domein en jaar helpen sterk.",
+    "searchName": "Wijnnaam",
+    "searchNamePlaceholder": "bv. Love by Léoube",
+    "searchEstate": "Domein",
+    "searchEstatePlaceholder": "bv. Château Léoube",
+    "searchYear": "Jaar",
+    "searchYearPlaceholder": "bv. 2022",
+    "searchRecommended": "Sterk aanbevolen",
+    "searchAction": "Zoeken",
+    "searching": "Wijn opzoeken…",
+    "nameRequired": "Vul een wijnnaam in.",
+    "noMatchSearchBody": "We konden die wijn niet herkennen. Controleer de spelling of voeg domein en jaar toe.",
+    "failedSearchBody": "Kon de wijn niet opzoeken. Controleer je verbinding en probeer opnieuw.",
+    "tryAgain": "Andere manier",
+    "addButton": "Voeg wijn toe",
+    "addButtonA11y": "Wijn toevoegen bij Dranken"
   },
   "setup": {
     "welcome": {

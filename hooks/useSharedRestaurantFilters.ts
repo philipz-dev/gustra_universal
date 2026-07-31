@@ -13,6 +13,7 @@ import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useFeedFilter } from '@/context/FeedFilterContext';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import type { RestaurantVisitSummary, Review } from '@/data/types';
+import { isReviewDraft } from '@/services/reviews/draftReview';
 
 /**
  * Shared Reviews / My map / My Gustra filter pipeline:
@@ -80,6 +81,7 @@ export function useSharedRestaurantFilters() {
       const values = summary.reviewIds
         .map((id) => getReview(id))
         .filter((review): review is Review => Boolean(review))
+        .filter((review) => !isReviewDraft(review))
         .map(
           (review) =>
             review.criteria.find((c) => c.id === criterionId)?.rating ?? 0,

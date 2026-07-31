@@ -1,8 +1,8 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-07-30T19:39:34Z
+Generated: 2026-07-31T11:09:33Z
 Root: /Users/philipzvar/Desktop/gustra_universal
-Files: 218
+Files: 219
 ================================================================================
 
 ================================================================================
@@ -610,10 +610,10 @@ export default function ReviewsFeedScreen() {
             description={emptyDescription}
             systemImage={
               emptyFromFilters
-                ? 'line.3.horizontal.decrease'
+                ? 'magnifyingglass'
                 : 'book.closed'
             }
-            androidImage={emptyFromFilters ? 'filter_list' : 'menu_book'}
+            androidImage={emptyFromFilters ? 'search_off' : 'menu_book'}
             actionTitle={
               emptyFromFilters
                 ? t('reviews.empty.clearFilters')
@@ -659,6 +659,17 @@ export default function ReviewsFeedScreen() {
                 }}
                 onDelete={() => requestDeleteRestaurant(item)}
                 onPress={() => {
+                  if (item.isDraft) {
+                    const draftId =
+                      item.draftReviewId ?? item.reviewIds[0];
+                    if (draftId) {
+                      router.push({
+                        pathname: '/review-form',
+                        params: { reviewId: draftId },
+                      });
+                      return;
+                    }
+                  }
                   if (item.visitCount <= 1) {
                     router.push(`/review/${item.reviewIds[0]}`);
                   } else {
@@ -762,7 +773,6 @@ import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { GustraColors } from '@/constants/Colors';
 import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
-import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
 import { Haptics } from '@/services/haptics';
 import { resolveCurrentLocation } from '@/services/location/resolveCurrentLocation';
@@ -787,8 +797,12 @@ export default function ManualEntryScreen() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const keyboardInset = useKeyboardBottomInset();
-  const { scrollRef, scrollInputIntoView, onScroll } = useScrollInputIntoView();
+  const {
+    scrollRef,
+    scrollInputIntoView,
+    onScroll,
+    keyboardHeight,
+  } = useScrollInputIntoView();
   const nameRef = useRef<TextInput | null>(null);
   const cityRef = useRef<TextInput | null>(null);
   const countryRef = useRef<TextInput | null>(null);
@@ -904,8 +918,8 @@ export default function ManualEntryScreen() {
   };
 
   const scrollBottomPad =
-    keyboardInset > 0
-      ? keyboardInset + 24
+    keyboardHeight > 0
+      ? keyboardHeight + 24
       : Theme.spacing.floatingTabBarClearance + insets.bottom + 16;
   const footerPad =
     Theme.spacing.floatingTabBarClearance + insets.bottom + 16;
@@ -928,7 +942,6 @@ export default function ManualEntryScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
-        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         onScroll={onScroll}
         scrollEventThrottle={16}
         overScrollMode="never">
@@ -2189,6 +2202,7 @@ import {
   formatScoreOutOfFive,
   RatingValue,
 } from '@/services/reviews/ratings';
+import { isReviewDraft } from '@/services/reviews/draftReview';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { requestSwipeDelete } from '@/services/swipeDelete';
 
@@ -2233,6 +2247,7 @@ export default function RestaurantVisitsScreen() {
   const averageScore = useMemo(() => {
     const enabledIds = new Set(enabledCriteria.map((c) => c.id));
     const scores = reviews
+      .filter((review) => !isReviewDraft(review))
       .map((review) => {
         const rated = review.criteria
           .filter(
@@ -2339,7 +2354,16 @@ export default function RestaurantVisitsScreen() {
           renderItem={({ item }) => (
             <VisitRowCard
               review={item}
-              onPress={() => router.push(`/review/${item.id}`)}
+              onPress={() => {
+                if (isReviewDraft(item)) {
+                  router.push({
+                    pathname: '/review-form',
+                    params: { reviewId: item.id },
+                  });
+                  return;
+                }
+                router.push(`/review/${item.id}`);
+              }}
               onDelete={() => confirmDeleteVisit(item)}
             />
           )}
@@ -3192,7 +3216,6 @@ import {
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import type { CriterionRating, WineLabelFiche } from '@/data/types';
-import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
 import { stripWineLabelUrisFromPhotoUrls } from '@/services/backup/photos';
 import { safeOpenSettings } from '@/services/linking/safeLinking';
@@ -3222,7 +3245,12 @@ import {
   deleteReviewPhotoFiles,
   saveReviewPhoto,
 } from '@/services/reviews/photoStorage';
-import { RatingValue, hasStarRating, formatScoreOutOfFive } from '@/services/reviews/ratings';
+import {
+  formDraftReason,
+  isFormDraft,
+  isReviewDraft,
+} from '@/services/reviews/draftReview';
+import { RatingValue, formatScoreOutOfFive } from '@/services/reviews/ratings';
 import { criterionIcon } from '@/services/reviews/criterionIcons';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { i18n } from '@/i18n';
@@ -3287,12 +3315,12 @@ export default function ReviewFormScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const keyboardInset = useKeyboardBottomInset();
   const {
     scrollRef,
     scrollInputIntoView,
     onScroll,
     clearFocusedInput,
+    keyboardHeight,
   } = useScrollInputIntoView();
   const commentInputRefs = useRef<Record<string, TextInput | null>>({});
   const generalCommentRef = useRef<TextInput | null>(null);
@@ -3517,13 +3545,18 @@ export default function ReviewFormScreen() {
   ]);
 
   const revisitCount = priorVisits.length;
+  const scoredPriorVisits = priorVisits.filter((r) => !isReviewDraft(r));
   const revisitAverage =
-    revisitCount > 0
-      ? priorVisits.reduce((s, r) => s + r.overallScore, 0) / revisitCount
+    scoredPriorVisits.length > 0
+      ? scoredPriorVisits.reduce((s, r) => s + r.overallScore, 0) /
+        scoredPriorVisits.length
       : 0;
   const lastVisitIso = priorVisits[0]?.date;
 
-  const showsDone = hasStarRating(criteriaList);
+  // Restaurant alone is enough to save as Draft; Done always available on this form.
+  const showsDone = Boolean(draft);
+  const draftReason = formDraftReason(criteriaList, wineLabels);
+  const isDraftForm = isFormDraft(criteriaList, wineLabels);
 
   const customCriterionNames = useMemo(
     () => customCriteria.map((c) => c.name.trim()).filter(Boolean),
@@ -3556,6 +3589,8 @@ export default function ReviewFormScreen() {
   ]);
 
   const hasPersistableContent = useCallback(() => {
+    // Restaurant selected → can save as draft even with no ratings yet.
+    if (draft) return true;
     if (isFavorite) return true;
     if (generalComment.trim()) return true;
     if (photoUrls.length > 0) return true;
@@ -3564,7 +3599,14 @@ export default function ReviewFormScreen() {
       (c) =>
         RatingValue.isStarRating(c.rating) || c.comment.trim().length > 0,
     );
-  }, [criteriaList, generalComment, isFavorite, photoUrls.length, wineLabels.length]);
+  }, [
+    criteriaList,
+    draft,
+    generalComment,
+    isFavorite,
+    photoUrls.length,
+    wineLabels.length,
+  ]);
 
   const persistNow = useCallback(
     async (markBusy = false): Promise<boolean> => {
@@ -3577,10 +3619,6 @@ export default function ReviewFormScreen() {
           !activeReviewIdRef.current &&
           !existingReview
         ) {
-          return false;
-        }
-        // Explicit save (Done / Yes) requires at least one criterion rating.
-        if (markBusy && !hasStarRating(input.criteria)) {
           return false;
         }
         if (markBusy) setIsSaving(true);
@@ -3856,7 +3894,7 @@ export default function ReviewFormScreen() {
               Haptics.warning();
               houseAlert(
                 t('forms.review.title'),
-                t('alerts.reviewForm.needStars'),
+                t('alerts.reviewForm.saveFailed'),
               );
               return;
             }
@@ -3913,7 +3951,7 @@ export default function ReviewFormScreen() {
     const ok = await persistNow(true);
     if (!ok) {
       Haptics.warning();
-      houseAlert(t('forms.review.title'), t('alerts.reviewForm.needStars'));
+      houseAlert(t('forms.review.title'), t('alerts.reviewForm.saveFailed'));
       return;
     }
     Haptics.success();
@@ -4352,13 +4390,11 @@ export default function ReviewFormScreen() {
     ]);
   };
 
-  // Tab bar hides while the keyboard is up. iOS uses ScrollView keyboard insets;
-  // Android resize + manual pad when the inset reports a height.
+  // Tab bar hides while the keyboard is up — pad by keyboard height so comments
+  // can scroll clear (same approach as wine note fields).
   const bottomPad =
-    keyboardInset > 0
-      ? Platform.OS === 'ios'
-        ? 24
-        : keyboardInset + 24
+    keyboardHeight > 0
+      ? keyboardHeight + 24
       : Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
   const addressLine = draft ? draftAddressLine(draft) : null;
 
@@ -4403,7 +4439,6 @@ export default function ReviewFormScreen() {
         scrollEnabled={!photoDragging && !ratingScrubbing}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
-        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         onScroll={onScroll}
         scrollEventThrottle={16}
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
@@ -4424,6 +4459,16 @@ export default function ReviewFormScreen() {
               />
             </View>
           </View>
+
+          {isDraftForm && draftReason ? (
+            <View style={styles.draftBanner}>
+              <Text style={styles.draftBannerText}>
+                {draftReason === 'wine'
+                  ? t('forms.review.draftBannerWine')
+                  : t('forms.review.draftBannerCriteria')}
+              </Text>
+            </View>
+          ) : null}
 
           {revisitCount > 0 ? (
             <View style={styles.card}>
@@ -4676,33 +4721,27 @@ export default function ReviewFormScreen() {
                               router.push('/wine-label-scan');
                             }}
                             accessibilityRole="button"
-                            accessibilityLabel={
-                              wineLabels.length > 0
-                                ? t('wineScan.scanAnotherA11y')
-                                : t('wineScan.scanButtonA11y')
-                            }
+                            accessibilityLabel={t('wineScan.addButtonA11y')}
                             style={({ pressed }) => [
                               styles.wineScanChip,
                               pressed && styles.wineScanChipPressed,
                             ]}>
                             {Platform.OS === 'ios' ? (
                               <SymbolView
-                                name="camera.viewfinder"
+                                name="plus"
                                 size={14}
                                 tintColor={GustraColors.forestGreen}
                                 weight="semibold"
                               />
                             ) : (
                               <MaterialIcons
-                                name="document-scanner"
+                                name="add"
                                 size={16}
                                 color={GustraColors.forestGreen}
                               />
                             )}
                             <Text style={styles.wineScanChipText}>
-                              {wineLabels.length > 0
-                                ? t('wineScan.scanAnother')
-                                : t('wineScan.scanButton')}
+                              {t('wineScan.addButton')}
                             </Text>
                           </Pressable>
                         </View>
@@ -4959,6 +4998,18 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
   },
+  draftBanner: {
+    backgroundColor: 'rgba(217, 162, 39, 0.14)',
+    borderRadius: Theme.radius.xxl,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  draftBannerText: {
+    ...bodyTextStyle,
+    fontSize: 14,
+    fontWeight: '600',
+    color: GustraColors.gold,
+  },
   restaurantRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -5197,6 +5248,7 @@ import {
 import type { WineLabelFiche } from '@/data/types';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
 import { Haptics } from '@/services/haptics';
 import { RatingValue } from '@/services/reviews/ratings';
 import { setPendingWineLabelResult } from '@/services/wine/pendingWineLabelResult';
@@ -5364,8 +5416,15 @@ export default function WineLabelFicheScreen() {
     Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
   const cutout = WineFichePresentation.isCutoutHeroEnabled;
   const cutoutOverlap = cutout ? WINE_FICHE_CUTOUT_HEADER_OVERLAP : 0;
-  const scrollRef = useRef<ScrollView>(null);
-  const scrollYRef = useRef(0);
+  const {
+    scrollRef,
+    scrollYRef,
+    keyboardHeight,
+    scrollInputIntoView,
+    onScroll,
+  } = useScrollInputIntoView();
+  const scrollBottomPad =
+    keyboardHeight > 0 ? keyboardHeight + 24 : bottomPad;
 
   return (
     <View style={styles.screen}>
@@ -5404,21 +5463,20 @@ export default function WineLabelFicheScreen() {
           style={cutout ? { marginTop: -cutoutOverlap } : undefined}
           contentContainerStyle={[
             styles.pad,
-            { paddingBottom: bottomPad, paddingTop: cutoutOverlap },
+            { paddingBottom: scrollBottomPad, paddingTop: cutoutOverlap },
           ]}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
           overScrollMode="never"
           showsVerticalScrollIndicator={!cutout}
-          onScroll={(e) => {
-            scrollYRef.current = e.nativeEvent.contentOffset.y;
-          }}
+          onScroll={onScroll}
           scrollEventThrottle={16}>
           <WineLabelFicheView
             fiche={fiche!}
             showUserRating={!isEdit}
             scrollRef={scrollRef}
             scrollYRef={scrollYRef}
-            scrollBottomInset={bottomPad}
+            scrollBottomInset={scrollBottomPad}
             ratingSlot={
               isEdit ? (
                 <>
@@ -5427,6 +5485,8 @@ export default function WineLabelFicheScreen() {
                     onRatingChange={setRating}
                     note={note}
                     onNoteChange={setNote}
+                    onNoteFocus={(input) => scrollInputIntoView(input)}
+                    onNoteResize={(input) => scrollInputIntoView(input, 0)}
                   />
                   {!canConfirm ? (
                     <Text style={styles.ratingHint}>
@@ -5521,6 +5581,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useNavigation, useRouter } from 'expo-router';
@@ -5532,14 +5593,17 @@ import { WineLabelFicheView } from '@/components/wine/WineLabelFicheView';
 import { WineUserRatingFields } from '@/components/wine/WineUserRatingFields';
 import { houseAlert, houseSaveChangesAlert } from '@/components/ui/HouseAlert';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
+import { HousePrimaryButton } from '@/components/ui/HousePrimaryButton';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { PhotoSourceChooserBody } from '@/components/ui/PhotoSourceChooser';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
+import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import type { WineLabelFiche } from '@/data/types';
 import { useLanguageSettings } from '@/context/LanguageSettings';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
 import { GeminiAPIConfig } from '@/constants/GeminiAPIConfig';
 import { Haptics } from '@/services/haptics';
 import { safeOpenSettings } from '@/services/linking/safeLinking';
@@ -5551,17 +5615,20 @@ import {
 } from '@/services/photos/labelCrop';
 import { RatingValue } from '@/services/reviews/ratings';
 import { saveReviewPhoto } from '@/services/reviews/photoStorage';
-import { identifyWineLabel } from '@/services/wine/identifyWineLabel';
+import {
+  identifyWineByText,
+  identifyWineLabel,
+} from '@/services/wine/identifyWineLabel';
 import { setPendingWineLabelResult } from '@/services/wine/pendingWineLabelResult';
 import {
   hasSeenWineVisionUploadNotice,
   markWineVisionUploadNoticeSeen,
 } from '@/services/wine/wineVisionConsent';
 
-type Step = 'pick' | 'crop' | 'result';
+type Step = 'method' | 'pick' | 'crop' | 'search' | 'result';
 
 /**
- * Drinks → Scan wine label: photo → crop → Gemini Vision → fiche → confirm ✓.
+ * Drinks → Add wine: scan label or search by name → fiche → confirm ✓.
  */
 export default function WineLabelScanScreen() {
   const { t } = useAppTranslation();
@@ -5570,30 +5637,65 @@ export default function WineLabelScanScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
 
-  const [step, setStep] = useState<Step>('pick');
+  const [step, setStep] = useState<Step>('method');
   const [draftUri, setDraftUri] = useState<string | null>(null);
   const [labelPhotoUri, setLabelPhotoUri] = useState<string | null>(null);
   const [fiche, setFiche] = useState<WineLabelFiche | null>(null);
   const [busy, setBusy] = useState(false);
   const [drinksRating, setDrinksRating] = useState(RatingValue.unrated);
   const [drinksNote, setDrinksNote] = useState('');
+  const [searchName, setSearchName] = useState('');
+  const [searchEstate, setSearchEstate] = useState('');
+  const [searchYear, setSearchYear] = useState('');
 
   const allowLeaveRef = useRef(false);
   const imageSizeRef = useRef<ImageSize | null>(null);
+  const searchNameRef = useRef<TextInput | null>(null);
+  const searchEstateRef = useRef<TextInput | null>(null);
+  const searchYearRef = useRef<TextInput | null>(null);
   const transformRef = useRef<CropTransform>({
     scale: 1,
     offsetX: 0,
     offsetY: 0,
   });
   const viewportRef = useRef<LabelCropViewport>({ width: 280, height: 400 });
+  const [busyKind, setBusyKind] = useState<'scan' | 'search'>('scan');
 
   const hasUnsavedWork = useMemo(() => {
     if (fiche) return true;
     if (step === 'crop' && draftUri) return true;
-    if (step === 'result' && (labelPhotoUri || draftUri)) return true;
+    if (step === 'result' && (labelPhotoUri || draftUri || fiche)) return true;
+    if (
+      step === 'search' &&
+      (searchName.trim() || searchEstate.trim() || searchYear.trim())
+    ) {
+      return true;
+    }
     if (RatingValue.isStarRating(drinksRating) || drinksNote.trim()) return true;
     return false;
-  }, [draftUri, drinksNote, drinksRating, fiche, labelPhotoUri, step]);
+  }, [
+    draftUri,
+    drinksNote,
+    drinksRating,
+    fiche,
+    labelPhotoUri,
+    searchEstate,
+    searchName,
+    searchYear,
+    step,
+  ]);
+
+  const resetToMethod = useCallback(() => {
+    setDraftUri(null);
+    setLabelPhotoUri(null);
+    setFiche(null);
+    setDrinksRating(RatingValue.unrated);
+    setDrinksNote('');
+    setSearchName('');
+    setSearchEstate('');
+    setSearchYear('');
+    setStep('method');
+  }, []);
 
   const openSettingsAlert = useCallback(
     (message: string) => {
@@ -5682,6 +5784,7 @@ export default function WineLabelScanScreen() {
     if (!ok) return;
 
     setBusy(true);
+    setBusyKind('scan');
     try {
       const cropped = await renderCroppedLabel({
         uri: draftUri,
@@ -5691,7 +5794,6 @@ export default function WineLabelScanScreen() {
       });
       const savedCrop = await saveReviewPhoto(cropped);
 
-      // One Vision call — human-readable fields in active app language.
       const result = await identifyWineLabel(draftUri, { language });
       if (!result.fiche) {
         setLabelPhotoUri(savedCrop);
@@ -5719,6 +5821,49 @@ export default function WineLabelScanScreen() {
       setBusy(false);
     }
   }, [draftUri, ensureUploadNotice, language, t]);
+
+  const runTextSearch = useCallback(async () => {
+    const name = searchName.trim();
+    if (!name) {
+      houseAlert(t('common.error'), t('wineScan.nameRequired'));
+      return;
+    }
+    if (!GeminiAPIConfig.isConfigured) {
+      houseAlert(t('common.error'), t('wineScan.missingKeyBody'));
+      return;
+    }
+
+    setBusy(true);
+    setBusyKind('search');
+    try {
+      const result = await identifyWineByText(
+        {
+          name,
+          estate: searchEstate.trim() || undefined,
+          vintage: searchYear.trim() || undefined,
+        },
+        { language },
+      );
+      if (!result.fiche) {
+        setLabelPhotoUri(null);
+        setFiche(null);
+        setStep('result');
+        houseAlert(t('wineScan.noMatchTitle'), t('wineScan.noMatchSearchBody'));
+        return;
+      }
+      setLabelPhotoUri(null);
+      setFiche(result.fiche);
+      setStep('result');
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : t('wineScan.failedSearchBody');
+      houseAlert(t('common.error'), message);
+    } finally {
+      setBusy(false);
+    }
+  }, [language, searchEstate, searchName, searchYear, t]);
 
   const canConfirm =
     Boolean(fiche) && RatingValue.isStarRating(drinksRating);
@@ -5788,8 +5933,23 @@ export default function WineLabelScanScreen() {
 
   const bottomPad =
     Theme.spacing.floatingTabBarClearance + insets.bottom + 16;
-  const resultScrollRef = useRef<ScrollView>(null);
-  const resultScrollYRef = useRef(0);
+  const {
+    scrollRef: resultScrollRef,
+    scrollYRef: resultScrollYRef,
+    keyboardHeight,
+    scrollInputIntoView,
+    onScroll: onResultScroll,
+  } = useScrollInputIntoView();
+  const {
+    scrollRef: searchScrollRef,
+    keyboardHeight: searchKeyboardHeight,
+    scrollInputIntoView: scrollSearchInputIntoView,
+    onScroll: onSearchScroll,
+  } = useScrollInputIntoView();
+  const resultBottomPad =
+    keyboardHeight > 0 ? keyboardHeight + 24 : bottomPad;
+  const searchBottomPad =
+    searchKeyboardHeight > 0 ? searchKeyboardHeight + 24 : bottomPad;
 
   const headerRight =
     step === 'result' && fiche ? (
@@ -5802,14 +5962,71 @@ export default function WineLabelScanScreen() {
       />
     ) : null;
 
+  const onHeaderBack = () => {
+    if (step === 'pick' || step === 'search') {
+      if (step === 'search' && hasUnsavedWork) {
+        requestLeave(() => {
+          setSearchName('');
+          setSearchEstate('');
+          setSearchYear('');
+          setStep('method');
+        });
+        return;
+      }
+      setStep('method');
+      return;
+    }
+    if (step === 'crop') {
+      requestLeave(() => {
+        setDraftUri(null);
+        setStep('pick');
+      });
+      return;
+    }
+    if (step === 'result') {
+      requestLeave(resetToMethod);
+      return;
+    }
+    requestLeave(() => router.back());
+  };
+
   return (
     <View style={styles.screen}>
       <HouseNavHeader
         title={t('wineScan.title')}
         showBack
-        onBack={() => requestLeave(() => router.back())}
+        onBack={onHeaderBack}
         right={headerRight}
       />
+
+      {step === 'method' ? (
+        <ScrollView
+          contentContainerStyle={[styles.pickPad, { paddingBottom: bottomPad }]}
+          overScrollMode="never">
+          <SerifText size={22} weight="semibold" style={styles.lead}>
+            {t('wineScan.methodLead')}
+          </SerifText>
+          <Text style={styles.hint}>{t('wineScan.methodHint')}</Text>
+          <View style={styles.chooserCard}>
+            <View style={styles.methodBody}>
+              <HousePrimaryButton
+                title={t('wineScan.methodScan')}
+                onPress={() => {
+                  Haptics.selectionChanged();
+                  setStep('pick');
+                }}
+              />
+              <HousePrimaryButton
+                title={t('wineScan.methodSearch')}
+                onPress={() => {
+                  Haptics.selectionChanged();
+                  setStep('search');
+                }}
+              />
+            </View>
+          </View>
+        </ScrollView>
+      ) : null}
 
       {step === 'pick' ? (
         <ScrollView
@@ -5826,6 +6043,96 @@ export default function WineLabelScanScreen() {
               onImportPhoto={() => void importPhoto()}
             />
           </View>
+        </ScrollView>
+      ) : null}
+
+      {step === 'search' ? (
+        <ScrollView
+          ref={searchScrollRef}
+          contentContainerStyle={[
+            styles.pickPad,
+            { paddingBottom: searchBottomPad },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          overScrollMode="never"
+          onScroll={onSearchScroll}
+          scrollEventThrottle={16}>
+          <SerifText size={22} weight="semibold" style={styles.lead}>
+            {t('wineScan.searchLead')}
+          </SerifText>
+          <Text style={styles.hint}>{t('wineScan.searchHint')}</Text>
+
+          <View style={styles.fieldBlock}>
+            <Text style={styles.fieldLabel}>{t('wineScan.searchName')}</Text>
+            <TextInput
+              ref={searchNameRef}
+              value={searchName}
+              onChangeText={setSearchName}
+              placeholder={t('wineScan.searchNamePlaceholder')}
+              placeholderTextColor="rgba(35, 32, 26, 0.35)"
+              autoCapitalize="words"
+              autoCorrect={false}
+              returnKeyType="next"
+              keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
+              style={styles.fieldInput}
+              onFocus={() => scrollSearchInputIntoView(searchNameRef.current)}
+            />
+          </View>
+
+          <View style={styles.fieldBlock}>
+            <Text style={styles.fieldLabel}>{t('wineScan.searchEstate')}</Text>
+            <Text style={styles.fieldRecommend}>
+              {t('wineScan.searchRecommended')}
+            </Text>
+            <TextInput
+              ref={searchEstateRef}
+              value={searchEstate}
+              onChangeText={setSearchEstate}
+              placeholder={t('wineScan.searchEstatePlaceholder')}
+              placeholderTextColor="rgba(35, 32, 26, 0.35)"
+              autoCapitalize="words"
+              autoCorrect={false}
+              returnKeyType="next"
+              keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
+              style={styles.fieldInput}
+              onFocus={() => scrollSearchInputIntoView(searchEstateRef.current)}
+            />
+          </View>
+
+          <View style={styles.fieldBlock}>
+            <Text style={styles.fieldLabel}>{t('wineScan.searchYear')}</Text>
+            <Text style={styles.fieldRecommend}>
+              {t('wineScan.searchRecommended')}
+            </Text>
+            <TextInput
+              ref={searchYearRef}
+              value={searchYear}
+              onChangeText={setSearchYear}
+              placeholder={t('wineScan.searchYearPlaceholder')}
+              placeholderTextColor="rgba(35, 32, 26, 0.35)"
+              keyboardType="number-pad"
+              maxLength={4}
+              returnKeyType="done"
+              keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
+              style={styles.fieldInput}
+              onFocus={() => scrollSearchInputIntoView(searchYearRef.current)}
+              onSubmitEditing={() => void runTextSearch()}
+            />
+          </View>
+
+          <Pressable
+            onPress={() => void runTextSearch()}
+            disabled={busy || !searchName.trim()}
+            accessibilityRole="button"
+            accessibilityLabel={t('wineScan.searchAction')}
+            style={({ pressed }) => [
+              styles.scanBtn,
+              (busy || !searchName.trim()) && styles.scanBtnDisabled,
+              pressed && !busy && styles.scanBtnPressed,
+            ]}>
+            <Text style={styles.scanBtnText}>{t('wineScan.searchAction')}</Text>
+          </Pressable>
         </ScrollView>
       ) : null}
 
@@ -5874,54 +6181,44 @@ export default function WineLabelScanScreen() {
           ref={resultScrollRef}
           contentContainerStyle={[
             styles.resultPad,
-            { paddingBottom: bottomPad },
+            { paddingBottom: resultBottomPad },
           ]}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
           overScrollMode="never"
-          onScroll={(e) => {
-            resultScrollYRef.current = e.nativeEvent.contentOffset.y;
-          }}
+          onScroll={onResultScroll}
           scrollEventThrottle={16}>
           {fiche ? (
-            <>
-              <WineLabelFicheView
-                fiche={fiche}
-                showUserRating={false}
-                scrollRef={resultScrollRef}
-                scrollYRef={resultScrollYRef}
-                scrollBottomInset={bottomPad}
-                ratingSlot={
-                  <>
-                    <WineUserRatingFields
-                      rating={drinksRating}
-                      onRatingChange={setDrinksRating}
-                      note={drinksNote}
-                      onNoteChange={setDrinksNote}
-                    />
-                    {!canConfirm ? (
-                      <Text style={styles.ratingHint}>
-                        {t('wineScan.ratingRequired')}
-                      </Text>
-                    ) : null}
-                  </>
-                }
-              />
-            </>
+            <WineLabelFicheView
+              fiche={fiche}
+              showUserRating={false}
+              scrollRef={resultScrollRef}
+              scrollYRef={resultScrollYRef}
+              scrollBottomInset={resultBottomPad}
+              ratingSlot={
+                <>
+                  <WineUserRatingFields
+                    rating={drinksRating}
+                    onRatingChange={setDrinksRating}
+                    note={drinksNote}
+                    onNoteChange={setDrinksNote}
+                    onNoteFocus={(input) => scrollInputIntoView(input)}
+                    onNoteResize={(input) => scrollInputIntoView(input, 0)}
+                  />
+                  {!canConfirm ? (
+                    <Text style={styles.ratingHint}>
+                      {t('wineScan.ratingRequired')}
+                    </Text>
+                  ) : null}
+                </>
+              }
+            />
           ) : (
             <Text style={styles.noMatch}>{t('wineScan.noMatchBody')}</Text>
           )}
 
-          <Pressable
-            onPress={() => {
-              setDraftUri(null);
-              setLabelPhotoUri(null);
-              setFiche(null);
-              setDrinksRating(RatingValue.unrated);
-              setDrinksNote('');
-              setStep('pick');
-            }}
-            style={styles.secondaryBtn}>
-            <Text style={styles.secondaryBtnText}>{t('wineScan.retake')}</Text>
+          <Pressable onPress={resetToMethod} style={styles.secondaryBtn}>
+            <Text style={styles.secondaryBtnText}>{t('wineScan.tryAgain')}</Text>
           </Pressable>
         </ScrollView>
       ) : null}
@@ -5929,7 +6226,11 @@ export default function WineLabelScanScreen() {
       {busy ? (
         <View style={styles.busyOverlay} pointerEvents="auto">
           <ActivityIndicator size="large" color={GustraColors.forestGreen} />
-          <Text style={styles.busyText}>{t('wineScan.thinking')}</Text>
+          <Text style={styles.busyText}>
+            {busyKind === 'search'
+              ? t('wineScan.searching')
+              : t('wineScan.thinking')}
+          </Text>
         </View>
       ) : null}
     </View>
@@ -5958,6 +6259,33 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(236, 227, 207, 0.55)',
     borderRadius: 16,
     overflow: 'hidden',
+  },
+  methodBody: {
+    padding: 20,
+    gap: 12,
+  },
+  fieldBlock: {
+    gap: 4,
+  },
+  fieldLabel: {
+    ...captionTextStyle,
+    fontWeight: '700',
+    color: 'rgba(35, 32, 26, 0.72)',
+  },
+  fieldRecommend: {
+    ...captionTextStyle,
+    fontSize: 12,
+    color: 'rgba(35, 32, 26, 0.48)',
+    marginBottom: 2,
+  },
+  fieldInput: {
+    ...bodyTextStyle,
+    fontSize: 17,
+    color: GustraColors.ink,
+    backgroundColor: 'rgba(236, 227, 207, 0.55)',
+    borderRadius: Theme.radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   cropStage: {
     flex: 1,
@@ -6192,6 +6520,9 @@ import { GustraColors } from '@/constants/Colors';
 import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useReviewsStore } from '@/context/ReviewsStore';
+import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { activeIntlLocale } from '@/i18n/formatDates';
 import {
   decryptBackup,
   deleteLocalBackup,
@@ -6208,8 +6539,6 @@ import {
   isValidBackupPassword,
 } from '@/services/backup/passwordPolicy';
 import type { BackupImportMode, LocalBackupFile } from '@/services/backup/types';
-import { useAppTranslation } from '@/hooks/useAppTranslation';
-import { activeIntlLocale } from '@/i18n/formatDates';
 
 type Step =
   | 'home'
@@ -6234,6 +6563,7 @@ function titleForStep(step: Step, t: (key: string) => string): string {
 export default function EncryptedBackupScreen() {
   const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardBottomInset();
   const navigation = useNavigation();
   const { reviews, createEncryptedBackup, importEncryptedBackup } =
     useReviewsStore();
@@ -6482,13 +6812,16 @@ export default function EncryptedBackupScreen() {
   };
 
   const bottomPad =
-    Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
+    (keyboardHeight > 0
+      ? keyboardHeight
+      : Theme.spacing.floatingTabBarClearance + insets.bottom) + 24;
 
   return (
     <View style={styles.screen}>
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
         overScrollMode="never">
         {step === 'home' ? (
           <View style={styles.home}>
@@ -6844,6 +7177,7 @@ import { GustraSwitch } from '@/components/ui/GustraSwitch';
 import { GustraColors } from '@/constants/Colors';
 import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
+import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import {
   CUSTOM_CRITERION_MAX_NAME_LENGTH,
   STANDARD_CRITERIA,
@@ -6873,6 +7207,7 @@ function newCustomId(): string {
 export default function EditCriteriaScreen() {
   const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardBottomInset();
   const router = useRouter();
   const navigation = useNavigation();
   const { ready, getBackupSnapshot, applyBackupSnapshot } =
@@ -7083,10 +7418,13 @@ export default function EditCriteriaScreen() {
           styles.content,
           {
             paddingBottom:
-              Theme.spacing.floatingTabBarClearance + insets.bottom + 24,
+              (keyboardHeight > 0
+                ? keyboardHeight
+                : Theme.spacing.floatingTabBarClearance + insets.bottom) + 24,
           },
         ]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
         overScrollMode="never"
         showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
@@ -8045,10 +8383,10 @@ export default function CulinaryPassportScreen() {
             }
             systemImage={
               emptyFromFilters
-                ? 'line.3.horizontal.decrease'
+                ? 'magnifyingglass'
                 : 'chart.bar.doc.horizontal'
             }
-            androidImage={emptyFromFilters ? 'filter_list' : 'bar_chart'}
+            androidImage={emptyFromFilters ? 'search_off' : 'bar_chart'}
             actionTitle={
               emptyFromFilters
                 ? t('reviews.empty.clearFilters')
@@ -8594,6 +8932,7 @@ import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { SERIF_FONT, Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useGoogleApiTracker } from '@/context/GoogleApiTracker';
 import { useLanguageSettings } from '@/context/LanguageSettings';
+import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import { usePassportDisplaySettings } from '@/context/PassportDisplaySettings';
 import { usePhotoQualitySettings } from '@/context/PhotoQualitySettings';
 import {
@@ -8635,6 +8974,7 @@ function languagePreferenceLabel(
 export default function SettingsScreen() {
   const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardBottomInset();
   const nameInputRef = useRef<TextInput>(null);
   const { preference, setPreference } = useLanguageSettings();
   const [languagePickerOpen, setLanguagePickerOpen] = useState(false);
@@ -8846,11 +9186,14 @@ export default function SettingsScreen() {
         styles.content,
         {
           paddingBottom:
-            Theme.spacing.floatingTabBarClearance + insets.bottom + 24,
+            (keyboardHeight > 0
+              ? keyboardHeight
+              : Theme.spacing.floatingTabBarClearance + insets.bottom) + 24,
         },
       ]}
       overScrollMode="never"
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
       showsVerticalScrollIndicator={false}>
       <SettingsSection title={t('settings.sectionReviewer')}>
         <View style={styles.reviewerBlock}>
@@ -9501,7 +9844,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { AppState, Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
@@ -9556,6 +9899,18 @@ const GustraNavigationTheme = {
   },
 };
 
+/**
+ * Cream UI → dark 3-button icons.
+ * Expo Kotlin (`NavigationBarModule`): style "dark" ⇒
+ *   hasLightBackground=true ⇒ isAppearanceLightNavigationBars=true.
+ * Plugin: style "dark" ⇒ windowLightNavigationBar=true.
+ * Docs require enforceContrast=false or setStyle is ignored.
+ */
+function applyAndroidNavigationChrome() {
+  if (Platform.OS !== 'android') return;
+  NavigationBar.setStyle('dark');
+}
+
 function RootLayout() {
   const navigationRef = useNavigationContainerRef();
   const [loaded, error] = useFonts({
@@ -9585,14 +9940,18 @@ function RootLayout() {
   }, [loaded]);
 
   useEffect(() => {
-    void SystemUI.setBackgroundColorAsync(GustraColors.cream);
-    if (Platform.OS === 'android') {
-      // SDK 57: `setStyle` — `light` = dark buttons on a light bar (cream UI).
-      NavigationBar.setStyle('light');
-    }
+    const applyChrome = () => {
+      void SystemUI.setBackgroundColorAsync(GustraColors.cream);
+      applyAndroidNavigationChrome();
+    };
+    applyChrome();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') applyChrome();
+    });
     // Info.plist allows all orientations so the photo viewer can rotate;
     // keep the rest of the app locked to portrait (Swift OrientationLock).
     void lockAppPortraitOrientation();
+    return () => sub.remove();
   }, []);
 
   if (!loaded) {
@@ -9613,6 +9972,10 @@ function RootLayout() {
                         <ThemeProvider value={GustraNavigationTheme}>
                           <GlobalKeyboardDismiss>
                             <View style={styles.root}>
+                              {/* Declarative nav bar (same style as setStyle). */}
+                              {Platform.OS === 'android' ? (
+                                <NavigationBar.NavigationBar style="dark" />
+                              ) : null}
                               <StatusBar style="light" />
                               <Stack screenOptions={{ headerShown: false }}>
                                 <Stack.Screen name="(tabs)" />
@@ -9703,6 +10066,7 @@ import {
   useCriteriaSettings,
 } from '@/context/CriteriaSettings';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import { Haptics } from '@/services/haptics';
 import { criterionIcon } from '@/services/reviews/criterionIcons';
 
@@ -9774,7 +10138,7 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
         <SerifText size={32} weight="bold" style={styles.welcomeTitle}>
           {t('setup.welcome.title')}
         </SerifText>
-        <Text style={styles.welcomeTagline}>making food memories</Text>
+        <Text style={styles.welcomeTagline}>creating food memories</Text>
       </Animated.View>
       <Animated.Text
         style={[
@@ -9795,6 +10159,7 @@ export default function CriteriaSetupScreen() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardBottomInset();
   const {
     customCriteria,
     isStandardEnabled,
@@ -9862,9 +10227,15 @@ export default function CriteriaSetupScreen() {
         style={styles.flex}
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: 24 + Math.max(insets.bottom, 12) },
+          {
+            paddingBottom:
+              (keyboardHeight > 0
+                ? keyboardHeight
+                : Math.max(insets.bottom, 12)) + 24,
+          },
         ]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
         showsVerticalScrollIndicator={false}
         overScrollMode="never">
         <View style={styles.hero}>
@@ -10553,7 +10924,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       supportsTablet: true,
       // Must match the existing App Store Connect / Swift app.
       bundleIdentifier: 'com.philip.gustra',
-      buildNumber: '38',
+      buildNumber: '39',
       // Keep in sync with android.versionCode — deploy-store.sh bumps both together.
       entitlements: {
         'com.apple.security.application-groups': ['group.com.philip.gustra'],
@@ -10612,7 +10983,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
       package: 'net.gustra.app',
       // Keep in sync with ios.buildNumber — deploy-store.sh bumps both together.
-      versionCode: 38,
+      versionCode: 39,
       // Material / gesture navigation — cream surfaces bleed under system bars.
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: true,
@@ -10766,8 +11137,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       [
         'expo-navigation-bar',
         {
-          // `light` = dark buttons on cream; no contrast scrim (house surface).
-          style: 'light',
+          // Plugin + Kotlin: style "dark" → windowLightNavigationBar=true → dark icons.
+          // (Docs NavigationBarStyle wording is inverted vs the implementation.)
+          // setStyle only applies when enforceContrast is false (Expo SDK 57).
+          style: 'dark',
           enforceContrast: false,
         },
       ],
@@ -13236,6 +13609,28 @@ type ZoomablePhotoProps = {
   pagingFriendly?: boolean;
 };
 
+/** Max pan so a scale-around-center image still covers the canvas. */
+function maxPanOffset(size: number, scale: number): number {
+  'worklet';
+  return Math.max(0, (size * (scale - 1)) / 2);
+}
+
+function clampPan(
+  x: number,
+  y: number,
+  scale: number,
+  width: number,
+  height: number,
+): { x: number; y: number } {
+  'worklet';
+  const maxX = maxPanOffset(width, scale);
+  const maxY = maxPanOffset(height, scale);
+  return {
+    x: Math.min(maxX, Math.max(-maxX, x)),
+    y: Math.min(maxY, Math.max(-maxY, y)),
+  };
+}
+
 /**
  * Pinch / pan / double-tap photo canvas (Swift `ZoomablePhotoCanvas`).
  * Gestures + runOnJS targets stay stable (avoids Reanimated DisplayLink abort).
@@ -13258,6 +13653,13 @@ export function ZoomablePhoto({
   const translateY = useSharedValue(0);
   const savedX = useSharedValue(0);
   const savedY = useSharedValue(0);
+  const canvasW = useSharedValue(width);
+  const canvasH = useSharedValue(height);
+
+  useEffect(() => {
+    canvasW.value = width;
+    canvasH.value = height;
+  }, [width, height, canvasW, canvasH]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -13306,6 +13708,16 @@ export function ZoomablePhoto({
         'worklet';
         const next = Math.min(4, Math.max(1, savedScale.value * e.scale));
         scale.value = next;
+        // Shrinking zoom can leave translation past the new bounds.
+        const clamped = clampPan(
+          translateX.value,
+          translateY.value,
+          next,
+          canvasW.value,
+          canvasH.value,
+        );
+        translateX.value = clamped.x;
+        translateY.value = clamped.y;
       })
       .onEnd(() => {
         'worklet';
@@ -13319,6 +13731,17 @@ export function ZoomablePhoto({
           runOnJS(resetWorkletBridge)();
         } else {
           savedScale.value = scale.value;
+          const clamped = clampPan(
+            translateX.value,
+            translateY.value,
+            scale.value,
+            canvasW.value,
+            canvasH.value,
+          );
+          translateX.value = withTiming(clamped.x, { duration: 180 });
+          translateY.value = withTiming(clamped.y, { duration: 180 });
+          savedX.value = clamped.x;
+          savedY.value = clamped.y;
           runOnJS(markZoomed)();
         }
       });
@@ -13338,13 +13761,29 @@ export function ZoomablePhoto({
       .onUpdate((e) => {
         'worklet';
         if (savedScale.value <= 1.01) return;
-        translateX.value = savedX.value + e.translationX;
-        translateY.value = savedY.value + e.translationY;
+        const clamped = clampPan(
+          savedX.value + e.translationX,
+          savedY.value + e.translationY,
+          scale.value,
+          canvasW.value,
+          canvasH.value,
+        );
+        translateX.value = clamped.x;
+        translateY.value = clamped.y;
       })
       .onEnd(() => {
         'worklet';
-        savedX.value = translateX.value;
-        savedY.value = translateY.value;
+        const clamped = clampPan(
+          translateX.value,
+          translateY.value,
+          scale.value,
+          canvasW.value,
+          canvasH.value,
+        );
+        translateX.value = withTiming(clamped.x, { duration: 180 });
+        translateY.value = withTiming(clamped.y, { duration: 180 });
+        savedX.value = clamped.x;
+        savedY.value = clamped.y;
       });
 
     const doubleTap = Gesture.Tap()
@@ -13363,6 +13802,11 @@ export function ZoomablePhoto({
         } else {
           scale.value = withTiming(2, { duration: 180 });
           savedScale.value = 2;
+          // Zoomed-in center — stay at origin (already within bounds).
+          translateX.value = 0;
+          translateY.value = 0;
+          savedX.value = 0;
+          savedY.value = 0;
           runOnJS(markZoomed)();
         }
       });
@@ -13374,6 +13818,8 @@ export function ZoomablePhoto({
     }
     return Gesture.Exclusive(doubleTap, Gesture.Simultaneous(pinch, pan));
   }, [
+    canvasH,
+    canvasW,
     markZoomed,
     pagingFriendly,
     resetWorkletBridge,
@@ -13858,7 +14304,7 @@ export function FeedSwipeDelete({
   const [isOpen, setIsOpen] = useState(false);
   const [rowWidth, setRowWidth] = useState(0);
 
-  const deleteLabel = t('common.delete');
+  const deleteLabel = t('common.deleteSwipe');
   /** Peek open threshold — half the action button. */
   const rightThreshold = ACTION_WIDTH * 0.45;
 
@@ -15138,12 +15584,18 @@ export function RestaurantFeedCard({
   scoreOverride,
 }: RestaurantFeedCardProps) {
   const { t } = useAppTranslation();
+  const isDraft = Boolean(summary.isDraft);
   const displayScore =
     typeof scoreOverride === 'number' ? scoreOverride : summary.averageScore;
 
   const card = (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={
+        isDraft
+          ? `${summary.name}, ${t('reviews.draftLabel')}`
+          : undefined
+      }
       onPress={() => {
         Haptics.light();
         onPress();
@@ -15164,7 +15616,7 @@ export function RestaurantFeedCard({
           {summary.name}
         </SerifText>
         {summary.city ? <Text style={styles.city}>{summary.city}</Text> : null}
-        {displayScore > 0 ? (
+        {!isDraft && displayScore > 0 ? (
           <FractionalStarRating score={displayScore} size={24} />
         ) : null}
         <Text style={styles.meta}>
@@ -15181,15 +15633,21 @@ export function RestaurantFeedCard({
       </View>
 
       <View style={styles.trailing}>
-        {displayScore > 0 ? (
-          <SerifText size={20} weight="bold" style={styles.score}>
-            {formatScoreOutOfFive(displayScore)}
-          </SerifText>
-        ) : null}
-        <FavoriteHeartButton
-          favorite={summary.isFavorite}
-          onToggle={onFavoriteToggle}
-        />
+        {isDraft ? (
+          <Text style={styles.draftBadge}>{t('reviews.draftLabel')}</Text>
+        ) : (
+          <>
+            {displayScore > 0 ? (
+              <SerifText size={20} weight="bold" style={styles.score}>
+                {formatScoreOutOfFive(displayScore)}
+              </SerifText>
+            ) : null}
+            <FavoriteHeartButton
+              favorite={summary.isFavorite}
+              onToggle={onFavoriteToggle}
+            />
+          </>
+        )}
       </View>
     </Pressable>
   );
@@ -15251,6 +15709,14 @@ const styles = StyleSheet.create({
   },
   score: {
     color: GustraColors.forestGreen,
+  },
+  draftBadge: {
+    ...captionTextStyle,
+    fontSize: 13,
+    fontWeight: '700',
+    color: GustraColors.gold,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
 });
 
@@ -16035,16 +16501,23 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: components/feed/VisitRowCard.tsx
 ================================================================================
-import { Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { FeedSwipeDelete } from '@/components/feed/FeedSwipeDelete';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
 import { GustraColors } from '@/constants/Colors';
-import { listPressedStyle, Surface, Theme } from '@/constants/Theme';
+import {
+  captionTextStyle,
+  listPressedStyle,
+  Surface,
+  Theme,
+} from '@/constants/Theme';
 import type { Review } from '@/data/types';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { formatLongDate } from '@/i18n/formatDates';
 import { Haptics } from '@/services/haptics';
+import { isReviewDraft } from '@/services/reviews/draftReview';
 import { formatScoreOutOfFive } from '@/services/reviews/ratings';
 
 function formatVisitDate(iso: string): string {
@@ -16062,6 +16535,8 @@ type VisitRowCardProps = {
  * Visit row for restaurant visit list (Swift `RestaurantVisitsView.visitRow`).
  */
 export function VisitRowCard({ review, onPress, onDelete }: VisitRowCardProps) {
+  const { t } = useAppTranslation();
+  const draft = isReviewDraft(review);
   const score = review.overallScore;
 
   const row = (
@@ -16088,9 +16563,13 @@ export function VisitRowCard({ review, onPress, onDelete }: VisitRowCardProps) {
         <SerifText size={17} weight="semibold" style={styles.date}>
           {formatVisitDate(review.date)}
         </SerifText>
-        {score > 0 ? <FractionalStarRating score={score} size={18} /> : null}
+        {!draft && score > 0 ? (
+          <FractionalStarRating score={score} size={18} />
+        ) : null}
       </View>
-      {score > 0 ? (
+      {draft ? (
+        <Text style={styles.draftBadge}>{t('reviews.draftLabel')}</Text>
+      ) : score > 0 ? (
         <SerifText size={20} weight="bold" style={styles.score}>
           {formatScoreOutOfFive(score)}
         </SerifText>
@@ -16116,25 +16595,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     paddingVertical: 14,
-    paddingHorizontal: Theme.spacing.cardPadding,
-    minHeight: Theme.size.hitTarget,
+    paddingHorizontal: 14,
     backgroundColor: Theme.list.cardBackground,
     borderRadius: Platform.OS === 'ios' ? Theme.radius.sm : Theme.radius.xl,
-    ...(Platform.OS === 'ios'
-      ? { overflow: 'hidden' as const, ...Surface.raised }
-      : { overflow: 'visible' as const, ...Surface.flat }),
+    ...(Platform.OS === 'ios' ? Surface.raised : Surface.flat),
   },
   main: {
     flex: 1,
     gap: 4,
-    minHeight: Theme.size.hitTarget,
-    justifyContent: 'center',
   },
   date: {
     color: GustraColors.ink,
   },
   score: {
     color: GustraColors.forestGreen,
+  },
+  draftBadge: {
+    ...captionTextStyle,
+    fontSize: 13,
+    fontWeight: '700',
+    color: GustraColors.gold,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
 });
 
@@ -16229,10 +16711,23 @@ export function mergeSummariesByRestaurant(
         reviewIds,
         visitCount: reviewIds.length,
         averageScore:
-          (existing.averageScore * existing.visitCount +
-            summary.averageScore * summary.visitCount) /
-          (existing.visitCount + summary.visitCount),
+          existing.isDraft && summary.isDraft
+            ? 0
+            : existing.isDraft
+              ? summary.averageScore
+              : summary.isDraft
+                ? existing.averageScore
+                : (existing.averageScore * existing.visitCount +
+                    summary.averageScore * summary.visitCount) /
+                  (existing.visitCount + summary.visitCount),
         isFavorite: existing.isFavorite || summary.isFavorite,
+        isDraft: Boolean(existing.isDraft) && Boolean(summary.isDraft),
+        draftReviewId:
+          Boolean(existing.isDraft) && Boolean(summary.isDraft)
+            ? preferNewer
+              ? summary.draftReviewId || existing.draftReviewId
+              : existing.draftReviewId || summary.draftReviewId
+            : undefined,
         lastVisitAt: Math.max(existing.lastVisitAt, summary.lastVisitAt),
         lastVisitDate:
           existing.lastVisitAt >= summary.lastVisitAt
@@ -16326,6 +16821,9 @@ function rankByDate(
   summaries: RestaurantVisitSummary[],
 ): RestaurantVisitSummary[] {
   return [...summaries].sort((a, b) => {
+    const aDraft = a.isDraft ? 1 : 0;
+    const bDraft = b.isDraft ? 1 : 0;
+    if (aDraft !== bDraft) return bDraft - aDraft;
     if (a.lastVisitAt !== b.lastVisitAt) return b.lastVisitAt - a.lastVisitAt;
     return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
   });
@@ -16335,6 +16833,9 @@ function rankByAverageScore(
   summaries: RestaurantVisitSummary[],
 ): RestaurantVisitSummary[] {
   return [...summaries].sort((a, b) => {
+    const aDraft = a.isDraft ? 1 : 0;
+    const bDraft = b.isDraft ? 1 : 0;
+    if (aDraft !== bDraft) return bDraft - aDraft;
     if (a.averageScore !== b.averageScore) {
       return b.averageScore - a.averageScore;
     }
@@ -16348,7 +16849,9 @@ function rankByCriterion(
   criterionId: string,
   criterionAverageFor: NonNullable<FeedFilterOptions['criterionAverageFor']>,
 ): RestaurantVisitSummary[] {
+  const drafts = summaries.filter((s) => s.isDraft);
   const withScores = summaries
+    .filter((s) => !s.isDraft)
     .map((summary) => ({
       summary,
       score: criterionAverageFor(summary, criterionId),
@@ -16358,7 +16861,7 @@ function rankByCriterion(
         row.score != null,
     );
 
-  return withScores
+  const ranked = withScores
     .sort((a, b) => {
       if (a.score !== b.score) return b.score - a.score;
       return a.summary.name.localeCompare(b.summary.name, undefined, {
@@ -16366,6 +16869,12 @@ function rankByCriterion(
       });
     })
     .map((row) => row.summary);
+
+  // Drafts stay on top even when sorting by criterion.
+  return [
+    ...rankByDate(drafts),
+    ...ranked,
+  ];
 }
 
 /**
@@ -19246,7 +19755,7 @@ export function ReviewEmailCardView({
           <SerifText size={28} weight="bold" style={styles.headerBrand}>
             Gustra
           </SerifText>
-          <Text style={styles.headerTagline}>making food memories</Text>
+          <Text style={styles.headerTagline}>creating food memories</Text>
         </View>
 
         <Text style={styles.intro}>
@@ -19331,7 +19840,7 @@ export function ReviewEmailCardView({
 
         <View style={styles.footer}>
           <Text style={styles.footerTitle}>Powered by Gustra</Text>
-          <Text style={styles.footerTagline}>making food memories</Text>
+          <Text style={styles.footerTagline}>creating food memories</Text>
         </View>
       </View>
     </View>
@@ -21158,6 +21667,7 @@ type HouseEmptyStateProps = {
     | 'gearshape'
     | 'person.2'
     | 'line.3.horizontal.decrease'
+    | 'magnifyingglass'
     | 'mappin.and.ellipse'
     | 'location.slash'
     | 'square.and.arrow.down';
@@ -21169,6 +21679,7 @@ type HouseEmptyStateProps = {
     | 'settings'
     | 'group'
     | 'filter_list'
+    | 'search_off'
     | 'place'
     | 'location_off'
     | 'download';
@@ -23168,7 +23679,6 @@ import {
   type ScrollView,
 } from 'react-native';
 
-import { PhotoPlaceholder } from '@/components/ui/PhotoPlaceholder';
 import { SerifText } from '@/components/ui/SerifText';
 import { StaticStarRating } from '@/components/ui/StarRating';
 import { WineTasteProfileSection } from '@/components/wine/WineTasteProfileSection';
@@ -23266,7 +23776,7 @@ export function WineLabelFicheView({
   const region = fiche.countryRegion?.trim() ?? '';
   const vintage = fiche.vintage?.trim() ?? '';
   const pairings = fiche.foodPairings?.trim() ?? '';
-  const subline = [region, vintage].filter(Boolean).join(' · ');
+  const subline = region;
 
   const hasStars =
     showUserRating && RatingValue.isStarRating(fiche.userRating ?? 0);
@@ -23278,6 +23788,9 @@ export function WineLabelFicheView({
     label: t('wineScan.fiche.typeStyle'),
     value: profileLabel,
   });
+  if (vintage) {
+    metaCells.push({ label: t('wineScan.fiche.vintage'), value: vintage });
+  }
   // When Smaakprofiel is visible, grapes live there (with optional %).
   if (grapesLabel && !showTasteProfile) {
     metaCells.push({ label: t('wineScan.fiche.grapes'), value: grapesLabel });
@@ -23288,27 +23801,29 @@ export function WineLabelFicheView({
 
   const hasBody =
     metaCells.length > 0 || pairings.length > 0 || showTasteProfile;
+  const showHero = Boolean(uri);
 
   return (
     <View style={styles.wrap}>
-      <View style={[styles.heroPad, cutout && styles.heroPadCutout]}>
-        {cutout ? <View style={styles.cutoutGlow} pointerEvents="none" /> : null}
-        <View style={[styles.photoCard, cutout && styles.photoCardCutout]}>
-          {uri ? (
+      {showHero ? (
+        <View style={[styles.heroPad, cutout && styles.heroPadCutout]}>
+          {cutout ? (
+            <View style={styles.cutoutGlow} pointerEvents="none" />
+          ) : null}
+          <View style={[styles.photoCard, cutout && styles.photoCardCutout]}>
             <Image source={{ uri }} style={styles.photo} resizeMode="cover" />
-          ) : (
-            <PhotoPlaceholder iconSize={cutout ? 40 : 48} />
-          )}
+          </View>
+          {cutout ? (
+            <View style={styles.cutoutShadow} pointerEvents="none" />
+          ) : null}
         </View>
-        {cutout ? (
-          <View style={styles.cutoutShadow} pointerEvents="none" />
-        ) : null}
-      </View>
+      ) : null}
 
       <Animated.View
         style={[
           styles.identityHead,
           cutout && styles.identityHeadCutout,
+          !showHero && styles.identityHeadNoPhoto,
           { opacity: fade, transform: [{ translateY: slide }] },
         ]}>
         <SerifText size={28} weight="bold" style={styles.title}>
@@ -23474,6 +23989,9 @@ const styles = StyleSheet.create({
   },
   identityHeadCutout: {
     paddingTop: 12,
+  },
+  identityHeadNoPhoto: {
+    paddingTop: 8,
   },
   title: {
     color: GustraColors.ink,
@@ -23722,7 +24240,7 @@ export function WineTasteProfileSection({
   const grapes = wineLabelGrapeDisplay(fiche);
   const serving = fiche.servingTempHint?.trim() ?? '';
   const aeration = fiche.aerationHint?.trim() ?? '';
-  const drinkWindow = fiche.drinkWindowHint?.trim() ?? '';
+  // drinkWindowHint is subjective — never shown in UI.
 
   return (
     <View ref={sectionRef} style={styles.section} collapsable={false}>
@@ -23818,7 +24336,7 @@ export function WineTasteProfileSection({
             </View>
           ) : null}
 
-          {serving || aeration || drinkWindow ? (
+          {serving || aeration ? (
             <View style={styles.serviceList}>
               {serving ? (
                 <ServiceRow
@@ -23834,14 +24352,6 @@ export function WineTasteProfileSection({
                   android="hourglass_empty"
                   web="hourglass_empty"
                   text={aeration}
-                />
-              ) : null}
-              {drinkWindow ? (
-                <ServiceRow
-                  ios="calendar"
-                  android="calendar_month"
-                  web="calendar_month"
-                  text={drinkWindow}
                 />
               ) : null}
             </View>
@@ -23997,6 +24507,7 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: components/wine/WineUserRatingFields.tsx
 ================================================================================
+import { useRef } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { InteractiveStarRating } from '@/components/review/InteractiveStarRating';
@@ -24012,6 +24523,10 @@ type WineUserRatingFieldsProps = {
   note: string;
   onNoteChange: (note: string) => void;
   onScrubbingChange?: (scrubbing: boolean) => void;
+  /** Keep the note field above the keyboard (parent ScrollView). */
+  onNoteFocus?: (input: TextInput | null) => void;
+  /** Re-scroll when the multiline note grows while typing. */
+  onNoteResize?: (input: TextInput | null) => void;
 };
 
 /** Stars (required) + optional note (only after stars) — scan result & wine edit. */
@@ -24021,8 +24536,11 @@ export function WineUserRatingFields({
   note,
   onNoteChange,
   onScrubbingChange,
+  onNoteFocus,
+  onNoteResize,
 }: WineUserRatingFieldsProps) {
   const { t } = useAppTranslation();
+  const noteRef = useRef<TextInput>(null);
   const showNote = RatingValue.isStarRating(rating);
 
   return (
@@ -24035,8 +24553,11 @@ export function WineUserRatingFields({
       />
       {showNote ? (
         <TextInput
+          ref={noteRef}
           value={note}
           onChangeText={onNoteChange}
+          onFocus={() => onNoteFocus?.(noteRef.current)}
+          onContentSizeChange={() => onNoteResize?.(noteRef.current)}
           placeholder={t('wineScan.drinksCommentPlaceholder')}
           placeholderTextColor="rgba(35, 32, 26, 0.4)"
           multiline
@@ -25899,6 +26420,7 @@ import {
 import { findExistingRestaurant } from '@/services/places/RestaurantMatcher';
 import type { RestaurantDraft } from '@/services/places/types';
 import { deleteReviewPhotoFiles } from '@/services/reviews/photoStorage';
+import { isReviewDraft } from '@/services/reviews/draftReview';
 import { planImportedReviewCollapse } from '@/services/share/ShareImportService';
 import {
   RatingValue,
@@ -26177,29 +26699,48 @@ function buildFeedSummaries(
       .filter((r) => r.restaurantId === restaurant.id)
       .sort((a, b) => +new Date(b.date) - +new Date(a.date));
     if (visits.length === 0) continue;
+
+    const completeVisits = visits.filter((v) => !isReviewDraft(v));
+    const draftVisits = visits.filter((v) => isReviewDraft(v));
+    const isDraft = completeVisits.length === 0;
+    const scoreSource = isDraft ? visits : completeVisits;
     const averageScore =
-      visits.reduce((sum, v) => sum + v.overallScore, 0) / visits.length;
-    const latestPhoto = coverPhotoForRestaurant(restaurant.id, visits);
+      scoreSource.length === 0
+        ? 0
+        : scoreSource.reduce((sum, v) => sum + v.overallScore, 0) /
+          scoreSource.length;
+    // Cover / recency: prefer complete visits; fall back to drafts.
+    const timeline = isDraft ? visits : completeVisits;
+    const latestPhoto = coverPhotoForRestaurant(
+      restaurant.id,
+      isDraft ? visits : completeVisits.length > 0 ? completeVisits : visits,
+    );
     summaries.push({
       restaurantId: restaurant.id,
       name: restaurant.name,
       city: restaurant.city,
       primaryType: restaurant.primaryType ?? '',
-      averageScore,
+      averageScore: isDraft ? 0 : averageScore,
       visitCount: visits.length,
-      lastVisitDate: formatAbbreviated(visits[0].date),
-      lastVisitAt: +new Date(visits[0].date),
-      // Owner name is not shown on My reviews — only friends' authors on Friends' feed.
+      lastVisitDate: formatAbbreviated(timeline[0]!.date),
+      lastVisitAt: +new Date(timeline[0]!.date),
       reviewerName:
         origin === 'imported' ? reviewerNamesForVisits(visits) : undefined,
       thumbnailColor: restaurant.thumbnailColor,
       photoUrl: latestPhoto,
       isFavorite: restaurant.isFavorite,
       reviewIds: visits.map((v) => v.id),
+      isDraft,
+      ...(isDraft && draftVisits[0]
+        ? { draftReviewId: draftVisits[0].id }
+        : {}),
     });
   }
-  // Default order: most recent visit first (filters may re-rank).
+  // Drafts first, then most recent visit.
   return summaries.sort((a, b) => {
+    const aDraft = a.isDraft ? 1 : 0;
+    const bDraft = b.isDraft ? 1 : 0;
+    if (aDraft !== bDraft) return bDraft - aDraft;
     if (a.lastVisitAt !== b.lastVisitAt) return b.lastVisitAt - a.lastVisitAt;
     return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
   });
@@ -27698,6 +28239,7 @@ export function stripShippingSeedData(
 FILE: data/passportStats.ts
 ================================================================================
 import type { Restaurant, Review } from '@/data/types';
+import { isReviewDraft } from '@/services/reviews/draftReview';
 import {
   RatingValue,
   overallScoreFromCriteria,
@@ -27774,9 +28316,10 @@ export function getPassportStats(
 ): PassportStats {
   const enabledIds = new Set(enabledCriteria.map((c) => c.id));
   const restaurantById = new Map(restaurants.map((r) => [r.id, r]));
-  const reviews = [...sourceReviews].sort(
-    (a, b) => +new Date(b.date) - +new Date(a.date),
-  );
+  // Drafts (no criterion stars, or unrated wines) do not count toward passport.
+  const reviews = sourceReviews
+    .filter((r) => !isReviewDraft(r))
+    .sort((a, b) => +new Date(b.date) - +new Date(a.date));
   const totalReviews = reviews.length;
 
   if (totalReviews === 0) {
@@ -28130,6 +28673,13 @@ export type RestaurantVisitSummary = {
   photoUrl: string;
   isFavorite: boolean;
   reviewIds: string[];
+  /**
+   * True when every visit for this restaurant is still a draft
+   * (no criterion stars and/or unrated wine). Additive — older clients ignore.
+   */
+  isDraft?: boolean;
+  /** Newest draft review id when `isDraft` (for open-in-edit). */
+  draftReviewId?: string;
 };
 
 export function satisfactionFromScore(score: number): SatisfactionLevel {
@@ -28270,7 +28820,7 @@ export function useKeyboardBottomInset(): number {
 ================================================================================
 FILE: hooks/useScrollInputIntoView.ts
 ================================================================================
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Dimensions,
   Keyboard,
@@ -28282,21 +28832,24 @@ import {
 } from 'react-native';
 
 /** Match Swift `scrollCommentIntoView` delay after focus (keyboard animation). */
-const FOCUS_DELAY_MS = Platform.OS === 'ios' ? 280 : 120;
+const FOCUS_DELAY_MS = Platform.OS === 'ios' ? 300 : 140;
 /** Gap between input bottom and keyboard top. */
-const KEYBOARD_GAP = 28;
+const KEYBOARD_GAP = 36;
 
 /**
  * Keeps the focused TextInput visible above the keyboard inside a ScrollView
  * (Swift `ReviewFormView.scrollCommentIntoView` / CommentField keep-visible).
  *
  * Uses window coordinates + live keyboard height so RNGH/RN ScrollViews both work.
+ * Expose `keyboardHeight` so callers can grow `contentContainerStyle.paddingBottom`
+ * — without that, there often isn’t enough room to scroll the field clear.
  */
 export function useScrollInputIntoView() {
   const scrollRef = useRef<ScrollView | null>(null);
   const scrollYRef = useRef(0);
   const focusedInputRef = useRef<TextInput | null>(null);
   const keyboardHeightRef = useRef(0);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearTimer = () => {
@@ -28350,21 +28903,24 @@ export function useScrollInputIntoView() {
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
     const showSub = Keyboard.addListener(showEvent, (event) => {
-      keyboardHeightRef.current = event.endCoordinates.height;
+      const height = event.endCoordinates.height;
+      keyboardHeightRef.current = height;
+      setKeyboardHeight(height);
       const focused = focusedInputRef.current;
       if (focused) {
-        // Re-run after keyboard frame settles.
+        // Re-run after padding reflow + keyboard frame settle.
         clearTimer();
         timerRef.current = setTimeout(() => {
           timerRef.current = null;
           if (focusedInputRef.current) {
             performScroll(focusedInputRef.current);
           }
-        }, Platform.OS === 'ios' ? 40 : 80);
+        }, Platform.OS === 'ios' ? 80 : 120);
       }
     });
     const hideSub = Keyboard.addListener(hideEvent, () => {
       keyboardHeightRef.current = 0;
+      setKeyboardHeight(0);
     });
 
     return () => {
@@ -28387,6 +28943,8 @@ export function useScrollInputIntoView() {
 
   return {
     scrollRef,
+    scrollYRef,
+    keyboardHeight,
     scrollInputIntoView,
     onScroll,
     clearFocusedInput,
@@ -28412,6 +28970,7 @@ import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useFeedFilter } from '@/context/FeedFilterContext';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import type { RestaurantVisitSummary, Review } from '@/data/types';
+import { isReviewDraft } from '@/services/reviews/draftReview';
 
 /**
  * Shared Reviews / My map / My Gustra filter pipeline:
@@ -28479,6 +29038,7 @@ export function useSharedRestaurantFilters() {
       const values = summary.reviewIds
         .map((id) => getReview(id))
         .filter((review): review is Review => Boolean(review))
+        .filter((review) => !isReviewDraft(review))
         .map(
           (review) =>
             review.criteria.find((c) => c.id === criterionId)?.rating ?? 0,
@@ -28662,6 +29222,7 @@ FILE: i18n/locales/de.json
     "no": "Nein",
     "cancel": "Abbrechen",
     "delete": "Löschen",
+    "deleteSwipe": "Löschen",
     "remove": "Entfernen",
     "done": "Fertig",
     "back": "Zurück",
@@ -28743,7 +29304,8 @@ FILE: i18n/locales/de.json
       "clearFilters": "Filter löschen",
       "importReviews": "Bewertungen importieren",
       "addReview": "Bewertung hinzufügen"
-    }
+    },
+    "draftLabel": "Draft"
   },
   "filters": {
     "title": "Filteroptionen",
@@ -28981,7 +29543,9 @@ FILE: i18n/locales/de.json
         "cover": "Cover",
         "a11yCover": "Cover-Foto. Tippen zum Auswählen, gedrückt halten zum Sortieren.",
         "a11yPhoto": "Foto. Tippen zum Auswählen, gedrückt halten zum Sortieren."
-      }
+      },
+      "draftBannerCriteria": "Bewerte mindestens ein Kriterium, um diese Bewertung abzuschließen.",
+      "draftBannerWine": "Ein Wein braucht noch eine Sternebewertung."
     },
     "photos": {
       "takePhoto": "Foto aufnehmen",
@@ -29163,7 +29727,8 @@ FILE: i18n/locales/de.json
       "deleteBody": "Diese Bewertung wird gelöscht.",
       "discardEdits": {
         "title": "Änderungen speichern?"
-      }
+      },
+      "saveFailed": "Diese Bewertung konnte nicht gespeichert werden."
     },
     "recovery": {
       "confirmTitle": "Frühere Bewertungen wiederherstellen?",
@@ -29203,7 +29768,7 @@ FILE: i18n/locales/de.json
     }
   },
   "wineScan": {
-    "title": "Weinetikett scannen",
+    "title": "Wein hinzufügen",
     "lead": "Fotografiere das Flaschenetikett",
     "hint": "Schneide das Etikett zu; danach lesen wir den Text auf dem Gerät.",
     "chooserTitle": "Foto vom Weinetikett",
@@ -29221,10 +29786,10 @@ FILE: i18n/locales/de.json
     "confirmA11y": "Wein zu Getränke hinzufügen",
     "resultRatingTitle": "Bewerte diese Flasche",
     "ratingRequired": "Vergib Sterne, um diesen Wein zu speichern.",
-    "scanButton": "Weinetikett scannen",
-    "scanButtonA11y": "Weinetikett für Getränke scannen",
-    "scanAnother": "Weiteres Etikett scannen",
-    "scanAnotherA11y": "Weiteres Weinetikett für Getränke scannen",
+    "scanButton": "Wein hinzufügen",
+    "scanButtonA11y": "Wein zu Getränke hinzufügen",
+    "scanAnother": "Wein hinzufügen",
+    "scanAnotherA11y": "Wein zu Getränke hinzufügen",
     "clearDrinksWithWinesTitle": "Getränke-Bewertung löschen?",
     "clearDrinksWithWinesBody": "Gescannte Weine dieses Besuchs werden ebenfalls entfernt.",
     "clearWinesWithRatingsTitle": "Weine-Bewertung löschen?",
@@ -29319,7 +29884,28 @@ FILE: i18n/locales/de.json
         }
       }
     },
-    "deleteWineUndo": "„{{name}}“ entfernt"
+    "deleteWineUndo": "„{{name}}“ entfernt",
+    "methodLead": "Wie möchten Sie diesen Wein hinzufügen?",
+    "methodHint": "Etikett scannen oder nach Namen suchen.",
+    "methodScan": "Etikett scannen",
+    "methodSearch": "Nach Namen suchen",
+    "searchLead": "Nach Namen suchen",
+    "searchHint": "Weinname ist Pflicht. Weingut und Jahr helfen stark.",
+    "searchName": "Weinname",
+    "searchNamePlaceholder": "z. B. Love by Léoube",
+    "searchEstate": "Weingut / Domaine",
+    "searchEstatePlaceholder": "z. B. Château Léoube",
+    "searchYear": "Jahr",
+    "searchYearPlaceholder": "z. B. 2022",
+    "searchRecommended": "Sehr empfohlen",
+    "searchAction": "Suchen",
+    "searching": "Wein wird gesucht…",
+    "nameRequired": "Bitte einen Weinnamen eingeben.",
+    "noMatchSearchBody": "Wir konnten diesen Wein nicht erkennen. Prüfen Sie die Schreibweise oder fügen Sie Weingut und Jahr hinzu.",
+    "failedSearchBody": "Wein konnte nicht gesucht werden. Verbindung prüfen und erneut versuchen.",
+    "tryAgain": "Andere Methode",
+    "addButton": "Wein hinzufügen",
+    "addButtonA11y": "Wein zu Getränke hinzufügen"
   },
   "setup": {
     "welcome": {
@@ -29348,6 +29934,7 @@ FILE: i18n/locales/en.json
     "no": "No",
     "cancel": "Cancel",
     "delete": "Delete",
+    "deleteSwipe": "Delete",
     "remove": "Remove",
     "undo": "Undo",
     "done": "Done",
@@ -29410,6 +29997,7 @@ FILE: i18n/locales/en.json
   },
   "reviews": {
     "searchPlaceholder": "Search restaurants, comments, photos…",
+    "draftLabel": "Draft",
     "visitCount_one": "{{count}} visit · {{date}}",
     "visitCount_other": "{{count}} visits · {{date}}",
     "source": {
@@ -29654,6 +30242,8 @@ FILE: i18n/locales/en.json
       "otherVisits_one": "{{count}} other visit at this restaurant",
       "otherVisits_other": "{{count}} other visits at this restaurant",
       "mostRecent": "Most recent {{date}}",
+      "draftBannerCriteria": "Rate at least one criterion to finish this review.",
+      "draftBannerWine": "A wine still needs a star rating.",
       "addPhotos": "Add Photos",
       "delete": "Delete",
       "removePhotos": "Remove Photos",
@@ -29840,6 +30430,7 @@ FILE: i18n/locales/en.json
     },
     "reviewForm": {
       "needStars": "Add at least one star rating to save this review.",
+      "saveFailed": "Could not save this review.",
       "removePhotosTitle": "Remove Photos?",
       "removePhotosBody": "Selected photos will be removed from this review.",
       "photosSaveFailed": "Could not save photos.",
@@ -29889,7 +30480,26 @@ FILE: i18n/locales/en.json
     }
   },
   "wineScan": {
-    "title": "Scan wine label",
+    "title": "Add wine",
+    "methodLead": "How do you want to add this wine?",
+    "methodHint": "Scan the bottle label, or look it up by name.",
+    "methodScan": "Scan label",
+    "methodSearch": "Search by name",
+    "searchLead": "Search by name",
+    "searchHint": "Wine name is required. Estate and year help a lot.",
+    "searchName": "Wine name",
+    "searchNamePlaceholder": "e.g. Love by Léoube",
+    "searchEstate": "Estate / domaine",
+    "searchEstatePlaceholder": "e.g. Château Léoube",
+    "searchYear": "Year",
+    "searchYearPlaceholder": "e.g. 2022",
+    "searchRecommended": "Strongly recommended",
+    "searchAction": "Search",
+    "searching": "Looking up wine…",
+    "nameRequired": "Enter a wine name.",
+    "noMatchSearchBody": "We couldn’t identify that wine. Check the spelling or add the estate and year.",
+    "failedSearchBody": "Could not look up the wine. Check your connection and try again.",
+    "tryAgain": "Add another way",
     "lead": "Photograph the bottle label",
     "hint": "Crop the label, then we’ll read the text on your device.",
     "chooserTitle": "Wine label photo",
@@ -29907,10 +30517,12 @@ FILE: i18n/locales/en.json
     "confirmA11y": "Add wine to Drinks",
     "resultRatingTitle": "Rate this bottle",
     "ratingRequired": "Add a star rating to save this wine.",
-    "scanButton": "Scan wine label",
-    "scanButtonA11y": "Scan wine label for Drinks",
-    "scanAnother": "Scan another label",
-    "scanAnotherA11y": "Scan another wine label for Drinks",
+    "addButton": "Add wine",
+    "addButtonA11y": "Add wine to Drinks",
+    "scanButton": "Add wine",
+    "scanButtonA11y": "Add wine to Drinks",
+    "scanAnother": "Add wine",
+    "scanAnotherA11y": "Add wine to Drinks",
     "clearDrinksWithWinesTitle": "Clear Drinks rating?",
     "clearDrinksWithWinesBody": "Scanned wines on this visit will be removed too.",
     "clearWinesWithRatingsTitle": "Clear Wines rating?",
@@ -30034,6 +30646,7 @@ FILE: i18n/locales/es.json
     "no": "No",
     "cancel": "Cancelar",
     "delete": "Eliminar",
+    "deleteSwipe": "Eliminar",
     "remove": "Quitar",
     "done": "Hecho",
     "back": "Atrás",
@@ -30115,7 +30728,8 @@ FILE: i18n/locales/es.json
       "clearFilters": "Borrar filtros",
       "importReviews": "Importar reseñas",
       "addReview": "Añadir reseña"
-    }
+    },
+    "draftLabel": "Draft"
   },
   "filters": {
     "title": "Opciones de filtro",
@@ -30353,7 +30967,9 @@ FILE: i18n/locales/es.json
         "cover": "Cover",
         "a11yCover": "Foto de portada. Toca para seleccionar, mantén pulsado para reordenar.",
         "a11yPhoto": "Foto. Toca para seleccionar, mantén pulsado para reordenar."
-      }
+      },
+      "draftBannerCriteria": "Valora al menos un criterio para terminar esta reseña.",
+      "draftBannerWine": "Un vino aún necesita valoración."
     },
     "photos": {
       "takePhoto": "Hacer foto",
@@ -30535,7 +31151,8 @@ FILE: i18n/locales/es.json
       "deleteBody": "Esta reseña será eliminada.",
       "discardEdits": {
         "title": "¿Guardar cambios?"
-      }
+      },
+      "saveFailed": "No se pudo guardar esta reseña."
     },
     "recovery": {
       "confirmTitle": "¿Recuperar reseñas anteriores?",
@@ -30575,7 +31192,7 @@ FILE: i18n/locales/es.json
     }
   },
   "wineScan": {
-    "title": "Escanear etiqueta de vino",
+    "title": "Añadir vino",
     "lead": "Fotografía la etiqueta de la botella",
     "hint": "Recorta la etiqueta; después leeremos el texto en tu dispositivo.",
     "chooserTitle": "Foto de la etiqueta",
@@ -30593,10 +31210,10 @@ FILE: i18n/locales/es.json
     "confirmA11y": "Añadir vino a Bebidas",
     "resultRatingTitle": "Valora esta botella",
     "ratingRequired": "Añade estrellas para guardar este vino.",
-    "scanButton": "Escanear etiqueta",
-    "scanButtonA11y": "Escanear etiqueta de vino para Bebidas",
-    "scanAnother": "Escanear otra etiqueta",
-    "scanAnotherA11y": "Escanear otra etiqueta de vino para Bebidas",
+    "scanButton": "Añadir vino",
+    "scanButtonA11y": "Añadir vino a Bebidas",
+    "scanAnother": "Añadir vino",
+    "scanAnotherA11y": "Añadir vino a Bebidas",
     "clearDrinksWithWinesTitle": "¿Borrar la nota de Bebidas?",
     "clearDrinksWithWinesBody": "También se eliminarán los vinos escaneados de esta visita.",
     "clearWinesWithRatingsTitle": "¿Borrar la nota de Vinos?",
@@ -30668,7 +31285,7 @@ FILE: i18n/locales/es.json
         }
       },
       "countryRegion": "País y región",
-      "vintage": "Antiguo",
+      "vintage": "Añada",
       "grapes": "Uvas",
       "alcohol": "Alcohol",
       "foodPairings": "Se empareja con",
@@ -30691,7 +31308,28 @@ FILE: i18n/locales/es.json
         }
       }
     },
-    "deleteWineUndo": "“{{name}}” eliminado"
+    "deleteWineUndo": "“{{name}}” eliminado",
+    "methodLead": "¿Cómo quieres añadir este vino?",
+    "methodHint": "Escanea la etiqueta, o búscalo por nombre.",
+    "methodScan": "Escanear etiqueta",
+    "methodSearch": "Buscar por nombre",
+    "searchLead": "Buscar por nombre",
+    "searchHint": "El nombre del vino es obligatorio. La bodega y el año ayudan mucho.",
+    "searchName": "Nombre del vino",
+    "searchNamePlaceholder": "p. ej. Love by Léoube",
+    "searchEstate": "Bodega / dominio",
+    "searchEstatePlaceholder": "p. ej. Château Léoube",
+    "searchYear": "Año",
+    "searchYearPlaceholder": "p. ej. 2022",
+    "searchRecommended": "Muy recomendado",
+    "searchAction": "Buscar",
+    "searching": "Buscando el vino…",
+    "nameRequired": "Introduce un nombre de vino.",
+    "noMatchSearchBody": "No pudimos identificar ese vino. Revisa la ortografía o añade bodega y año.",
+    "failedSearchBody": "No se pudo buscar el vino. Comprueba la conexión e inténtalo de nuevo.",
+    "tryAgain": "Otra forma",
+    "addButton": "Añadir vino",
+    "addButtonA11y": "Añadir vino a Bebidas"
   },
   "setup": {
     "welcome": {
@@ -30720,6 +31358,7 @@ FILE: i18n/locales/fr.json
     "no": "Non",
     "cancel": "Annuler",
     "delete": "Supprimer",
+    "deleteSwipe": "Supprimer",
     "remove": "Retirer",
     "done": "OK",
     "back": "Retour",
@@ -30801,7 +31440,8 @@ FILE: i18n/locales/fr.json
       "clearFilters": "Effacer les filtres",
       "importReviews": "Importer des avis",
       "addReview": "Ajouter un avis"
-    }
+    },
+    "draftLabel": "Draft"
   },
   "filters": {
     "title": "Options de filtre",
@@ -30904,7 +31544,7 @@ FILE: i18n/locales/fr.json
     "usageToday": "{{today}} aujourd’hui / {{allTime}} au total",
     "resetCounters": "Réinitialiser les compteurs",
     "namePlaceholder": "Votre nom",
-    "nameA11y": "Nom du critique",
+    "nameA11y": "Nom de l’auteur de l’avis",
     "photoA11y": "Photo de profil",
     "editPhotoA11y": "Modifier la photo de profil",
     "addPhotoA11y": "Ajouter une photo de profil",
@@ -31039,7 +31679,9 @@ FILE: i18n/locales/fr.json
         "cover": "Cover",
         "a11yCover": "Photo de couverture. Touchez pour sélectionner, appui long pour réordonner.",
         "a11yPhoto": "Photo. Touchez pour sélectionner, appui long pour réordonner."
-      }
+      },
+      "draftBannerCriteria": "Notez au moins un critère pour terminer cet avis.",
+      "draftBannerWine": "Un vin doit encore être noté."
     },
     "photos": {
       "takePhoto": "Prendre une photo",
@@ -31108,7 +31750,7 @@ FILE: i18n/locales/fr.json
     "nameSheet": {
       "title": "Votre nom",
       "body": "Votre nom est inclus lorsque vous partagez des avis avec des amis.",
-      "placeholder": "Nom du critique",
+      "placeholder": "Nom de l’auteur de l’avis",
       "cancel": "Annuler",
       "continue": "Continuer"
     }
@@ -31221,7 +31863,8 @@ FILE: i18n/locales/fr.json
       "deleteBody": "Cet avis sera supprimé.",
       "discardEdits": {
         "title": "Enregistrer les modifications ?"
-      }
+      },
+      "saveFailed": "Impossible d’enregistrer cet avis."
     },
     "recovery": {
       "confirmTitle": "Récupérer les avis précédents ?",
@@ -31261,7 +31904,7 @@ FILE: i18n/locales/fr.json
     }
   },
   "wineScan": {
-    "title": "Scanner une étiquette de vin",
+    "title": "Ajouter un vin",
     "lead": "Photographiez l’étiquette de la bouteille",
     "hint": "Recadrez l’étiquette, puis nous lirons le texte sur l’appareil.",
     "chooserTitle": "Photo de l’étiquette",
@@ -31279,10 +31922,10 @@ FILE: i18n/locales/fr.json
     "confirmA11y": "Ajouter le vin à Boissons",
     "resultRatingTitle": "Notez cette bouteille",
     "ratingRequired": "Ajoutez des étoiles pour enregistrer ce vin.",
-    "scanButton": "Scanner l’étiquette",
-    "scanButtonA11y": "Scanner l’étiquette pour Boissons",
-    "scanAnother": "Scanner une autre étiquette",
-    "scanAnotherA11y": "Scanner une autre étiquette de vin pour Boissons",
+    "scanButton": "Ajouter un vin",
+    "scanButtonA11y": "Ajouter un vin aux Boissons",
+    "scanAnother": "Ajouter un vin",
+    "scanAnotherA11y": "Ajouter un vin aux Boissons",
     "clearDrinksWithWinesTitle": "Effacer la note Boissons ?",
     "clearDrinksWithWinesBody": "Les vins scannés de cette visite seront aussi supprimés.",
     "clearWinesWithRatingsTitle": "Effacer la note Vins ?",
@@ -31377,7 +32020,28 @@ FILE: i18n/locales/fr.json
         }
       }
     },
-    "deleteWineUndo": "« {{name}} » retiré"
+    "deleteWineUndo": "« {{name}} » retiré",
+    "methodLead": "Comment voulez-vous ajouter ce vin ?",
+    "methodHint": "Scannez l’étiquette, ou recherchez par nom.",
+    "methodScan": "Scanner l’étiquette",
+    "methodSearch": "Rechercher par nom",
+    "searchLead": "Rechercher par nom",
+    "searchHint": "Le nom du vin est obligatoire. Le domaine et l’année aident beaucoup.",
+    "searchName": "Nom du vin",
+    "searchNamePlaceholder": "ex. Love by Léoube",
+    "searchEstate": "Domaine",
+    "searchEstatePlaceholder": "ex. Château Léoube",
+    "searchYear": "Année",
+    "searchYearPlaceholder": "ex. 2022",
+    "searchRecommended": "Fortement recommandé",
+    "searchAction": "Rechercher",
+    "searching": "Recherche du vin…",
+    "nameRequired": "Indiquez un nom de vin.",
+    "noMatchSearchBody": "Nous n’avons pas pu identifier ce vin. Vérifiez l’orthographe ou ajoutez le domaine et l’année.",
+    "failedSearchBody": "Impossible de rechercher le vin. Vérifiez votre connexion et réessayez.",
+    "tryAgain": "Autre méthode",
+    "addButton": "Ajouter un vin",
+    "addButtonA11y": "Ajouter un vin aux Boissons"
   },
   "setup": {
     "welcome": {
@@ -31387,7 +32051,7 @@ FILE: i18n/locales/fr.json
     "criteria": {
       "title": "Configuration initiale",
       "headline": "Personnalisez votre expérience",
-      "body": "Choisissez les critères importants pour une critique. Vous pourrez les modifier plus tard dans Réglages.",
+      "body": "Choisissez les critères importants pour un avis. Vous pourrez les modifier plus tard dans Réglages.",
       "minOne": "Choisissez au moins un critère.",
       "tip": "Astuce",
       "idealThree": " : 3 critères, c'est l'idéal"
@@ -31406,6 +32070,7 @@ FILE: i18n/locales/it.json
     "no": "No",
     "cancel": "Annulla",
     "delete": "Elimina",
+    "deleteSwipe": "Elimina",
     "remove": "Rimuovi",
     "done": "Fine",
     "back": "Indietro",
@@ -31487,7 +32152,8 @@ FILE: i18n/locales/it.json
       "clearFilters": "Cancella filtri",
       "importReviews": "Importa recensioni",
       "addReview": "Aggiungi recensione"
-    }
+    },
+    "draftLabel": "Draft"
   },
   "filters": {
     "title": "Opzioni filtro",
@@ -31725,7 +32391,9 @@ FILE: i18n/locales/it.json
         "cover": "Cover",
         "a11yCover": "Foto di copertina. Tocca per selezionare, tieni premuto per riordinare.",
         "a11yPhoto": "Foto. Tocca per selezionare, tieni premuto per riordinare."
-      }
+      },
+      "draftBannerCriteria": "Valuta almeno un criterio per completare questa recensione.",
+      "draftBannerWine": "Un vino ha ancora bisogno di una valutazione."
     },
     "photos": {
       "takePhoto": "Scatta foto",
@@ -31907,7 +32575,8 @@ FILE: i18n/locales/it.json
       "deleteBody": "Questa recensione verrà eliminata.",
       "discardEdits": {
         "title": "Salvare le modifiche?"
-      }
+      },
+      "saveFailed": "Impossibile salvare questa recensione."
     },
     "recovery": {
       "confirmTitle": "Recuperare le recensioni precedenti?",
@@ -31947,7 +32616,7 @@ FILE: i18n/locales/it.json
     }
   },
   "wineScan": {
-    "title": "Scansiona etichetta",
+    "title": "Aggiungi vino",
     "lead": "Fotografa l’etichetta della bottiglia",
     "hint": "Ritaglia l’etichetta; poi leggiamo il testo sul dispositivo.",
     "chooserTitle": "Foto dell’etichetta",
@@ -31965,10 +32634,10 @@ FILE: i18n/locales/it.json
     "confirmA11y": "Aggiungi vino a Bevande",
     "resultRatingTitle": "Valuta questa bottiglia",
     "ratingRequired": "Aggiungi le stelle per salvare questo vino.",
-    "scanButton": "Scansiona etichetta",
-    "scanButtonA11y": "Scansiona etichetta vino per Bevande",
-    "scanAnother": "Scansiona un’altra etichetta",
-    "scanAnotherA11y": "Scansiona un’altra etichetta vino per Bevande",
+    "scanButton": "Aggiungi vino",
+    "scanButtonA11y": "Aggiungi vino a Bevande",
+    "scanAnother": "Aggiungi vino",
+    "scanAnotherA11y": "Aggiungi vino a Bevande",
     "clearDrinksWithWinesTitle": "Cancellare il voto Bevande?",
     "clearDrinksWithWinesBody": "Anche i vini scansionati di questa visita verranno rimossi.",
     "clearWinesWithRatingsTitle": "Cancellare il voto Vini?",
@@ -32063,7 +32732,28 @@ FILE: i18n/locales/it.json
         }
       }
     },
-    "deleteWineUndo": "“{{name}}” rimosso"
+    "deleteWineUndo": "“{{name}}” rimosso",
+    "methodLead": "Come vuoi aggiungere questo vino?",
+    "methodHint": "Scansiona l’etichetta, o cerca per nome.",
+    "methodScan": "Scansiona etichetta",
+    "methodSearch": "Cerca per nome",
+    "searchLead": "Cerca per nome",
+    "searchHint": "Il nome del vino è obbligatorio. Tenuta e anno aiutano molto.",
+    "searchName": "Nome del vino",
+    "searchNamePlaceholder": "es. Love by Léoube",
+    "searchEstate": "Tenuta / domaine",
+    "searchEstatePlaceholder": "es. Château Léoube",
+    "searchYear": "Anno",
+    "searchYearPlaceholder": "es. 2022",
+    "searchRecommended": "Fortemente consigliato",
+    "searchAction": "Cerca",
+    "searching": "Ricerca del vino…",
+    "nameRequired": "Inserisci un nome di vino.",
+    "noMatchSearchBody": "Non siamo riusciti a riconoscere quel vino. Controlla l’ortografia o aggiungi tenuta e anno.",
+    "failedSearchBody": "Impossibile cercare il vino. Controlla la connessione e riprova.",
+    "tryAgain": "Altro modo",
+    "addButton": "Aggiungi vino",
+    "addButtonA11y": "Aggiungi vino a Bevande"
   },
   "setup": {
     "welcome": {
@@ -32092,6 +32782,7 @@ FILE: i18n/locales/nl.json
     "no": "Nee",
     "cancel": "Annuleren",
     "delete": "Verwijderen",
+    "deleteSwipe": "Verwijder",
     "remove": "Verwijderen",
     "done": "Klaar",
     "back": "Terug",
@@ -32134,21 +32825,21 @@ FILE: i18n/locales/nl.json
     "map": "Mijn kaart",
     "passport": "Mijn Gustra",
     "settings": "Instellingen",
-    "editCriteria": "Reviewcriteria bewerken",
+    "editCriteria": "Recensiecriteria bewerken",
     "profilePhoto": "Profielfoto",
     "backupRestore": "Back-up / Herstellen"
   },
   "a11y": {
-    "importReviews": "Reviews importeren",
+    "importReviews": "Recensies importeren",
     "share": "Delen",
     "filters": "Filters",
-    "addReview": "Review toevoegen",
+    "addReview": "Recensie toevoegen",
     "myLocation": "Mijn locatie",
     "mapLegend": "Legenda kaartspelden",
     "clearLocation": "Locatiefilter wissen",
     "clearCuisine": "Keukenfilter wissen",
     "clearFavorites": "Favorietenfilter wissen",
-    "clearFriends": "Filter vriendenreviews wissen",
+    "clearFriends": "Filter vriendenrecensies wissen",
     "clearSort": "Sortering wissen",
     "delete": "Verwijderen"
   },
@@ -32157,30 +32848,31 @@ FILE: i18n/locales/nl.json
     "visitCount_one": "{{count}} bezoek · {{date}}",
     "visitCount_other": "{{count}} bezoeken · {{date}}",
     "source": {
-      "mine": "Mijn reviews",
-      "friends": "Reviews van vrienden"
+      "mine": "Mijn recensies",
+      "friends": "Recensies van vrienden"
     },
     "empty": {
       "noMatchesTitle": "Geen restaurants gevonden",
       "noMatchesBody": "Geen restaurants komen overeen met je huidige filters.",
       "noMatchesShort": "Geen resultaten",
-      "noFriendsTitle": "Geen reviews van vrienden",
-      "noFriendsBody": "Importeer gedeelde reviews van vrienden om ze hier te zien.",
-      "noReviewsTitle": "Nog geen reviews",
-      "noReviewsBody": "Voeg je eerste restaurantreview toe om te beginnen.",
+      "noFriendsTitle": "Geen recensies van vrienden",
+      "noFriendsBody": "Importeer gedeelde recensies van vrienden om ze hier te zien.",
+      "noReviewsTitle": "Nog geen recensies",
+      "noReviewsBody": "Voeg je eerste restaurantrecensie toe om te beginnen.",
       "tryAnotherSearch": "Probeer een andere restaurantnaam, stad, reactie of tekst van een foto.",
       "noCriterionRating": "Nog geen restaurants met een score voor dit criterium.",
       "clearFilters": "Filters wissen",
-      "importReviews": "Reviews importeren",
-      "addReview": "Review toevoegen"
-    }
+      "importReviews": "Recensies importeren",
+      "addReview": "Recensie toevoegen"
+    },
+    "draftLabel": "Draft"
   },
   "filters": {
     "title": "Filteropties",
     "filters": "Filters",
     "none": "Geen",
     "favorites": "Favorieten",
-    "friendsReviews": "Reviews van vrienden meenemen",
+    "friendsReviews": "Recensies van vrienden meenemen",
     "location": "Locatie",
     "cuisine": "Type keuken",
     "sortBy": "Sorteren op",
@@ -32195,7 +32887,7 @@ FILE: i18n/locales/nl.json
     "restaurantCount": "{{shown}} van {{total}} restaurants",
     "resultsCount": "{{shown}} van {{total}} resultaten",
     "emptyLocationTitle": "Nog geen locaties",
-    "emptyLocationBody": "Locaties verschijnen wanneer je reviews een stad of land bevatten.",
+    "emptyLocationBody": "Locaties verschijnen wanneer je recensies een stad of land bevatten.",
     "emptyCuisineTitle": "Nog geen keukentypes",
     "emptyCuisineBody": "Keukentypes verschijnen wanneer restaurants categorieën hebben.",
     "sort": {
@@ -32207,7 +32899,7 @@ FILE: i18n/locales/nl.json
       "location": "Locatie",
       "cuisine": "Type keuken",
       "favorites": "Favorieten",
-      "friends": "Inclusief vriendenreviews"
+      "friends": "Inclusief vriendenrecensies"
     }
   },
   "map": {
@@ -32215,24 +32907,24 @@ FILE: i18n/locales/nl.json
     "friendSuffix": "(vriend)",
     "legend": {
       "title": "Spelden",
-      "own": "Mijn reviews",
-      "friends": "Reviews van vrienden"
+      "own": "Mijn recensies",
+      "friends": "Recensies van vrienden"
     },
     "empty": {
       "noMatchesTitle": "Geen resultaten",
       "noMatchesBody": "Geen restaurants komen overeen met je huidige filters.",
       "noMemoriesTitle": "Nog geen kaartherinneringen",
-      "noMemoriesBody": "Voeg een review met locatie toe om die op je kaart te zien.",
+      "noMemoriesBody": "Voeg een recensie met locatie toe om die op je kaart te zien.",
       "clearFilters": "Filters wissen",
-      "addReview": "Review toevoegen"
+      "addReview": "Recensie toevoegen"
     }
   },
   "passport": {
-    "emptyTitle": "Nog geen reviews",
-    "emptyBody": "Je proefpaspoort vult zich naarmate je restaurantreviews toevoegt.",
-    "addReview": "Review toevoegen",
+    "emptyTitle": "Nog geen recensies",
+    "emptyBody": "Je proefpaspoort vult zich naarmate je restaurantrecensies toevoegt.",
+    "addReview": "Recensie toevoegen",
     "overview": "Overzicht",
-    "totalReviews": "Totaal reviews",
+    "totalReviews": "Totaal recensies",
     "averageOverall": "Gemiddelde totaal",
     "bestRestaurant": "Beste restaurant",
     "bestRestaurants": "Beste restaurants",
@@ -32250,7 +32942,7 @@ FILE: i18n/locales/nl.json
     "languageItalian": "Italiano",
     "sectionReviewer": "Jij",
     "sectionReviewing": "Beoordelen",
-    "sectionCriteria": "Reviewcriteria",
+    "sectionCriteria": "Recensiecriteria",
     "sectionPassport": "Mijn Gustra",
     "sectionStorage": "Opslag",
     "sectionData": "Data & back-up",
@@ -32260,12 +32952,12 @@ FILE: i18n/locales/nl.json
     "advancedExpandA11y": "Geavanceerde instellingen tonen",
     "advancedCollapseA11y": "Geavanceerde instellingen verbergen",
     "editPhotoHint": "Tik op de foto om te wijzigen",
-    "editCriteria": "Reviewcriteria bewerken",
+    "editCriteria": "Recensiecriteria bewerken",
     "dataSavings": "Databesparing voor foto’s",
     "dataSavingsOn": "Lagere resolutie",
     "dataSavingsOff": "Hogere resolutie",
     "photos": "Foto’s",
-    "importShared": "Gedeelde reviews importeren",
+    "importShared": "Gedeelde recensies importeren",
     "importSharedSubtitle": "Open een .gustrashare-bestand van een vriend",
     "recoverPrevious": "Vorige Gustra-gegevens herstellen",
     "recoverScanSubtitle": "Zoek op deze iPhone naar de oude Swift-database en foto’s",
@@ -32276,7 +32968,7 @@ FILE: i18n/locales/nl.json
     "usageToday": "{{today}} vandaag / {{allTime}} totaal",
     "resetCounters": "Tellers resetten",
     "namePlaceholder": "Jouw naam",
-    "nameA11y": "Naam van de reviewer",
+    "nameA11y": "Naam van de recensent",
     "photoA11y": "Profielfoto",
     "editPhotoA11y": "Profielfoto bewerken",
     "addPhotoA11y": "Profielfoto toevoegen",
@@ -32291,7 +32983,7 @@ FILE: i18n/locales/nl.json
       "photos": "{{count}} foto’s",
       "backups": "{{count}} back-upbestand(en)",
       "alreadyRecovered": "al hersteld",
-      "photosOnly": "{{count}} oude foto’s gevonden, maar geen database — reviews hebben een .gustra-back-up of de Swift-store nodig",
+      "photosOnly": "{{count}} oude foto’s gevonden, maar geen database — recensies hebben een .gustra-back-up of de Swift-store nodig",
       "backupsOnly": "{{count}} back-upbestand(en) in Backups — gebruik Back-up / Herstellen",
       "unreadable": "{{count}} DB-bestand(en) gevonden maar niet leesbaar als Gustra-gegevens",
       "none": "Geen eerdere Swift-gegevens gevonden op dit apparaat"
@@ -32308,7 +33000,7 @@ FILE: i18n/locales/nl.json
       "deleteTitle": "Criterium verwijderen",
       "deleteBody": "“{{name}}” verwijderen?",
       "custom": "Aangepast",
-      "footer": "Aangepaste namen verschijnen bij nieuwe reviews. Uitgeschakelde criteria zijn verborgen bij beoordelen.",
+      "footer": "Aangepaste namen verschijnen bij nieuwe recensies. Uitgeschakelde criteria zijn verborgen bij beoordelen.",
       "discardEdits": {
         "title": "Wijzigingen opslaan?"
       }
@@ -32348,13 +33040,13 @@ FILE: i18n/locales/nl.json
   },
   "forms": {
     "addReview": {
-      "title": "Review toevoegen",
+      "title": "Recensie toevoegen",
       "nearby": "Toon restaurants in de buurt",
       "mapSearch": "Zoeken op kaart",
       "manual": "Handmatig invoeren"
     },
     "nearby": {
-      "startReview": "Review starten",
+      "startReview": "Recensie starten",
       "loadFailed": "Kon restaurants in de buurt niet laden.",
       "noNearby": "Geen restaurants in de buurt gevonden.",
       "searchNearby": "Zoek in de buurt",
@@ -32368,7 +33060,7 @@ FILE: i18n/locales/nl.json
     "mapSearch": {
       "title": "Zoeken op kaart",
       "searchArea": "Zoek in dit gebied",
-      "startReview": "Review starten",
+      "startReview": "Recensie starten",
       "hint": "Verplaats de kaart en tik op Zoek in dit gebied.",
       "searchAreaHint": "Zoek restaurants in het zichtbare kaartgebied"
     },
@@ -32411,7 +33103,9 @@ FILE: i18n/locales/nl.json
         "cover": "Cover",
         "a11yCover": "Coverfoto. Tik om te selecteren, lang indrukken om te herschikken.",
         "a11yPhoto": "Foto. Tik om te selecteren, lang indrukken om te herschikken."
-      }
+      },
+      "draftBannerCriteria": "Geef minstens één criterium sterren om deze recensie af te ronden.",
+      "draftBannerWine": "Een wijn heeft nog sterren nodig."
     },
     "photos": {
       "takePhoto": "Foto maken",
@@ -32437,15 +33131,15 @@ FILE: i18n/locales/nl.json
       "title": "Opties",
       "a11y": "Opties",
       "recordVisit": "Nieuw bezoek vastleggen",
-      "editReview": "Review bewerken",
-      "cannotEditFriend": "Je kunt een review van een vriend niet bewerken",
-      "deleteReview": "Review verwijderen",
+      "editReview": "Recensie bewerken",
+      "cannotEditFriend": "Je kunt een recensie van een vriend niet bewerken",
+      "deleteReview": "Recensie verwijderen",
       "shareSection": "Delen"
     },
     "restaurant": {
       "title": "Restaurant",
       "noVisits": "Geen bezoeken",
-      "noReviews": "Dit restaurant heeft nog geen reviews.",
+      "noReviews": "Dit restaurant heeft nog geen recensies.",
       "visitCount_one": "{{count}} bezoek",
       "visitCount_other": "{{count}} bezoeken",
       "visits": "Bezoeken"
@@ -32473,30 +33167,30 @@ FILE: i18n/locales/nl.json
     "chooser": {
       "gustraFile": "Gustra-bestand delen",
       "gustraFileSubtitle": "Vrienden kunnen dit in Gustra importeren",
-      "visual": "Deel review via e-mail",
-      "visualSubtitle": "Stuur een mooie kaart van deze review",
+      "visual": "Deel recensie via e-mail",
+      "visualSubtitle": "Stuur een mooie kaart van deze recensie",
       "cancel": "Annuleren"
     },
     "nameSheet": {
       "title": "Jouw naam",
-      "body": "Je naam wordt meegenomen wanneer je reviews deelt met vrienden.",
-      "placeholder": "Naam van de reviewer",
+      "body": "Je naam wordt meegenomen wanneer je recensies deelt met vrienden.",
+      "placeholder": "Naam van de recensent",
       "cancel": "Annuleren",
       "continue": "Doorgaan"
     }
   },
   "import": {
-    "title": "Reviews importeren",
-    "from": "Reviews van {{name}}",
+    "title": "Recensies importeren",
+    "from": "Recensies van {{name}}",
     "unknownRestaurant": "Onbekend restaurant",
-    "noReviews": "Geen reviews",
-    "noReviewsBody": "Dit gedeelde bestand bevat geen reviews.",
+    "noReviews": "Geen recensies",
+    "noReviewsBody": "Dit gedeelde bestand bevat geen recensies.",
     "selectAll": "Alles selecteren",
     "selectNone": "Niets selecteren"
   },
   "backup": {
     "encryptedTitle": "Versleutelde back-up",
-    "encryptedBody": "Maak een met wachtwoord beveiligde back-up van je reviews, of herstel vanaf een eerdere back-up.",
+    "encryptedBody": "Maak een met wachtwoord beveiligde back-up van je recensies, of herstel vanaf een eerdere back-up.",
     "create": "Back-up maken",
     "restore": "Herstellen",
     "restoreTitle": "Back-up herstellen",
@@ -32519,13 +33213,13 @@ FILE: i18n/locales/nl.json
     "passwordNeedsNumber": "Wachtwoord moet minstens één cijfer bevatten.",
     "passwordNeedsSymbol": "Wachtwoord moet minstens één symbool bevatten.",
     "passwordMismatch": "Wachtwoorden komen niet overeen.",
-    "needReviewFirst": "Voeg minstens één review toe voordat je een back-up maakt.",
+    "needReviewFirst": "Voeg minstens één recensie toe voordat je een back-up maakt.",
     "choosePasswordHint": "Kies een wachtwoord dat je later nodig hebt om deze back-up te herstellen.",
     "localFolderHint": "Lokale back-ups worden opgeslagen in de Back-ups-map van de app op dit apparaat.",
     "enterRestorePassword": "Voer het wachtwoord in dat bij het maken van deze back-up is gebruikt.",
     "applyHow": "Hoe moet deze back-up worden toegepast?",
     "mergeHint": "Behoud bestaande restaurants en voeg items uit de back-up toe of werk ze bij.",
-    "overwriteHint": "Vervang alle restaurants en reviews door de back-up.",
+    "overwriteHint": "Vervang alle restaurants en recensies door de back-up.",
     "encryptFailed": "Kon het back-upbestand niet versleutelen.",
     "shareFailed": "Kon de back-up niet delen.",
     "readFailed": "Kon het back-upbestand niet lezen.",
@@ -32566,9 +33260,9 @@ FILE: i18n/locales/nl.json
       "undoMessage": "Bezoek verwijderd"
     },
     "share": {
-      "failed": "Kon reviews niet delen.",
-      "reviewFailed": "Kon deze review niet delen.",
-      "needName": "Voeg je naam toe in Instellingen voordat je reviews deelt."
+      "failed": "Kon recensies niet delen.",
+      "reviewFailed": "Kon deze recensie niet delen.",
+      "needName": "Voeg je naam toe in Instellingen voordat je recensies deelt."
     },
     "location": {
       "deniedTitle": "Locatie nodig",
@@ -32583,23 +33277,24 @@ FILE: i18n/locales/nl.json
       "camera": "Toegang tot de camera is vereist."
     },
     "reviewForm": {
-      "needStars": "Voeg minstens één sterscore toe om deze review op te slaan.",
+      "needStars": "Voeg minstens één sterscore toe om deze recensie op te slaan.",
       "removePhotosTitle": "Foto’s verwijderen?",
-      "removePhotosBody": "Geselecteerde foto’s worden uit deze review verwijderd.",
+      "removePhotosBody": "Geselecteerde foto’s worden uit deze recensie verwijderd.",
       "photosSaveFailed": "Kon foto’s niet opslaan.",
       "photoLimitTitle": "Fotolimiet",
-      "photoLimitBody": "Je kunt maximaal {{max}} foto’s toevoegen aan een review.",
+      "photoLimitBody": "Je kunt maximaal {{max}} foto’s toevoegen aan een recensie.",
       "deleteTitle": "Verwijderen?",
-      "deleteBody": "Deze review wordt verwijderd.",
+      "deleteBody": "Deze recensie wordt verwijderd.",
       "discardEdits": {
         "title": "Wijzigingen opslaan?"
-      }
+      },
+      "saveFailed": "Deze recensie kon niet worden opgeslagen."
     },
     "recovery": {
-      "confirmTitle": "Vorige reviews herstellen?",
+      "confirmTitle": "Vorige recensies herstellen?",
       "confirmBody": "Scant deze iPhone op de oude Swift-database (elke .store/.sqlite onder Application Support, Documents, Library) en foto’s. Huidige Expo-gegevens worden eerst automatisch opgeslagen in Backups. Versleutelde .gustra-back-ups zijn apart — gebruik daarvoor Back-up / Herstellen.",
       "completeTitle": "Herstel voltooid",
-      "completeBody": "{{reviewCount}} reviews geïmporteerd over {{restaurantCount}} restaurants ({{photosCopied}} foto’s gekopieerd, {{mode}}).",
+      "completeBody": "{{reviewCount}} recensies geïmporteerd over {{restaurantCount}} restaurants ({{photosCopied}} foto’s gekopieerd, {{mode}}).",
       "failedTitle": "Herstel mislukt",
       "failedBody": "Kon vorige Gustra-gegevens niet importeren."
     },
@@ -32609,14 +33304,14 @@ FILE: i18n/locales/nl.json
     },
     "backup": {
       "overwriteTitle": "Bestaande gegevens overschrijven?",
-      "overwriteBody": "Je huidige reviews worden vervangen door de back-up.",
+      "overwriteBody": "Je huidige recensies worden vervangen door de back-up.",
       "deleteFileTitle": "Back-upbestand verwijderen?",
       "deleteFileBody": "Dit verwijdert de geselecteerde back-up van dit apparaat."
     },
     "import": {
       "readFailed": "Kon het deelbestand niet lezen.",
       "openFailed": "Kon het deelbestand niet openen.",
-      "importFailed": "Kon reviews niet importeren."
+      "importFailed": "Kon recensies niet importeren."
     },
     "linking": {
       "unableTitle": "Kan niet openen",
@@ -32633,7 +33328,7 @@ FILE: i18n/locales/nl.json
     }
   },
   "wineScan": {
-    "title": "Wijnetiket scannen",
+    "title": "Voeg wijn toe",
     "lead": "Fotografeer het etiket",
     "hint": "Snijd het etiket bij; daarna lezen we de tekst op je toestel.",
     "chooserTitle": "Foto van wijnetiket",
@@ -32651,10 +33346,10 @@ FILE: i18n/locales/nl.json
     "confirmA11y": "Wijn toevoegen bij Dranken",
     "resultRatingTitle": "Beoordeel deze fles",
     "ratingRequired": "Geef sterren om deze wijn te bewaren.",
-    "scanButton": "Wijnetiket scannen",
-    "scanButtonA11y": "Wijnetiket scannen voor Dranken",
-    "scanAnother": "Scan nog een etiket",
-    "scanAnotherA11y": "Nog een wijnetiket scannen voor Dranken",
+    "scanButton": "Voeg wijn toe",
+    "scanButtonA11y": "Wijn toevoegen bij Dranken",
+    "scanAnother": "Voeg wijn toe",
+    "scanAnotherA11y": "Wijn toevoegen bij Dranken",
     "clearDrinksWithWinesTitle": "Dranken-beoordeling wissen?",
     "clearDrinksWithWinesBody": "Gescande wijnen bij dit bezoek worden dan ook verwijderd.",
     "clearWinesWithRatingsTitle": "Wijnen-beoordeling wissen?",
@@ -32749,7 +33444,28 @@ FILE: i18n/locales/nl.json
         }
       }
     },
-    "deleteWineUndo": "“{{name}}” verwijderd"
+    "deleteWineUndo": "“{{name}}” verwijderd",
+    "methodLead": "Hoe wil je deze wijn toevoegen?",
+    "methodHint": "Scan het flesetiket, of zoek op naam.",
+    "methodScan": "Scan etiket",
+    "methodSearch": "Zoek op naam",
+    "searchLead": "Zoek op naam",
+    "searchHint": "Wijnnaam is verplicht. Domein en jaar helpen sterk.",
+    "searchName": "Wijnnaam",
+    "searchNamePlaceholder": "bv. Love by Léoube",
+    "searchEstate": "Domein",
+    "searchEstatePlaceholder": "bv. Château Léoube",
+    "searchYear": "Jaar",
+    "searchYearPlaceholder": "bv. 2022",
+    "searchRecommended": "Sterk aanbevolen",
+    "searchAction": "Zoeken",
+    "searching": "Wijn opzoeken…",
+    "nameRequired": "Vul een wijnnaam in.",
+    "noMatchSearchBody": "We konden die wijn niet herkennen. Controleer de spelling of voeg domein en jaar toe.",
+    "failedSearchBody": "Kon de wijn niet opzoeken. Controleer je verbinding en probeer opnieuw.",
+    "tryAgain": "Andere manier",
+    "addButton": "Voeg wijn toe",
+    "addButtonA11y": "Wijn toevoegen bij Dranken"
   },
   "setup": {
     "welcome": {
@@ -38455,6 +39171,65 @@ export function criterionIcon(id: string): {
 
 
 ================================================================================
+FILE: services/reviews/draftReview.ts
+================================================================================
+import type { CriterionRating, Review, WineLabelFiche } from '@/data/types';
+import { hasStarRating, RatingValue } from '@/services/reviews/ratings';
+import { hasWineUserRating, wineLabelsForReview } from '@/services/wine/wineLabelTypes';
+
+export type DraftReviewReason = 'criteria' | 'wine';
+
+/**
+ * A review is a draft when:
+ * - no restaurant criterion has stars, or
+ * - at least one attached wine is missing a star rating.
+ *
+ * Computed (not stored) — backwards compatible with all prior data.
+ */
+export function isReviewDraft(
+  review: Pick<Review, 'criteria' | 'wineLabel' | 'wineLabels'> | null | undefined,
+): boolean {
+  if (!review) return true;
+  return draftReviewReason(review) != null;
+}
+
+/** Why the review is still a draft, or null when complete. */
+export function draftReviewReason(
+  review: Pick<Review, 'criteria' | 'wineLabel' | 'wineLabels'> | null | undefined,
+): DraftReviewReason | null {
+  if (!review) return 'criteria';
+  if (!hasStarRating(review.criteria ?? [])) return 'criteria';
+  const wines = wineLabelsForReview(review);
+  if (wines.some((w) => !hasWineUserRating(w))) return 'wine';
+  return null;
+}
+
+/** Form-state variant (criteria list + wine fiches). */
+export function isFormDraft(
+  criteria: CriterionRating[],
+  wines: WineLabelFiche[],
+): boolean {
+  if (!hasStarRating(criteria)) return true;
+  if (wines.some((w) => !hasWineUserRating(w))) return true;
+  return false;
+}
+
+export function formDraftReason(
+  criteria: CriterionRating[],
+  wines: WineLabelFiche[],
+): DraftReviewReason | null {
+  if (!hasStarRating(criteria)) return 'criteria';
+  if (wines.some((w) => !hasWineUserRating(w))) return 'wine';
+  return null;
+}
+
+/** True when rating steps are a real star value (for wine checks). */
+export function wineNeedsRating(fiche: WineLabelFiche): boolean {
+  return !RatingValue.isStarRating(fiche.userRating ?? RatingValue.unrated);
+}
+
+
+================================================================================
 FILE: services/reviews/photoLimits.ts
 ================================================================================
 /** Max photos per review (Take / Import / wine crop). */
@@ -38937,7 +39712,7 @@ export function makeCompanionHTML(args: {
   const preheader = escapeHtml(
     `${args.sharedBy} shared a Gustra review of ${restaurant}${
       city ? ` in ${city}` : ''
-    } — making food memories.`,
+    } — creating food memories.`,
   );
   const introHTML = htmlIntroMarkup(args.introMessage, args.sharedBy);
   const reviewBelow = escapeHtml(
@@ -40236,28 +41011,38 @@ const FILENAME_KEY = 'gustra.share.pendingShareFilename';
 /**
  * Stage a share package into Documents/ShareInbox.
  *
- * Android DocumentPicker cache URIs often reject `copyAsync` ("isn't readable").
- * Prefer UTF-8 read/write there; use copyAsync on iOS / other local paths.
+ * - `content://` (WhatsApp, Downloads, …): only `copyAsync` supports the scheme;
+ *   `readAsStringAsync` throws "Unsupported scheme".
+ * - Android DocumentPicker `file://` cache URIs often reject `copyAsync`
+ *   ("isn't readable") — prefer UTF-8 / Base64 read-write there.
+ * - Other local paths: `copyAsync` first, then read/write fallback.
  */
 async function copySharePackageToInbox(
   sourceUri: string,
   destination: string,
 ): Promise<void> {
+  const trimmed = sourceUri.trim();
+  const isContentUri = /^content:\/\//i.test(trimmed);
+
+  if (isContentUri) {
+    await FileSystem.copyAsync({ from: trimmed, to: destination });
+    return;
+  }
+
   const preferReadWrite =
-    Platform.OS === 'android' ||
-    /DocumentPicker|content:\/\//i.test(sourceUri);
+    Platform.OS === 'android' || /DocumentPicker/i.test(trimmed);
 
   if (!preferReadWrite) {
     try {
-      await FileSystem.copyAsync({ from: sourceUri, to: destination });
+      await FileSystem.copyAsync({ from: trimmed, to: destination });
       return;
     } catch {
-      // Fall through — rare iOS / content-URI quirks.
+      // Fall through — rare iOS path quirks.
     }
   }
 
   try {
-    const raw = await FileSystem.readAsStringAsync(sourceUri, {
+    const raw = await FileSystem.readAsStringAsync(trimmed, {
       encoding: FileSystem.EncodingType.UTF8,
     });
     await FileSystem.writeAsStringAsync(destination, raw, {
@@ -40265,7 +41050,7 @@ async function copySharePackageToInbox(
     });
   } catch {
     // Last resort: binary-safe path for odd encodings / SAF quirks.
-    const raw = await FileSystem.readAsStringAsync(sourceUri, {
+    const raw = await FileSystem.readAsStringAsync(trimmed, {
       encoding: FileSystem.EncodingType.Base64,
     });
     await FileSystem.writeAsStringAsync(destination, raw, {
@@ -40356,8 +41141,8 @@ export const ShareInbox = {
    * Copy a share package into the inbox and mark it pending
    * (Swift `ShareInbox.stageShareFile`).
    *
-   * On Android (esp. Expo Go), DocumentPicker cache URIs often fail
-   * `copyAsync` with "isn't readable" — fall back to UTF-8 read/write.
+   * Android `content://` (WhatsApp) uses `copyAsync`; DocumentPicker
+   * `file://` cache URIs fall back to UTF-8 / Base64 read-write.
    */
   async stageShareFile(
     sourceUri: string,
@@ -40544,9 +41329,11 @@ import {
   formatWineLabelDrinksComment,
   type WineLabelFiche,
 } from '@/services/wine/wineLabelTypes';
+import { normalizeVintageYear } from '@/services/wine/parseWineLabelOcr';
 import { parseTasteProfileConfidence } from '@/services/wine/wineTasteProfile';
 import { parseTastingTraits } from '@/services/wine/wineTastingTraits';
 import { normalizeWineTypeStyle } from '@/services/wine/wineTypeStyle';
+import { extractTextFromImage } from '@/services/ocr/OCRService';
 
 const MAX_SIDE = 1024;
 const GEMINI_MODEL = 'gemini-3.5-flash';
@@ -40560,16 +41347,10 @@ const LANGUAGE_PROMPT_NAME: Record<AppLanguage, string> = {
   nl: 'Dutch',
 };
 
-/** Shared with `scripts/test-gemini.sh` (keep in sync). */
-export function buildWineLabelPrompt(language: AppLanguage): string {
-  const lang = LANGUAGE_PROMPT_NAME[language];
-  return `This is a photo/scan of a wine bottle (or its label).
-Identify the wine. Account for transparent bottles where text on the back may show through mirrored.
-If you cannot confidently read a wine name/estate, return nameAndEstate as an empty string.
-
-Language rules (one response language = ${lang}):
+function wineFicheJsonContract(lang: string): string {
+  return `Language rules (one response language = ${lang}):
 - Write countryRegion and foodPairings in ${lang}.
-- Do NOT translate proper names from the label: nameAndEstate must match the bottle (faithful reading).
+- Do NOT translate proper wine/estate names: nameAndEstate must stay faithful.
 - grapeVarieties: JSON array of common ampelographic grape names (usually international, e.g. "Grenache", "Syrah"). Use null when unknown.
 - grapes: same varieties as a single comma-separated display string, or null.
 - typeStyle: exactly one English code — red, white, rose, sparkling, fortified, orange. Required whenever you identify a wine. Champagne/Cava/Prosecco → sparkling. Port/Sherry/Madeira → fortified. Skin-contact amber → orange. Never a translated word.
@@ -40580,20 +41361,22 @@ Also estimate a taste profile when you can (same response — do not invent):
   Omit tannins for white / sparkling / most rosés unless clearly relevant.
   Do NOT include freshness.
   sweetness is still required whenever you identify a wine (1 = dry … 5 = very sweet) for the style chip.
-- grapeBlend: optional array of { "name": "Grenache", "percent": 60 }. Include percent ONLY when stated on the label or you know the cuvée blend with high confidence; otherwise omit percent or use grapeVarieties without %.
+- grapeBlend: optional array of { "name": "Grenache", "percent": 60 }. Include percent ONLY when you know the cuvée blend with high confidence; otherwise omit percent or use grapeVarieties without %.
 - grapeVarieties / grapes: still fill name lists for search/display.
-- servingTempHint / aerationHint / drinkWindowHint: short phrases in ${lang}, or null when unsure.
-  Examples: "16–18 °C", "Open 30 min beforehand", "Drink now · cellar to 2030".
+- servingTempHint / aerationHint: short phrases in ${lang}, or null when unsure.
+  Examples: "16–18 °C", "Open 30 min beforehand".
+  Do NOT invent a drink-by / cellar-until date (omit any drink-window field).
+- vintage: four-digit year starting with 19 or 20 (e.g. "1998", "2016"), or null. Never invent a year.
 - tasteProfileConfidence: "high" | "medium" | "low" for the taste-profile block as a whole.
-  Use "low" when the bottle is obscure / photo is weak / you would mostly guess — the app will hide the profile.
-  Identity fields (name, type) may still be filled when confidence is low.
+  Use "low" when the wine is obscure / ambiguous / you would mostly guess — the app will hide the profile.
+  Identity fields (name, type, vintage) may still be filled when confidence is low.
 
 Return STRICT JSON only (no markdown) with these keys:
 {
-  "nameAndEstate": "Wine name & winery/estate as on the label",
+  "nameAndEstate": "Wine name & winery/estate",
   "typeStyle": "red" | "white" | "rose" | "sparkling" | "fortified" | "orange",
   "countryRegion": "Country and region in ${lang}",
-  "vintage": "Harvest year on the bottle or null",
+  "vintage": "1998" or "2016" or null,
   "grapeVarieties": ["Grenache", "Syrah"] or null,
   "grapeBlend": [{"name": "Grenache", "percent": 60}, {"name": "Syrah"}] or null,
   "grapes": "Grenache, Syrah" or null,
@@ -40607,9 +41390,55 @@ Return STRICT JSON only (no markdown) with these keys:
   ],
   "servingTempHint": "16–18 °C" or null,
   "aerationHint": "Decant 1 hour" or null,
-  "drinkWindowHint": "Drink now" or null,
   "tasteProfileConfidence": "high" | "medium" | "low"
 }`;
+}
+
+/** Shared with `scripts/test-gemini.sh` (keep in sync). */
+export function buildWineLabelPrompt(language: AppLanguage): string {
+  const lang = LANGUAGE_PROMPT_NAME[language];
+  return `This is a photo/scan of a wine bottle (or its label).
+Identify the wine. Account for transparent bottles where text on the back may show through mirrored.
+If you cannot confidently read a wine name/estate, return nameAndEstate as an empty string.
+- vintage: REQUIRED whenever a harvest year is visible on the label. Never invent. If no year is readable, return null.
+
+${wineFicheJsonContract(lang)}`;
+}
+
+export type IdentifyWineByTextInput = {
+  /** Wine / cuvée name (required). */
+  name: string;
+  /** Estate / domaine / château (strongly recommended). */
+  estate?: string;
+  /** Harvest year, e.g. "2016" (strongly recommended). */
+  vintage?: string;
+};
+
+/** Text lookup — same JSON fiche as Vision, without a photo. */
+export function buildWineTextPrompt(
+  language: AppLanguage,
+  input: IdentifyWineByTextInput,
+): string {
+  const lang = LANGUAGE_PROMPT_NAME[language];
+  const name = input.name.trim();
+  const estate = input.estate?.trim() ?? '';
+  const vintage = normalizeVintageYear(input.vintage?.trim() ?? null) ?? '';
+  const lines = [
+    `Wine name: ${name}`,
+    estate ? `Estate / domaine / winery: ${estate}` : null,
+    vintage ? `Vintage year (user-provided — use this; do not invent another): ${vintage}` : null,
+  ].filter(Boolean);
+
+  return `Identify this wine from the user's description (no photo).
+If the name is too ambiguous to match a real wine confidently, return nameAndEstate as an empty string.
+Prefer the user's estate/domaine and vintage when provided.
+When estate or vintage is missing, lower tasteProfileConfidence (often "medium" or "low") and do not invent a vintage.
+Compose nameAndEstate as the wine name with estate when known (as on a typical label).
+
+User input:
+${lines.join('\n')}
+
+${wineFicheJsonContract(lang)}`;
 }
 
 type GeminiJson = {
@@ -40625,7 +41454,6 @@ type GeminiJson = {
   tastingTraits?: unknown;
   servingTempHint?: unknown;
   aerationHint?: unknown;
-  drinkWindowHint?: unknown;
   tasteProfileConfidence?: unknown;
 };
 
@@ -40736,14 +41564,14 @@ function parseFicheJson(
   );
   const servingTempHint = asNullableString(parsed.servingTempHint);
   const aerationHint = asNullableString(parsed.aerationHint);
-  const drinkWindowHint = asNullableString(parsed.drinkWindowHint);
+  const vintage = normalizeVintageYear(asNullableString(parsed.vintage));
 
   return {
     labelPhotoUri,
     nameAndEstate,
     typeStyle: typeCode ?? legacyType ?? 'white',
     countryRegion: asNullableString(parsed.countryRegion) ?? undefined,
-    vintage: asNullableString(parsed.vintage),
+    vintage,
     grapes,
     ...(grapeVarieties?.length ? { grapeVarieties } : {}),
     ...(grapeBlend?.length ? { grapeBlend } : {}),
@@ -40752,10 +41580,27 @@ function parseFicheJson(
     tastingTraits,
     ...(servingTempHint ? { servingTempHint } : {}),
     ...(aerationHint ? { aerationHint } : {}),
-    ...(drinkWindowHint ? { drinkWindowHint } : {}),
     ...(tasteProfileConfidence ? { tasteProfileConfidence } : {}),
     analyzedAt: new Date().toISOString(),
   };
+}
+
+/** When Vision omits vintage, OCR the label for a 19xx/20xx year. */
+async function enrichVintageFromOcr(
+  fiche: WineLabelFiche,
+  imageUri: string,
+): Promise<WineLabelFiche> {
+  if (normalizeVintageYear(fiche.vintage)) return fiche;
+  try {
+    const raw = await extractTextFromImage(imageUri, {
+      collapseWhitespace: false,
+    });
+    const year = normalizeVintageYear(raw);
+    if (!year) return fiche;
+    return { ...fiche, vintage: year };
+  } catch {
+    return fiche;
+  }
 }
 
 export type IdentifyWineLabelResult = {
@@ -40836,7 +41681,10 @@ export async function identifyWineLabel(
 
   await incrementGoogleApi('gemini');
 
-  const fiche = parseFicheJson(text, optimizedUri);
+  let fiche = parseFicheJson(text, optimizedUri);
+  if (fiche) {
+    fiche = await enrichVintageFromOcr(fiche, optimizedUri);
+  }
   return {
     fiche,
     drinksComment: fiche
@@ -40848,6 +41696,83 @@ export async function identifyWineLabel(
   };
 }
 
+export type IdentifyWineByTextResult = {
+  fiche: WineLabelFiche | null;
+  drinksComment: string;
+};
+
+/**
+ * One Gemini text call — same fiche shape as Vision (no label photo).
+ */
+export async function identifyWineByText(
+  input: IdentifyWineByTextInput,
+  options?: IdentifyWineLabelOptions,
+): Promise<IdentifyWineByTextResult> {
+  await assertGoogleApiAllowed('gemini');
+
+  const name = input.name.trim();
+  if (!name) {
+    return { fiche: null, drinksComment: '' };
+  }
+
+  const language = options?.language ?? resolveAppLanguage('system');
+  const key = GeminiAPIConfig.requireApiKey();
+  const userVintage = normalizeVintageYear(input.vintage?.trim() ?? null);
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(key)}`;
+  const body = {
+    contents: [
+      {
+        parts: [{ text: buildWineTextPrompt(language, { ...input, name }) }],
+      },
+    ],
+    generationConfig: {
+      response_mime_type: 'application/json',
+      temperature: 0.2,
+    },
+  };
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    throw new Error(
+      errText.trim() || `Gemini request failed (${response.status})`,
+    );
+  }
+
+  const payload = (await response.json()) as {
+    candidates?: Array<{
+      content?: { parts?: Array<{ text?: string }> };
+    }>;
+  };
+  const text =
+    payload.candidates?.[0]?.content?.parts
+      ?.map((p) => p.text ?? '')
+      .join('')
+      .trim() ?? '';
+
+  await incrementGoogleApi('gemini');
+
+  let fiche = parseFicheJson(text, '');
+  if (fiche && userVintage && !normalizeVintageYear(fiche.vintage)) {
+    fiche = { ...fiche, vintage: userVintage };
+  }
+
+  return {
+    fiche,
+    drinksComment: fiche
+      ? formatWineLabelDrinksComment(fiche, {
+          typeStyleLabel: options?.typeStyleLabel,
+        })
+      : '',
+  };
+}
+
 
 ================================================================================
 FILE: services/wine/parseWineLabelOcr.ts
@@ -40856,7 +41781,20 @@ FILE: services/wine/parseWineLabelOcr.ts
  * Light cleanup of wine-label OCR → suggested name + year for Drinks comment.
  */
 
-const YEAR_RE = /\b(19|20)\d{2}\b/;
+const YEAR_RE = /\b((?:19|20)\d{2})\b/;
+
+/** Harvest / bottling years we accept from Vision or OCR. */
+export function normalizeVintageYear(
+  raw: string | null | undefined,
+): string | null {
+  if (!raw) return null;
+  const m = raw.trim().match(YEAR_RE);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const max = new Date().getFullYear() + 1;
+  if (year < 1900 || year > max) return null;
+  return m[1];
+}
 
 /** Drop obvious junk lines (alcohol %, volume, importer boilerplate). */
 function isNoiseLine(line: string): boolean {
@@ -40887,15 +41825,11 @@ export function parseWineLabelOcr(raw: string): ParsedWineLabel {
 
   let year: string | null = null;
   for (const line of lines) {
-    const m = line.match(YEAR_RE);
-    if (m) {
-      year = m[0];
-      break;
-    }
+    year = normalizeVintageYear(line);
+    if (year) break;
   }
   if (!year) {
-    const m = rawText.match(YEAR_RE);
-    year = m ? m[0] : null;
+    year = normalizeVintageYear(rawText);
   }
 
   // Prefer a longer “title-like” line without the year alone.
@@ -41447,9 +42381,7 @@ export function shouldShowTasteProfile(
 
   const grapes = wineLabelGrapeDisplay(fiche);
   const hasService = Boolean(
-    fiche.servingTempHint?.trim() ||
-      fiche.aerationHint?.trim() ||
-      fiche.drinkWindowHint?.trim(),
+    fiche.servingTempHint?.trim() || fiche.aerationHint?.trim(),
   );
 
   if (fiche.tasteProfileConfidence === 'high' || fiche.tasteProfileConfidence === 'medium') {

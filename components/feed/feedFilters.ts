@@ -85,10 +85,23 @@ export function mergeSummariesByRestaurant(
         reviewIds,
         visitCount: reviewIds.length,
         averageScore:
-          (existing.averageScore * existing.visitCount +
-            summary.averageScore * summary.visitCount) /
-          (existing.visitCount + summary.visitCount),
+          existing.isDraft && summary.isDraft
+            ? 0
+            : existing.isDraft
+              ? summary.averageScore
+              : summary.isDraft
+                ? existing.averageScore
+                : (existing.averageScore * existing.visitCount +
+                    summary.averageScore * summary.visitCount) /
+                  (existing.visitCount + summary.visitCount),
         isFavorite: existing.isFavorite || summary.isFavorite,
+        isDraft: Boolean(existing.isDraft) && Boolean(summary.isDraft),
+        draftReviewId:
+          Boolean(existing.isDraft) && Boolean(summary.isDraft)
+            ? preferNewer
+              ? summary.draftReviewId || existing.draftReviewId
+              : existing.draftReviewId || summary.draftReviewId
+            : undefined,
         lastVisitAt: Math.max(existing.lastVisitAt, summary.lastVisitAt),
         lastVisitDate:
           existing.lastVisitAt >= summary.lastVisitAt
@@ -182,6 +195,9 @@ function rankByDate(
   summaries: RestaurantVisitSummary[],
 ): RestaurantVisitSummary[] {
   return [...summaries].sort((a, b) => {
+    const aDraft = a.isDraft ? 1 : 0;
+    const bDraft = b.isDraft ? 1 : 0;
+    if (aDraft !== bDraft) return bDraft - aDraft;
     if (a.lastVisitAt !== b.lastVisitAt) return b.lastVisitAt - a.lastVisitAt;
     return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
   });
@@ -191,6 +207,9 @@ function rankByAverageScore(
   summaries: RestaurantVisitSummary[],
 ): RestaurantVisitSummary[] {
   return [...summaries].sort((a, b) => {
+    const aDraft = a.isDraft ? 1 : 0;
+    const bDraft = b.isDraft ? 1 : 0;
+    if (aDraft !== bDraft) return bDraft - aDraft;
     if (a.averageScore !== b.averageScore) {
       return b.averageScore - a.averageScore;
     }
@@ -204,7 +223,9 @@ function rankByCriterion(
   criterionId: string,
   criterionAverageFor: NonNullable<FeedFilterOptions['criterionAverageFor']>,
 ): RestaurantVisitSummary[] {
+  const drafts = summaries.filter((s) => s.isDraft);
   const withScores = summaries
+    .filter((s) => !s.isDraft)
     .map((summary) => ({
       summary,
       score: criterionAverageFor(summary, criterionId),
@@ -214,7 +235,7 @@ function rankByCriterion(
         row.score != null,
     );
 
-  return withScores
+  const ranked = withScores
     .sort((a, b) => {
       if (a.score !== b.score) return b.score - a.score;
       return a.summary.name.localeCompare(b.summary.name, undefined, {
@@ -222,6 +243,12 @@ function rankByCriterion(
       });
     })
     .map((row) => row.summary);
+
+  // Drafts stay on top even when sorting by criterion.
+  return [
+    ...rankByDate(drafts),
+    ...ranked,
+  ];
 }
 
 /**

@@ -21,6 +21,28 @@ type ZoomablePhotoProps = {
   pagingFriendly?: boolean;
 };
 
+/** Max pan so a scale-around-center image still covers the canvas. */
+function maxPanOffset(size: number, scale: number): number {
+  'worklet';
+  return Math.max(0, (size * (scale - 1)) / 2);
+}
+
+function clampPan(
+  x: number,
+  y: number,
+  scale: number,
+  width: number,
+  height: number,
+): { x: number; y: number } {
+  'worklet';
+  const maxX = maxPanOffset(width, scale);
+  const maxY = maxPanOffset(height, scale);
+  return {
+    x: Math.min(maxX, Math.max(-maxX, x)),
+    y: Math.min(maxY, Math.max(-maxY, y)),
+  };
+}
+
 /**
  * Pinch / pan / double-tap photo canvas (Swift `ZoomablePhotoCanvas`).
  * Gestures + runOnJS targets stay stable (avoids Reanimated DisplayLink abort).
@@ -43,6 +65,13 @@ export function ZoomablePhoto({
   const translateY = useSharedValue(0);
   const savedX = useSharedValue(0);
   const savedY = useSharedValue(0);
+  const canvasW = useSharedValue(width);
+  const canvasH = useSharedValue(height);
+
+  useEffect(() => {
+    canvasW.value = width;
+    canvasH.value = height;
+  }, [width, height, canvasW, canvasH]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -91,6 +120,16 @@ export function ZoomablePhoto({
         'worklet';
         const next = Math.min(4, Math.max(1, savedScale.value * e.scale));
         scale.value = next;
+        // Shrinking zoom can leave translation past the new bounds.
+        const clamped = clampPan(
+          translateX.value,
+          translateY.value,
+          next,
+          canvasW.value,
+          canvasH.value,
+        );
+        translateX.value = clamped.x;
+        translateY.value = clamped.y;
       })
       .onEnd(() => {
         'worklet';
@@ -104,6 +143,17 @@ export function ZoomablePhoto({
           runOnJS(resetWorkletBridge)();
         } else {
           savedScale.value = scale.value;
+          const clamped = clampPan(
+            translateX.value,
+            translateY.value,
+            scale.value,
+            canvasW.value,
+            canvasH.value,
+          );
+          translateX.value = withTiming(clamped.x, { duration: 180 });
+          translateY.value = withTiming(clamped.y, { duration: 180 });
+          savedX.value = clamped.x;
+          savedY.value = clamped.y;
           runOnJS(markZoomed)();
         }
       });
@@ -123,13 +173,29 @@ export function ZoomablePhoto({
       .onUpdate((e) => {
         'worklet';
         if (savedScale.value <= 1.01) return;
-        translateX.value = savedX.value + e.translationX;
-        translateY.value = savedY.value + e.translationY;
+        const clamped = clampPan(
+          savedX.value + e.translationX,
+          savedY.value + e.translationY,
+          scale.value,
+          canvasW.value,
+          canvasH.value,
+        );
+        translateX.value = clamped.x;
+        translateY.value = clamped.y;
       })
       .onEnd(() => {
         'worklet';
-        savedX.value = translateX.value;
-        savedY.value = translateY.value;
+        const clamped = clampPan(
+          translateX.value,
+          translateY.value,
+          scale.value,
+          canvasW.value,
+          canvasH.value,
+        );
+        translateX.value = withTiming(clamped.x, { duration: 180 });
+        translateY.value = withTiming(clamped.y, { duration: 180 });
+        savedX.value = clamped.x;
+        savedY.value = clamped.y;
       });
 
     const doubleTap = Gesture.Tap()
@@ -148,6 +214,11 @@ export function ZoomablePhoto({
         } else {
           scale.value = withTiming(2, { duration: 180 });
           savedScale.value = 2;
+          // Zoomed-in center — stay at origin (already within bounds).
+          translateX.value = 0;
+          translateY.value = 0;
+          savedX.value = 0;
+          savedY.value = 0;
           runOnJS(markZoomed)();
         }
       });
@@ -159,6 +230,8 @@ export function ZoomablePhoto({
     }
     return Gesture.Exclusive(doubleTap, Gesture.Simultaneous(pinch, pan));
   }, [
+    canvasH,
+    canvasW,
     markZoomed,
     pagingFriendly,
     resetWorkletBridge,

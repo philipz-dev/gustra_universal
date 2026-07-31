@@ -2,7 +2,20 @@
  * Light cleanup of wine-label OCR → suggested name + year for Drinks comment.
  */
 
-const YEAR_RE = /\b(19|20)\d{2}\b/;
+const YEAR_RE = /\b((?:19|20)\d{2})\b/;
+
+/** Harvest / bottling years we accept from Vision or OCR. */
+export function normalizeVintageYear(
+  raw: string | null | undefined,
+): string | null {
+  if (!raw) return null;
+  const m = raw.trim().match(YEAR_RE);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const max = new Date().getFullYear() + 1;
+  if (year < 1900 || year > max) return null;
+  return m[1];
+}
 
 /** Drop obvious junk lines (alcohol %, volume, importer boilerplate). */
 function isNoiseLine(line: string): boolean {
@@ -33,15 +46,11 @@ export function parseWineLabelOcr(raw: string): ParsedWineLabel {
 
   let year: string | null = null;
   for (const line of lines) {
-    const m = line.match(YEAR_RE);
-    if (m) {
-      year = m[0];
-      break;
-    }
+    year = normalizeVintageYear(line);
+    if (year) break;
   }
   if (!year) {
-    const m = rawText.match(YEAR_RE);
-    year = m ? m[0] : null;
+    year = normalizeVintageYear(rawText);
   }
 
   // Prefer a longer “title-like” line without the year alone.

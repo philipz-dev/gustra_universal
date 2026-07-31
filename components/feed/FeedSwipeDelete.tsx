@@ -182,7 +182,7 @@ export function FeedSwipeDelete({
   const [isOpen, setIsOpen] = useState(false);
   const [rowWidth, setRowWidth] = useState(0);
 
-  const deleteLabel = t('common.delete');
+  const deleteLabel = t('common.deleteSwipe');
   /** Peek open threshold — half the action button. */
   const rightThreshold = ACTION_WIDTH * 0.45;
 

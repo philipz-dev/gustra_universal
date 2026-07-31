@@ -18,6 +18,7 @@ import { GustraSwitch } from '@/components/ui/GustraSwitch';
 import { GustraColors } from '@/constants/Colors';
 import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
+import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import {
   CUSTOM_CRITERION_MAX_NAME_LENGTH,
   STANDARD_CRITERIA,
@@ -47,6 +48,7 @@ function newCustomId(): string {
 export default function EditCriteriaScreen() {
   const { t } = useAppTranslation();
   const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardBottomInset();
   const router = useRouter();
   const navigation = useNavigation();
   const { ready, getBackupSnapshot, applyBackupSnapshot } =
@@ -257,10 +259,13 @@ export default function EditCriteriaScreen() {
           styles.content,
           {
             paddingBottom:
-              Theme.spacing.floatingTabBarClearance + insets.bottom + 24,
+              (keyboardHeight > 0
+                ? keyboardHeight
+                : Theme.spacing.floatingTabBarClearance + insets.bottom) + 24,
           },
         ]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
         overScrollMode="never"
         showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
