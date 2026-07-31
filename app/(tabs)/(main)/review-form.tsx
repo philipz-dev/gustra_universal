@@ -28,6 +28,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FeedSwipeDelete } from '@/components/feed/FeedSwipeDelete';
 import { InteractiveStarRating } from '@/components/review/InteractiveStarRating';
 import { ReorderablePhotoStrip } from '@/components/review/ReorderablePhotoStrip';
+import { RestaurantHeaderCard } from '@/components/review/RestaurantHeaderCard';
+import { DatePickerModal } from '@/components/review/DatePickerModal';
+import { RevisitStatsCard } from '@/components/review/RevisitStatsCard';
 import { FavoriteHeartButton } from '@/components/ui/FavoriteHeartButton';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
@@ -50,6 +53,7 @@ import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import type { CriterionRating, WineLabelFiche } from '@/data/types';
 import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
+import { usePhotoManager } from '@/hooks/usePhotoManager';
 import { stripWineLabelUrisFromPhotoUrls } from '@/services/backup/photos';
 import { safeOpenSettings } from '@/services/linking/safeLinking';
 import { extractTextFromImages } from '@/services/ocr/OCRService';
@@ -196,10 +200,26 @@ export default function ReviewFormScreen() {
   const [criteriaState, setCriteriaState] = useState<
     Record<string, { rating: number; comment: string }>
   >({});
-  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
-  const [selectedPhotosForRemoval, setSelectedPhotosForRemoval] = useState<
-    string[]
-  >([]);
+  const afterPhotoChangeRef = useRef<() => void>(() => {});
+  const {
+    photoUrls,
+    setPhotoUrls,
+    photoUrlsRef,
+    selectedPhotosForRemoval,
+    setSelectedPhotosForRemoval,
+    isImportingPhotos,
+    setIsImportingPhotos,
+    showPhotoSourceChooser,
+    setShowPhotoSourceChooser,
+    importFromLibrary,
+    takePhoto,
+    showPhotoSourcePicker,
+    confirmRemoveSelectedPhotos,
+    togglePhotoSelection,
+  } = usePhotoManager({
+    afterPhotoChange: () => afterPhotoChangeRef.current(),
+  });
+
   const [wineLabels, setWineLabels] = useState<WineLabelFiche[]>(() =>
     wineLabelsForReview(existingReview),
   );
@@ -212,8 +232,6 @@ export default function ReviewFormScreen() {
   /** Synced immediately on upsert so Done/unmount cannot create a second review. */
   const activeReviewIdRef = useRef<string | undefined>(undefined);
   const [isSaving, setIsSaving] = useState(false);
-  const [isImportingPhotos, setIsImportingPhotos] = useState(false);
-  const [showPhotoSourceChooser, setShowPhotoSourceChooser] = useState(false);
   const [isIndexingPhotos, setIsIndexingPhotos] = useState(false);
   const [ocrIndexedText, setOcrIndexedText] = useState(
     () => existingReview?.ocrText ?? '',
@@ -233,8 +251,6 @@ export default function ReviewFormScreen() {
 
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didHydrate = useRef(false);
-  const photoUrlsRef = useRef(photoUrls);
-  photoUrlsRef.current = photoUrls;
   const ocrIndexedTextRef = useRef(ocrIndexedText);
   ocrIndexedTextRef.current = ocrIndexedText;
   const ocrIndexGeneration = useRef(0);
@@ -499,6 +515,7 @@ export default function ReviewFormScreen() {
     schedulePersist();
   }, [persistPhotosNow, schedulePersist]);
 
+  afterPhotoChangeRef.current = afterPhotoChange;
   persistNowRef.current = persistNow;
   schedulePersistRef.current = schedulePersist;
 
@@ -1062,145 +1079,6 @@ export default function ReviewFormScreen() {
     ]),
   );
 
-  const confirmRemoveSelectedPhotos = () => {
-    if (selectedPhotosForRemoval.length === 0) return;
-    const toRemove = [...selectedPhotosForRemoval];
-    houseAlert(
-      t('alerts.reviewForm.removePhotosTitle'),
-      t('alerts.reviewForm.removePhotosBody'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.remove'),
-          style: 'destructive',
-          onPress: () => {
-            const removeSet = new Set(toRemove);
-            setPhotoUrls((prev) => {
-              const next = prev.filter((u) => !removeSet.has(u));
-              photoUrlsRef.current = next;
-              return next;
-            });
-            setSelectedPhotosForRemoval([]);
-            void deleteReviewPhotoFiles(toRemove);
-            afterPhotoChange();
-          },
-        },
-      ],
-    );
-  };
-
-  const togglePhotoSelection = (uri: string) => {
-    setSelectedPhotosForRemoval((prev) =>
-      prev.includes(uri) ? prev.filter((u) => u !== uri) : [...prev, uri],
-    );
-  };
-
-  const warnPhotoLimit = useCallback(() => {
-    houseAlert(
-      t('alerts.reviewForm.photoLimitTitle'),
-      t('alerts.reviewForm.photoLimitBody', { max: MAX_REVIEW_PHOTOS }),
-    );
-  }, [t]);
-
-  const importFromLibrary = async () => {
-    const slots = remainingReviewPhotoSlots(photoUrlsRef.current.length);
-    if (slots <= 0) {
-      warnPhotoLimit();
-      return;
-    }
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      openSettingsAlert(
-        t('alerts.permission.photos'),
-      );
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsMultipleSelection: true,
-      quality: 1,
-      selectionLimit: slots,
-    });
-    if (result.canceled || result.assets.length === 0) return;
-    const assets = result.assets.slice(0, slots);
-    if (result.assets.length > slots) {
-      warnPhotoLimit();
-    }
-    setIsImportingPhotos(true);
-    try {
-      const saved: string[] = [];
-      for (const asset of assets) {
-        if (!asset.uri) continue;
-        saved.push(await saveReviewPhoto(asset.uri));
-      }
-      if (saved.length) {
-        Haptics.light();
-        setPhotoUrls((prev) => {
-          const cleaned = prev.map((u) => u.trim()).filter(Boolean);
-          const room = remainingReviewPhotoSlots(cleaned.length);
-          const next = [...cleaned, ...saved.slice(0, room)];
-          photoUrlsRef.current = next;
-          return next;
-        });
-        afterPhotoChange();
-      }
-    } catch {
-      Haptics.error();
-      houseAlert(t('forms.review.photos'), t('alerts.reviewForm.photosSaveFailed'));
-    } finally {
-      setIsImportingPhotos(false);
-    }
-  };
-
-  const takePhoto = async () => {
-    if (remainingReviewPhotoSlots(photoUrlsRef.current.length) <= 0) {
-      warnPhotoLimit();
-      return;
-    }
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      openSettingsAlert(
-        t('alerts.permission.camera'),
-      );
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      quality: 1,
-    });
-    if (result.canceled || !result.assets[0]?.uri) return;
-    if (remainingReviewPhotoSlots(photoUrlsRef.current.length) <= 0) {
-      warnPhotoLimit();
-      return;
-    }
-    setIsImportingPhotos(true);
-    try {
-      const uri = await saveReviewPhoto(result.assets[0].uri);
-      Haptics.light();
-      setPhotoUrls((prev) => {
-        const cleaned = prev.map((u) => u.trim()).filter(Boolean);
-        if (remainingReviewPhotoSlots(cleaned.length) <= 0) return cleaned;
-        const next = [...cleaned, uri];
-        photoUrlsRef.current = next;
-        return next;
-      });
-      afterPhotoChange();
-    } catch {
-      Haptics.error();
-      houseAlert(t('forms.review.photos'), t('alerts.photos.saveFailed'));
-    } finally {
-      setIsImportingPhotos(false);
-    }
-  };
-
-  const showPhotoSourcePicker = () => {
-    if (remainingReviewPhotoSlots(photoUrlsRef.current.length) <= 0) {
-      warnPhotoLimit();
-      return;
-    }
-    setShowPhotoSourceChooser(true);
-  };
-
   const confirmDelete = () => {
     if (!activeReviewId && !existingReview) return;
     houseAlert(t('alerts.reviewForm.deleteTitle'), t('alerts.reviewForm.deleteBody'), [
@@ -1276,29 +1154,14 @@ export default function ReviewFormScreen() {
         scrollEventThrottle={16}
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
         overScrollMode="never">
-          <View style={styles.card}>
-            <View style={styles.restaurantRow}>
-              <View style={styles.restaurantCopy}>
-                <View style={styles.nameRow}>
-                  <SerifText style={styles.restaurantName}>{draft.name}</SerifText>
-                  {isDraftForm && (
-                    <View style={styles.editorialPill}>
-                      <Text style={styles.editorialPillText}>{t('reviews.draftLabel')}</Text>
-                    </View>
-                  )}
-                </View>
-                {addressLine ? (
-                  <Text style={styles.address}>{addressLine}</Text>
-                ) : null}
-              </View>
-              <FavoriteHeartButton
-                favorite={isFavorite}
-                onToggle={(next) => {
-                  setIsFavorite(next);
-                }}
-              />
-            </View>
-          </View>
+          <RestaurantHeaderCard
+            name={draft.name}
+            addressLine={addressLine}
+            isFavorite={isFavorite}
+            setIsFavorite={setIsFavorite}
+            isDraftForm={isDraftForm}
+            draftLabel={t('reviews.draftLabel')}
+          />
 
           {isDraftForm && draftReason ? (
             <View style={styles.subtleDraftHint}>
@@ -1310,30 +1173,14 @@ export default function ReviewFormScreen() {
             </View>
           ) : null}
 
-          {revisitCount > 0 ? (
-            <View style={styles.card}>
-              <Text style={styles.revisitTitle}>
-                {t('forms.review.otherVisits', { count: revisitCount })}
-              </Text>
-              <View style={styles.revisitMeta}>
-                {lastVisitIso ? (
-                  <Text style={styles.revisitMetaText}>
-                    {t('forms.review.mostRecent', { date: formatShortDate(lastVisitIso) })}
-                  </Text>
-                ) : null}
-                {revisitAverage > 0 ? (
-                  <View style={styles.revisitScore}>
-                    <FractionalStarRating score={revisitAverage} size={16} />
-                    <Text style={styles.revisitMetaText}>
-                      {t('forms.review.avg', {
-                        score: formatScoreOutOfFive(revisitAverage),
-                      })}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            </View>
-          ) : null}
+          <RevisitStatsCard
+            revisitCount={revisitCount}
+            lastVisitIso={lastVisitIso}
+            revisitAverage={revisitAverage}
+            formatShortDate={formatShortDate}
+            formatScoreOutOfFive={formatScoreOutOfFive}
+            t={t}
+          />
 
           <View style={styles.card}>
             <FormSectionTitle title={t("forms.review.visitDate")} />
@@ -1732,77 +1579,16 @@ export default function ReviewFormScreen() {
         }}
       />
 
-      <Modal
+      <DatePickerModal
         visible={showDatePicker}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowDatePicker(false)}>
-        <View style={styles.dateModal}>
-          <HouseNavHeader
-            title={t("forms.review.visitDate")}
-            right={
-              <HouseToolbarIconButton
-                iosName="checkmark"
-                androidName="check"
-                accessibilityLabel={t("forms.review.done")}
-                onPress={() => setShowDatePicker(false)}
-              />
-            }
-          />
-          <ScrollView contentContainerStyle={styles.dateModalBody}>
-            <DateTimePicker
-              value={visitDate}
-              mode={datePickerMode}
-              display={Platform.OS === 'ios' ? 'inline' : 'default'}
-              maximumDate={new Date()}
-              themeVariant="light"
-              accentColor={GustraColors.forestGreen}
-              onChange={(_, selected) => {
-                if (Platform.OS === 'android') {
-                  setShowDatePicker(false);
-                }
-                if (!selected) return;
-                setVisitDate(selected);
-              }}
-            />
-            {Platform.OS === 'ios' ? (
-              <View style={styles.timeBlock}>
-                <Text style={styles.timeCaption}>
-                  {t('forms.review.time')}
-                </Text>
-                <DateTimePicker
-                  value={visitDate}
-                  mode="time"
-                  display="spinner"
-                  maximumDate={new Date()}
-                  themeVariant="light"
-                  accentColor={GustraColors.forestGreen}
-                  onChange={(_, selected) => {
-                    if (!selected) return;
-                    setVisitDate(selected);
-                  }}
-                />
-              </View>
-            ) : (
-              <Pressable
-                onPress={() => {
-                  setDatePickerMode('time');
-                  setShowDatePicker(true);
-                }}
-                style={styles.androidTimeBtn}>
-                <Text style={styles.dateLabel}>
-                  {t('forms.review.setTime', {
-                    time: visitDate.toLocaleTimeString(activeIntlLocale(), {
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    }),
-                  })}
-                </Text>
-              </Pressable>
-            )}
-          </ScrollView>
-        </View>
-      </Modal>
+        visitDate={visitDate}
+        setVisitDate={setVisitDate}
+        datePickerMode={datePickerMode}
+        setDatePickerMode={setDatePickerMode}
+        onClose={() => setShowDatePicker(false)}
+        activeIntlLocale={activeIntlLocale}
+        t={t}
+      />
     </View>
   );
 }
@@ -1837,88 +1623,6 @@ const styles = StyleSheet.create({
     borderRadius: Theme.radius.xxl,
     padding: 16,
     gap: 12,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  editorialPill: {
-    backgroundColor: 'rgba(199, 71, 66, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(199, 71, 66, 0.25)',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  editorialPillText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: 'rgba(199, 71, 66, 0.85)',
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-  },
-  subtleDraftHint: {
-    marginTop: -4,
-    paddingHorizontal: 16,
-  },
-  subtleDraftHintText: {
-    ...bodyTextStyle,
-    fontSize: 13,
-    fontStyle: 'italic',
-    color: 'rgba(35, 32, 26, 0.6)',
-  },
-  draftBanner: {
-    backgroundColor: 'rgba(217, 162, 39, 0.14)',
-    borderRadius: Theme.radius.xxl,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  draftBannerText: {
-    ...bodyTextStyle,
-    fontSize: 14,
-    fontWeight: '600',
-    color: GustraColors.gold,
-  },
-  restaurantRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  restaurantCopy: {
-    flex: 1,
-    gap: 4,
-  },
-  restaurantName: {
-    fontSize: 20,
-    color: GustraColors.forestGreen,
-  },
-  address: {
-    ...captionTextStyle,
-    fontSize: 14,
-    color: 'rgba(35, 32, 26, 0.55)',
-  },
-  revisitTitle: {
-    ...bodyTextStyle,
-    fontSize: 15,
-    color: GustraColors.ink,
-  },
-  revisitMeta: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 12,
-  },
-  revisitMetaText: {
-    ...captionTextStyle,
-    fontSize: 13,
-    color: 'rgba(35, 32, 26, 0.55)',
-  },
-  revisitScore: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
   },
   sectionTitleWrap: {
     gap: 6,
