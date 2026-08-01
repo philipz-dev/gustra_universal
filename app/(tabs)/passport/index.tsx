@@ -108,9 +108,11 @@ function BestRestaurantPodium({
           <Text style={styles.podiumHeroTitle} numberOfLines={2}>
             {first.title}
           </Text>
-          <SerifText size={22} weight="bold" style={styles.podiumHeroScore}>
-            {formatScoreOutOfFive(first.average)}
-          </SerifText>
+          <View style={styles.podiumHeroScoreBadge}>
+            <SerifText size={18} weight="bold" style={styles.podiumHeroScore}>
+              {formatScoreOutOfFive(first.average)}
+            </SerifText>
+          </View>
         </View>
       </Pressable>
 
@@ -644,6 +646,20 @@ const styles = StyleSheet.create({
     color: GustraColors.gold,
     fontVariant: ['tabular-nums'],
   },
+  /** Frosted pill so "5/5" stays readable on any photo. */
+  podiumHeroScoreBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(10, 8, 4, 0.45)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+    shadowColor: '#000000',
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+  },
   /* Vertical leaderboard stack for #2/#3 — each row full width. */
   podiumRow: {
     gap: 10,
@@ -676,18 +692,21 @@ const styles = StyleSheet.create({
 
   /* ——— Rank medal ——— */
   medal: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(217, 162, 39, 0.18)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(217, 162, 39, 0.55)',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: GustraColors.gold,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
   medalText: {
-    ...serifStyle(14, 'bold'),
-    color: GustraColors.gold,
+    ...serifStyle(15, 'bold'),
+    color: '#FFFFFF',
     fontVariant: ['tabular-nums'],
   },
 
