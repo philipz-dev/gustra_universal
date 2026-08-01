@@ -644,17 +644,16 @@ const styles = StyleSheet.create({
     color: GustraColors.gold,
     fontVariant: ['tabular-nums'],
   },
+  /* Vertical leaderboard stack for #2/#3 — each row full width. */
   podiumRow: {
-    flexDirection: 'row',
     gap: 10,
   },
   podiumCard: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
+    gap: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
     backgroundColor: 'rgba(236, 227, 207, 0.55)',
     borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
@@ -666,7 +665,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   podiumCardTitle: {
-    ...serifStyle(15, 'semibold'),
+    ...serifStyle(16, 'semibold'),
     flex: 1,
     color: GustraColors.ink,
   },
