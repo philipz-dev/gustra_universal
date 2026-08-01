@@ -598,8 +598,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 14,
     minHeight: 132,
-    paddingHorizontal: 16,
-    paddingVertical: 18,
+    padding: 18,
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
@@ -634,14 +633,10 @@ const styles = StyleSheet.create({
   },
   podiumHeroCopy: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: 12,
+    gap: 8,
   },
   podiumHeroTitle: {
     ...serifStyle(22, 'bold'),
-    flex: 1,
     color: '#FFFFFF',
     textShadowColor: 'rgba(0, 0, 0, 0.4)',
     textShadowOffset: { width: 0, height: 1 },
@@ -653,6 +648,7 @@ const styles = StyleSheet.create({
   },
   /** Frosted pill so "5/5" stays readable on any photo. */
   podiumHeroScoreBadge: {
+    alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
