@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 
 import { houseAlert } from '@/components/ui/HouseAlert';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { router, useNavigation } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,7 +33,11 @@ import {
   backupPasswordHint,
   isValidBackupPassword,
 } from '@/services/backup/passwordPolicy';
-import type { BackupImportMode, LocalBackupFile } from '@/services/backup/types';
+import type {
+  BackupImportMode,
+  BackupPayload,
+  LocalBackupFile,
+} from '@/services/backup/types';
 
 type Step =
   | 'home'
@@ -40,7 +45,8 @@ type Step =
   | 'createDestination'
   | 'restorePick'
   | 'restorePassword'
-  | 'restoreMode';
+  | 'restoreMode'
+  | 'snapshotMode';
 
 function titleForStep(step: Step, t: (key: string) => string): string {
   switch (step) {
@@ -49,6 +55,8 @@ function titleForStep(step: Step, t: (key: string) => string): string {
     case 'createPassword':
     case 'createDestination':
       return t('backup.create');
+    case 'snapshotMode':
+      return t('backup.restoreTitle');
     default:
       return t('backup.restoreTitle');
   }
@@ -59,7 +67,7 @@ export default function EncryptedBackupScreen() {
   const insets = useSafeAreaInsets();
   const keyboardHeight = useKeyboardBottomInset();
   const navigation = useNavigation();
-  const { reviews, createEncryptedBackup, importEncryptedBackup } =
+  const { reviews, createEncryptedBackup, importEncryptedBackup, importAutoProtectSnapshot } =
     useReviewsStore();
 
   const [step, setStep] = useState<Step>('home');
@@ -70,6 +78,7 @@ export default function EncryptedBackupScreen() {
   const [pendingBytes, setPendingBytes] = useState<Uint8Array | null>(null);
   const [pendingFilename, setPendingFilename] = useState('');
   const [pendingRestore, setPendingRestore] = useState<Uint8Array | null>(null);
+  const [pendingPayload, setPendingPayload] = useState<BackupPayload | null>(null);
   const [isBusy, setIsBusy] = useState(false);
 
   const canCreate = reviews.length > 0;
@@ -109,6 +118,8 @@ export default function EncryptedBackupScreen() {
           return 'restorePick';
         case 'restoreMode':
           return 'restorePassword';
+        case 'snapshotMode':
+          return 'restorePick';
       }
     });
   }, []);
@@ -215,6 +226,25 @@ export default function EncryptedBackupScreen() {
       }
     });
 
+  /** Restoring an automatic AutoProtect snapshot never requires a password. */
+  const pickLocalSnapshot = (file: LocalBackupFile) =>
+    void runBusy(async () => {
+      try {
+        const json = await FileSystem.readAsStringAsync(file.uri, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        const payload = JSON.parse(json) as BackupPayload;
+        if (!payload || !Array.isArray(payload.reviews)) {
+          throw new Error();
+        }
+        setPendingPayload(payload);
+        setMessage(null);
+        setStep('snapshotMode');
+      } catch {
+        setMessage(t('backup.readFailed'));
+      }
+    });
+
   const chooseFromFiles = () =>
     void runBusy(async () => {
       const result = await DocumentPicker.getDocumentAsync({
@@ -281,6 +311,20 @@ export default function EncryptedBackupScreen() {
       ],
     );
   };
+
+  const performSnapshotRestore = () =>
+    void runBusy(async () => {
+      if (!pendingPayload) return;
+      try {
+        await importAutoProtectSnapshot(pendingPayload);
+        setMessage(t('backup.mergedSuccess'));
+        setPendingPayload(null);
+        setPassword('');
+        setStep('home');
+      } catch {
+        setMessage(t('backup.incorrectPassword'));
+      }
+    });
 
   const confirmDeleteBackup = (file: LocalBackupFile) => {
     houseAlert(
@@ -420,41 +464,53 @@ export default function EncryptedBackupScreen() {
             ) : (
               <>
                 <Text style={styles.sectionLead}>{t('backup.gustraBackups')}</Text>
-                {localBackups.map((file) => (
-                  <View key={file.uri} style={styles.backupRow}>
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.backupMain,
-                        pressed && styles.pressed,
-                      ]}
-                      onPress={() => pickRestoreFile(file)}>
-                      <Text style={styles.backupName} numberOfLines={1}>
-                        {file.name}
-                      </Text>
-                      <Text style={styles.backupMeta}>
-                        {new Date(file.modified).toLocaleString(
-                          activeIntlLocale(),
-                        )}{' '}
-                        · {formatByteCount(file.byteCount)}
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityLabel={`Delete ${file.name}`}
-                      hitSlop={8}
-                      onPress={() => confirmDeleteBackup(file)}
-                      style={({ pressed }) => pressed && styles.pressed}>
-                      <SymbolView
-                        name={{
-                          ios: 'trash',
-                          android: 'delete',
-                          web: 'delete',
-                        }}
-                        size={20}
-                        tintColor={GustraColors.ratingAvoid}
-                      />
-                    </Pressable>
-                  </View>
-                ))}
+                {localBackups.map((file) => {
+                  const isSnapshot =
+                    file.name.startsWith('AutoProtect-') &&
+                    file.name.toLowerCase().endsWith('.json');
+                  return (
+                    <View key={file.uri} style={styles.backupRow}>
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.backupMain,
+                          pressed && styles.pressed,
+                        ]}
+                        onPress={() =>
+                          isSnapshot
+                            ? pickLocalSnapshot(file)
+                            : pickRestoreFile(file)
+                        }>
+                        <Text style={styles.backupName} numberOfLines={1}>
+                          {isSnapshot
+                            ? t('backup.autoSnapshotTitle')
+                            : file.name}
+                        </Text>
+                        <Text style={styles.backupMeta}>
+                          {new Date(file.modified).toLocaleString(
+                            activeIntlLocale(),
+                          )}{' '}
+                          · {formatByteCount(file.byteCount)}
+                          {isSnapshot ? ` · ${file.name}` : ''}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityLabel={`Delete ${file.name}`}
+                        hitSlop={8}
+                        onPress={() => confirmDeleteBackup(file)}
+                        style={({ pressed }) => pressed && styles.pressed}>
+                        <SymbolView
+                          name={{
+                            ios: 'trash',
+                            android: 'delete',
+                            web: 'delete',
+                          }}
+                          size={20}
+                          tintColor={GustraColors.ratingAvoid}
+                        />
+                      </Pressable>
+                    </View>
+                  );
+                })}
               </>
             )}
             <HousePrimaryButton
@@ -509,6 +565,24 @@ export default function EncryptedBackupScreen() {
             </Pressable>
             <Text style={styles.footerHint}>
               {t('backup.overwriteHint')}
+            </Text>
+          </View>
+        ) : null}
+
+        {step === 'snapshotMode' ? (
+          <View style={styles.form}>
+            <Text style={styles.sectionLead}>
+              {t('backup.autoSnapshotRestoreTitle')}
+            </Text>
+            <Text style={styles.footerHint}>
+              {t('backup.autoSnapshotRestoreBody')}
+            </Text>
+            <HousePrimaryButton
+              title={t("backup.merge")}
+              onPress={performSnapshotRestore}
+            />
+            <Text style={styles.footerHint}>
+              {t('backup.mergeHint')}
             </Text>
           </View>
         ) : null}

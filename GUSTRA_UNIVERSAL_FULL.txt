@@ -1,6 +1,6 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-08-01T22:34:45Z
+Generated: 2026-08-01T23:04:34Z
 Root: /Users/philipzvar/Desktop/gustra_universal
 Files: 238
 ================================================================================
@@ -6199,6 +6199,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 
 import { houseAlert } from '@/components/ui/HouseAlert';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { router, useNavigation } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6228,7 +6229,11 @@ import {
   backupPasswordHint,
   isValidBackupPassword,
 } from '@/services/backup/passwordPolicy';
-import type { BackupImportMode, LocalBackupFile } from '@/services/backup/types';
+import type {
+  BackupImportMode,
+  BackupPayload,
+  LocalBackupFile,
+} from '@/services/backup/types';
 
 type Step =
   | 'home'
@@ -6236,7 +6241,8 @@ type Step =
   | 'createDestination'
   | 'restorePick'
   | 'restorePassword'
-  | 'restoreMode';
+  | 'restoreMode'
+  | 'snapshotMode';
 
 function titleForStep(step: Step, t: (key: string) => string): string {
   switch (step) {
@@ -6245,6 +6251,8 @@ function titleForStep(step: Step, t: (key: string) => string): string {
     case 'createPassword':
     case 'createDestination':
       return t('backup.create');
+    case 'snapshotMode':
+      return t('backup.restoreTitle');
     default:
       return t('backup.restoreTitle');
   }
@@ -6255,7 +6263,7 @@ export default function EncryptedBackupScreen() {
   const insets = useSafeAreaInsets();
   const keyboardHeight = useKeyboardBottomInset();
   const navigation = useNavigation();
-  const { reviews, createEncryptedBackup, importEncryptedBackup } =
+  const { reviews, createEncryptedBackup, importEncryptedBackup, importAutoProtectSnapshot } =
     useReviewsStore();
 
   const [step, setStep] = useState<Step>('home');
@@ -6266,6 +6274,7 @@ export default function EncryptedBackupScreen() {
   const [pendingBytes, setPendingBytes] = useState<Uint8Array | null>(null);
   const [pendingFilename, setPendingFilename] = useState('');
   const [pendingRestore, setPendingRestore] = useState<Uint8Array | null>(null);
+  const [pendingPayload, setPendingPayload] = useState<BackupPayload | null>(null);
   const [isBusy, setIsBusy] = useState(false);
 
   const canCreate = reviews.length > 0;
@@ -6305,6 +6314,8 @@ export default function EncryptedBackupScreen() {
           return 'restorePick';
         case 'restoreMode':
           return 'restorePassword';
+        case 'snapshotMode':
+          return 'restorePick';
       }
     });
   }, []);
@@ -6411,6 +6422,25 @@ export default function EncryptedBackupScreen() {
       }
     });
 
+  /** Restoring an automatic AutoProtect snapshot never requires a password. */
+  const pickLocalSnapshot = (file: LocalBackupFile) =>
+    void runBusy(async () => {
+      try {
+        const json = await FileSystem.readAsStringAsync(file.uri, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        const payload = JSON.parse(json) as BackupPayload;
+        if (!payload || !Array.isArray(payload.reviews)) {
+          throw new Error();
+        }
+        setPendingPayload(payload);
+        setMessage(null);
+        setStep('snapshotMode');
+      } catch {
+        setMessage(t('backup.readFailed'));
+      }
+    });
+
   const chooseFromFiles = () =>
     void runBusy(async () => {
       const result = await DocumentPicker.getDocumentAsync({
@@ -6477,6 +6507,20 @@ export default function EncryptedBackupScreen() {
       ],
     );
   };
+
+  const performSnapshotRestore = () =>
+    void runBusy(async () => {
+      if (!pendingPayload) return;
+      try {
+        await importAutoProtectSnapshot(pendingPayload);
+        setMessage(t('backup.mergedSuccess'));
+        setPendingPayload(null);
+        setPassword('');
+        setStep('home');
+      } catch {
+        setMessage(t('backup.incorrectPassword'));
+      }
+    });
 
   const confirmDeleteBackup = (file: LocalBackupFile) => {
     houseAlert(
@@ -6616,41 +6660,53 @@ export default function EncryptedBackupScreen() {
             ) : (
               <>
                 <Text style={styles.sectionLead}>{t('backup.gustraBackups')}</Text>
-                {localBackups.map((file) => (
-                  <View key={file.uri} style={styles.backupRow}>
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.backupMain,
-                        pressed && styles.pressed,
-                      ]}
-                      onPress={() => pickRestoreFile(file)}>
-                      <Text style={styles.backupName} numberOfLines={1}>
-                        {file.name}
-                      </Text>
-                      <Text style={styles.backupMeta}>
-                        {new Date(file.modified).toLocaleString(
-                          activeIntlLocale(),
-                        )}{' '}
-                        · {formatByteCount(file.byteCount)}
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityLabel={`Delete ${file.name}`}
-                      hitSlop={8}
-                      onPress={() => confirmDeleteBackup(file)}
-                      style={({ pressed }) => pressed && styles.pressed}>
-                      <SymbolView
-                        name={{
-                          ios: 'trash',
-                          android: 'delete',
-                          web: 'delete',
-                        }}
-                        size={20}
-                        tintColor={GustraColors.ratingAvoid}
-                      />
-                    </Pressable>
-                  </View>
-                ))}
+                {localBackups.map((file) => {
+                  const isSnapshot =
+                    file.name.startsWith('AutoProtect-') &&
+                    file.name.toLowerCase().endsWith('.json');
+                  return (
+                    <View key={file.uri} style={styles.backupRow}>
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.backupMain,
+                          pressed && styles.pressed,
+                        ]}
+                        onPress={() =>
+                          isSnapshot
+                            ? pickLocalSnapshot(file)
+                            : pickRestoreFile(file)
+                        }>
+                        <Text style={styles.backupName} numberOfLines={1}>
+                          {isSnapshot
+                            ? t('backup.autoSnapshotTitle')
+                            : file.name}
+                        </Text>
+                        <Text style={styles.backupMeta}>
+                          {new Date(file.modified).toLocaleString(
+                            activeIntlLocale(),
+                          )}{' '}
+                          · {formatByteCount(file.byteCount)}
+                          {isSnapshot ? ` · ${file.name}` : ''}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityLabel={`Delete ${file.name}`}
+                        hitSlop={8}
+                        onPress={() => confirmDeleteBackup(file)}
+                        style={({ pressed }) => pressed && styles.pressed}>
+                        <SymbolView
+                          name={{
+                            ios: 'trash',
+                            android: 'delete',
+                            web: 'delete',
+                          }}
+                          size={20}
+                          tintColor={GustraColors.ratingAvoid}
+                        />
+                      </Pressable>
+                    </View>
+                  );
+                })}
               </>
             )}
             <HousePrimaryButton
@@ -6705,6 +6761,24 @@ export default function EncryptedBackupScreen() {
             </Pressable>
             <Text style={styles.footerHint}>
               {t('backup.overwriteHint')}
+            </Text>
+          </View>
+        ) : null}
+
+        {step === 'snapshotMode' ? (
+          <View style={styles.form}>
+            <Text style={styles.sectionLead}>
+              {t('backup.autoSnapshotRestoreTitle')}
+            </Text>
+            <Text style={styles.footerHint}>
+              {t('backup.autoSnapshotRestoreBody')}
+            </Text>
+            <HousePrimaryButton
+              title={t("backup.merge")}
+              onPress={performSnapshotRestore}
+            />
+            <Text style={styles.footerHint}>
+              {t('backup.mergeHint')}
             </Text>
           </View>
         ) : null}
@@ -9993,7 +10067,6 @@ import {
 } from '@/context/ReviewerProfile';
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
-import { useShareImportLaunch } from '@/context/ShareImportLaunch';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import type { LanguagePreference } from '@/i18n/resolveLanguage';
 import { useAdvancedMenuUnlocked } from '@/context/AdvancedMenu';
@@ -10053,7 +10126,6 @@ export default function SettingsScreen() {
     useReviewerProfile();
   const { reviews, restaurants, importSwiftLegacyData, demoShowcaseEnabled, setDemoShowcaseEnabled } =
     useReviewsStore();
-  const { pickSharePackage } = useShareImportLaunch();
   const { reopenCriteriaSetupForDev } = useCriteriaSettings();
   const [reviewerNameDraft, setReviewerNameDraft] = useState('');
   const [photosSubtitle, setPhotosSubtitle] = useState(
@@ -10452,20 +10524,7 @@ export default function SettingsScreen() {
       {advancedUnlocked ? (
         <SettingsSection title={t('settings.sectionAdvanced')}>
           <SettingsRow
-            title={t('settings.importShared')}
-          subtitle={t('settings.importSharedSubtitle')}
-          icon={{
-            ios: 'square.and.arrow.down',
-            android: 'download',
-            web: 'download',
-          }}
-          showChevron
-          onPress={() => {
-            void pickSharePackage();
-          }}
-        />
-        <SettingsRow
-          title={t('settings.mapsSdk')}
+            title={t('settings.mapsSdk')}
           icon={{ ios: 'map.fill', android: 'map', web: 'map' }}
           trailing={
             <SerifText size={15} weight="semibold" style={styles.apiValue}>
@@ -27119,6 +27178,7 @@ import {
   decryptBackup,
   exportEncryptedBackup,
   reviewerProfileFromPayload,
+  writeAutoProtectSnapshot,
 } from '@/services/backup/BackupService';
 import {
   criteriaSettingsToBackup,
@@ -27131,6 +27191,7 @@ import {
 import {
   REVIEWER_PHOTO_BACKUP_KEY,
   type BackupImportMode,
+  type BackupPayload,
 } from '@/services/backup/types';
 import {
   ensureSwiftLegacyMigration,
@@ -27231,6 +27292,8 @@ type ReviewsStoreValue = {
     password: string,
     mode: BackupImportMode,
   ) => Promise<void>;
+  /** Import an unencrypted AutoProtect launch snapshot (merge-safe). */
+  importAutoProtectSnapshot: (payload: BackupPayload) => Promise<void>;
   /** Marketing / QA showcase restaurants (fictional names, real addresses). */
   demoShowcaseEnabled: boolean;
   setDemoShowcaseEnabled: (enabled: boolean) => Promise<void>;
@@ -27700,6 +27763,45 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, []);
+
+  // On-launch automatic snapshot: write a lightweight AutoProtect JSON once
+  // the store is loaded, so recent reviews survive even without a manual
+  // encrypted backup. Only `AutoProtect-launch-*` files are created; encrypted
+  // `.gustra` backups are never touched by the retention/pruning.
+  useEffect(() => {
+    if (!ready) return;
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const [profileSnap, criteriaSnap] = await Promise.all([
+            getProfileSnapshot(),
+            Promise.resolve(getCriteriaSnapshot()),
+          ]);
+          const photoFiles: Record<string, string> = {};
+          if (profileSnap.photoBase64) {
+            photoFiles[REVIEWER_PHOTO_BACKUP_KEY] = profileSnap.photoBase64;
+          }
+          const userOnly = stripDemoShowcase(
+            restaurantsRef.current,
+            reviewsRef.current,
+          );
+          await writeAutoProtectSnapshot({
+            restaurants: userOnly.restaurants,
+            reviews: userOnly.reviews,
+            reviewerProfile: reviewerProfileToBackup({
+              name: profileSnap.name,
+              hasPhoto: Boolean(profileSnap.photoBase64),
+              authorId: profileSnap.authorId,
+            }),
+            criteriaSettings: criteriaSettingsToBackup(criteriaSnap),
+          });
+        } catch {
+          // Non-fatal — manual backup remains available in Settings.
+        }
+      })();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [ready, getCriteriaSnapshot, getProfileSnapshot]);
 
   const getRestaurant = useCallback(
     (id: string) => restaurants.find((r) => r.id === id),
@@ -28215,6 +28317,51 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
     ],
   );
 
+  /** Import an unencrypted AutoProtect launch snapshot (always merge-safe). */
+  const importAutoProtectSnapshot = useCallback(
+    async (payload: BackupPayload) => {
+      const userOnly = stripDemoShowcase(restaurants, reviews);
+      const next = await applyBackupPayload({
+        payload,
+        mode: 'merge',
+        currentRestaurants: userOnly.restaurants,
+        currentReviews: userOnly.reviews,
+      });
+      const relocated = relocateStoredPhotoRefs(next);
+      const merged = withOptionalDemo(
+        relocated.restaurants,
+        relocated.reviews,
+        demoShowcaseEnabled,
+      );
+      setRestaurants(merged.restaurants);
+      setReviews(merged.reviews);
+      await persist({
+        restaurants: relocated.restaurants,
+        reviews: relocated.reviews,
+      });
+
+      const profile = reviewerProfileFromPayload(payload);
+      if (profile) {
+        await applyProfileSnapshot({
+          name: profile.profile.name,
+          photoBase64: profile.photoBase64,
+          authorId: profile.profile.authorId ?? undefined,
+        });
+      }
+      const criteria = criteriaSettingsFromPayload(payload);
+      if (criteria) {
+        await applyCriteriaSnapshot(criteria);
+      }
+    },
+    [
+      applyCriteriaSnapshot,
+      applyProfileSnapshot,
+      demoShowcaseEnabled,
+      restaurants,
+      reviews,
+    ],
+  );
+
   const importSwiftLegacyData = useCallback(async () => {
     await resetSwiftLegacyMigrationStatus();
     const result = await runSwiftLegacyImport({
@@ -28371,6 +28518,7 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       removeWineFromReview,
       createEncryptedBackup,
       importEncryptedBackup,
+      importAutoProtectSnapshot,
       demoShowcaseEnabled,
       setDemoShowcaseEnabled,
       importSwiftLegacyData,
@@ -28394,6 +28542,7 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       removeWineFromReview,
       createEncryptedBackup,
       importEncryptedBackup,
+      importAutoProtectSnapshot,
       demoShowcaseEnabled,
       setDemoShowcaseEnabled,
       importSwiftLegacyData,
@@ -31788,8 +31937,6 @@ FILE: i18n/locales/de.json
     "dataSavingsOn": "Niedrigere Auflösung",
     "dataSavingsOff": "Höhere Auflösung",
     "photos": "Fotos",
-    "importShared": "Geteilte Bewertungen importieren",
-    "importSharedSubtitle": "Öffne eine .gustrashare-Datei von einem Freund",
     "recoverPrevious": "Frühere Gustra-Daten wiederherstellen",
     "recoverScanSubtitle": "Dieses iPhone nach der alten Swift-Datenbank und Fotos durchsuchen",
     "recoverScanning": "Scannen…",
@@ -32041,6 +32188,9 @@ FILE: i18n/locales/de.json
     "noBackups": "Keine Backups gefunden",
     "noBackupsBody": "Im Gustra-Backup-Ordner wurden keine Backups gefunden. Du kannst weiterhin eine Datei von woanders auswählen.",
     "gustraBackups": "Gustra-Backups",
+    "autoSnapshotTitle": "Automatisches Backup",
+    "autoSnapshotRestoreTitle": "Automatisches Backup wiederherstellen",
+    "autoSnapshotRestoreBody": "Dies ist ein automatisches Backup, das beim App-Start erstellt wurde. Es wird mit deinen aktuellen Daten zusammengeführt (kein Passwort nötig).",
     "chooseFromFiles": "Aus Dateien wählen",
     "merge": "Mit aktuellen Daten zusammenführen",
     "overwrite": "Aktuelle Daten überschreiben",
@@ -32518,8 +32668,6 @@ FILE: i18n/locales/en.json
     "dataSavingsOn": "Lower resolution",
     "dataSavingsOff": "Higher resolution",
     "photos": "Photos",
-    "importShared": "Import shared reviews",
-    "importSharedSubtitle": "Open a .gustrashare file from a friend",
     "recoverPrevious": "Recover previous Gustra data",
     "recoverScanSubtitle": "Search this iPhone for the old Swift database and photos",
     "recoverScanning": "Scanning…",
@@ -32771,6 +32919,9 @@ FILE: i18n/locales/en.json
     "noBackups": "No backups found",
     "noBackupsBody": "No backups found in the Gustra Backups folder. You can still choose a file from elsewhere.",
     "gustraBackups": "Gustra backups",
+    "autoSnapshotTitle": "Automatic backup",
+    "autoSnapshotRestoreTitle": "Restore automatic backup",
+    "autoSnapshotRestoreBody": "This is an automatic backup created at app launch. It is merged with your current data (no password needed).",
     "chooseFromFiles": "Choose from Files",
     "merge": "Merge with current data",
     "overwrite": "Overwrite current data",
@@ -33248,8 +33399,6 @@ FILE: i18n/locales/es.json
     "dataSavingsOn": "Resolución más baja",
     "dataSavingsOff": "Resolución más alta",
     "photos": "Fotos",
-    "importShared": "Importar reseñas compartidas",
-    "importSharedSubtitle": "Abre un archivo .gustrashare de un amigo",
     "recoverPrevious": "Recuperar datos anteriores de Gustra",
     "recoverScanSubtitle": "Busca en este iPhone la antigua base de datos Swift y las fotos",
     "recoverScanning": "Buscando…",
@@ -33501,6 +33650,9 @@ FILE: i18n/locales/es.json
     "noBackups": "No se encontraron copias de seguridad",
     "noBackupsBody": "No se encontraron copias de seguridad en la carpeta Backups de Gustra. Aún puedes elegir un archivo de otro lugar.",
     "gustraBackups": "Copias de seguridad de Gustra",
+    "autoSnapshotTitle": "Copia de seguridad automática",
+    "autoSnapshotRestoreTitle": "Restaurar copia de seguridad automática",
+    "autoSnapshotRestoreBody": "Esta es una copia de seguridad automática creada al iniciar la app. Se combinará con tus datos actuales (no se necesita contraseña).",
     "chooseFromFiles": "Elegir desde Archivos",
     "merge": "Combinar con los datos actuales",
     "overwrite": "Sobrescribir los datos actuales",
@@ -33978,8 +34130,6 @@ FILE: i18n/locales/fr.json
     "dataSavingsOn": "Résolution plus basse",
     "dataSavingsOff": "Résolution plus haute",
     "photos": "Photos",
-    "importShared": "Importer des avis partagés",
-    "importSharedSubtitle": "Ouvrir un fichier .gustrashare d’un ami",
     "recoverPrevious": "Récupérer les anciennes données Gustra",
     "recoverScanSubtitle": "Chercher sur cet iPhone l’ancienne base Swift et les photos",
     "recoverScanning": "Analyse…",
@@ -34231,6 +34381,9 @@ FILE: i18n/locales/fr.json
     "noBackups": "Aucune sauvegarde",
     "noBackupsBody": "Aucune sauvegarde dans le dossier Backups de Gustra. Vous pouvez encore choisir un fichier ailleurs.",
     "gustraBackups": "Sauvegardes Gustra",
+    "autoSnapshotTitle": "Sauvegarde automatique",
+    "autoSnapshotRestoreTitle": "Restaurer la sauvegarde automatique",
+    "autoSnapshotRestoreBody": "Il s’agit d’une sauvegarde automatique créée au lancement de l’app. Elle sera fusionnée avec vos données actuelles (aucun mot de passe requis).",
     "chooseFromFiles": "Choisir dans Fichiers",
     "merge": "Fusionner avec les données actuelles",
     "overwrite": "Écraser les données actuelles",
@@ -34708,8 +34861,6 @@ FILE: i18n/locales/it.json
     "dataSavingsOn": "Risoluzione inferiore",
     "dataSavingsOff": "Risoluzione superiore",
     "photos": "Foto",
-    "importShared": "Importa recensioni condivise",
-    "importSharedSubtitle": "Apri un file .gustrashare",
     "recoverPrevious": "Recupera dati Gustra precedenti",
     "recoverScanSubtitle": "Cerca dati dell’app Swift su questo dispositivo",
     "recoverScanning": "Scansione…",
@@ -34961,6 +35112,9 @@ FILE: i18n/locales/it.json
     "noBackups": "Nessun backup trovato",
     "noBackupsBody": "Nessun backup nella cartella Gustra Backups. Puoi comunque scegliere un file altrove.",
     "gustraBackups": "Backup Gustra",
+    "autoSnapshotTitle": "Backup automatico",
+    "autoSnapshotRestoreTitle": "Ripristina backup automatico",
+    "autoSnapshotRestoreBody": "Questo è un backup automatico creato all’avvio dell’app. Verrà unito ai tuoi dati attuali (nessuna password richiesta).",
     "chooseFromFiles": "Scegli dai File",
     "merge": "Unisci ai dati attuali",
     "overwrite": "Sovrascrivi i dati attuali",
@@ -35438,8 +35592,6 @@ FILE: i18n/locales/nl.json
     "dataSavingsOn": "Lagere resolutie",
     "dataSavingsOff": "Hogere resolutie",
     "photos": "Foto’s",
-    "importShared": "Gedeelde recensies importeren",
-    "importSharedSubtitle": "Open een .gustrashare-bestand van een vriend",
     "recoverPrevious": "Vorige Gustra-gegevens herstellen",
     "recoverScanSubtitle": "Zoek op deze iPhone naar de oude Swift-database en foto’s",
     "recoverScanning": "Scannen…",
@@ -35691,6 +35843,9 @@ FILE: i18n/locales/nl.json
     "noBackups": "Geen back-ups gevonden",
     "noBackupsBody": "Geen back-ups gevonden in de Gustra Back-ups-map. Je kunt nog steeds een bestand elders kiezen.",
     "gustraBackups": "Gustra-back-ups",
+    "autoSnapshotTitle": "Automatische back-up",
+    "autoSnapshotRestoreTitle": "Automatische back-up herstellen",
+    "autoSnapshotRestoreBody": "Dit is een automatische back-up, aangemaakt bij het opstarten van de app. Deze wordt samengevoegd met je huidige gegevens (geen wachtwoord nodig).",
     "chooseFromFiles": "Kies uit Bestanden",
     "merge": "Samenvoegen met huidige gegevens",
     "overwrite": "Huidige gegevens overschrijven",
@@ -36679,6 +36834,14 @@ export function makeBackupFilename(date = new Date()): string {
 /** AutoProtect JSON snapshots expire after this many days (user `.gustra` backups are kept). */
 export const AUTO_PROTECT_RETENTION_DAYS = 30;
 
+/**
+ * Automatic on-launch snapshots are kept for 14 days (user `.gustra`
+ * backups are never touched, and the newest snapshot always survives).
+ */
+export const AUTO_PROTECT_AUTO_DAYS = 14;
+
+export const AUTO_PROTECT_AUTOMATIC_PREFIX = 'AutoProtect-launch-';
+
 const AUTO_PROTECT_PREFIX = 'AutoProtect-';
 
 /**
@@ -36732,7 +36895,10 @@ export async function listLocalBackups(): Promise<LocalBackupFile[]> {
   const names = await FileSystem.readDirectoryAsync(dir);
   const files: LocalBackupFile[] = [];
   for (const name of names) {
-    if (!name.toLowerCase().endsWith(`.${BACKUP_FILE_EXTENSION}`)) continue;
+    const isBackup = name.toLowerCase().endsWith(`.${BACKUP_FILE_EXTENSION}`);
+    const isSnapshot =
+      name.startsWith(AUTO_PROTECT_PREFIX) && name.toLowerCase().endsWith('.json');
+    if (!isBackup && !isSnapshot) continue;
     const uri = `${dir}${name}`;
     const info = await FileSystem.getInfoAsync(uri);
     if (!info.exists || info.isDirectory) continue;
@@ -36773,6 +36939,88 @@ export async function readBackupFile(uri: string): Promise<Uint8Array> {
     encoding: FileSystem.EncodingType.Base64,
   });
   return base64ToBytes(base64);
+}
+
+/**
+ * Write an unencrypted AutoProtect snapshot (plaint JSON payload) used for
+ * automatic on-launch backups. Never a replacement for password-encrypted
+ * `.gustra` backups. Older launch snapshots are pruned after
+ * {@link AUTO_PROTECT_AUTO_DAYS}, always keeping the newest one.
+ */
+export async function writeAutoProtectSnapshot(args: {
+  restaurants: Restaurant[];
+  reviews: Review[];
+  reviewerProfile?: ReviewerProfileBackup | null;
+  criteriaSettings?: CriteriaSettingsBackup | null;
+}): Promise<string | null> {
+  if (args.reviews.length === 0 && args.restaurants.length === 0) return null;
+  const dir = await ensureBackupsDir();
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const uri = `${dir}${AUTO_PROTECT_AUTOMATIC_PREFIX}${stamp}.json`;
+  try {
+    // Automatic snapshots stay lightweight: photo files already live on disk
+    // and are re-referenced on restore, so we never embed them here.
+    const payload = buildPayloadFromApp({
+      restaurants: args.restaurants,
+      reviews: args.reviews,
+      appVersion: 'auto-protect-launch',
+      photoFiles: {},
+      reviewerProfile: args.reviewerProfile ?? null,
+      criteriaSettings: args.criteriaSettings ?? null,
+    });
+    await FileSystem.writeAsStringAsync(uri, JSON.stringify(payload), {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+    await pruneAutoProtectSnapshots(AUTO_PROTECT_AUTO_DAYS);
+    return uri;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Prune automatic AutoProtect snapshots older than `retentionDays`, keeping
+ * the newest snapshot regardless of age. Only touches `AutoProtect-*.json`
+ * snapshots — never encrypted `.gustra` backups or Swift source files.
+ */
+export async function pruneAutoProtectSnapshots(
+  retentionDays: number,
+): Promise<number> {
+  const dir = await ensureBackupsDir();
+  const names = await FileSystem.readDirectoryAsync(dir);
+  const cutoffMs =
+    Date.now() - Math.max(1, retentionDays) * 24 * 60 * 60 * 1000;
+  const protect: { uri: string; modified: number }[] = [];
+  for (const name of names) {
+    if (!name.startsWith(AUTO_PROTECT_PREFIX)) continue;
+    if (!name.toLowerCase().endsWith('.json')) continue;
+    const uri = `${dir}${name}`;
+    try {
+      const info = await FileSystem.getInfoAsync(uri);
+      if (!info.exists || info.isDirectory) continue;
+      protect.push({
+        uri,
+        modified: info.modificationTime ? info.modificationTime * 1000 : 0,
+      });
+    } catch {
+      // ignore
+    }
+  }
+  if (protect.length === 0) return 0;
+  protect.sort((a, b) => b.modified - a.modified);
+  const newestUri = protect[0]?.uri;
+  let deleted = 0;
+  for (const file of protect) {
+    if (file.uri === newestUri) continue;
+    if (file.modified > 0 && file.modified >= cutoffMs) continue;
+    try {
+      await FileSystem.deleteAsync(file.uri, { idempotent: true });
+      deleted += 1;
+    } catch {
+      // ignore
+    }
+  }
+  return deleted;
 }
 
 /**

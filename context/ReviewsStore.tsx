@@ -29,6 +29,7 @@ import {
   decryptBackup,
   exportEncryptedBackup,
   reviewerProfileFromPayload,
+  writeAutoProtectSnapshot,
 } from '@/services/backup/BackupService';
 import {
   criteriaSettingsToBackup,
@@ -41,6 +42,7 @@ import {
 import {
   REVIEWER_PHOTO_BACKUP_KEY,
   type BackupImportMode,
+  type BackupPayload,
 } from '@/services/backup/types';
 import {
   ensureSwiftLegacyMigration,
@@ -141,6 +143,8 @@ type ReviewsStoreValue = {
     password: string,
     mode: BackupImportMode,
   ) => Promise<void>;
+  /** Import an unencrypted AutoProtect launch snapshot (merge-safe). */
+  importAutoProtectSnapshot: (payload: BackupPayload) => Promise<void>;
   /** Marketing / QA showcase restaurants (fictional names, real addresses). */
   demoShowcaseEnabled: boolean;
   setDemoShowcaseEnabled: (enabled: boolean) => Promise<void>;
@@ -610,6 +614,45 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, []);
+
+  // On-launch automatic snapshot: write a lightweight AutoProtect JSON once
+  // the store is loaded, so recent reviews survive even without a manual
+  // encrypted backup. Only `AutoProtect-launch-*` files are created; encrypted
+  // `.gustra` backups are never touched by the retention/pruning.
+  useEffect(() => {
+    if (!ready) return;
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const [profileSnap, criteriaSnap] = await Promise.all([
+            getProfileSnapshot(),
+            Promise.resolve(getCriteriaSnapshot()),
+          ]);
+          const photoFiles: Record<string, string> = {};
+          if (profileSnap.photoBase64) {
+            photoFiles[REVIEWER_PHOTO_BACKUP_KEY] = profileSnap.photoBase64;
+          }
+          const userOnly = stripDemoShowcase(
+            restaurantsRef.current,
+            reviewsRef.current,
+          );
+          await writeAutoProtectSnapshot({
+            restaurants: userOnly.restaurants,
+            reviews: userOnly.reviews,
+            reviewerProfile: reviewerProfileToBackup({
+              name: profileSnap.name,
+              hasPhoto: Boolean(profileSnap.photoBase64),
+              authorId: profileSnap.authorId,
+            }),
+            criteriaSettings: criteriaSettingsToBackup(criteriaSnap),
+          });
+        } catch {
+          // Non-fatal — manual backup remains available in Settings.
+        }
+      })();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [ready, getCriteriaSnapshot, getProfileSnapshot]);
 
   const getRestaurant = useCallback(
     (id: string) => restaurants.find((r) => r.id === id),
@@ -1125,6 +1168,51 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
     ],
   );
 
+  /** Import an unencrypted AutoProtect launch snapshot (always merge-safe). */
+  const importAutoProtectSnapshot = useCallback(
+    async (payload: BackupPayload) => {
+      const userOnly = stripDemoShowcase(restaurants, reviews);
+      const next = await applyBackupPayload({
+        payload,
+        mode: 'merge',
+        currentRestaurants: userOnly.restaurants,
+        currentReviews: userOnly.reviews,
+      });
+      const relocated = relocateStoredPhotoRefs(next);
+      const merged = withOptionalDemo(
+        relocated.restaurants,
+        relocated.reviews,
+        demoShowcaseEnabled,
+      );
+      setRestaurants(merged.restaurants);
+      setReviews(merged.reviews);
+      await persist({
+        restaurants: relocated.restaurants,
+        reviews: relocated.reviews,
+      });
+
+      const profile = reviewerProfileFromPayload(payload);
+      if (profile) {
+        await applyProfileSnapshot({
+          name: profile.profile.name,
+          photoBase64: profile.photoBase64,
+          authorId: profile.profile.authorId ?? undefined,
+        });
+      }
+      const criteria = criteriaSettingsFromPayload(payload);
+      if (criteria) {
+        await applyCriteriaSnapshot(criteria);
+      }
+    },
+    [
+      applyCriteriaSnapshot,
+      applyProfileSnapshot,
+      demoShowcaseEnabled,
+      restaurants,
+      reviews,
+    ],
+  );
+
   const importSwiftLegacyData = useCallback(async () => {
     await resetSwiftLegacyMigrationStatus();
     const result = await runSwiftLegacyImport({
@@ -1281,6 +1369,7 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       removeWineFromReview,
       createEncryptedBackup,
       importEncryptedBackup,
+      importAutoProtectSnapshot,
       demoShowcaseEnabled,
       setDemoShowcaseEnabled,
       importSwiftLegacyData,
@@ -1304,6 +1393,7 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       removeWineFromReview,
       createEncryptedBackup,
       importEncryptedBackup,
+      importAutoProtectSnapshot,
       demoShowcaseEnabled,
       setDemoShowcaseEnabled,
       importSwiftLegacyData,

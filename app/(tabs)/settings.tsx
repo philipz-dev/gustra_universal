@@ -37,7 +37,6 @@ import {
 } from '@/context/ReviewerProfile';
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
-import { useShareImportLaunch } from '@/context/ShareImportLaunch';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import type { LanguagePreference } from '@/i18n/resolveLanguage';
 import { useAdvancedMenuUnlocked } from '@/context/AdvancedMenu';
@@ -97,7 +96,6 @@ export default function SettingsScreen() {
     useReviewerProfile();
   const { reviews, restaurants, importSwiftLegacyData, demoShowcaseEnabled, setDemoShowcaseEnabled } =
     useReviewsStore();
-  const { pickSharePackage } = useShareImportLaunch();
   const { reopenCriteriaSetupForDev } = useCriteriaSettings();
   const [reviewerNameDraft, setReviewerNameDraft] = useState('');
   const [photosSubtitle, setPhotosSubtitle] = useState(
@@ -496,20 +494,7 @@ export default function SettingsScreen() {
       {advancedUnlocked ? (
         <SettingsSection title={t('settings.sectionAdvanced')}>
           <SettingsRow
-            title={t('settings.importShared')}
-          subtitle={t('settings.importSharedSubtitle')}
-          icon={{
-            ios: 'square.and.arrow.down',
-            android: 'download',
-            web: 'download',
-          }}
-          showChevron
-          onPress={() => {
-            void pickSharePackage();
-          }}
-        />
-        <SettingsRow
-          title={t('settings.mapsSdk')}
+            title={t('settings.mapsSdk')}
           icon={{ ios: 'map.fill', android: 'map', web: 'map' }}
           trailing={
             <SerifText size={15} weight="semibold" style={styles.apiValue}>

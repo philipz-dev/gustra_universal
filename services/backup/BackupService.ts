@@ -68,6 +68,14 @@ export function makeBackupFilename(date = new Date()): string {
 /** AutoProtect JSON snapshots expire after this many days (user `.gustra` backups are kept). */
 export const AUTO_PROTECT_RETENTION_DAYS = 30;
 
+/**
+ * Automatic on-launch snapshots are kept for 14 days (user `.gustra`
+ * backups are never touched, and the newest snapshot always survives).
+ */
+export const AUTO_PROTECT_AUTO_DAYS = 14;
+
+export const AUTO_PROTECT_AUTOMATIC_PREFIX = 'AutoProtect-launch-';
+
 const AUTO_PROTECT_PREFIX = 'AutoProtect-';
 
 /**
@@ -121,7 +129,10 @@ export async function listLocalBackups(): Promise<LocalBackupFile[]> {
   const names = await FileSystem.readDirectoryAsync(dir);
   const files: LocalBackupFile[] = [];
   for (const name of names) {
-    if (!name.toLowerCase().endsWith(`.${BACKUP_FILE_EXTENSION}`)) continue;
+    const isBackup = name.toLowerCase().endsWith(`.${BACKUP_FILE_EXTENSION}`);
+    const isSnapshot =
+      name.startsWith(AUTO_PROTECT_PREFIX) && name.toLowerCase().endsWith('.json');
+    if (!isBackup && !isSnapshot) continue;
     const uri = `${dir}${name}`;
     const info = await FileSystem.getInfoAsync(uri);
     if (!info.exists || info.isDirectory) continue;
@@ -162,6 +173,88 @@ export async function readBackupFile(uri: string): Promise<Uint8Array> {
     encoding: FileSystem.EncodingType.Base64,
   });
   return base64ToBytes(base64);
+}
+
+/**
+ * Write an unencrypted AutoProtect snapshot (plaint JSON payload) used for
+ * automatic on-launch backups. Never a replacement for password-encrypted
+ * `.gustra` backups. Older launch snapshots are pruned after
+ * {@link AUTO_PROTECT_AUTO_DAYS}, always keeping the newest one.
+ */
+export async function writeAutoProtectSnapshot(args: {
+  restaurants: Restaurant[];
+  reviews: Review[];
+  reviewerProfile?: ReviewerProfileBackup | null;
+  criteriaSettings?: CriteriaSettingsBackup | null;
+}): Promise<string | null> {
+  if (args.reviews.length === 0 && args.restaurants.length === 0) return null;
+  const dir = await ensureBackupsDir();
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const uri = `${dir}${AUTO_PROTECT_AUTOMATIC_PREFIX}${stamp}.json`;
+  try {
+    // Automatic snapshots stay lightweight: photo files already live on disk
+    // and are re-referenced on restore, so we never embed them here.
+    const payload = buildPayloadFromApp({
+      restaurants: args.restaurants,
+      reviews: args.reviews,
+      appVersion: 'auto-protect-launch',
+      photoFiles: {},
+      reviewerProfile: args.reviewerProfile ?? null,
+      criteriaSettings: args.criteriaSettings ?? null,
+    });
+    await FileSystem.writeAsStringAsync(uri, JSON.stringify(payload), {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+    await pruneAutoProtectSnapshots(AUTO_PROTECT_AUTO_DAYS);
+    return uri;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Prune automatic AutoProtect snapshots older than `retentionDays`, keeping
+ * the newest snapshot regardless of age. Only touches `AutoProtect-*.json`
+ * snapshots — never encrypted `.gustra` backups or Swift source files.
+ */
+export async function pruneAutoProtectSnapshots(
+  retentionDays: number,
+): Promise<number> {
+  const dir = await ensureBackupsDir();
+  const names = await FileSystem.readDirectoryAsync(dir);
+  const cutoffMs =
+    Date.now() - Math.max(1, retentionDays) * 24 * 60 * 60 * 1000;
+  const protect: { uri: string; modified: number }[] = [];
+  for (const name of names) {
+    if (!name.startsWith(AUTO_PROTECT_PREFIX)) continue;
+    if (!name.toLowerCase().endsWith('.json')) continue;
+    const uri = `${dir}${name}`;
+    try {
+      const info = await FileSystem.getInfoAsync(uri);
+      if (!info.exists || info.isDirectory) continue;
+      protect.push({
+        uri,
+        modified: info.modificationTime ? info.modificationTime * 1000 : 0,
+      });
+    } catch {
+      // ignore
+    }
+  }
+  if (protect.length === 0) return 0;
+  protect.sort((a, b) => b.modified - a.modified);
+  const newestUri = protect[0]?.uri;
+  let deleted = 0;
+  for (const file of protect) {
+    if (file.uri === newestUri) continue;
+    if (file.modified > 0 && file.modified >= cutoffMs) continue;
+    try {
+      await FileSystem.deleteAsync(file.uri, { idempotent: true });
+      deleted += 1;
+    } catch {
+      // ignore
+    }
+  }
+  return deleted;
 }
 
 /**
