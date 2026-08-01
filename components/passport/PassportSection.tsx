@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
+import { Theme } from '@/constants/Theme';
 
 type PassportSectionProps = {
   title: string;
@@ -37,7 +38,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   headerTitle: {
-    fontSize: 13,
+    fontSize: Theme.typography.sectionHeader,
     fontWeight: '600',
     color: 'rgba(35, 32, 26, 0.55)',
     textTransform: 'none',

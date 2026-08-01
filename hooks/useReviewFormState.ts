@@ -14,7 +14,12 @@ import { stripWineLabelUrisFromPhotoUrls } from '@/services/backup/photos';
 import { extractTextFromImages } from '@/services/ocr/OCRService';
 import { deleteReviewPhotoFiles } from '@/services/reviews/photoStorage';
 import { RatingValue } from '@/services/reviews/ratings';
-import { formDraftReason, isFormDraft, isReviewDraft } from '@/services/reviews/draftReview';
+import {
+  formDraftReason,
+  hasRequiredFoodRating,
+  isFormDraft,
+  isReviewDraft,
+} from '@/services/reviews/draftReview';
 import { takePendingWineLabelResult } from '@/services/wine/pendingWineLabelResult';
 import {
   averageWineUserRating,
@@ -257,6 +262,7 @@ export function useReviewFormState() {
   const showsDone = Boolean(draft);
   const draftReason = formDraftReason(criteriaList, wineLabels);
   const isDraftForm = isFormDraft(criteriaList, wineLabels);
+  const foodRatingRequired = !hasRequiredFoodRating(criteriaList);
 
   const customCriterionNames = useMemo(
     () => customCriteria.map((c) => c.name.trim()).filter(Boolean),
@@ -560,6 +566,14 @@ export function useReviewFormState() {
 
   const onDone = useCallback(async () => {
     if (isSaving || !showsDone) return;
+    if (foodRatingRequired) {
+      Haptics.warning();
+      houseAlert(
+        t('alerts.reviewForm.foodRequiredTitle'),
+        t('alerts.reviewForm.foodRequiredBody'),
+      );
+      return;
+    }
     if (persistTimer.current) clearTimeout(persistTimer.current);
     const ok = await persistNow(true);
     if (!ok) {
@@ -570,17 +584,33 @@ export function useReviewFormState() {
     Haptics.success();
     allowLeaveRef.current = true;
     leaveToReviews();
-  }, [isSaving, leaveToReviews, persistNow, showsDone, t]);
+  }, [foodRatingRequired, isSaving, leaveToReviews, persistNow, showsDone, t]);
 
   const onBack = useCallback(() => {
     if (persistTimer.current) clearTimeout(persistTimer.current);
+    // New reviews are pushed from a picker stack (nearby / map-search /
+    // manual entry). Backing out of a brand-new draft should land on the
+    // feed — not step back through the picker — so the user never clicks
+    // through a long stack. Edits keep the normal back-to-origin behavior.
+    if (!isEditRef.current) {
+      if (isFormDirty) {
+        promptDiscardEdits(() => {
+          allowLeaveRef.current = true;
+          leaveToReviews();
+        });
+        return;
+      }
+      allowLeaveRef.current = true;
+      leaveToReviews();
+      return;
+    }
     if (isFormDirty) {
       router.back();
       return;
     }
     allowLeaveRef.current = true;
     router.back();
-  }, [isFormDirty, router]);
+  }, [isFormDirty, leaveToReviews, promptDiscardEdits, router]);
 
   const clearAllWines = useCallback(() => {
     const uris = wineLabelsRef.current
@@ -825,6 +855,9 @@ export function useReviewFormState() {
     ready,
     isEdit,
     draft,
+    existingReview,
+    matchedRestaurant,
+    activeReviewId,
     visitDate,
     setVisitDate,
     isFavorite,

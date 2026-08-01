@@ -38,6 +38,9 @@ secrets/
 # typescript
 *.tsbuildinfo
 
+# jest / test coverage
+coverage/
+
 # generated native folders
 /ios
 /android

@@ -41,7 +41,9 @@ export function ReviewsHeader({
   canConfirmSelecting = false,
 }: ReviewsHeaderProps) {
   const { t } = useAppTranslation();
-  const resolvedTitle = title ?? t('tabs.reviews');
+  const resolvedTitle = isSelecting
+    ? title ?? t('share.selectReviews')
+    : title ?? t('tabs.reviews');
 
   const left = isSelecting ? (
     <HouseToolbarIconButton
@@ -57,6 +59,8 @@ export function ReviewsHeader({
     <HouseToolbarIconButton
       iosName="square.and.arrow.up"
       androidName="share"
+      size={28}
+      symbolWeight="bold"
       accessibilityLabel={t('a11y.share')}
       disabled={!canShare || sharing}
       onPress={() => {
@@ -80,6 +84,7 @@ export function ReviewsHeader({
   ) : showFilter ? (
     <HouseToolbarIconButton
       ionName="funnel"
+      size={26}
       accessibilityLabel={t('a11y.filters')}
       disabled={!canFilter}
       emphasized={filterActive}
@@ -95,6 +100,10 @@ export function ReviewsHeader({
       title={resolvedTitle}
       left={left}
       right={right}
+      // Two toolbar buttons (cancel + confirm) eat real space; narrow the
+      // inset in selection mode so "Selecteer recensies" keeps more width
+      // and the title-scale fallback has room to work.
+      titlePaddingHorizontal={isSelecting ? 76 : undefined}
     />
   );
 }

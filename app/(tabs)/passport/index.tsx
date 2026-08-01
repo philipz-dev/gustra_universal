@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import {
   ImageBackground,
   Platform,
@@ -14,8 +14,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
-import { ActiveFilterSummary } from '@/components/feed/ActiveFilterSummary';
-import { FilterOptionsModal } from '@/components/feed/FilterOptionsModal';
 import { PassportSection } from '@/components/passport/PassportSection';
 import { PassportStatRow } from '@/components/passport/PassportStatRow';
 import { SerifText } from '@/components/ui/SerifText';
@@ -33,7 +31,6 @@ import {
 } from '@/data/passportStats';
 import { resolveReviewOrigin } from '@/data/types';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
-import { useSharedRestaurantFilters } from '@/hooks/useSharedRestaurantFilters';
 import {
   RatingValue,
   formatScoreOutOfFive,
@@ -59,7 +56,7 @@ function BestRestaurantPodium({
   onPress,
 }: {
   entries: BestRestaurantEntry[];
-  onPress: (reviewId: string) => void;
+  onPress: (entry: BestRestaurantEntry) => void;
 }) {
   const [first, ...rest] = entries;
   if (!first) return null;
@@ -69,7 +66,7 @@ function BestRestaurantPodium({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`1. ${first.title}, ${formatScoreOutOfFive(first.average)}, ${showPhoto ? 'photo' : ''}`}
-        onPress={() => onPress(first.reviewId)}
+        onPress={() => onPress(first)}
         style={({ pressed }) => [
           styles.podiumHero,
           pressed && styles.linkPressed,
@@ -123,7 +120,7 @@ function BestRestaurantPodium({
               key={entry.restaurantId}
               accessibilityRole="button"
               accessibilityLabel={`${index + 2}. ${entry.title}, ${formatScoreOutOfFive(entry.average)}`}
-              onPress={() => onPress(entry.reviewId)}
+              onPress={() => onPress(entry)}
               style={({ pressed }) => [
                 styles.podiumCard,
                 pressed && styles.linkPressed,
@@ -218,55 +215,25 @@ function CulinaryPassportContent() {
   const insets = useSafeAreaInsets();
   const { enabledCriteria } = useCriteriaSettings();
   const { reviews, restaurants, ready } = useReviewsStore();
-  const [filterModalVisible, setFilterModalVisible] = useState(false);
-  const {
-    filterState,
-    setFilterState,
-    resetFilterState,
-    ownSummaries,
-    friendSummaries,
-    sourceSummaries,
-    filteredSummaries,
-    availableCities,
-    availablePrimaryTypes,
-    sortCriteria,
-    filterOptions,
-    criterionTitleFor,
-    filterActive,
-    canFilter,
-    includeFriends,
-    showFriendsFilter,
-  } = useSharedRestaurantFilters();
 
-  useEffect(() => {
-    if (!canFilter) setFilterModalVisible(false);
-  }, [canFilter]);
-
-  const allowedRestaurantIds = useMemo(
-    () => new Set(filteredSummaries.map((s) => s.restaurantId)),
-    [filteredSummaries],
+  // My Gustra is a personal passport: only the user's own reviews count
+  // toward every statistic (no friend imports, no filter).
+  const ownReviews = useMemo(
+    () => reviews.filter((review) => resolveReviewOrigin(review) === 'own'),
+    [reviews],
   );
-
-  const filteredReviews = useMemo(() => {
-    return reviews.filter((review) => {
-      if (!allowedRestaurantIds.has(review.restaurantId)) return false;
-      const origin = resolveReviewOrigin(review);
-      if (origin === 'own') return true;
-      return includeFriends && origin === 'imported';
-    });
-  }, [allowedRestaurantIds, includeFriends, reviews]);
 
   const stats = useMemo(
     () =>
       ready
-        ? getPassportStats(enabledCriteria, filteredReviews, restaurants)
+        ? getPassportStats(enabledCriteria, ownReviews, restaurants)
         : getPassportStats(enabledCriteria, [], []),
-    [enabledCriteria, filteredReviews, ready, restaurants],
+    [enabledCriteria, ownReviews, ready, restaurants],
   );
 
   const bestWines = useMemo(
-    () => getBestWines(filteredReviews),
-    [filteredReviews],
+    () => getBestWines(ownReviews),
+    [ownReviews],
   );
 
   const bestSectionTitle =
@@ -274,59 +241,49 @@ function CulinaryPassportContent() {
       ? t('passport.bestRestaurant')
       : t('passport.bestRestaurants');
 
-  const emptyFromFilters =
-    sourceSummaries.length > 0 &&
-    filteredSummaries.length === 0 &&
-    filterActive;
+  const visitCountByRestaurant = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const review of ownReviews) {
+      counts.set(
+        review.restaurantId,
+        (counts.get(review.restaurantId) ?? 0) + 1,
+      );
+    }
+    return counts;
+  }, [ownReviews]);
+
+  const openBestRestaurant = useCallback(
+    (entry: BestRestaurantEntry) => {
+      const visitCount = visitCountByRestaurant.get(entry.restaurantId) ?? 0;
+      if (visitCount > 1) {
+        router.push({
+          pathname: '/passport/restaurant/[id]',
+          params: { id: entry.restaurantId, origin: 'own' },
+        });
+        return;
+      }
+      router.push(`/passport/review/${entry.reviewId}`);
+    },
+    [router, visitCountByRestaurant],
+  );
 
   return (
     <View style={styles.screen}>
       <ReviewsHeader
         title={t('tabs.passport')}
         showShare={false}
-        showFilter
-        canFilter={canFilter}
-        filterActive={filterActive}
-        onFilter={() => setFilterModalVisible(true)}
-      />
-      <ActiveFilterSummary
-        state={filterState}
-        visibleResultCount={filteredSummaries.length}
-        totalResultCount={sourceSummaries.length}
-        criterionTitleFor={criterionTitleFor}
-        onChange={setFilterState}
-        containerStyle={styles.filterGap}
+        showFilter={false}
       />
 
       {stats.totalReviews === 0 ? (
         <View style={styles.emptyPad}>
           <HouseEmptyState
-            title={
-              emptyFromFilters
-                ? t('reviews.empty.noMatchesShort')
-                : t('passport.emptyTitle')
-            }
-            description={
-              emptyFromFilters
-                ? t('reviews.empty.noMatchesBody')
-                : t('passport.emptyBody')
-            }
-            systemImage={
-              emptyFromFilters
-                ? 'magnifyingglass'
-                : 'chart.bar.doc.horizontal'
-            }
-            androidImage={emptyFromFilters ? 'search_off' : 'bar_chart'}
-            actionTitle={
-              emptyFromFilters
-                ? t('reviews.empty.clearFilters')
-                : t('passport.addReview')
-            }
-            onAction={
-              emptyFromFilters
-                ? resetFilterState
-                : () => router.push('/add-review')
-            }
+            title={t('passport.emptyTitle')}
+            description={t('passport.emptyBody')}
+            systemImage="chart.bar.doc.horizontal"
+            androidImage="bar_chart"
+            actionTitle={t('passport.addReview')}
+            onAction={() => router.push('/add-review')}
           />
         </View>
       ) : (
@@ -356,7 +313,7 @@ function CulinaryPassportContent() {
             <PassportSection title={bestSectionTitle}>
               <BestRestaurantPodium
                 entries={stats.bestRestaurants}
-                onPress={(reviewId) => router.push(`/passport/review/${reviewId}`)}
+                onPress={openBestRestaurant}
               />
             </PassportSection>
           ) : null}
@@ -446,21 +403,6 @@ function CulinaryPassportContent() {
         </ScrollView>
       )}
 
-      <FilterOptionsModal
-        visible={filterModalVisible}
-        value={filterState}
-        availableCities={availableCities}
-        availablePrimaryTypes={availablePrimaryTypes}
-        sortCriteria={sortCriteria}
-        sourceSummaries={ownSummaries}
-        friendSummaries={friendSummaries}
-        filterOptions={filterOptions}
-        showFriendsFilter={showFriendsFilter}
-        onApply={setFilterState}
-        onReset={resetFilterState}
-        onClose={() => setFilterModalVisible(false)}
-      />
-
       <View
         pointerEvents="none"
         style={[
@@ -499,11 +441,6 @@ const styles = StyleSheet.create({
   emptyPad: {
     flex: 1,
     paddingHorizontal: Theme.spacing.listRowHorizontal,
-  },
-  /** Gap between the green banner and the filter chips (no search bar here). */
-  filterGap: {
-    backgroundColor: GustraColors.cream,
-    paddingTop: Theme.spacing.searchVertical,
   },
   bottomSolid: {
     position: 'absolute',

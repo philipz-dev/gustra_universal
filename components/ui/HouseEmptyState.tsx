@@ -19,7 +19,8 @@ type HouseEmptyStateProps = {
     | 'magnifyingglass'
     | 'mappin.and.ellipse'
     | 'location.slash'
-    | 'square.and.arrow.down';
+    | 'square.and.arrow.down'
+    | 'clock.arrow.circlepath';
   androidImage?:
     | 'restaurant'
     | 'menu_book'
@@ -31,9 +32,13 @@ type HouseEmptyStateProps = {
     | 'search_off'
     | 'place'
     | 'location_off'
-    | 'download';
+    | 'download'
+    | 'history';
   actionTitle?: string;
   onAction?: () => void;
+  /** Optional secondary action (e.g. a quieter "browse on map" escape hatch). */
+  secondaryActionTitle?: string;
+  secondaryOnAction?: () => void;
 };
 
 export function HouseEmptyState({
@@ -43,6 +48,8 @@ export function HouseEmptyState({
   androidImage = 'restaurant',
   actionTitle,
   onAction,
+  secondaryActionTitle,
+  secondaryOnAction,
 }: HouseEmptyStateProps) {
   return (
     <View style={styles.container}>
@@ -69,6 +76,14 @@ export function HouseEmptyState({
           onPress={onAction}
           style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>
           <Text style={styles.ctaLabel}>{actionTitle}</Text>
+        </Pressable>
+      ) : null}
+      {secondaryActionTitle && secondaryOnAction ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={secondaryOnAction}
+          style={({ pressed }) => [styles.secondaryCta, pressed && styles.ctaPressed]}>
+          <Text style={styles.secondaryCtaLabel}>{secondaryActionTitle}</Text>
         </Pressable>
       ) : null}
     </View>
@@ -111,6 +126,18 @@ const styles = StyleSheet.create({
   ctaLabel: {
     color: '#FFFFFF',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  secondaryCta: {
+    marginTop: -8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: 'rgba(36, 78, 57, 0.08)',
+  },
+  secondaryCtaLabel: {
+    color: GustraColors.forestGreen,
+    fontSize: 15,
     fontWeight: '600',
   },
 });

@@ -319,7 +319,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   ring: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     borderWidth: 2.5,
     borderColor: GustraColors.forestGreen,
     borderRadius: 12,

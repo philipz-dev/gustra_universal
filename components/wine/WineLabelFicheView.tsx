@@ -11,7 +11,6 @@ import {
 
 import { SerifText } from '@/components/ui/SerifText';
 import { StaticStarRating } from '@/components/ui/StarRating';
-import { WineTasteProfileSection } from '@/components/wine/WineTasteProfileSection';
 import { GustraColors } from '@/constants/Colors';
 import { WineFichePresentation } from '@/constants/WineFichePresentation';
 import {
@@ -30,7 +29,6 @@ import {
 } from '@/services/reviews/ratings';
 import { wineLabelGrapeDisplay } from '@/services/wine/wineGrapeVarieties';
 import { resolveWineProfileParts } from '@/services/wine/wineProfileLabel';
-import { shouldShowTasteProfile } from '@/services/wine/wineTasteProfile';
 
 type WineLabelFicheViewProps = {
   fiche: WineLabelFiche;
@@ -72,7 +70,6 @@ export function WineLabelFicheView({
 }: WineLabelFicheViewProps) {
   const { t } = useAppTranslation();
   const cutout = WineFichePresentation.isCutoutHeroEnabled;
-  const tasteProfileOn = WineFichePresentation.isTasteProfileEnabled;
   const fade = useRef(new Animated.Value(0)).current;
   const slide = useRef(new Animated.Value(12)).current;
 
@@ -101,8 +98,6 @@ export function WineLabelFicheView({
   const profile = resolveWineProfileParts(fiche);
   const profileLabel = t(profile.i18nKey);
   const grapesLabel = wineLabelGrapeDisplay(fiche);
-  const showTasteProfile =
-    tasteProfileOn && shouldShowTasteProfile(fiche);
   const region = fiche.countryRegion?.trim() ?? '';
   const vintage = fiche.vintage?.trim() ?? '';
   const pairings = fiche.foodPairings?.trim() ?? '';
@@ -121,16 +116,14 @@ export function WineLabelFicheView({
   if (vintage) {
     metaCells.push({ label: t('wineScan.fiche.vintage'), value: vintage });
   }
-  // When Smaakprofiel is visible, grapes live there (with optional %).
-  if (grapesLabel && !showTasteProfile) {
+  if (grapesLabel) {
     metaCells.push({ label: t('wineScan.fiche.grapes'), value: grapesLabel });
   }
   if (alcohol) {
     metaCells.push({ label: t('wineScan.fiche.alcohol'), value: alcohol });
   }
 
-  const hasBody =
-    metaCells.length > 0 || pairings.length > 0 || showTasteProfile;
+  const hasBody = metaCells.length > 0 || pairings.length > 0;
   const showHero = Boolean(uri);
 
   return (
@@ -219,15 +212,6 @@ export function WineLabelFicheView({
               </Text>
               <Text style={styles.pairingsValue}>{pairings}</Text>
             </View>
-          ) : null}
-
-          {showTasteProfile ? (
-            <WineTasteProfileSection
-              fiche={fiche}
-              scrollRef={scrollRef}
-              scrollYRef={scrollYRef}
-              scrollBottomInset={scrollBottomInset}
-            />
           ) : null}
         </Animated.View>
       ) : null}

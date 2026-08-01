@@ -1,5 +1,12 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SymbolView } from 'expo-symbols';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import { SymbolView, type AndroidSymbol, type SFSymbol } from 'expo-symbols';
 
 import {
   hasFeedFilter,
@@ -18,6 +25,8 @@ type ActiveFilterSummaryProps = {
   totalResultCount: number;
   criterionTitleFor?: (criterionId: string) => string;
   onChange: (next: FeedFilterState) => void;
+  /** Extra style on the strip (e.g. top padding for a gap under the banner). */
+  containerStyle?: StyleProp<ViewStyle>;
 };
 
 /**
@@ -29,6 +38,7 @@ export function ActiveFilterSummary({
   totalResultCount,
   criterionTitleFor,
   onChange,
+  containerStyle,
 }: ActiveFilterSummaryProps) {
   const { t } = useAppTranslation();
   const showSort = state.sortKind.type !== 'date';
@@ -74,7 +84,7 @@ export function ActiveFilterSummary({
   };
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, containerStyle]}>
       <View style={styles.chipsRow}>
         {showSort ? (
           <Chip
@@ -171,8 +181,8 @@ function Chip({
   onPress,
 }: {
   title: string;
-  iosName: string;
-  androidName: string;
+  iosName: SFSymbol;
+  androidName: AndroidSymbol;
   accessibilityHint: string;
   onPress: () => void;
 }) {
@@ -185,9 +195,9 @@ function Chip({
       style={({ pressed }) => [styles.chip, pressed && styles.pressed]}>
       <SymbolView
         name={{
-          ios: iosName as never,
-          android: androidName as never,
-          web: androidName as never,
+          ios: iosName,
+          android: androidName,
+          web: androidName,
         }}
         tintColor="#FFFFFF"
         size={14}

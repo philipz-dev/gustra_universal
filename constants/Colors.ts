@@ -8,12 +8,21 @@ const bubble = '#ECE3CF';
 const gold = '#D9A227';
 const ink = '#23201A';
 
+/**
+ * Map pin colors (My map). Kept as tokens so the legend and any future map
+ * surfaces share them: own = bright green, friends = blue.
+ */
+const mapOwnPin = '#2EBD5B';
+const mapFriendsPin = '#1A73E8';
+
 export const GustraColors = {
   forestGreen,
   cream,
   bubble,
   gold,
   ink,
+  mapOwnPin,
+  mapFriendsPin,
   ratingExcellent: '#388C57',
   ratingNeutral: '#DB852E',
   ratingAvoid: '#C74742',

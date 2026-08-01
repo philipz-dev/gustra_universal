@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRef } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -9,7 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -44,6 +44,7 @@ import { draftAddressLine } from '@/services/places';
 import { Haptics } from '@/services/haptics';
 import { RatingValue, formatScoreOutOfFive } from '@/services/reviews/ratings';
 import { criterionIcon } from '@/services/reviews/criterionIcons';
+import { requestSwipeDelete } from '@/services/swipeDelete';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import {
   activeIntlLocale,
@@ -82,6 +83,9 @@ export default function ReviewFormScreen() {
     ready,
     isEdit,
     draft,
+    existingReview,
+    matchedRestaurant,
+    activeReviewId,
     visitDate,
     setVisitDate,
     isFavorite,
@@ -98,6 +102,7 @@ export default function ReviewFormScreen() {
     isDraftForm,
     wineLabels,
     pendingWineKeys,
+    setPendingWineKeys,
     isSaving,
     isIndexingPhotos,
     showDatePicker,
@@ -119,6 +124,8 @@ export default function ReviewFormScreen() {
 
   const {
     photoUrls,
+    setPhotoUrls,
+    photoUrlsRef,
     selectedPhotosForRemoval,
     isImportingPhotos,
     showPhotoSourceChooser,
@@ -191,11 +198,24 @@ export default function ReviewFormScreen() {
         />
 
         {isDraftForm && draftReason ? (
-          <View style={styles.subtleDraftHint}>
-            <Text style={styles.subtleDraftHintText}>
-              * {draftReason === 'wine'
+          <View style={styles.draftHint} accessibilityRole="alert">
+            {Platform.OS === 'ios' ? (
+              <SymbolView
+                name="exclamationmark.circle.fill"
+                size={18}
+                tintColor={GustraColors.gold}
+              />
+            ) : (
+              <MaterialIcons
+                name="error-outline"
+                size={20}
+                color={GustraColors.gold}
+              />
+            )}
+            <Text style={styles.draftHintText}>
+              {draftReason === 'wine'
                 ? t('forms.review.draftBannerWine')
-                : t('forms.review.draftBannerCriteria')}
+                : t('forms.review.draftBannerFood')}
             </Text>
           </View>
         ) : null}
@@ -271,7 +291,7 @@ export default function ReviewFormScreen() {
                   <View style={styles.criterionIcon}>
                     {Platform.OS === 'ios' ? (
                       <SymbolView
-                        name={icons.ios as never}
+                        name={icons.ios}
                         size={16}
                         tintColor={GustraColors.forestGreen}
                         weight="semibold"
@@ -285,25 +305,34 @@ export default function ReviewFormScreen() {
                     )}
                   </View>
                   <View style={styles.criterionBody}>
-                    <SerifText style={styles.criterionTitle}>
-                      {criterion.title}
-                    </SerifText>
-                    {winesHasBottles ? (
-                      winesDisplayRating > 0 ? (
-                        <StaticStarRating
-                          rating={winesDisplayRating}
-                          showLabel
+                    <View style={styles.criterionTitleRow}>
+                      <SerifText style={styles.criterionTitle}>
+                        {criterion.title}
+                      </SerifText>
+                      {criterion.id === 'food' ? (
+                        <Text style={styles.requiredBadge}>
+                          {t('common.required')}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <View style={styles.criterionRating}>
+                      {winesHasBottles ? (
+                        winesDisplayRating > 0 ? (
+                          <StaticStarRating
+                            rating={winesDisplayRating}
+                            showLabel
+                          />
+                        ) : null
+                      ) : (
+                        <InteractiveStarRating
+                          rating={stateVal.rating}
+                          onChange={(rating) =>
+                            setCriterionRating(criterion.id, rating)
+                          }
+                          onScrubbingChange={setRatingScrubbing}
                         />
-                      ) : null
-                    ) : (
-                      <InteractiveStarRating
-                        rating={stateVal.rating}
-                        onChange={(rating) =>
-                          setCriterionRating(criterion.id, rating)
-                        }
-                        onScrubbingChange={setRatingScrubbing}
-                      />
-                    )}
+                      )}
+                    </View>
                     {showCommentField ? (
                       <TextInput
                         ref={(node) => {
@@ -631,15 +660,23 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
   },
-  subtleDraftHint: {
-    marginTop: -4,
-    paddingHorizontal: 16,
+  draftHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: Theme.radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(217, 162, 39, 0.45)',
+    backgroundColor: 'rgba(217, 162, 39, 0.12)',
   },
-  subtleDraftHintText: {
+  draftHintText: {
     ...bodyTextStyle,
-    fontSize: 13,
-    fontStyle: 'italic',
-    color: 'rgba(35, 32, 26, 0.6)',
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(166, 118, 12, 1)',
   },
   sectionTitleWrap: {
     gap: 6,
@@ -692,10 +729,32 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 10,
   },
+  criterionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    gap: 6,
+    minHeight: 24,
+  },
   criterionTitle: {
+    flexShrink: 1,
+    flexGrow: 1,
+    minWidth: 0,
     fontSize: 17,
     fontWeight: '600',
     color: GustraColors.ink,
+  },
+  criterionRating: {
+    minHeight: 24,
+    justifyContent: 'center',
+  },
+  requiredBadge: {
+    ...captionTextStyle,
+    fontSize: 11,
+    fontWeight: '700',
+    color: GustraColors.ratingAvoid,
+    textTransform: 'uppercase',
+    marginTop: 2,
   },
   commentField: {
     ...bodyTextStyle,

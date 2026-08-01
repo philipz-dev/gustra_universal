@@ -12,9 +12,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GustraColors } from '@/constants/Colors';
 import { PhotoViewerStyle } from '@/constants/PhotoViewerStyle';
+import type { SFSymbolName } from '@/data/types';
 
 type ChromeButtonProps = {
-  iosName: string;
+  iosName: SFSymbolName;
   androidName: keyof typeof MaterialIcons.glyphMap;
   accessibilityLabel: string;
   onPress: () => void;
@@ -49,7 +50,7 @@ export function PhotoViewerChromeButton({
         ]}>
         {Platform.OS === 'ios' ? (
           <SymbolView
-            name={iosName as never}
+            name={iosName}
             tintColor={color}
             size={iosSize}
             weight="bold"

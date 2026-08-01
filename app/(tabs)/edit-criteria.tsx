@@ -22,6 +22,7 @@ import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import {
   CUSTOM_CRITERION_MAX_NAME_LENGTH,
   STANDARD_CRITERIA,
+  isMandatoryStandardCriterion,
   standardCriterionDisplayTitle,
   useCriteriaSettings,
   type CustomCriterionDefinition,
@@ -102,6 +103,7 @@ export default function EditCriteriaScreen() {
 
   const toggleStandard = useCallback(
     (id: string, enabled: boolean) => {
+      if (!enabled && isMandatoryStandardCriterion(id)) return;
       if (!enabled && enabledCount <= 1 && isStandardOn(id)) {
         Haptics.warning();
         houseAlert(t('tabs.editCriteria'), t('setup.criteria.minOne'));
@@ -208,12 +210,10 @@ export default function EditCriteriaScreen() {
     [commitAndLeave, t],
   );
 
+  // edit-criteria is a hidden tab, so router.back() can pop to the wrong tab
+  // (Reviews). navigate() to settings matches reviewer-photo / backup-restore.
   const leaveToSettings = useCallback(() => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-    router.navigate('/(tabs)/settings');
+    router.navigate('/settings');
   }, [router]);
 
   useEffect(() => {
@@ -231,7 +231,9 @@ export default function EditCriteriaScreen() {
     <View style={styles.screen}>
       <HouseNavHeader
         title={t('tabs.editCriteria')}
-        titleSize={Theme.navigation.secondaryTitleSize}
+        titleSize={Theme.navigation.secondaryTitleSize - 4}
+        titlePaddingHorizontal={56}
+        numberOfLines={2}
         showBack
         onBack={() => {
           if (isDirty) {
@@ -269,24 +271,36 @@ export default function EditCriteriaScreen() {
         overScrollMode="never"
         showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
-          {STANDARD_CRITERIA.map((criterion, index) => (
-            <View
-              key={criterion.id}
-              style={[
-                styles.row,
-                index < STANDARD_CRITERIA.length - 1 || draftCustom.length > 0
-                  ? styles.rowBorder
-                  : null,
-              ]}>
-              <Text style={styles.rowTitle}>
-                {standardCriterionDisplayTitle(criterion.id)}
-              </Text>
-              <GustraSwitch
-                value={isStandardOn(criterion.id)}
-                onValueChange={(value) => toggleStandard(criterion.id, value)}
-              />
-            </View>
-          ))}
+          {STANDARD_CRITERIA.map((criterion, index) => {
+            const mandatory = isMandatoryStandardCriterion(criterion.id);
+            return (
+              <View
+                key={criterion.id}
+                style={[
+                  styles.row,
+                  index < STANDARD_CRITERIA.length - 1 || draftCustom.length > 0
+                    ? styles.rowBorder
+                    : null,
+                ]}>
+                <Text style={styles.rowTitle}>
+                  {standardCriterionDisplayTitle(criterion.id)}
+                </Text>
+                {mandatory ? (
+                  <Text style={styles.requiredLabel}>{t('common.required')}</Text>
+                ) : null}
+                <GustraSwitch
+                  value={isStandardOn(criterion.id)}
+                  disabled={mandatory}
+                  accessibilityLabel={
+                    mandatory
+                      ? `${standardCriterionDisplayTitle(criterion.id)}, ${t('common.required')}`
+                      : standardCriterionDisplayTitle(criterion.id)
+                  }
+                  onValueChange={(value) => toggleStandard(criterion.id, value)}
+                />
+              </View>
+            );
+          })}
 
           {draftCustom.map((criterion) => (
             <View key={criterion.id} style={[styles.row, styles.rowBorder]}>
@@ -380,6 +394,10 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: GustraColors.ink,
+  },
+  requiredLabel: {
+    ...captionTextStyle,
+    color: GustraColors.ratingAvoid,
   },
   customName: {
     flexShrink: 1,

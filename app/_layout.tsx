@@ -89,7 +89,18 @@ const GustraNavigationTheme = {
  */
 function applyAndroidNavigationChrome() {
   if (Platform.OS !== 'android') return;
-  NavigationBar.setStyle('dark');
+  // Skip when backgrounded — native setStyle/setHidden reject if the
+  // activity is gone ("The current activity is no longer available").
+  if (AppState.currentState !== 'active') return;
+  try {
+    // In this Expo version setStyle returns void (a fire-and-forget native
+    // call), so no await/catch is possible here. Guarding with AppState
+    // 'active' + try/catch is the best we can do; the previous setHidden
+    // rejection came from the removed declarative <NavigationBar />.
+    NavigationBar.setStyle('dark');
+  } catch {
+    // Native module may still throw synchronously on a dying activity.
+  }
 }
 
 function RootLayout() {
@@ -153,10 +164,11 @@ function RootLayout() {
                         <ThemeProvider value={GustraNavigationTheme}>
                           <GlobalKeyboardDismiss>
                             <View style={styles.root}>
-                              {/* Declarative nav bar (same style as setStyle). */}
-                              {Platform.OS === 'android' ? (
-                                <NavigationBar.NavigationBar style="dark" />
-                              ) : null}
+                              {/*
+                                Prefer imperative setStyle only. The declarative
+                                <NavigationBar /> unmount path calls setHidden via
+                                setImmediate and races activity teardown on Android.
+                              */}
                               <StatusBar style="light" />
                               <Stack screenOptions={{ headerShown: false }}>
                                 <Stack.Screen name="(tabs)" />

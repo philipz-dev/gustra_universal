@@ -16,6 +16,7 @@
     "recover": "Recover",
     "openSettings": "Open Settings",
     "tryAgain": "Try Again",
+    "browseMap": "Browse on map",
     "error": "Error",
     "close": "Close",
     "share": "Share",
@@ -26,7 +27,10 @@
     "selectNone": "Select none",
     "add": "Add",
     "clear": "Clear",
-    "import": "Import"
+    "import": "Import",
+    "required": "Required",
+    "selectedRestaurant": "Selected Restaurant",
+    "deselectRestaurant": "Deselect restaurant"
   },
   "rating": {
     "labels": {
@@ -69,6 +73,8 @@
   "reviews": {
     "searchPlaceholder": "Search restaurants, comments, photos…",
     "draftLabel": "Draft",
+    "visitedBefore_one": "Visited once before",
+    "visitedBefore_other": "Visited {{count}} times before",
     "visitCount_one": "{{count}} visit · {{date}}",
     "visitCount_other": "{{count}} visits · {{date}}",
     "source": {
@@ -151,10 +157,23 @@
     "averageOverall": "Average Overall",
     "bestRestaurant": "Best restaurant",
     "bestRestaurants": "Best restaurants",
+    "bestWines": "Best wines",
     "categoryAverages": "Category Averages",
     "topCities": "Top cities",
     "cityAverages": "Top cities",
-    "noCityData": "No city data yet."
+    "noCityData": "No city data yet.",
+    "timeTravel": "Time Travel",
+    "timeTravelSubtitle": "Travel back through all your visits.",
+    "timeTravelYears": "Years",
+    "timeTravelReviews_one": "{{count}} visit",
+    "timeTravelReviews_other": "{{count}} visits",
+    "timeTravelAverage": "Average",
+    "timeTravelTotal": "All-time visits",
+    "timeTravelEmptyTitle": "Nothing to travel through yet",
+    "timeTravelEmptyBody": "Add restaurant reviews and your timeline will appear here.",
+    "timeTravelMonthHeader": "{{month}} {{year}}",
+    "timeTravelMonthCount_one": "{{count}} visit",
+    "timeTravelMonthCount_other": "{{count}} visits"
   },
   "settings": {
     "language": "Language",
@@ -167,13 +186,16 @@
     "sectionReviewing": "Reviewing",
     "sectionCriteria": "Review criteria",
     "sectionPassport": "My Gustra",
+    "sectionShowcase": "Showcase",
+    "demoShowcase": "Sample reviews",
+    "demoShowcaseOn": "Six fictional restaurants with photos and wine fiches",
+    "demoShowcaseOff": "Off — only your real reviews are shown",
+    "demoShowcaseShareBlocked": "Sample reviews are for exploring Gustra only and can’t be shared.",
     "sectionStorage": "Storage",
     "sectionData": "Data & backup",
     "sectionGoogle": "Google API usage",
     "sectionAdvanced": "Advanced",
     "sectionLanguage": "Language",
-    "advancedExpandA11y": "Show advanced settings",
-    "advancedCollapseA11y": "Hide advanced settings",
     "editPhotoHint": "Tap photo to change",
     "editCriteria": "Edit review criteria",
     "dataSavings": "Data savings for photos",
@@ -223,7 +245,7 @@
       "deleteTitle": "Delete criterion",
       "deleteBody": "Remove “{{name}}”?",
       "custom": "Custom",
-      "footer": "Custom names appear on new reviews. Disabled criteria are hidden when rating.",
+      "footer": "Added criteria appear in new reviews.",
       "discardEdits": {
         "title": "Save changes?"
       }
@@ -278,20 +300,23 @@
       "finding": "Finding nearby restaurants…",
       "sectionTitle": "Nearby Restaurants",
       "tryMap": "Try again or search on the map instead.",
-      "searchFailed": "Could not reach the restaurant search service."
+      "searchFailed": "Could not reach the restaurant search service.",
+      "usingFallback": "No location access — showing restaurants near your recent reviews.",
+      "usingFallbackCity": "No location access — showing restaurants near {{city}}."
     },
     "mapSearch": {
       "title": "Search on map",
       "searchArea": "Search this area",
       "startReview": "Start Review",
       "hint": "Move the map, then tap Search this area.",
+      "emptyTitle": "No restaurants found",
       "searchAreaHint": "Search restaurants in the visible map area"
     },
     "manual": {
       "title": "Manual entry",
       "restaurantName": "Restaurant name",
-      "city": "City",
-      "country": "Country",
+      "city": "City (optional)",
+      "country": "Country (optional)",
       "findOnGoogle": "Find on Google",
       "searchHint": "Search Google to add place details, or continue manually.",
       "googleMatches": "Google matches",
@@ -314,6 +339,7 @@
       "otherVisits_other": "{{count}} other visits at this restaurant",
       "mostRecent": "Most recent {{date}}",
       "draftBannerCriteria": "Rate at least one criterion to finish this review.",
+      "draftBannerFood": "Rate Food to complete this review.",
       "draftBannerWine": "A wine still needs a star rating.",
       "addPhotos": "Add Photos",
       "delete": "Delete",
@@ -353,7 +379,7 @@
     "options": {
       "title": "Options",
       "a11y": "Options",
-      "recordVisit": "Record new visit",
+      "recordVisit": "Add new review",
       "editReview": "Edit review",
       "cannotEditFriend": "You can’t edit a friend’s review",
       "deleteReview": "Delete review",
@@ -401,6 +427,7 @@
       "cancel": "Cancel",
       "continue": "Continue"
     },
+    "selectReviews": "Select reviews",
     "selectRestaurants": "Select restaurants",
     "selectOneRestaurant": "Select 1 restaurant"
   },
@@ -487,7 +514,9 @@
     "share": {
       "failed": "Could not share reviews.",
       "reviewFailed": "Could not share this review.",
-      "needName": "Add your name in Settings before sharing reviews."
+      "needName": "Add your name in Settings before sharing reviews.",
+      "draftTitle": "Draft can't be shared",
+      "draftBody": "Rate Food and complete this review before sharing it."
     },
     "location": {
       "deniedTitle": "Location needed",
@@ -504,6 +533,8 @@
     "reviewForm": {
       "needStars": "Add at least one star rating to save this review.",
       "saveFailed": "Could not save this review.",
+      "foodRequiredTitle": "Food rating required",
+      "foodRequiredBody": "Rate Food before completing this review.",
       "removePhotosTitle": "Remove Photos?",
       "removePhotosBody": "Selected photos will be removed from this review.",
       "photosSaveFailed": "Could not save photos.",
@@ -588,7 +619,7 @@
     "drinksSuggestionPlaceholder": "Wine name and year",
     "useInDrinks": "Use in Drinks",
     "confirmA11y": "Add wine to Drinks",
-    "resultRatingTitle": "Rate this bottle",
+    "resultRatingTitle": "Rate this wine",
     "ratingRequired": "Add a star rating to save this wine.",
     "addButton": "Add wine",
     "addButtonA11y": "Add wine to Drinks",
@@ -672,23 +703,7 @@
       "alcohol": "Alcohol",
       "foodPairings": "Pairs with",
       "myJudgment": "My rating",
-      "openFull": "Open full wine card",
-      "tasteProfile": {
-        "title": "Taste profile",
-        "source": "Estimate from the label scan.",
-        "expandA11y": "Expand taste profile",
-        "collapseA11y": "Collapse taste profile",
-        "poles": {
-          "bodyLight": "Light",
-          "bodyFull": "Full",
-          "tanninsSoft": "Soft",
-          "tanninsFirm": "Firm",
-          "aciditySoft": "Soft",
-          "acidityLively": "Lively",
-          "sweetnessDry": "Dry",
-          "sweetnessSweet": "Sweet"
-        }
-      }
+      "openFull": "Open full wine card"
     },
     "deleteWineUndo": "“{{name}}” removed"
   },
@@ -703,7 +718,8 @@
       "body": "Choose which criteria matter when you review. You can change this later in Settings.",
       "minOne": "Pick at least one criterion.",
       "tip": "Tip",
-      "idealThree": ": 3 criteria are ideal"
+      "idealThree": ": 3 criteria are ideal",
+      "footer": "Added criteria appear in new reviews."
     }
   }
 }

@@ -15,6 +15,7 @@
     "recover": "Récupérer",
     "openSettings": "Ouvrir Réglages",
     "tryAgain": "Réessayer",
+    "browseMap": "Parcourir la carte",
     "error": "Erreur",
     "close": "Fermer",
     "share": "Partager",
@@ -26,7 +27,10 @@
     "add": "Ajouter",
     "clear": "Effacer",
     "import": "Importer",
-    "undo": "Annuler"
+    "undo": "Annuler",
+    "required": "Obligatoire",
+    "selectedRestaurant": "Restaurant sélectionné",
+    "deselectRestaurant": "Désélectionner le restaurant"
   },
   "rating": {
     "labels": {
@@ -88,7 +92,9 @@
       "importReviews": "Importer des avis",
       "addReview": "Ajouter un avis"
     },
-    "draftLabel": "Draft"
+    "draftLabel": "Draft",
+    "visitedBefore_one": "Déjà visité 1 fois",
+    "visitedBefore_other": "Déjà visité {{count}} fois"
   },
   "filters": {
     "title": "Options de filtre",
@@ -151,10 +157,23 @@
     "averageOverall": "Moyenne générale",
     "bestRestaurant": "Meilleur restaurant",
     "bestRestaurants": "Meilleurs restaurants",
+    "bestWines": "Meilleurs vins",
     "categoryAverages": "Moyennes par catégorie",
     "topCities": "Meilleures villes",
     "cityAverages": "Meilleures villes",
-    "noCityData": "Pas encore de données de ville."
+    "noCityData": "Pas encore de données de ville.",
+    "timeTravel": "Voyage dans le temps",
+    "timeTravelSubtitle": "Remontez le temps à travers toutes vos visites.",
+    "timeTravelYears": "Années",
+    "timeTravelReviews_one": "{{count}} visite",
+    "timeTravelReviews_other": "{{count}} visites",
+    "timeTravelAverage": "Moyenne",
+    "timeTravelTotal": "Visites au total",
+    "timeTravelEmptyTitle": "Rien à parcourir pour l’instant",
+    "timeTravelEmptyBody": "Ajoutez des avis de restaurants et votre frise apparaîtra ici.",
+    "timeTravelMonthHeader": "{{month}} {{year}}",
+    "timeTravelMonthCount_one": "{{count}} visite",
+    "timeTravelMonthCount_other": "{{count}} visites"
   },
   "settings": {
     "language": "Langue",
@@ -167,13 +186,16 @@
     "sectionReviewing": "Avis",
     "sectionCriteria": "Critères d’avis",
     "sectionPassport": "Mon Gustra",
+    "sectionShowcase": "Démo",
+    "demoShowcase": "Avis d’exemple",
+    "demoShowcaseOn": "Six restaurants fictifs avec photos et fiches vins",
+    "demoShowcaseOff": "Désactivé — seuls vos vrais avis s’affichent",
+    "demoShowcaseShareBlocked": "Les avis d’exemple servent à explorer Gustra et ne peuvent pas être partagés.",
     "sectionStorage": "Stockage",
     "sectionData": "Données et sauvegarde",
     "sectionGoogle": "Utilisation de l’API Google",
     "sectionAdvanced": "Avancé",
     "sectionLanguage": "Langue",
-    "advancedExpandA11y": "Afficher les réglages avancés",
-    "advancedCollapseA11y": "Masquer les réglages avancés",
     "editPhotoHint": "Touchez la photo pour la modifier",
     "editCriteria": "Modifier les critères",
     "dataSavings": "Économie de données pour les photos",
@@ -278,20 +300,23 @@
       "finding": "Recherche de restaurants à proximité…",
       "sectionTitle": "Restaurants à proximité",
       "tryMap": "Réessayez ou recherchez sur la carte.",
-      "searchFailed": "Impossible d’atteindre le service de recherche."
+      "searchFailed": "Impossible d’atteindre le service de recherche.",
+      "usingFallback": "Accès à la position indisponible — restaurants près de vos avis récents affichés.",
+      "usingFallbackCity": "Accès à la position indisponible — restaurants près de {{city}} affichés."
     },
     "mapSearch": {
       "title": "Rechercher sur la carte",
       "searchArea": "Rechercher dans cette zone",
       "startReview": "Commencer l’avis",
       "hint": "Déplacez la carte, puis touchez Rechercher dans cette zone.",
+      "emptyTitle": "Aucun restaurant trouvé",
       "searchAreaHint": "Rechercher des restaurants dans la zone visible"
     },
     "manual": {
       "title": "Saisie manuelle",
       "restaurantName": "Nom du restaurant",
-      "city": "Ville",
-      "country": "Pays",
+      "city": "Ville (facultatif)",
+      "country": "Pays (facultatif)",
       "findOnGoogle": "Trouver sur Google",
       "searchHint": "Recherchez sur Google pour ajouter des détails, ou continuez manuellement.",
       "googleMatches": "Résultats Google",
@@ -328,6 +353,7 @@
         "a11yPhoto": "Photo. Touchez pour sélectionner, appui long pour réordonner."
       },
       "draftBannerCriteria": "Notez au moins un critère pour terminer cet avis.",
+      "draftBannerFood": "Notez la cuisine pour terminer cet avis.",
       "draftBannerWine": "Un vin doit encore être noté."
     },
     "photos": {
@@ -353,7 +379,7 @@
     "options": {
       "title": "Options",
       "a11y": "Options",
-      "recordVisit": "Enregistrer une nouvelle visite",
+      "recordVisit": "Ajouter un nouvel avis",
       "editReview": "Modifier l’avis",
       "cannotEditFriend": "Vous ne pouvez pas modifier l’avis d’un ami",
       "deleteReview": "Supprimer l’avis",
@@ -401,6 +427,7 @@
       "cancel": "Annuler",
       "continue": "Continuer"
     },
+    "selectReviews": "Sélectionner les avis",
     "selectRestaurants": "Choisir les restaurants",
     "selectOneRestaurant": "Choisir 1 restaurant"
   },
@@ -487,7 +514,9 @@
     "share": {
       "failed": "Impossible de partager les avis.",
       "reviewFailed": "Impossible de partager cet avis.",
-      "needName": "Ajoutez votre nom dans Réglages avant de partager des avis."
+      "needName": "Ajoutez votre nom dans Réglages avant de partager des avis.",
+      "draftTitle": "Le brouillon ne peut pas être partagé",
+      "draftBody": "Notez la cuisine et terminez cet avis avant de le partager."
     },
     "location": {
       "deniedTitle": "Position requise",
@@ -503,6 +532,8 @@
     },
     "reviewForm": {
       "needStars": "Ajoutez au moins une note en étoiles pour enregistrer cet avis.",
+      "foodRequiredTitle": "Note de cuisine obligatoire",
+      "foodRequiredBody": "Notez la cuisine avant de terminer cet avis.",
       "removePhotosTitle": "Retirer les photos ?",
       "removePhotosBody": "Les photos sélectionnées seront retirées de cet avis.",
       "photosSaveFailed": "Impossible d’enregistrer les photos.",
@@ -569,7 +600,7 @@
     "drinksSuggestionPlaceholder": "Nom du vin et millésime",
     "useInDrinks": "Utiliser dans Boissons",
     "confirmA11y": "Ajouter le vin à Boissons",
-    "resultRatingTitle": "Notez cette bouteille",
+    "resultRatingTitle": "Notez ce vin",
     "ratingRequired": "Ajoutez des étoiles pour enregistrer ce vin.",
     "scanButton": "Ajouter un vin",
     "scanButtonA11y": "Ajouter un vin aux Boissons",
@@ -651,23 +682,7 @@
       "alcohol": "Alcool",
       "foodPairings": "Accords",
       "myJudgment": "Mon avis",
-      "openFull": "Ouvrir la fiche complète",
-      "tasteProfile": {
-        "title": "Profil aromatique",
-        "source": "Estimation à partir de l’étiquette.",
-        "expandA11y": "Développer le profil aromatique",
-        "collapseA11y": "Réduire le profil aromatique",
-        "poles": {
-          "bodyLight": "Léger",
-          "bodyFull": "Corsé",
-          "tanninsSoft": "Souple",
-          "tanninsFirm": "Ferme",
-          "aciditySoft": "Douce",
-          "acidityLively": "Vive",
-          "sweetnessDry": "Sec",
-          "sweetnessSweet": "Sucré"
-        }
-      }
+      "openFull": "Ouvrir la fiche complète"
     },
     "deleteWineUndo": "« {{name}} » retiré",
     "methodLead": "Comment voulez-vous ajouter ce vin ?",
@@ -703,7 +718,8 @@
       "body": "Choisissez les critères importants pour un avis. Vous pourrez les modifier plus tard dans Réglages.",
       "minOne": "Choisissez au moins un critère.",
       "tip": "Astuce",
-      "idealThree": " : 3 critères, c'est l'idéal"
+      "idealThree": " : 3 critères, c'est l'idéal",
+      "footer": "Les critères ajoutés apparaissent dans les nouveaux avis."
     }
   }
 }

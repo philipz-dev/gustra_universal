@@ -1,0 +1,27 @@
+---
+description: Gustra UI tokens, platform chrome, a11y, and small-edit style
+alwaysApply: true
+---
+
+# Gustra UI & edit conventions
+
+Primary stack: React Native, Expo Router (SDK 57), TypeScript, Reanimated, Gesture Handler. Prefer small diffs — do not rewrite whole files when a local edit suffices.
+
+Do **not** duplicate data/i18n/plan/dump rules — those live in their own `.mdc` files.
+
+## Design tokens
+
+- Colors/theme from `@/constants/Colors` and `@/constants/Theme` only — no one-off palette.
+- Defaults: `GustraColors.cream` (bg), `GustraColors.forestGreen` (accent), `GustraColors.bubble` (cards/inputs), `GustraColors.ink` (text).
+- Titles/headers: `SerifText`. Body/caption: `Text` + `bodyTextStyle` / `captionTextStyle`.
+- Layout: `StyleSheet.create`. Respect `useSafeAreaInsets` and `Theme.spacing.floatingTabBarClearance` under the floating tab bar.
+
+## Platform chrome
+
+- iOS: `expo-symbols` (`SymbolView`), native `Stack`.
+- Android: `@expo/vector-icons/MaterialIcons`, `JsStack` with bezier timing (avoid spring flash on back). See `app/(tabs)/(main)/_layout.tsx`.
+- Prefer OS-native patterns when adding interactive UI (see `native-platform-ui.mdc`).
+
+## Accessibility
+
+- Touchables (`Pressable`): set `accessibilityRole` and `accessibilityLabel` (via `t('…')` when user-facing).

@@ -77,6 +77,15 @@ export const FIRST_START_ENABLED_STANDARD_IDS: readonly StandardCriterionId[] = 
   'wines',
 ] as const;
 
+/** Required to complete every review; users cannot disable it. */
+export const MANDATORY_STANDARD_CRITERION_IDS: readonly StandardCriterionId[] = [
+  'food',
+] as const;
+
+export function isMandatoryStandardCriterion(id: string): boolean {
+  return MANDATORY_STANDARD_CRITERION_IDS.some((mandatoryId) => mandatoryId === id);
+}
+
 const DISABLED_KEY = 'disabledRatingCategories';
 const CUSTOM_KEY = 'customCriteriaDefinitions';
 const SETUP_KEY = 'criteriaSetupCompleted';
@@ -87,6 +96,16 @@ export function firstStartDisabledStandardIds(): Set<string> {
   const enabled = new Set<string>(FIRST_START_ENABLED_STANDARD_IDS);
   return new Set(
     STANDARD_CRITERIA.map((c) => c.id).filter((id) => !enabled.has(id)),
+  );
+}
+
+function validDisabledStandardIds(ids: readonly string[]): Set<string> {
+  return new Set(
+    ids.filter(
+      (id) =>
+        STANDARD_CRITERIA.some((criterion) => criterion.id === id) &&
+        !isMandatoryStandardCriterion(id),
+    ),
   );
 }
 
@@ -172,11 +191,7 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
         let nextDisabled = new Set<string>();
         if (disabledRaw) {
           const parsed = JSON.parse(disabledRaw) as string[];
-          nextDisabled = new Set(
-            parsed.filter((id) =>
-              STANDARD_CRITERIA.some((c) => c.id === id),
-            ),
-          );
+          nextDisabled = validDisabledStandardIds(parsed);
         }
 
         let nextCustom: CustomCriterionDefinition[] = [];
@@ -246,6 +261,7 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
 
   const setStandardEnabled = useCallback(
     (id: string, enabled: boolean) => {
+      if (!enabled && isMandatoryStandardCriterion(id)) return;
       setDisabledStandardIds((prev) => {
         const next = new Set(prev);
         if (enabled) {
@@ -348,10 +364,8 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
 
   const applyBackupSnapshot = useCallback(
     async (snapshot: CriteriaSettingsSnapshot) => {
-      const validDisabled = new Set(
-        (snapshot.disabledStandardIds ?? []).filter((id) =>
-          STANDARD_CRITERIA.some((c) => c.id === id),
-        ),
+      const validDisabled = validDisabledStandardIds(
+        snapshot.disabledStandardIds ?? [],
       );
       const nextCustom = (snapshot.customCriteria ?? []).map((c) => ({
         id: String(c.id),

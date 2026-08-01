@@ -66,7 +66,7 @@ export default function WineLabelScanScreen() {
   const [labelPhotoUri, setLabelPhotoUri] = useState<string | null>(null);
   const [fiche, setFiche] = useState<WineLabelFiche | null>(null);
   const [busy, setBusy] = useState(false);
-  const [drinksRating, setDrinksRating] = useState(RatingValue.unrated);
+  const [drinksRating, setDrinksRating] = useState<number>(RatingValue.unrated);
   const [drinksNote, setDrinksNote] = useState('');
   const [searchName, setSearchName] = useState('');
   const [searchEstate, setSearchEstate] = useState('');
@@ -623,7 +623,7 @@ export default function WineLabelScanScreen() {
                 <>
                   <WineUserRatingFields
                     rating={drinksRating}
-                    onRatingChange={setDrinksRating}
+                    onRatingChange={(rating) => setDrinksRating(rating)}
                     note={drinksNote}
                     onNoteChange={setDrinksNote}
                     onNoteFocus={(input) => scrollInputIntoView(input)}

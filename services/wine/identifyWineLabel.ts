@@ -13,7 +13,6 @@ import {
   type WineLabelFiche,
 } from '@/services/wine/wineLabelTypes';
 import { normalizeVintageYear } from '@/services/wine/parseWineLabelOcr';
-import { parseTasteProfileConfidence } from '@/services/wine/wineTasteProfile';
 import { parseTastingTraits } from '@/services/wine/wineTastingTraits';
 import { normalizeWineTypeStyle } from '@/services/wine/wineTypeStyle';
 import { extractTextFromImage } from '@/services/ocr/OCRService';
@@ -37,22 +36,11 @@ function wineFicheJsonContract(lang: string): string {
 - grapeVarieties: JSON array of common ampelographic grape names (usually international, e.g. "Grenache", "Syrah"). Use null when unknown.
 - grapes: same varieties as a single comma-separated display string, or null.
 - typeStyle: exactly one English code — red, white, rose, sparkling, fortified, orange. Required whenever you identify a wine. Champagne/Cava/Prosecco → sparkling. Port/Sherry/Madeira → fortified. Skin-contact amber → orange. Never a translated word.
-
-Also estimate a taste profile when you can (same response — do not invent):
-- tastingTraits: include only keys you can judge with reasonable confidence. Keys (English):
-  body, tannins, acidity, sweetness — integer score 1–5.
-  Omit tannins for white / sparkling / most rosés unless clearly relevant.
-  Do NOT include freshness.
-  sweetness is still required whenever you identify a wine (1 = dry … 5 = very sweet) for the style chip.
+- sweetness: integer 1–5 (1 = dry … 5 = very sweet). Required whenever you identify a wine, for the style chip. Default 1 when you cannot judge.
 - grapeBlend: optional array of { "name": "Grenache", "percent": 60 }. Include percent ONLY when you know the cuvée blend with high confidence; otherwise omit percent or use grapeVarieties without %.
 - grapeVarieties / grapes: still fill name lists for search/display.
-- servingTempHint / aerationHint: short phrases in ${lang}, or null when unsure.
-  Examples: "16–18 °C", "Open 30 min beforehand".
-  Do NOT invent a drink-by / cellar-until date (omit any drink-window field).
 - vintage: four-digit year starting with 19 or 20 (e.g. "1998", "2016"), or null. Never invent a year.
-- tasteProfileConfidence: "high" | "medium" | "low" for the taste-profile block as a whole.
-  Use "low" when the wine is obscure / ambiguous / you would mostly guess — the app will hide the profile.
-  Identity fields (name, type, vintage) may still be filled when confidence is low.
+- Do NOT return tasting traits (body/tannins/acidity), serving or aeration hints, or drink-window dates — the app no longer shows them.
 
 Return STRICT JSON only (no markdown) with these keys:
 {
@@ -65,15 +53,7 @@ Return STRICT JSON only (no markdown) with these keys:
   "grapes": "Grenache, Syrah" or null,
   "alcoholPercent": number or null,
   "foodPairings": "Short food pairing phrase in ${lang}, or null",
-  "tastingTraits": [
-    { "key": "body", "score": 4 },
-    { "key": "tannins", "score": 3 },
-    { "key": "acidity", "score": 4 },
-    { "key": "sweetness", "score": 1 }
-  ],
-  "servingTempHint": "16–18 °C" or null,
-  "aerationHint": "Decant 1 hour" or null,
-  "tasteProfileConfidence": "high" | "medium" | "low"
+  "sweetness": 1
 }`;
 }
 
@@ -115,7 +95,7 @@ export function buildWineTextPrompt(
   return `Identify this wine from the user's description (no photo).
 If the name is too ambiguous to match a real wine confidently, return nameAndEstate as an empty string.
 Prefer the user's estate/domaine and vintage when provided.
-When estate or vintage is missing, lower tasteProfileConfidence (often "medium" or "low") and do not invent a vintage.
+Do not invent a vintage.
 Compose nameAndEstate as the wine name with estate when known (as on a typical label).
 
 User input:
@@ -134,7 +114,9 @@ type GeminiJson = {
   grapeBlend?: unknown;
   alcoholPercent?: unknown;
   foodPairings?: unknown;
+  /** Legacy Vision keys are still read (older backend responses) but not requested. */
   tastingTraits?: unknown;
+  sweetness?: unknown;
   servingTempHint?: unknown;
   aerationHint?: unknown;
   tasteProfileConfidence?: unknown;
@@ -227,14 +209,17 @@ function parseFicheJson(
   // Every identified wine gets a stable type for the profile chip.
   if (!typeCode) typeCode = 'white';
 
-  // Always persist sweetness (default dry) so the chip can resolve a band.
-  const hasSweetness = tastingTraitsRaw?.some((t) => t.key === 'sweetness');
-  const tastingTraits = hasSweetness
-    ? tastingTraitsRaw
-    : [
-        ...(tastingTraitsRaw ?? []),
-        { key: 'sweetness' as const, score: 1 },
-      ];
+  // Persist only the sweetness band for the type × sweetness style chip. The
+  // subjective tasting traits / serve hints are removed from the fiche.
+  const sweetnessFromNew = asIntegerScore(parsed.sweetness);
+  const sweetnessFromLegacy = tastingTraitsRaw?.find(
+    (t) => t.key === 'sweetness',
+  )?.score;
+  const sweetnessScore =
+    sweetnessFromNew ?? sweetnessFromLegacy ?? 1; // default dry
+  const tastingTraits: WineLabelFiche['tastingTraits'] = [
+    { key: 'sweetness' as const, score: sweetnessScore },
+  ];
 
   const legacyType = asNullableString(parsed.typeStyle);
   const { grapeVarieties, grapes, grapeBlend } = parseGrapeVarieties({
@@ -242,11 +227,6 @@ function parseFicheJson(
     grapes: parsed.grapes,
     grapeBlend: parsed.grapeBlend,
   });
-  const tasteProfileConfidence = parseTasteProfileConfidence(
-    parsed.tasteProfileConfidence,
-  );
-  const servingTempHint = asNullableString(parsed.servingTempHint);
-  const aerationHint = asNullableString(parsed.aerationHint);
   const vintage = normalizeVintageYear(asNullableString(parsed.vintage));
 
   return {
@@ -261,11 +241,21 @@ function parseFicheJson(
     alcoholPercent: asAlcohol(parsed.alcoholPercent),
     foodPairings: asNullableString(parsed.foodPairings),
     tastingTraits,
-    ...(servingTempHint ? { servingTempHint } : {}),
-    ...(aerationHint ? { aerationHint } : {}),
-    ...(tasteProfileConfidence ? { tasteProfileConfidence } : {}),
     analyzedAt: new Date().toISOString(),
   };
+}
+
+/** Parse an integer sweetness score 1–5; null when absent/invalid. */
+function asIntegerScore(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const n = Math.round(value);
+    return n >= 1 && n <= 5 ? n : null;
+  }
+  if (typeof value === 'string') {
+    const n = Number.parseInt(value.trim(), 10);
+    return Number.isFinite(n) && n >= 1 && n <= 5 ? n : null;
+  }
+  return null;
 }
 
 /** When Vision omits vintage, OCR the label for a 19xx/20xx year. */

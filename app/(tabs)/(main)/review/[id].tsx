@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
   Image,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,16 +17,9 @@ import { CommentChip } from '@/components/detail/CommentChip';
 import { CriterionSection } from '@/components/detail/CriterionSection';
 import { HeroPhotoPager } from '@/components/detail/HeroPhotoPager';
 import { LocationBlock } from '@/components/detail/LocationBlock';
-import { ProfilePhotoViewer } from '@/components/detail/ProfilePhotoViewer';
+import { PhotoViewerModal } from '@/components/detail/photoViewer/PhotoViewerModal';
 import { RestaurantMapViewer } from '@/components/detail/RestaurantMapViewer';
-import { ReviewPhotoViewer } from '@/components/detail/ReviewPhotoViewer';
 import { ReviewWinesSection } from '@/components/detail/ReviewWinesSection';
-import type { ShareDestination } from '@/components/detail/ShareReviewChooser';
-import { PreparingRecommendationOverlay } from '@/components/share/PreparingRecommendationOverlay';
-import {
-  ShareFlowSheet,
-  type ShareFlowStep,
-} from '@/components/share/ShareFlowSheet';
 import { FavoriteHeartButton } from '@/components/ui/FavoriteHeartButton';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
@@ -51,8 +43,6 @@ import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { relocateLocalPhotoRef } from '@/services/backup/photos';
 import { presentDirectionsOptions } from '@/services/directions/DirectionsLauncher';
 import { Haptics } from '@/services/haptics';
-import { shareReviewAsEmail } from '@/services/share/ReviewEmailShare';
-import { shareReviewsPackage } from '@/services/share/ReviewShareService';
 import { requestSwipeDelete } from '@/services/swipeDelete';
 import { formatScoreOutOfFive } from '@/services/reviews/ratings';
 import {
@@ -64,10 +54,6 @@ function wineRowKey(wine: WineLabelFiche): string {
   return `${wine.labelPhotoUri ?? ''}|${wine.nameAndEstate}`;
 }
 
-function afterSheetDismiss(work: () => void): void {
-  setTimeout(work, Platform.OS === 'ios' ? 360 : 60);
-}
-
 export default function ReviewDetailScreen() {
   const { t } = useAppTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -76,12 +62,12 @@ export default function ReviewDetailScreen() {
   const {
     getRestaurant,
     getReview,
+    getReviewsForRestaurant,
     setRestaurantFavorite,
     removeWineFromReview,
     restaurants,
   } = useReviewsStore();
-  const { hasName, name, photoUri, getBackupSnapshot, updateName } =
-    useReviewerProfile();
+  const { photoUri } = useReviewerProfile();
   const review = getReview(id);
   const restaurant = review ? getRestaurant(review.restaurantId) : undefined;
   const photoUris =
@@ -92,22 +78,24 @@ export default function ReviewDetailScreen() {
     ? resolveReviewOrigin(review) === 'imported'
     : false;
 
+  // Own visit count for this restaurant — used to decide whether the
+  // "Add new review" shortcut belongs on this screen (only when there are
+  // fewer than 2 visits; the visits overview covers the rest).
+  const visitCount = restaurant
+    ? getReviewsForRestaurant(restaurant.id, 'own').length
+    : 0;
+
   const { enabledCriteria } = useCriteriaSettings();
   const enabledIds = new Set(enabledCriteria.map((c) => c.id));
   const [photoIndex, setPhotoIndex] = useState(0);
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [showReviewerPhoto, setShowReviewerPhoto] = useState(false);
   const [showMap, setShowMap] = useState(false);
-  const [shareStep, setShareStep] = useState<ShareFlowStep | null>(null);
-  const [pendingShare, setPendingShare] = useState<ShareDestination | null>(
-    null,
-  );
-  const [pendingSharedBy, setPendingSharedBy] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
-  const [preparingEmail, setPreparingEmail] = useState(false);
   const [pendingWineKeys, setPendingWineKeys] = useState<Set<string>>(
     () => new Set(),
   );
+
   const bottomPad =
     Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
 
@@ -117,125 +105,6 @@ export default function ReviewDetailScreen() {
   const reviewerPhotoUri = reviewerPhotoRaw
     ? relocateLocalPhotoRef(reviewerPhotoRaw)
     : null;
-
-  const closeShareFlow = useCallback(() => {
-    setShareStep(null);
-    setPendingShare(null);
-    setPendingSharedBy(null);
-  }, []);
-
-  const runShare = useCallback(
-    async (
-      destination: ShareDestination,
-      sharedByOverride?: string,
-      personalMessage?: string,
-    ) => {
-      if (!review || !restaurant) return;
-      setSharing(true);
-      if (destination === 'email') setPreparingEmail(true);
-      try {
-        const profile = await getBackupSnapshot();
-        const sharedBy = (sharedByOverride ?? profile.name).trim();
-        if (!sharedBy) {
-          throw new Error(t('share.nameSheet.body'));
-        }
-        if (destination === 'gustraPackage') {
-          await shareReviewsPackage({
-            reviews: [review],
-            restaurants,
-            sharedBy,
-            sharedById: profile.authorId,
-            sharedByPhotoBase64: profile.photoBase64,
-          });
-        } else {
-          await shareReviewAsEmail({
-            review,
-            restaurant,
-            sharedBy,
-            enabledCriteria,
-            personalMessage,
-            onSnapshotReady: () => setPreparingEmail(false),
-          });
-        }
-      } catch (error) {
-        houseAlert(
-          t('common.error'),
-          error instanceof Error
-            ? error.message
-            : t('alerts.share.reviewFailed'),
-        );
-      } finally {
-        setPreparingEmail(false);
-        setSharing(false);
-        setPendingShare(null);
-        setPendingSharedBy(null);
-      }
-    },
-    [
-      enabledCriteria,
-      getBackupSnapshot,
-      restaurants,
-      restaurant,
-      review,
-      t,
-    ],
-  );
-
-  const onSelectDestination = useCallback(
-    (destination: ShareDestination) => {
-      setPendingShare(destination);
-      if (!hasName) {
-        setShareStep('name');
-        return;
-      }
-      if (destination === 'email') {
-        setPendingSharedBy(null);
-        setShareStep('message');
-        return;
-      }
-      setShareStep(null);
-      afterSheetDismiss(() => {
-        void runShare(destination);
-      });
-    },
-    [hasName, runShare],
-  );
-
-  const onNameContinue = useCallback(
-    (sharedBy: string) => {
-      updateName(sharedBy);
-      setPendingSharedBy(sharedBy);
-      const destination = pendingShare;
-      if (!destination) {
-        closeShareFlow();
-        return;
-      }
-      if (destination === 'email') {
-        // Stay in the same Modal — swap to message step (no flicker).
-        setShareStep('message');
-        return;
-      }
-      setShareStep(null);
-      afterSheetDismiss(() => {
-        void runShare(destination, sharedBy);
-      });
-    },
-    [closeShareFlow, pendingShare, runShare, updateName],
-  );
-
-  const onMessageContinue = useCallback(
-    (message: string) => {
-      const sharedBy = pendingSharedBy ?? undefined;
-      // Show preparing under the sheet so the review never flashes through.
-      setPreparingEmail(true);
-      setShareStep(null);
-      setPendingShare(null);
-      afterSheetDismiss(() => {
-        void runShare('email', sharedBy, message);
-      });
-    },
-    [pendingSharedBy, runShare],
-  );
 
   const addressLine = restaurant
     ? [restaurant.address, restaurant.city, restaurant.country]
@@ -254,6 +123,15 @@ export default function ReviewDetailScreen() {
   );
   const polished = ReviewDetailPresentation.isPolishedEnabled;
   const streamlined = ReviewDetailPresentation.isStreamlinedEnabled;
+
+  const openAddReview = useCallback(() => {
+    if (!restaurant) return;
+    Haptics.selectionChanged();
+    router.push({
+      pathname: '/review-form',
+      params: { restaurantId: restaurant.id },
+    });
+  }, [restaurant, router]);
 
   const openWineFiche = useCallback(
     (wineIndex: number) => {
@@ -420,21 +298,16 @@ export default function ReviewDetailScreen() {
           }}
         />
 
-        <View style={styles.recordVisitContainer}>
-          <HousePrimaryButton
-            title={t('detail.options.recordVisit')}
-            onPress={() => {
-              Haptics.selectionChanged();
-              router.push({
-                pathname: '/review-form',
-                params: { restaurantId: restaurant.id },
-              });
-            }}
-          />
-        </View>
+        {!isFriendReview && visitCount < 2 ? (
+          <View style={styles.recordVisitContainer}>
+            <HousePrimaryButton
+              title={t('detail.options.recordVisit')}
+              onPress={openAddReview}
+            />
+          </View>
+        ) : null}
 
-        <View
-          style={[styles.content, polished && styles.contentPolished, { paddingTop: 8 }]}>
+        <View style={[styles.content, polished && styles.contentPolished, { paddingTop: 8 }]}>
           <View style={[styles.header, polished && styles.headerPolished]}>
             <View style={styles.headerRow}>
               <View style={styles.titleBlock}>
@@ -539,19 +412,22 @@ export default function ReviewDetailScreen() {
         </View>
       </ScrollView>
 
-      <ReviewPhotoViewer
+      <PhotoViewerModal
         visible={showPhotoViewer && photoUris.length > 0}
         uris={photoUris}
         index={Math.min(photoIndex, Math.max(photoUris.length - 1, 0))}
         onIndexChange={setPhotoIndex}
         onClose={() => setShowPhotoViewer(false)}
+        accessibilityLabel="Review photo"
       />
 
       {reviewerPhotoUri ? (
-        <ProfilePhotoViewer
+        <PhotoViewerModal
           visible={showReviewerPhoto}
-          uri={reviewerPhotoUri}
+          uris={[reviewerPhotoUri]}
           onClose={() => setShowReviewerPhoto(false)}
+          accessibilityLabel="Profile photo"
+          countLabel="Profile photo"
         />
       ) : null}
 
@@ -561,17 +437,6 @@ export default function ReviewDetailScreen() {
         onClose={() => setShowMap(false)}
       />
 
-      <ShareFlowSheet
-        visible={shareStep !== null}
-        step={shareStep ?? 'chooser'}
-        initialName={name}
-        onClose={closeShareFlow}
-        onSelectDestination={onSelectDestination}
-        onNameContinue={onNameContinue}
-        onMessageContinue={onMessageContinue}
-      />
-
-      <PreparingRecommendationOverlay visible={preparingEmail} />
     </View>
   );
 }
@@ -582,11 +447,6 @@ const styles = StyleSheet.create({
     backgroundColor: GustraColors.cream,
   },
   scroll: {},
-  recordVisitContainer: {
-    paddingHorizontal: Theme.spacing.detailContent,
-    paddingTop: 16,
-    paddingBottom: 4,
-  },
   content: {
     padding: Theme.spacing.detailContent,
     gap: Theme.spacing.detailSection,
@@ -709,5 +569,10 @@ const styles = StyleSheet.create({
   reviewedByLabel: {
     fontSize: 13,
     color: 'rgba(35, 32, 26, 0.6)',
+  },
+  recordVisitContainer: {
+    paddingHorizontal: Theme.spacing.detailContent,
+    paddingTop: 16,
+    paddingBottom: 4,
   },
 });

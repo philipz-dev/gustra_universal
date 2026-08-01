@@ -266,3 +266,7 @@ export function satisfactionFromScore(score: number): SatisfactionLevel {
   if (score >= 2.5) return 'neutral';
   return 'avoid';
 }
+
+import type { SymbolViewProps } from 'expo-symbols';
+export type SFSymbolName = SymbolViewProps['name'];
+

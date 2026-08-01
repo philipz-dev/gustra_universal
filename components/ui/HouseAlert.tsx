@@ -356,7 +356,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(35, 32, 26, 0.45)',
   },
   dismissArea: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   card: {
     width: '100%',

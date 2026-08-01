@@ -5,6 +5,7 @@ import { HousePrimaryButton } from '@/components/ui/HousePrimaryButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, captionTextStyle, bodyTextStyle } from '@/constants/Theme';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { draftAddressLine } from '@/services/places';
 import type { RestaurantDraft } from '@/services/places';
 
@@ -13,6 +14,8 @@ type SelectedRestaurantBannerProps = {
   actionTitle: string;
   onAction: () => void;
   onClear?: () => void;
+  /** Own visits already on record for this restaurant (shows a subtle note). */
+  visitedCount?: number;
 };
 
 /** Swift `SelectedRestaurantBanner`. */
@@ -21,7 +24,9 @@ export function SelectedRestaurantBanner({
   actionTitle,
   onAction,
   onClear,
+  visitedCount = 0,
 }: SelectedRestaurantBannerProps) {
+  const { t } = useAppTranslation();
   const addressLine = draftAddressLine(draft);
 
   return (
@@ -37,10 +42,26 @@ export function SelectedRestaurantBanner({
           size={28}
         />
         <View style={styles.copy}>
-          <Text style={styles.caption}>Selected Restaurant</Text>
+          <Text style={styles.caption}>{t('common.selectedRestaurant')}</Text>
           <SerifText size={17} weight="semibold" style={styles.name}>
             {draft.name}
           </SerifText>
+          {visitedCount > 0 ? (
+            <View style={styles.visitedRow}>
+              <SymbolView
+                name={{
+                  ios: 'clock.fill',
+                  android: 'history',
+                  web: 'history',
+                }}
+                tintColor={GustraColors.gold}
+                size={12}
+              />
+              <Text style={styles.visitedText}>
+                {t('reviews.visitedBefore', { count: visitedCount })}
+              </Text>
+            </View>
+          ) : null}
           {addressLine ? (
             <Text style={styles.address}>{addressLine}</Text>
           ) : null}
@@ -48,7 +69,7 @@ export function SelectedRestaurantBanner({
         {onClear ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Deselect restaurant"
+            accessibilityLabel={t('common.deselectRestaurant')}
             hitSlop={8}
             onPress={onClear}
             style={({ pressed }) => pressed && styles.pressed}>
@@ -98,6 +119,17 @@ const styles = StyleSheet.create({
     ...bodyTextStyle,
     fontSize: 15,
     color: 'rgba(35, 32, 26, 0.55)',
+  },
+  visitedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  visitedText: {
+    ...captionTextStyle,
+    fontSize: 12,
+    fontWeight: '600',
+    color: GustraColors.gold,
   },
   pressed: {
     opacity: 0.7,

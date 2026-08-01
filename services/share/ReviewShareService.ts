@@ -5,6 +5,7 @@ import * as Sharing from 'expo-sharing';
 
 import type { Restaurant, Review } from '@/data/types';
 import { resolveReviewOrigin } from '@/data/types';
+import { i18n } from '@/i18n';
 import {
   restaurantToBackup,
   reviewToBackup,
@@ -20,6 +21,7 @@ import {
   SHARE_UTI,
   toShareIso8601,
 } from '@/services/share/types';
+import { isReviewDraft } from '@/services/reviews/draftReview';
 
 export type ShareReviewBackup = Omit<ReviewBackup, 'date'> & {
   /** ISO-8601 string (Swift share encoder uses `.iso8601`). */
@@ -225,7 +227,15 @@ export async function shareReviewsPackage(args: {
     throw new Error('Select at least one review to share.');
   }
 
-  const packageData = makeSharePackage(args);
+  const shareableReviews = args.reviews.filter((review) => !isReviewDraft(review));
+  if (shareableReviews.length === 0) {
+    throw new Error(i18n.t('alerts.share.draftBody'));
+  }
+
+  const packageData = makeSharePackage({
+    ...args,
+    reviews: shareableReviews,
+  });
   const { uri, filename } = await writeSharePackageFile(packageData);
 
   const canShare = await Sharing.isAvailableAsync();

@@ -59,13 +59,21 @@ export default function ReviewerPhotoEditorScreen() {
   const diameterRef = useRef(280);
 
   useEffect(() => {
+    let isMounted = true;
     if (hasPhoto && photoUri) {
-      setStartedWithSavedPhoto(true);
-      setDraftUri(photoUri);
-      setPickingSource(false);
+      if (isMounted) {
+        setStartedWithSavedPhoto(true);
+        setDraftUri(photoUri);
+        setPickingSource(false);
+      }
     } else {
-      setPickingSource(true);
+      if (isMounted) {
+        setPickingSource(true);
+      }
     }
+    return () => {
+      isMounted = false;
+    };
   }, [hasPhoto, photoUri]);
 
   const showsSourceChooser = pickingSource && !draftUri;
@@ -74,6 +82,8 @@ export default function ReviewerPhotoEditorScreen() {
     if (pendingDelete) return null;
     return draftUri;
   }, [draftUri, pendingDelete]);
+  const showingSavedPhoto =
+    startedWithSavedPhoto && previewUri !== null && previewUri === photoUri;
 
   const setDraft = useCallback((uri: string) => {
     imageSizeRef.current = null;
@@ -275,7 +285,7 @@ export default function ReviewerPhotoEditorScreen() {
               <Text style={styles.pendingDeleteHint}>
                 {t('settings.profilePhoto.pendingRemove')}
               </Text>
-            ) : previewUri ? (
+            ) : previewUri && !showingSavedPhoto ? (
               <Text style={styles.pendingDeleteHint}>
                 {t('settings.profilePhoto.pinchHint')}
               </Text>

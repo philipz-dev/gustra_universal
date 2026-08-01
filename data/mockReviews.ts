@@ -3,6 +3,7 @@ import type {
   RestaurantVisitSummary,
   Review,
   ReviewOrigin,
+  WineLabelFiche,
 } from '@/data/types';
 import { resolveReviewOrigin } from '@/data/types';
 import {
@@ -10,7 +11,13 @@ import {
   formatReviewDateTime,
 } from '@/i18n/formatDates';
 
-/** Curated Unsplash stills — dishes & dining interiors (w=800 for feed/detail). */
+/**
+ * Marketing / QA showcase data.
+ * Fictional restaurant names on real street addresses (maps & directions work).
+ * IDs are always prefixed with `demo-` so they never collide with user data.
+ */
+
+/** Curated Unsplash stills — dishes, interiors, wine (w=800 for feed/detail). */
 const photos = {
   greenhouseDish:
     'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=800&q=80',
@@ -32,20 +39,77 @@ const photos = {
     'https://images.unsplash.com/photo-1563245372-f21724e3856d?w=800&q=80',
   tastingMenu:
     'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=800&q=80',
-  seafoodPlate:
-    'https://images.unsplash.com/photo-1559339352-11d035aa65de?w=800&q=80',
   vegetableCourse:
     'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&q=80',
-  reviewerSara:
-    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&q=80',
-  reviewerAlex:
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=80',
+  steakPlate:
+    'https://images.unsplash.com/photo-1544025162-d76694265947?w=800&q=80',
+  bistroInterior:
+    'https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?w=800&q=80',
+  wineRedLabel:
+    'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=800&q=80',
+  wineWhiteLabel:
+    'https://images.unsplash.com/photo-1569529465841-dfecdabaa329?w=800&q=80',
+  dessertPlate:
+    'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=800&q=80',
 };
 
+const wineAtelierBac: WineLabelFiche = {
+  labelPhotoUri: photos.wineRedLabel,
+  nameAndEstate: 'Clos des Lucioles — Pinot Noir',
+  typeStyle: 'red',
+  countryRegion: 'Burgundy, France',
+  vintage: '2021',
+  grapes: 'Pinot Noir',
+  grapeVarieties: ['Pinot Noir'],
+  grapeBlend: [{ name: 'Pinot Noir', percent: 100 }],
+  alcoholPercent: 13,
+  foodPairings: 'Duck, mushroom risotto, soft cheeses',
+  tastingTraits: [
+    { key: 'tannins', score: 2 },
+    { key: 'body', score: 3 },
+    { key: 'acidity', score: 4 },
+    { key: 'sweetness', score: 1 },
+  ],
+  servingTempHint: '14–16 °C',
+  aerationHint: '30 minutes in the glass',
+  drinkWindowHint: 'Now–2029',
+  tasteProfileConfidence: 'high',
+  analyzedAt: '2026-04-18T14:10:00.000Z',
+  userRating: 9,
+  userComment: 'Silky cherry and forest floor — perfect with the duck.',
+};
+
+const wineHarbourFire: WineLabelFiche = {
+  labelPhotoUri: photos.wineWhiteLabel,
+  nameAndEstate: 'Skærgaard — Skin-Contact Riesling',
+  typeStyle: 'orange',
+  countryRegion: 'Zealand, Denmark',
+  vintage: '2022',
+  grapes: 'Riesling',
+  grapeVarieties: ['Riesling'],
+  grapeBlend: [{ name: 'Riesling', percent: 100 }],
+  alcoholPercent: 11.5,
+  foodPairings: 'Fermented vegetables, shellfish, mild cheeses',
+  tastingTraits: [
+    { key: 'tannins', score: 2 },
+    { key: 'body', score: 3 },
+    { key: 'acidity', score: 5 },
+    { key: 'sweetness', score: 2 },
+  ],
+  servingTempHint: '10–12 °C',
+  aerationHint: 'Serve cool; no decant needed',
+  drinkWindowHint: 'Now–2027',
+  tasteProfileConfidence: 'high',
+  analyzedAt: '2025-09-22T19:05:00.000Z',
+  userRating: 10,
+  userComment: 'Tangerine peel and tea leaf — pairs wildly with the ferments.',
+};
+
+/** Showcase restaurants — fictional names, real coordinates/addresses. */
 export const mockRestaurants: Restaurant[] = [
   {
-    id: 'r1',
-    name: 'De Kas',
+    id: 'demo-r1',
+    name: 'Orangerie Kas',
     city: 'Amsterdam',
     country: 'Netherlands',
     address: 'Kamerlingh Onneslaan 3, 1097 DE Amsterdam',
@@ -59,8 +123,8 @@ export const mockRestaurants: Restaurant[] = [
     photoUrl: photos.greenhouseDish,
   },
   {
-    id: 'r2',
-    name: 'Restaurant Flore',
+    id: 'demo-r2',
+    name: 'Atelier Bac',
     city: 'Paris',
     country: 'France',
     address: '84 Rue du Bac, 75007 Paris',
@@ -69,13 +133,13 @@ export const mockRestaurants: Restaurant[] = [
     longitude: 2.3292,
     mapItemIdentifier: null,
     primaryType: 'fine_dining_restaurant',
-    isFavorite: false,
+    isFavorite: true,
     thumbnailColor: '#5A4634',
     photoUrl: photos.fineDiningPlate,
   },
   {
-    id: 'r3',
-    name: 'Noma',
+    id: 'demo-r3',
+    name: 'Harbour Fire',
     city: 'Copenhagen',
     country: 'Denmark',
     address: 'Refshalevej 96, 1432 København',
@@ -83,13 +147,13 @@ export const mockRestaurants: Restaurant[] = [
     longitude: 12.6101,
     mapItemIdentifier: null,
     primaryType: 'fine_dining_restaurant',
-    isFavorite: true,
+    isFavorite: false,
     thumbnailColor: '#2F4A3C',
     photoUrl: photos.nordicPlating,
   },
   {
-    id: 'r4',
-    name: 'Bar Bentricelli',
+    id: 'demo-r4',
+    name: 'Lume di Trastevere',
     city: 'Rome',
     country: 'Italy',
     address: 'Via della Lungaretta 75, 00153 Roma',
@@ -103,8 +167,8 @@ export const mockRestaurants: Restaurant[] = [
     photoUrl: photos.pastaClose,
   },
   {
-    id: 'r5',
-    name: 'Toko',
+    id: 'demo-r5',
+    name: 'Canal Spice House',
     city: 'Amsterdam',
     country: 'Netherlands',
     address: 'Warmoesstraat 149, 1012 JC Amsterdam',
@@ -116,170 +180,349 @@ export const mockRestaurants: Restaurant[] = [
     thumbnailColor: '#4A5C3A',
     photoUrl: photos.asianSpread,
   },
+  {
+    id: 'demo-r6',
+    name: 'Maison Jourdan',
+    city: 'Brussels',
+    country: 'Belgium',
+    address: 'Place Jourdan 1, 1040 Bruxelles',
+    phone: '+32 2 230 22 22',
+    latitude: 50.8362,
+    longitude: 4.3815,
+    mapItemIdentifier: null,
+    primaryType: 'french_restaurant',
+    isFavorite: true,
+    thumbnailColor: '#6B5344',
+    photoUrl: photos.steakPlate,
+  },
 ];
 
+/** One polished visit per showcase restaurant. */
 export const mockReviews: Review[] = [
   {
-    id: 'v1a',
-    restaurantId: 'r1',
+    id: 'demo-v1',
+    restaurantId: 'demo-r1',
     date: '2026-06-12T19:30:00',
-    generalComment: 'Garden greenhouse vibe — every plate tasted like it was picked that morning.',
+    generalComment:
+      'Dinner under glass as the light faded — every plate tasted like it was picked that morning. The greenhouse hush makes you slow down and actually taste.',
     criteria: [
       {
         id: 'food',
         title: 'Food',
         rating: 10,
-        comment: 'Tomato tart was unforgettable. Light, sharp, perfect acidity.',
+        comment:
+          'Heirloom tomato tart with basil oil — bright, sharp, unforgettable.',
       },
       {
         id: 'drinks',
         title: 'Drinks',
         rating: 8,
-        comment: 'House juice pairing — bright and garden-fresh.',
+        comment: 'Garden juice pairing: cucumber, apple, a whisper of mint.',
+      },
+      {
+        id: 'wines',
+        title: 'Wines',
+        rating: 0,
+        comment: '',
       },
       {
         id: 'service',
         title: 'Service',
-        rating: 8,
-        comment: 'Warm and knowledgeable without hovering.',
+        rating: 9,
+        comment: 'Warm and precise without hovering.',
       },
       {
         id: 'setting',
         title: 'Atmosphere',
         rating: 10,
-        comment: 'Sitting inside a greenhouse at dusk is magic.',
+        comment: 'Dusk through the glass roof is pure theatre.',
       },
       {
         id: 'valueForMoney',
         title: 'Value for Money',
         rating: 8,
-        comment: 'Pricey but fair for the experience.',
+        comment: 'Special-occasion pricing that still feels earned.',
       },
     ],
-    photoUrls: [photos.greenhouseDish, photos.greenhouseInterior],
-
-    reviewedBy: 'Philip',
+    photoUrls: [
+      photos.greenhouseDish,
+      photos.greenhouseInterior,
+      photos.vegetableCourse,
+    ],
+    reviewedBy: 'You',
+    origin: 'own',
+    overallScore: 4.6,
+  },
+  {
+    id: 'demo-v2',
+    restaurantId: 'demo-r2',
+    date: '2026-04-18T13:00:00',
+    generalComment:
+      'Quiet luxury lunch on the Left Bank. Precision cooking, almost silent dining room — the kind of meal you replay for weeks.',
+    criteria: [
+      {
+        id: 'food',
+        title: 'Food',
+        rating: 10,
+        comment: 'Langoustine with citrus and fennel pollen — perfect.',
+      },
+      {
+        id: 'drinks',
+        title: 'Drinks',
+        rating: 8,
+        comment: '',
+      },
+      {
+        id: 'wines',
+        title: 'Wines',
+        rating: 9,
+        comment: 'Clos des Lucioles Pinot with the duck course.',
+      },
+      {
+        id: 'service',
+        title: 'Service',
+        rating: 10,
+        comment: 'Ballet-level timing between courses.',
+      },
+      {
+        id: 'setting',
+        title: 'Atmosphere',
+        rating: 9,
+        comment: 'Cream walls, soft light, Paris outside the window.',
+      },
+      {
+        id: 'valueForMoney',
+        title: 'Value for Money',
+        rating: 6,
+        comment: 'A celebration lunch — budget accordingly.',
+      },
+    ],
+    photoUrls: [
+      photos.fineDiningPlate,
+      photos.fineDiningRoom,
+      photos.dessertPlate,
+    ],
+    wineLabel: wineAtelierBac,
+    wineLabels: [wineAtelierBac],
+    reviewedBy: 'You',
     origin: 'own',
     overallScore: 4.5,
   },
   {
-    id: 'v1b',
-    restaurantId: 'r1',
-    date: '2025-11-03T20:00:00',
-    generalComment: 'Second visit — still excellent, slightly quieter kitchen energy.',
-    criteria: [
-      { id: 'food', title: 'Food', rating: 8, comment: 'Pumpkin risotto was cozy and deep.' },
-      { id: 'service', title: 'Service', rating: 10, comment: 'Remembered our last visit.' },
-      { id: 'setting', title: 'Atmosphere', rating: 8, comment: 'Autumn light through the glass.' },
-      { id: 'valueForMoney', title: 'Value for Money', rating: 8, comment: '' },
-    ],
-    photoUrls: [photos.vegetableCourse],
-    reviewedBy: 'Philip',
-    origin: 'own',
-    overallScore: 4.3,
-  },
-  {
-    id: 'v2a',
-    restaurantId: 'r2',
-    date: '2026-04-18T13:00:00',
-    generalComment: 'Quiet luxury lunch. Precision cooking, almost silent dining room.',
-    criteria: [
-      { id: 'food', title: 'Food', rating: 10, comment: 'Langoustine with citrus — perfect.' },
-      { id: 'drinks', title: 'Drinks', rating: 10, comment: 'Wine pairing was precise and generous.' },
-      { id: 'service', title: 'Service', rating: 10, comment: 'Ballet-level timing.' },
-      { id: 'setting', title: 'Atmosphere', rating: 8, comment: 'Elegant, a touch formal.' },
-      { id: 'valueForMoney', title: 'Value for Money', rating: 6, comment: 'Special-occasion pricing.' },
-    ],
-    photoUrls: [photos.fineDiningPlate, photos.fineDiningRoom],
-
-    reviewedBy: 'Philip',
-    origin: 'own',
-    overallScore: 4.3,
-  },
-  {
-    id: 'v3a',
-    restaurantId: 'r3',
+    id: 'demo-v3',
+    restaurantId: 'demo-r3',
     date: '2025-09-22T18:00:00',
-    generalComment: 'A night that rewires how you think about vegetables.',
+    generalComment:
+      'A harbour warehouse that rewires how you think about vegetables. Smoke, ferments, and a skin-contact Riesling that somehow belongs.',
     criteria: [
-      { id: 'food', title: 'Food', rating: 10, comment: 'Ferments and fire. Every course a story.' },
-      { id: 'service', title: 'Service', rating: 10, comment: 'Guides you through without spoiling the surprise.' },
-      { id: 'setting', title: 'Atmosphere', rating: 10, comment: 'Warehouse calm, Nordic warmth.' },
-      { id: 'valueForMoney', title: 'Value for Money', rating: 8, comment: 'Worth it once.' },
+      {
+        id: 'food',
+        title: 'Food',
+        rating: 10,
+        comment: 'Fire-roasted roots and fermented greens — every course a story.',
+      },
+      {
+        id: 'drinks',
+        title: 'Drinks',
+        rating: 8,
+        comment: '',
+      },
+      {
+        id: 'wines',
+        title: 'Wines',
+        rating: 10,
+        comment: 'Skærgaard orange Riesling — tangerine peel and tea.',
+      },
+      {
+        id: 'service',
+        title: 'Service',
+        rating: 10,
+        comment: 'Guides you without spoiling the surprise.',
+      },
+      {
+        id: 'setting',
+        title: 'Atmosphere',
+        rating: 10,
+        comment: 'Warehouse calm, Nordic warmth, water just outside.',
+      },
+      {
+        id: 'valueForMoney',
+        title: 'Value for Money',
+        rating: 8,
+        comment: 'Worth it once — and then you start planning the next.',
+      },
     ],
-    photoUrls: [photos.nordicPlating, photos.nordicInterior, photos.tastingMenu],
-    reviewedBy: 'Philip',
+    photoUrls: [
+      photos.nordicPlating,
+      photos.nordicInterior,
+      photos.tastingMenu,
+    ],
+    wineLabel: wineHarbourFire,
+    wineLabels: [wineHarbourFire],
+    reviewedBy: 'You',
     origin: 'own',
     overallScore: 4.8,
   },
   {
-    id: 'v3b',
-    restaurantId: 'r3',
-    date: '2024-08-10T18:30:00',
-    generalComment: 'First time — left speechless.',
-    criteria: [
-      { id: 'food', title: 'Food', rating: 10, comment: 'Seafood season was peak.' },
-      { id: 'service', title: 'Service', rating: 8, comment: '' },
-      { id: 'setting', title: 'Atmosphere', rating: 10, comment: '' },
-      { id: 'valueForMoney', title: 'Value for Money', rating: 8, comment: '' },
-    ],
-    photoUrls: [photos.seafoodPlate],
-    reviewedBy: 'Philip',
-    origin: 'own',
-    overallScore: 4.5,
-  },
-  {
-    id: 'v4a',
-    restaurantId: 'r4',
+    id: 'demo-v4',
+    restaurantId: 'demo-r4',
     date: '2026-05-02T21:15:00',
-    generalComment: 'Late-night Roman pasta. Tiny room, big flavor.',
+    generalComment:
+      'Late-night Trastevere pasta. Tiny room, candlelight, pepper in the air — the kind of evening that feels stolen from a film.',
     criteria: [
-      { id: 'food', title: 'Food', rating: 8, comment: 'Cacio e pepe done right — peppery, glossy.' },
-      { id: 'service', title: 'Service', rating: 6, comment: 'Busy and a bit brusque, in a charming way.' },
-      { id: 'setting', title: 'Atmosphere', rating: 8, comment: 'Candlelight, crowded tables.' },
-      { id: 'valueForMoney', title: 'Value for Money', rating: 10, comment: 'Excellent for the price.' },
+      {
+        id: 'food',
+        title: 'Food',
+        rating: 9,
+        comment: 'Cacio e pepe done right — glossy, peppery, perfect.',
+      },
+      {
+        id: 'drinks',
+        title: 'Drinks',
+        rating: 7,
+        comment: 'House red in thick tumblers — honest and cold.',
+      },
+      {
+        id: 'service',
+        title: 'Service',
+        rating: 7,
+        comment: 'Busy and a bit brusque, in a charming way.',
+      },
+      {
+        id: 'setting',
+        title: 'Atmosphere',
+        rating: 9,
+        comment: 'Crowded tables, warm wood, street noise through the door.',
+      },
+      {
+        id: 'valueForMoney',
+        title: 'Value for Money',
+        rating: 10,
+        comment: 'Excellent for the price.',
+      },
     ],
     photoUrls: [photos.pastaClose, photos.candleRestaurant],
-    reviewedBy: 'Philip',
+    reviewedBy: 'You',
     origin: 'own',
-    overallScore: 4.0,
+    overallScore: 4.2,
   },
   {
-    id: 'v5a',
-    restaurantId: 'r5',
+    id: 'demo-v5',
+    restaurantId: 'demo-r5',
     date: '2026-03-08T12:45:00',
-    generalComment: 'Quick Indonesian lunch before a meeting. Reliable classic.',
+    generalComment:
+      'Quick Indonesian lunch by the canal before a meeting. Reliable rijsttafel, friendly chaos, and the smell of fried shallots on the street.',
     criteria: [
-      { id: 'food', title: 'Food', rating: 6, comment: 'Solid rijsttafel, nothing surprising.' },
-      { id: 'service', title: 'Service', rating: 6, comment: 'Fine for a busy lunch rush.' },
-      { id: 'setting', title: 'Atmosphere', rating: 6, comment: 'Touristy but comfortable.' },
-      { id: 'valueForMoney', title: 'Value for Money', rating: 6, comment: '' },
+      {
+        id: 'food',
+        title: 'Food',
+        rating: 7,
+        comment: 'Solid rendang and sambal — comforting, not flashy.',
+      },
+      {
+        id: 'drinks',
+        title: 'Drinks',
+        rating: 6,
+        comment: 'Iced jasmine tea did the job.',
+      },
+      {
+        id: 'service',
+        title: 'Service',
+        rating: 7,
+        comment: 'Fine for a busy lunch rush.',
+      },
+      {
+        id: 'setting',
+        title: 'Atmosphere',
+        rating: 6,
+        comment: 'Touristy strip, but the upstairs room is quieter.',
+      },
+      {
+        id: 'valueForMoney',
+        title: 'Value for Money',
+        rating: 8,
+        comment: 'Filling and fair.',
+      },
     ],
-    photoUrls: [photos.asianSpread],
-    reviewedBy: 'Sara',
-    reviewedByPhotoUrl: photos.reviewerSara,
-    origin: 'imported',
-    overallScore: 3.0,
+    photoUrls: [photos.asianSpread, photos.vegetableCourse],
+    reviewedBy: 'You',
+    origin: 'own',
+    overallScore: 3.4,
   },
   {
-    id: 'v2b',
-    restaurantId: 'r2',
-    date: '2026-01-14T20:00:00',
-    generalComment: 'Shared dinner — Alex loved the tasting menu.',
+    id: 'demo-v6',
+    restaurantId: 'demo-r6',
+    date: '2026-02-20T20:00:00',
+    generalComment:
+      'Brussels bistro energy on Place Jourdan. Charred steak, crisp frites, and a dining room that buzzes without shouting. Exactly what you hope a neighbourhood classic feels like.',
     criteria: [
-      { id: 'food', title: 'Food', rating: 10, comment: 'Every course was a highlight.' },
-      { id: 'drinks', title: 'Drinks', rating: 8, comment: 'Pairing was thoughtful.' },
-      { id: 'service', title: 'Service', rating: 10, comment: 'Impeccable.' },
-      { id: 'setting', title: 'Atmosphere', rating: 10, comment: 'Quiet and beautiful.' },
-      { id: 'valueForMoney', title: 'Value for Money', rating: 6, comment: 'Special night out.' },
+      {
+        id: 'food',
+        title: 'Food',
+        rating: 9,
+        comment: 'Entrecôte with green peppercorn sauce — textbook.',
+      },
+      {
+        id: 'drinks',
+        title: 'Drinks',
+        rating: 8,
+        comment: 'Local blonde beer and a solid house Bordeaux.',
+      },
+      {
+        id: 'service',
+        title: 'Service',
+        rating: 8,
+        comment: 'Brisk, smiling, never makes you wait for the bill.',
+      },
+      {
+        id: 'setting',
+        title: 'Atmosphere',
+        rating: 8,
+        comment: 'Mirrors, brass, and the square glowing outside.',
+      },
+      {
+        id: 'valueForMoney',
+        title: 'Value for Money',
+        rating: 8,
+        comment: 'Fair for the quality.',
+      },
     ],
-    photoUrls: [photos.fineDiningRoom],
-    reviewedBy: 'Alex',
-    reviewedByPhotoUrl: photos.reviewerAlex,
-    origin: 'imported',
-    overallScore: 4.4,
+    photoUrls: [photos.steakPlate, photos.bistroInterior, photos.candleRestaurant],
+    reviewedBy: 'You',
+    origin: 'own',
+    overallScore: 4.1,
   },
 ];
+
+/** Legacy shipping seed IDs (pre–demo- prefix) still stripped on hydrate. */
+const LEGACY_SEED_RESTAURANT_IDS = new Set([
+  'r1',
+  'r2',
+  'r3',
+  'r4',
+  'r5',
+]);
+const LEGACY_SEED_REVIEW_IDS = new Set([
+  'v1a',
+  'v1b',
+  'v2a',
+  'v2b',
+  'v3a',
+  'v3b',
+  'v4a',
+  'v5a',
+]);
+
+export function isDemoRestaurantId(id: string): boolean {
+  return id.startsWith('demo-') || LEGACY_SEED_RESTAURANT_IDS.has(id);
+}
+
+export function isDemoReviewId(id: string): boolean {
+  return id.startsWith('demo-') || LEGACY_SEED_REVIEW_IDS.has(id);
+}
+
+const DEMO_RESTAURANT_IDS = new Set(mockRestaurants.map((r) => r.id));
+const DEMO_REVIEW_IDS = new Set(mockReviews.map((r) => r.id));
 
 function formatAbbreviated(iso: string): string {
   return formatAbbreviatedDate(iso);
@@ -313,12 +556,9 @@ export function getFeedSummaries(
     if (visits.length === 0) continue;
     const averageScore =
       visits.reduce((sum, v) => sum + v.overallScore, 0) / visits.length;
-    // Prefer latest visit photo; fall back to restaurant thumbnail.
     const latestPhoto = visits[0].photoUrls[0] ?? restaurant.photoUrl;
     const reviewerNames = [
-      ...new Set(
-        visits.map((v) => v.reviewedBy.trim()).filter(Boolean),
-      ),
+      ...new Set(visits.map((v) => v.reviewedBy.trim()).filter(Boolean)),
     ];
     summaries.push({
       restaurantId: restaurant.id,
@@ -350,21 +590,17 @@ export function formatReviewDate(iso: string): string {
   return formatReviewDateTime(iso);
 }
 
-const SEED_RESTAURANT_IDS = new Set(mockRestaurants.map((r) => r.id));
-const SEED_REVIEW_IDS = new Set(mockReviews.map((r) => r.id));
-
 /**
- * Remove the shipping demo seed. Keeps anything the user created
- * (including restaurants still referenced by non-seed reviews).
+ * Remove showcase / legacy shipping seed. Keeps anything the user created.
  */
 export function stripShippingSeedData(
   restaurants: Restaurant[],
   reviews: Review[],
 ): { restaurants: Restaurant[]; reviews: Review[]; stripped: boolean } {
-  const nextReviews = reviews.filter((r) => !SEED_REVIEW_IDS.has(r.id));
+  const nextReviews = reviews.filter((r) => !isDemoReviewId(r.id));
   const keptRestaurantIds = new Set(nextReviews.map((r) => r.restaurantId));
   const nextRestaurants = restaurants.filter(
-    (r) => !SEED_RESTAURANT_IDS.has(r.id) || keptRestaurantIds.has(r.id),
+    (r) => !isDemoRestaurantId(r.id) || keptRestaurantIds.has(r.id),
   );
   const stripped =
     nextReviews.length !== reviews.length ||
@@ -374,4 +610,48 @@ export function stripShippingSeedData(
     reviews: nextReviews,
     stripped,
   };
+}
+
+/** Alias — strip demo showcase before persist / backup / share. */
+export function stripDemoShowcase(
+  restaurants: Restaurant[],
+  reviews: Review[],
+): { restaurants: Restaurant[]; reviews: Review[] } {
+  const cleaned = stripShippingSeedData(restaurants, reviews);
+  return {
+    restaurants: cleaned.restaurants,
+    reviews: cleaned.reviews,
+  };
+}
+
+/**
+ * Merge showcase restaurants/reviews into user data (in-memory only).
+ * Existing user rows win on ID collision.
+ */
+export function mergeDemoShowcase(
+  restaurants: Restaurant[],
+  reviews: Review[],
+): { restaurants: Restaurant[]; reviews: Review[] } {
+  const restaurantIds = new Set(restaurants.map((r) => r.id));
+  const reviewIds = new Set(reviews.map((r) => r.id));
+  return {
+    restaurants: [
+      ...restaurants,
+      ...mockRestaurants.filter((r) => !restaurantIds.has(r.id)),
+    ],
+    reviews: [
+      ...reviews,
+      ...mockReviews.filter((r) => !reviewIds.has(r.id)),
+    ],
+  };
+}
+
+export function hasDemoShowcase(
+  restaurants: Restaurant[],
+  reviews: Review[],
+): boolean {
+  return (
+    restaurants.some((r) => DEMO_RESTAURANT_IDS.has(r.id)) ||
+    reviews.some((r) => DEMO_REVIEW_IDS.has(r.id))
+  );
 }

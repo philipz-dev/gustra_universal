@@ -465,6 +465,7 @@ export function FilterOptionsModal({
               <CheckboxRow
                 title={t('filters.none')}
                 selected={isNoneSelected}
+                strongTitle
                 onPress={selectNone}
               />
               <CheckboxRow
@@ -623,10 +624,12 @@ function CheckboxIcon({ selected }: { selected: boolean }) {
 function CheckboxRow({
   title,
   selected,
+  strongTitle = false,
   onPress,
 }: {
   title: string;
   selected: boolean;
+  strongTitle?: boolean;
   onPress: () => void;
 }) {
   return (
@@ -636,7 +639,13 @@ function CheckboxRow({
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
       <CheckboxIcon selected={selected} />
-      <Text style={styles.rowTitle}>{title}</Text>
+      <Text
+        style={[
+          styles.rowTitle,
+          strongTitle && styles.rowTitleStrong,
+        ]}>
+        {title}
+      </Text>
     </Pressable>
   );
 }
@@ -787,6 +796,9 @@ const styles = StyleSheet.create({
     ...bodyTextStyle,
     fontSize: 17,
     color: GustraColors.ink,
+  },
+  rowTitleStrong: {
+    fontWeight: '700',
   },
   rowSubtitle: {
     ...captionTextStyle,

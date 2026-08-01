@@ -135,18 +135,22 @@ const styles = StyleSheet.create({
   },
   titleCompact: {
     flexShrink: 1,
-    minWidth: 72,
+    flexGrow: 1,
+    minWidth: 0,
     color: GustraColors.ink,
     marginRight: 10,
   },
   compactRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 8,
+    minHeight: 24,
   },
   starsWrap: {
     flexShrink: 0,
+    alignSelf: 'center',
+    marginTop: 1,
   },
   starsWrapStreamlined: {
     width: REVIEW_DETAIL_STARS_WIDTH,

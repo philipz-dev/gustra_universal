@@ -1,6 +1,6 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SymbolView } from 'expo-symbols';
+import { SymbolView, type AndroidSymbol, type SFSymbol } from 'expo-symbols';
 import type { ReactNode } from 'react';
 
 import { SerifText } from '@/components/ui/SerifText';
@@ -104,8 +104,8 @@ function OptionRow({
 }: {
   title: string;
   subtitle?: string;
-  iosName: string;
-  androidName: string;
+  iosName: SFSymbol;
+  androidName: AndroidSymbol;
   disabled?: boolean;
   showBorder?: boolean;
   onPress: () => void;
@@ -125,9 +125,9 @@ function OptionRow({
       <View style={[styles.iconCircle, disabled && styles.iconCircleDisabled]}>
         <SymbolView
           name={{
-            ios: iosName as never,
-            android: androidName as never,
-            web: androidName as never,
+            ios: iosName,
+            android: androidName,
+            web: androidName,
           }}
           tintColor={
             disabled ? 'rgba(35, 32, 26, 0.28)' : GustraColors.forestGreen

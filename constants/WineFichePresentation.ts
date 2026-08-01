@@ -12,10 +12,10 @@ export const WineFichePresentation = {
   /** Reverted: cutout read as a layout glitch; keep card hero. */
   isCutoutHeroEnabled: false,
   /**
-   * Collapsible taste profile from the same label Vision call (no extra API round-trip).
-   * Flip to `false` to restore the pre-profile fiche UI instantly.
+   * Taste profile removed (too subjective). Classic meta grid is the only fiche
+   * body now; `sweetness` trait still feeds the type × sweetness style chip.
    */
-  isTasteProfileEnabled: true,
+  isTasteProfileEnabled: false,
 } as const;
 
 /** How far the cutout label tucks under the forest-green nav (px). */

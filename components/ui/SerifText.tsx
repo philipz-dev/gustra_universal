@@ -1,6 +1,6 @@
 import { Text, type TextProps, type TextStyle } from 'react-native';
 
-import { serifStyle, type SerifWeight } from '@/constants/Theme';
+import { serifStyle, Theme, type SerifWeight } from '@/constants/Theme';
 
 type SerifTextProps = TextProps & {
   size?: number;
@@ -13,5 +13,13 @@ export function SerifText({
   style,
   ...rest
 }: SerifTextProps) {
-  return <Text style={[serifStyle(size, weight) as TextStyle, style]} {...rest} />;
+  return (
+    <Text
+      style={[
+        serifStyle(size ?? Theme.typography.serifDefault, weight) as TextStyle,
+        style,
+      ]}
+      {...rest}
+    />
+  );
 }

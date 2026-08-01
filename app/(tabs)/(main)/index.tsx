@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SymbolView } from 'expo-symbols';
 
 import { houseAlert } from '@/components/ui/HouseAlert';
@@ -11,8 +12,9 @@ import { FilterOptionsModal } from '@/components/feed/FilterOptionsModal';
 import { FilterSearchBar } from '@/components/feed/FilterSearchBar';
 import { hasFeedFilter } from '@/components/feed/feedFilters';
 import { dismissOpenSwipeable } from '@/components/feed/openSwipeable';
-import { RestaurantFeedCard } from '@/components/feed/RestaurantFeedCard';
 import { ShareReviewerNameModal } from '@/components/feed/ShareReviewerNameModal';
+import { RestaurantFeedCard } from '@/components/feed/RestaurantFeedCard';
+import { HouseErrorBoundary } from '@/components/ui/HouseErrorBoundary';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseFAB } from '@/components/ui/HouseFAB';
 import { ReviewsHeader } from '@/components/ui/ReviewsHeader';
@@ -20,21 +22,15 @@ import { GustraColors } from '@/constants/Colors';
 import { Theme, bodyTextStyle } from '@/constants/Theme';
 import { useReviewerProfile } from '@/context/ReviewerProfile';
 import { useReviewsStore } from '@/context/ReviewsStore';
-import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { consumePendingEnableFriendsFilter } from '@/context/pendingFriendsFilter';
 import type { RestaurantVisitSummary, Review } from '@/data/types';
 import { resolveReviewOrigin } from '@/data/types';
+import { isDemoReviewId } from '@/data/mockReviews';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { useSharedRestaurantFilters } from '@/hooks/useSharedRestaurantFilters';
 import { shareReviewsPackage } from '@/services/share/ReviewShareService';
 import { requestSwipeDelete } from '@/services/swipeDelete';
 import { Haptics } from '@/services/haptics';
-
-import { ShareReviewChooser } from '@/components/detail/ShareReviewChooser';
-import { ShareFlowSheet } from '@/components/share/ShareFlowSheet';
-import { PreparingRecommendationOverlay } from '@/components/share/PreparingRecommendationOverlay';
-import { shareReviewAsEmail } from '@/services/share/ReviewEmailShare';
-import { HouseErrorBoundary } from '@/components/ui/HouseErrorBoundary';
 
 export default function ReviewsFeedScreen() {
   const { t } = useAppTranslation();
@@ -60,18 +56,18 @@ function ReviewsFeedContent() {
     () => new Set(),
   );
 
-  // Share / Selection states
   const [isShareSelecting, setIsShareSelecting] = useState(false);
-  const [shareType, setShareType] = useState<'gustraPackage' | 'email' | null>(null);
   const [selectedRestaurantIds, setSelectedRestaurantIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const [isChooserVisible, setIsChooserVisible] = useState(false);
-  const [shareStep, setShareStep] = useState<'name' | 'message' | null>(null);
-  const [pendingSharedBy, setPendingSharedBy] = useState<string | null>(null);
-  const [preparingEmail, setPreparingEmail] = useState(false);
 
-  const { enabledCriteria } = useCriteriaSettings();
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const {
     filterState,
@@ -191,7 +187,13 @@ function ReviewsFeedContent() {
       }
       for (const id of summary.reviewIds) {
         const review = getReview(id);
-        if (review && resolveReviewOrigin(review) === 'own') list.push(review);
+        if (
+          review &&
+          resolveReviewOrigin(review) === 'own' &&
+          !isDemoReviewId(review.id)
+        ) {
+          list.push(review);
+        }
       }
     }
     return list;
@@ -203,7 +205,9 @@ function ReviewsFeedContent() {
     async (sharedByOverride?: string) => {
       const targetReviews = reviewsToShare;
       if (targetReviews.length === 0) return;
-      setSharing(true);
+      if (isMountedRef.current) {
+        setSharing(true);
+      }
       try {
         const profile = await getBackupSnapshot();
         const sharedBy = (sharedByOverride ?? profile.name).trim();
@@ -217,9 +221,10 @@ function ReviewsFeedContent() {
           sharedById: profile.authorId,
           sharedByPhotoBase64: profile.photoBase64,
         });
-        setIsShareSelecting(false);
-        setShareType(null);
-        setSelectedRestaurantIds(new Set());
+        if (isMountedRef.current) {
+          setIsShareSelecting(false);
+          setSelectedRestaurantIds(new Set());
+        }
       } catch (error) {
         houseAlert(
           t('common.error'),
@@ -228,86 +233,27 @@ function ReviewsFeedContent() {
             : t('alerts.share.failed'),
         );
       } finally {
-        setSharing(false);
+        if (isMountedRef.current) {
+          setSharing(false);
+        }
       }
     },
     [getBackupSnapshot, restaurants, reviewsToShare, t],
   );
 
-  const selectedRestaurantId = Array.from(selectedRestaurantIds)[0];
-  const selectedRestaurant = selectedRestaurantId
-    ? restaurants.find((r) => r.id === selectedRestaurantId)
-    : null;
-
-  const selectedReview = useMemo(() => {
-    if (!selectedRestaurantId) return null;
-    const ids = filtered.find((s) => s.restaurantId === selectedRestaurantId)?.reviewIds ?? [];
-    for (const id of ids) {
-      const r = getReview(id);
-      if (r && resolveReviewOrigin(r) === 'own') return r;
-    }
-    return null;
-  }, [selectedRestaurantId, filtered, getReview]);
-
-  const performEmailShare = useCallback(
-    async (personalMessage?: string, sharedByOverride?: string) => {
-      if (!selectedReview || !selectedRestaurant) return;
-      setSharing(true);
-      setPreparingEmail(true);
-      try {
-        const profile = await getBackupSnapshot();
-        const sharedBy = (sharedByOverride ?? profile.name).trim();
-        await shareReviewAsEmail({
-          review: selectedReview,
-          restaurant: selectedRestaurant,
-          sharedBy,
-          enabledCriteria,
-          personalMessage,
-          onSnapshotReady: () => setPreparingEmail(false),
-        });
-        setIsShareSelecting(false);
-        setShareType(null);
-        setSelectedRestaurantIds(new Set());
-      } catch (error) {
-        houseAlert(
-          t('common.error'),
-          error instanceof Error ? error.message : t('alerts.share.failed'),
-        );
-      } finally {
-        setPreparingEmail(false);
-        setSharing(false);
-      }
-    },
-    [selectedReview, selectedRestaurant, getBackupSnapshot, enabledCriteria, t],
-  );
-
   const openShare = useCallback(() => {
-    setIsChooserVisible(true);
-  }, []);
-
-  const handleSelectShareType = (type: 'gustraPackage' | 'email') => {
-    setIsChooserVisible(false);
-    setShareType(type);
     setIsShareSelecting(true);
     setSelectedRestaurantIds(new Set());
-  };
+  }, []);
 
   const handleToggleSelect = (restaurantId: string) => {
     Haptics.selectionChanged();
     setSelectedRestaurantIds((prev) => {
-      const next = new Set<string>();
-      if (shareType === 'email') {
-        if (!prev.has(restaurantId)) {
-          next.add(restaurantId);
-        }
+      const next = new Set(prev);
+      if (next.has(restaurantId)) {
+        next.delete(restaurantId);
       } else {
-        const existing = new Set(prev);
-        if (existing.has(restaurantId)) {
-          existing.delete(restaurantId);
-        } else {
-          existing.add(restaurantId);
-        }
-        return existing;
+        next.add(restaurantId);
       }
       return next;
     });
@@ -316,11 +262,7 @@ function ReviewsFeedContent() {
   const handleConfirmSharing = () => {
     if (selectedRestaurantIds.size === 0) return;
     if (!hasName) {
-      setShareStep('name');
-      return;
-    }
-    if (shareType === 'email') {
-      setShareStep('message');
+      setNameModalVisible(true);
       return;
     }
     void performShare();
@@ -328,31 +270,14 @@ function ReviewsFeedContent() {
 
   const handleCancelSharing = () => {
     setIsShareSelecting(false);
-    setShareType(null);
     setSelectedRestaurantIds(new Set());
+    setNameModalVisible(false);
   };
 
   const handleNameContinue = (name: string) => {
     updateName(name);
-    setPendingSharedBy(name);
-    if (shareType === 'email') {
-      setShareStep('message');
-    } else {
-      setShareStep(null);
-      // Wait for modal transition then trigger share
-      setTimeout(() => {
-        void performShare(name);
-      }, 300);
-    }
-  };
-
-  const handleMessageContinue = (message: string) => {
-    setShareStep(null);
-    setPreparingEmail(true);
-    // Wait for modal transition then trigger share
-    setTimeout(() => {
-      void performEmailShare(message, pendingSharedBy ?? undefined);
-    }, 300);
+    setNameModalVisible(false);
+    void performShare(name);
   };
 
   const emptyFromFilters =
@@ -378,12 +303,18 @@ function ReviewsFeedContent() {
   }, [resetFilterState]);
 
   const headerTitle = isShareSelecting
-    ? shareType === 'email'
-      ? t('share.selectOneRestaurant')
-      : t('share.selectRestaurants')
+    ? t('share.selectReviews')
     : undefined;
 
   const selectAllOn = visibleFeed.length > 0 && selectedRestaurantIds.size === visibleFeed.length;
+
+  const feedExtraData = useMemo(() => {
+    const sortKey =
+      filterState.sortKind.type === 'criterion'
+        ? `criterion:${filterState.sortKind.criterionId}`
+        : filterState.sortKind.type;
+    return `${isShareSelecting}|${Array.from(selectedRestaurantIds).join(',')}|${sortKey}`;
+  }, [isShareSelecting, selectedRestaurantIds, filterState.sortKind]);
 
   const handleToggleSelectAll = () => {
     Haptics.selectionChanged();
@@ -394,7 +325,7 @@ function ReviewsFeedContent() {
     }
   };
 
-  const selectAllBar = isShareSelecting && shareType === 'gustraPackage' && visibleFeed.length > 0 ? (
+  const selectAllBar = isShareSelecting && visibleFeed.length > 0 ? (
     <View style={styles.selectAllContainer}>
       <Pressable
         accessibilityRole="checkbox"
@@ -442,6 +373,7 @@ function ReviewsFeedContent() {
         totalResultCount={sourceSummaries.length}
         criterionTitleFor={criterionTitleFor}
         onChange={setFilterState}
+        containerStyle={isShareSelecting ? styles.filterGapInSelect : undefined}
       />
       {selectAllBar}
       <View style={styles.body} collapsable={false}>
@@ -470,15 +402,7 @@ function ReviewsFeedContent() {
           <FlatList
             style={styles.listFlex}
             data={visibleFeed}
-            extraData={
-              filtered
-                .map((s) => `${s.restaurantId}:${s.photoUrl ?? ''}`)
-                .join('|') +
-              '|' +
-              isShareSelecting +
-              '|' +
-              Array.from(selectedRestaurantIds).join(',')
-            }
+            extraData={feedExtraData}
             keyExtractor={(item) => item.restaurantId}
             overScrollMode="never"
             onScrollBeginDrag={dismissOpenSwipeable}
@@ -487,9 +411,9 @@ function ReviewsFeedContent() {
               styles.list,
               {
                 paddingBottom:
-                  72 +
                   Theme.spacing.floatingTabBarClearance +
-                  insets.bottom,
+                  insets.bottom +
+                  140,
               },
             ]}
             ItemSeparatorComponent={() => <View style={styles.sep} />}
@@ -537,14 +461,41 @@ function ReviewsFeedContent() {
             )}
           />
         )}
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height:
+              Theme.spacing.floatingTabBarClearance + insets.bottom,
+            backgroundColor: GustraColors.cream,
+          }}
+        />
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom:
+              Theme.spacing.floatingTabBarClearance + insets.bottom,
+            height: Theme.size.fab + 24,
+          }}>
+          <LinearGradient
+            colors={['rgba(245, 240, 225, 0)', GustraColors.cream]}
+            style={StyleSheet.absoluteFill}
+          />
+        </View>
         {!isShareSelecting ? (
           <HouseFAB
             collapsable={false}
             style={{
               bottom:
-                Theme.spacing.fabBottom +
                 Theme.spacing.floatingTabBarClearance +
-                insets.bottom,
+                insets.bottom +
+                24,
             }}
             onPress={() => router.push('/add-review')}
           />
@@ -565,23 +516,11 @@ function ReviewsFeedContent() {
         onClose={() => setFilterModalVisible(false)}
       />
 
-      <ShareReviewChooser
-        visible={isChooserVisible}
-        onClose={() => setIsChooserVisible(false)}
-        onSelect={handleSelectShareType}
+      <ShareReviewerNameModal
+        visible={nameModalVisible}
+        onCancel={() => setNameModalVisible(false)}
+        onContinue={handleNameContinue}
       />
-
-      <ShareFlowSheet
-        visible={shareStep !== null}
-        step={shareStep ?? 'name'}
-        initialName={pendingSharedBy ?? undefined}
-        onClose={() => setShareStep(null)}
-        onSelectDestination={() => {}} // not used
-        onNameContinue={handleNameContinue}
-        onMessageContinue={handleMessageContinue}
-      />
-
-      <PreparingRecommendationOverlay visible={preparingEmail} />
     </View>
   );
 }
@@ -590,6 +529,14 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: GustraColors.cream,
+  },
+  /**
+   * In share-select mode the FilterSearchBar is hidden, so the filter summary
+   * would sit flush under the green banner — add a cream gap instead.
+   */
+  filterGapInSelect: {
+    backgroundColor: GustraColors.cream,
+    paddingTop: Theme.spacing.searchVertical,
   },
   body: {
     flex: 1,

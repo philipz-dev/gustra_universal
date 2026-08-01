@@ -105,6 +105,7 @@ ALLOW_IDENTICAL_KEYS = {
     "criteria.service",
     "setup.criteria.tip",
     "reviews.draftLabel",
+    "passport.timeTravelMonthHeader",
 }
 
 

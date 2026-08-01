@@ -4,7 +4,7 @@ import { SERIF_FONT, systemSerifFamily, Theme } from '@/constants/Theme';
 
 type HouseHeaderTitleProps = {
   children: string;
-  /** Main tabs use 34; secondary stack screens use 30. */
+  /** Main tabs use 36; secondary stack screens use 32. */
   size?: number;
 };
 

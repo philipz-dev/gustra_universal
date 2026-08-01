@@ -36,36 +36,41 @@ import {
 } from '@/services/orientation/photoViewerOrientation';
 import { sharePhotoUri } from '@/services/photos/photoViewerActions';
 
-type ReviewPhotoViewerProps = {
+type PhotoViewerModalProps = {
   visible: boolean;
   uris: string[];
-  index: number;
-  onIndexChange: (index: number) => void;
+  index?: number;
+  onIndexChange?: (index: number) => void;
   onClose: () => void;
+  accessibilityLabel?: string;
+  countLabel?: string; // Optional custom string instead of pagination text (e.g. "Profile photo")
 };
 
-/** Swift `ReviewPhotoViewer` HStack spacing between pages. */
 const PAGE_GAP = 16;
 
 /**
- * Full-screen review photo pager (Swift `ReviewPhotoViewer` cinematic chrome).
- * GHScrollView + vertical dismiss on both platforms; pinch zoom with pan only when zoomed.
+ * Unified full-screen photo viewer (formerly separate ProfilePhotoViewer and ReviewPhotoViewer).
+ * Automatically supports both single-photo views (with custom label) and multi-photo horizontally-scrollable pagers.
  */
-export function ReviewPhotoViewer({
+export function PhotoViewerModal({
   visible,
   uris,
-  index,
+  index = 0,
   onIndexChange,
   onClose,
-}: ReviewPhotoViewerProps) {
+  accessibilityLabel = 'Photo',
+  countLabel,
+}: PhotoViewerModalProps) {
   const { width: pageWidth } = useWindowDimensions();
   const pageStride = pageWidth + PAGE_GAP;
   const ghScrollRef = useRef<GHScrollView>(null);
   const indexRef = useRef(index);
   indexRef.current = index;
+
   const [zoomed, setZoomed] = useState(false);
   const [dismissDragging, setDismissDragging] = useState(false);
   const [busy, setBusy] = useState(false);
+
   const dismissY = useSharedValue(0);
   const touchStartX = useSharedValue(0);
   const touchStartY = useSharedValue(0);
@@ -93,12 +98,12 @@ export function ReviewPhotoViewer({
   );
 
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || uris.length <= 1) return;
     const id = requestAnimationFrame(() => {
       scrollToIndex(indexRef.current, false);
     });
     return () => cancelAnimationFrame(id);
-  }, [visible, pageStride, scrollToIndex]);
+  }, [visible, pageStride, scrollToIndex, uris.length]);
 
   const close = useCallback(() => {
     dismissY.value = 0;
@@ -114,7 +119,7 @@ export function ReviewPhotoViewer({
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const next = Math.round(e.nativeEvent.contentOffset.x / pageStride);
     if (next !== index && next >= 0 && next < uris.length) {
-      onIndexChange(next);
+      onIndexChange?.(next);
       setZoomed(false);
     }
   };
@@ -135,14 +140,14 @@ export function ReviewPhotoViewer({
     }
   }, [busy, index, uris]);
 
-  // Swift: activate only when |dy| > |dx| * 1.2 so horizontal paging wins otherwise.
   const dismissGesture = useMemo(
     () =>
       Gesture.Pan()
         .enabled(!zoomed)
-        .manualActivation(true)
+        .manualActivation(uris.length > 1) // Only manual gesture check if we need to coexist with pager swipe
         .onTouchesDown((e) => {
           'worklet';
+          if (uris.length <= 1) return;
           const t = e.allTouches[0];
           if (!t) return;
           touchStartX.value = t.absoluteX;
@@ -150,6 +155,7 @@ export function ReviewPhotoViewer({
         })
         .onTouchesMove((e, state) => {
           'worklet';
+          if (uris.length <= 1) return;
           if (e.numberOfTouches > 1) {
             state.fail();
             return;
@@ -198,6 +204,7 @@ export function ReviewPhotoViewer({
       touchStartX,
       touchStartY,
       zoomed,
+      uris.length,
     ],
   );
 
@@ -230,7 +237,7 @@ export function ReviewPhotoViewer({
       <ZoomablePhoto
         uri={uri}
         isActive={i === index && visible}
-        accessibilityLabel="Review photo"
+        accessibilityLabel={accessibilityLabel}
         pagingFriendly
         onZoomChange={(isZoomed) => {
           if (i === index) setZoomed(isZoomed);
@@ -244,7 +251,6 @@ export function ReviewPhotoViewer({
       key={`pager-${pageWidth}`}
       ref={ghScrollRef}
       horizontal
-      // snapToInterval (not pagingEnabled) so PAGE_GAP shows between photos.
       pagingEnabled={false}
       snapToInterval={pageStride}
       snapToAlignment="start"
@@ -265,12 +271,15 @@ export function ReviewPhotoViewer({
       <ZoomablePhoto
         uri={currentUri}
         isActive
-        accessibilityLabel="Review photo"
+        accessibilityLabel={accessibilityLabel}
         onZoomChange={setZoomed}
       />
     ) : (
       pager
     );
+
+  const pillText = countLabel ?? `${index + 1} / ${uris.length}`;
+  const isPillVisible = countLabel ? !zoomed : uris.length > 1 && !zoomed;
 
   return (
     <Modal
@@ -301,8 +310,8 @@ export function ReviewPhotoViewer({
           />
 
           <PhotoViewerCountPill
-            text={`${index + 1} / ${uris.length}`}
-            visible={uris.length > 1 && !zoomed}
+            text={pillText}
+            visible={isPillVisible}
             dismissY={dismissY}
           />
         </PhotoViewerShell>

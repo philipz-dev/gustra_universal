@@ -1,8 +1,9 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import type { SFSymbol } from 'expo-symbols';
 
 /** Icons shared by review form + criteria setup. */
 export function criterionIcon(id: string): {
-  ios: string;
+  ios: SFSymbol;
   android: keyof typeof MaterialIcons.glyphMap;
 } {
   switch (id) {

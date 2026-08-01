@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SymbolView } from 'expo-symbols';
 
 import { SelectedRestaurantBanner } from '@/components/review/SelectedRestaurantBanner';
 import { SelectionCheckmark } from '@/components/review/SelectionCheckmark';
@@ -17,12 +18,18 @@ import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
+import { useReviewsStore } from '@/context/ReviewsStore';
+import { isDemoReviewId } from '@/data/mockReviews';
+import { resolveReviewOrigin } from '@/data/types';
+import type { Restaurant, Review } from '@/data/types';
 import { Haptics } from '@/services/haptics';
 import {
   openSystemSettings,
   resolveCurrentLocation,
 } from '@/services/location/resolveCurrentLocation';
 import {
+  FALLBACK_MAP_CENTER,
+  findExistingRestaurant,
   formattedDistance,
   isSameRestaurantDraft,
   restaurantDraftFromResult,
@@ -32,6 +39,60 @@ import {
 } from '@/services/places';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 
+/** Fixed row height for the results list (paddingVertical 14 ×2 + two lines). */
+const ROW_HEIGHT = 64;
+/** Height of the uppercase section-title header above the rows. */
+const HEADER_HEIGHT = 36;
+
+type FallbackLocation = {
+  center: { latitude: number; longitude: number };
+  label: string;
+};
+
+/**
+ * Reference point for "nearby" when GPS is denied or unavailable.
+ * Prefers the most recent real visit (own review) with known coordinates;
+ * falls back to the shared default map center. Returns null only when there
+ * is no review data at all — then the picker shows the friendly dead end.
+ */
+function fallbackCenterFromReviews(
+  reviews: Review[],
+  restaurants: Restaurant[],
+): FallbackLocation | null {
+  const byId = new Map(restaurants.map((r) => [r.id, r]));
+  const ownVisits = reviews
+    .filter((r) => {
+      if (resolveReviewOrigin(r) !== 'own') return false;
+      if (isDemoReviewId(r.id)) return false;
+      return true;
+    })
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+
+  for (const review of ownVisits) {
+    const restaurant = byId.get(review.restaurantId);
+    if (
+      restaurant &&
+      Number.isFinite(restaurant.latitude) &&
+      Number.isFinite(restaurant.longitude) &&
+      restaurant.latitude !== 0 &&
+      restaurant.longitude !== 0
+    ) {
+      return {
+        center: {
+          latitude: restaurant.latitude,
+          longitude: restaurant.longitude,
+        },
+        label: restaurant.city?.trim() || restaurant.name,
+      };
+    }
+  }
+
+  if (restaurants.length > 0) {
+    return { center: FALLBACK_MAP_CENTER, label: '' };
+  }
+  return null;
+}
+
 /**
  * Nearby restaurant picker (Swift `NearbyRestaurantSelectionView`).
  * Selecting a place shows the Start Review banner; review form comes later.
@@ -40,40 +101,66 @@ export default function NearbyRestaurantsScreen() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { reviews, restaurants } = useReviewsStore();
   const listRef = useRef<FlatListType<RestaurantSearchResult>>(null);
   const [selected, setSelected] = useState<RestaurantDraft | null>(null);
   const [results, setResults] = useState<RestaurantSearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showOpenSettings, setShowOpenSettings] = useState(false);
+  /** When GPS is denied/unavailable but we still have a reference point. */
+  const [fallbackLabel, setFallbackLabel] = useState<string | null>(null);
 
   const loadNearby = useCallback(async () => {
     setIsLoading(true);
     setErrorMessage(null);
     setShowOpenSettings(false);
+    setFallbackLabel(null);
     setResults([]);
 
     const location = await resolveCurrentLocation();
-    if (!location.coords) {
-      setIsLoading(false);
-      setShowOpenSettings(location.isAuthorizationDenied);
-      setErrorMessage(location.error ?? t('alerts.location.unavailable'));
+
+    if (location.coords) {
+      try {
+        const found = await searchNearby(location.coords);
+        setResults(found);
+        setIsLoading(false);
+      } catch (error) {
+        setIsLoading(false);
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : t('forms.nearby.searchFailed'),
+        );
+      }
       return;
     }
 
-    try {
-      const found = await searchNearby(location.coords);
-      setResults(found);
-      setIsLoading(false);
-    } catch (error) {
-      setIsLoading(false);
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : t('forms.nearby.searchFailed'),
-      );
+    // No GPS fix. Fall back to the user's most recent reviewed area (or the
+    // default map center) so the picker stays usable instead of a dead end.
+    const fallback = fallbackCenterFromReviews(reviews, restaurants);
+    if (fallback) {
+      setFallbackLabel(fallback.label);
+      try {
+        const found = await searchNearby(fallback.center);
+        setResults(found);
+        setIsLoading(false);
+      } catch (error) {
+        setIsLoading(false);
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : t('forms.nearby.searchFailed'),
+        );
+      }
+      return;
     }
-  }, [t]);
+
+    // No location, no fallback — show the friendly dead-end state.
+    setIsLoading(false);
+    setShowOpenSettings(location.isAuthorizationDenied);
+    setErrorMessage(location.error ?? t('alerts.location.unavailable'));
+  }, [reviews, restaurants, t]);
 
   useEffect(() => {
     void loadNearby();
@@ -94,6 +181,16 @@ export default function NearbyRestaurantsScreen() {
     }
   };
 
+  const selectedVisitedCount = useMemo(() => {
+    if (!selected) return 0;
+    const existing = findExistingRestaurant(selected, restaurants);
+    if (!existing) return 0;
+    return reviews.filter(
+      (r) =>
+        r.restaurantId === existing.id && resolveReviewOrigin(r) === 'own',
+    ).length;
+  }, [reviews, restaurants, selected]);
+
   const bottomPad =
     Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
 
@@ -111,6 +208,7 @@ export default function NearbyRestaurantsScreen() {
           <SelectedRestaurantBanner
             draft={selected}
             actionTitle={t("forms.nearby.startReview")}
+            visitedCount={selectedVisitedCount}
             onAction={() =>
               router.push({
                 pathname: '/review-form',
@@ -118,6 +216,21 @@ export default function NearbyRestaurantsScreen() {
               })
             }
           />
+        </View>
+      ) : null}
+
+      {fallbackLabel ? (
+        <View style={styles.fallbackRow}>
+          <SymbolView
+            name={{ ios: 'location.fill', android: 'location_on', web: 'location_on' }}
+            tintColor={GustraColors.forestGreen}
+            size={16}
+          />
+          <Text style={styles.fallbackText}>
+            {fallbackLabel
+              ? t('forms.nearby.usingFallbackCity', { city: fallbackLabel })
+              : t('forms.nearby.usingFallback')}
+          </Text>
         </View>
       ) : null}
 
@@ -141,6 +254,8 @@ export default function NearbyRestaurantsScreen() {
                 void loadNearby();
               }
             }}
+            secondaryActionTitle={t('common.browseMap')}
+            secondaryOnAction={() => router.push('/map-search')}
           />
         </View>
       ) : results.length === 0 ? (
@@ -168,9 +283,14 @@ export default function NearbyRestaurantsScreen() {
             <Text style={styles.sectionTitle}>{t("forms.nearby.sectionTitle")}</Text>
           }
           ItemSeparatorComponent={() => <View style={styles.sep} />}
+          getItemLayout={(_, index) => ({
+            length: ROW_HEIGHT,
+            offset: HEADER_HEIGHT + index * ROW_HEIGHT,
+            index,
+          })}
           onScrollToIndexFailed={({ index }) => {
             listRef.current?.scrollToOffset({
-              offset: Math.max(0, index * 64),
+              offset: Math.max(0, HEADER_HEIGHT + index * ROW_HEIGHT),
               animated: true,
             });
           }}
@@ -231,6 +351,23 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: Theme.radius.md,
     backgroundColor: 'rgba(236, 227, 207, 0.35)',
+  },
+  fallbackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: Theme.spacing.listRowHorizontal,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: Theme.radius.md,
+    backgroundColor: 'rgba(36, 78, 57, 0.08)',
+  },
+  fallbackText: {
+    ...captionTextStyle,
+    flex: 1,
+    fontSize: 13,
+    color: GustraColors.forestGreen,
   },
   loadingText: {
     ...bodyTextStyle,

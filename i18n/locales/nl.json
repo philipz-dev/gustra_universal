@@ -15,6 +15,7 @@
     "recover": "Herstellen",
     "openSettings": "Open Instellingen",
     "tryAgain": "Opnieuw proberen",
+    "browseMap": "Blader via de kaart",
     "error": "Fout",
     "close": "Sluiten",
     "share": "Delen",
@@ -26,7 +27,10 @@
     "add": "Toevoegen",
     "clear": "Wissen",
     "import": "Importeren",
-    "undo": "Ongedaan maken"
+    "undo": "Ongedaan maken",
+    "required": "Verplicht",
+    "selectedRestaurant": "Geselecteerd restaurant",
+    "deselectRestaurant": "Restaurant deselecteren"
   },
   "rating": {
     "labels": {
@@ -88,7 +92,9 @@
       "importReviews": "Recensies importeren",
       "addReview": "Recensie toevoegen"
     },
-    "draftLabel": "Draft"
+    "draftLabel": "Draft",
+    "visitedBefore_one": "Al 1 keer bezocht",
+    "visitedBefore_other": "Al {{count}} keer bezocht"
   },
   "filters": {
     "title": "Filteropties",
@@ -151,10 +157,23 @@
     "averageOverall": "Gemiddelde totaal",
     "bestRestaurant": "Beste restaurant",
     "bestRestaurants": "Beste restaurants",
+    "bestWines": "Beste wijnen",
     "categoryAverages": "Categoriegemiddelden",
     "topCities": "Topsteden",
     "cityAverages": "Topsteden",
-    "noCityData": "Nog geen stadsgegevens."
+    "noCityData": "Nog geen stadsgegevens.",
+    "timeTravel": "Tijdreis",
+    "timeTravelSubtitle": "Reis terug door al je bezoeken.",
+    "timeTravelYears": "Jaren",
+    "timeTravelReviews_one": "{{count}} bezoek",
+    "timeTravelReviews_other": "{{count}} bezoeken",
+    "timeTravelAverage": "Gemiddelde",
+    "timeTravelTotal": "Bezoeken all-time",
+    "timeTravelEmptyTitle": "Nog niets om doorheen te reizen",
+    "timeTravelEmptyBody": "Voeg restaurantrecensies toe en hier verschijnt je tijdlijn.",
+    "timeTravelMonthHeader": "{{month}} {{year}}",
+    "timeTravelMonthCount_one": "{{count}} bezoek",
+    "timeTravelMonthCount_other": "{{count}} bezoeken"
   },
   "settings": {
     "language": "Taal",
@@ -163,17 +182,20 @@
     "languageDutch": "Nederlands",
     "languageEnglish": "English",
     "languageItalian": "Italiano",
-    "sectionReviewer": "Jij",
+    "sectionReviewer": "Jouw profiel",
     "sectionReviewing": "Beoordelen",
     "sectionCriteria": "Recensiecriteria",
     "sectionPassport": "Mijn Gustra",
+    "sectionShowcase": "Voorbeelden",
+    "demoShowcase": "Voorbeeldrecensies",
+    "demoShowcaseOn": "Zes fictieve restaurants met foto’s en wijnfiches",
+    "demoShowcaseOff": "Uit — alleen jouw echte recensies worden getoond",
+    "demoShowcaseShareBlocked": "Voorbeeldrecensies zijn alleen om Gustra te verkennen en kunnen niet worden gedeeld.",
     "sectionStorage": "Opslag",
     "sectionData": "Data & back-up",
     "sectionGoogle": "Google API-gebruik",
     "sectionAdvanced": "Geavanceerd",
     "sectionLanguage": "Taal",
-    "advancedExpandA11y": "Geavanceerde instellingen tonen",
-    "advancedCollapseA11y": "Geavanceerde instellingen verbergen",
     "editPhotoHint": "Tik op de foto om te wijzigen",
     "editCriteria": "Recensiecriteria bewerken",
     "dataSavings": "Databesparing voor foto’s",
@@ -278,20 +300,23 @@
       "finding": "Restaurants in de buurt zoeken…",
       "sectionTitle": "Restaurants in de buurt",
       "tryMap": "Probeer opnieuw of zoek op de kaart.",
-      "searchFailed": "Kon de restaurantzoekdienst niet bereiken."
+      "searchFailed": "Kon de restaurantzoekdienst niet bereiken.",
+      "usingFallback": "Geen locatietoegang — restaurants in de buurt van je recente recensies worden getoond.",
+      "usingFallbackCity": "Geen locatietoegang — restaurants in de buurt van {{city}} worden getoond."
     },
     "mapSearch": {
       "title": "Zoeken op kaart",
       "searchArea": "Zoek in dit gebied",
       "startReview": "Recensie starten",
       "hint": "Verplaats de kaart en tik op Zoek in dit gebied.",
+      "emptyTitle": "Geen restaurants gevonden",
       "searchAreaHint": "Zoek restaurants in het zichtbare kaartgebied"
     },
     "manual": {
       "title": "Handmatig invoeren",
       "restaurantName": "Restaurantnaam",
-      "city": "Stad",
-      "country": "Land",
+      "city": "Stad (optioneel)",
+      "country": "Land (optioneel)",
       "findOnGoogle": "Zoek op Google",
       "searchHint": "Zoek op Google om plaatsgegevens toe te voegen, of ga handmatig verder.",
       "googleMatches": "Google-resultaten",
@@ -328,6 +353,7 @@
         "a11yPhoto": "Foto. Tik om te selecteren, lang indrukken om te herschikken."
       },
       "draftBannerCriteria": "Beoordeel minstens 1 criterium om deze recensie af te ronden.",
+      "draftBannerFood": "Beoordeel Eten om deze recensie af te ronden.",
       "draftBannerWine": "Een wijn heeft nog sterren nodig."
     },
     "photos": {
@@ -353,7 +379,7 @@
     "options": {
       "title": "Opties",
       "a11y": "Opties",
-      "recordVisit": "Nieuw bezoek vastleggen",
+      "recordVisit": "Nieuwe recensie toevoegen",
       "editReview": "Recensie bewerken",
       "cannotEditFriend": "Je kunt een recensie van een vriend niet bewerken",
       "deleteReview": "Recensie verwijderen",
@@ -401,6 +427,7 @@
       "cancel": "Annuleren",
       "continue": "Doorgaan"
     },
+    "selectReviews": "Selecteer recensies",
     "selectRestaurants": "Selecteer restaurants",
     "selectOneRestaurant": "Selecter 1 restaurant"
   },
@@ -487,7 +514,9 @@
     "share": {
       "failed": "Kon recensies niet delen.",
       "reviewFailed": "Kon deze recensie niet delen.",
-      "needName": "Voeg je naam toe in Instellingen voordat je recensies deelt."
+      "needName": "Voeg je naam toe in Instellingen voordat je recensies deelt.",
+      "draftTitle": "Concept kan niet worden gedeeld",
+      "draftBody": "Beoordeel Eten en rond deze recensie af voordat je ze deelt."
     },
     "location": {
       "deniedTitle": "Locatie nodig",
@@ -503,6 +532,8 @@
     },
     "reviewForm": {
       "needStars": "Voeg minstens één sterscore toe om deze recensie op te slaan.",
+      "foodRequiredTitle": "Beoordeling voor Eten verplicht",
+      "foodRequiredBody": "Beoordeel Eten voordat je deze recensie afrondt.",
       "removePhotosTitle": "Foto’s verwijderen?",
       "removePhotosBody": "Geselecteerde foto’s worden uit deze recensie verwijderd.",
       "photosSaveFailed": "Kon foto’s niet opslaan.",
@@ -569,7 +600,7 @@
     "drinksSuggestionPlaceholder": "Wijnnaam en jaartal",
     "useInDrinks": "Gebruik bij Dranken",
     "confirmA11y": "Wijn toevoegen bij Dranken",
-    "resultRatingTitle": "Beoordeel deze fles",
+    "resultRatingTitle": "Beoordeel deze wijn",
     "ratingRequired": "Geef sterren om deze wijn te bewaren.",
     "scanButton": "Voeg wijn toe",
     "scanButtonA11y": "Wijn toevoegen bij Dranken",
@@ -651,23 +682,7 @@
       "alcohol": "Alcohol",
       "foodPairings": "Past bij",
       "myJudgment": "Mijn oordeel",
-      "openFull": "Volledige wijnkaart openen",
-      "tasteProfile": {
-        "title": "Smaakprofiel",
-        "source": "Inschatting van de etiketscan.",
-        "expandA11y": "Smaakprofiel uitklappen",
-        "collapseA11y": "Smaakprofiel inklappen",
-        "poles": {
-          "bodyLight": "Licht",
-          "bodyFull": "Vol",
-          "tanninsSoft": "Zacht",
-          "tanninsFirm": "Strak",
-          "aciditySoft": "Zacht zuur",
-          "acidityLively": "Levendig",
-          "sweetnessDry": "Droog",
-          "sweetnessSweet": "Zoet"
-        }
-      }
+      "openFull": "Volledige wijnkaart openen"
     },
     "deleteWineUndo": "“{{name}}” verwijderd",
     "methodLead": "Hoe wil je deze wijn toevoegen?",
@@ -703,7 +718,8 @@
       "body": "Kies welke criteria belangrijk zijn bij een recensie. Je kunt dit later altijd wijzigen in Instellingen.",
       "minOne": "Kies minstens één criterium.",
       "tip": "Tip",
-      "idealThree": ": 3 criteria zijn ideaal"
+      "idealThree": ": 3 criteria zijn ideaal",
+      "footer": "Toegevoegde criteria verschijnen bij nieuwe recensies."
     }
   }
 }

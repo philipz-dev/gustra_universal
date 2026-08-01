@@ -29,6 +29,8 @@ type SettingsRowProps = {
   subtitle?: string;
   /** Leading SF / Material symbol (house settings list). */
   icon?: SettingsRowIcon;
+  /** Icon chip accent: default forest, `accent` gold, `destructive` red. */
+  iconTint?: 'default' | 'accent' | 'destructive';
   trailing?: ReactNode;
   showChevron?: boolean;
   destructive?: boolean;
@@ -39,13 +41,29 @@ type SettingsRowProps = {
   style?: StyleProp<ViewStyle>;
 };
 
+const iconChipStyle = {
+  default: {
+    backgroundColor: 'rgba(36, 78, 57, 0.1)',
+    color: GustraColors.forestGreen,
+  },
+  accent: {
+    backgroundColor: 'rgba(217, 162, 39, 0.16)',
+    color: GustraColors.gold,
+  },
+  destructive: {
+    backgroundColor: 'rgba(199, 71, 66, 0.12)',
+    color: GustraColors.ratingAvoid,
+  },
+} as const;
+
 /**
- * Inset-grouped settings row (optional leading icon + chevron / trailing).
+ * Inset-grouped settings row with a tinted icon chip (iOS Settings look).
  */
 export function SettingsRow({
   title,
   subtitle,
   icon,
+  iconTint = 'default',
   trailing,
   showChevron = false,
   destructive = false,
@@ -54,6 +72,13 @@ export function SettingsRow({
   isLast = false,
   style,
 }: SettingsRowProps) {
+  const chip =
+    iconTint === 'destructive' || destructive
+      ? iconChipStyle.destructive
+      : iconTint === 'accent'
+        ? iconChipStyle.accent
+        : iconChipStyle.default;
+
   const row = (pressed: boolean) => (
     <>
       <View
@@ -63,22 +88,16 @@ export function SettingsRow({
           style,
         ]}>
         {icon ? (
-          <View style={styles.iconSlot}>
+          <View style={[styles.iconChip, { backgroundColor: chip.backgroundColor }]}>
             <SymbolView
               name={{
                 ios: icon.ios,
                 android: icon.android,
                 web: icon.web ?? icon.android,
               }}
-              tintColor={
-                destructive
-                  ? GustraColors.ratingAvoid
-                  : accent
-                    ? GustraColors.forestGreen
-                    : 'rgba(36, 78, 57, 0.75)'
-              }
-              size={20}
-              weight="medium"
+              tintColor={chip.color}
+              size={17}
+              weight="semibold"
             />
           </View>
         ) : null}
@@ -136,12 +155,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 16,
-    minHeight: Theme.size.hitTarget,
+    minHeight: Platform.OS === 'android' ? 48 : 52,
   },
-  iconSlot: {
-    width: 28,
+  iconChip: {
+    width: 30,
+    height: 30,
+    borderRadius: Theme.radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -151,7 +172,7 @@ const styles = StyleSheet.create({
     marginLeft: 16,
   },
   separatorWithIcon: {
-    marginLeft: 16 + 28 + 12,
+    marginLeft: 16 + 30 + 12,
   },
   copy: {
     flex: 1,

@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GustraColors } from '@/constants/Colors';
 import { captionTextStyle, Surface, Theme } from '@/constants/Theme';
+import { unlockAdvancedMenu } from '@/context/AdvancedMenu';
 import { Haptics } from '@/services/haptics';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -126,7 +127,9 @@ export function GustraTabBar(props: Record<string, unknown>) {
                     navigation.navigate('(main)', { screen: 'index' });
                   } else if (route.name === 'passport') {
                     Haptics.light();
-                    navigation.navigate('passport');
+                    // Always return to the My Gustra home screen, never stay
+                    // on the Time Machine / review detail.
+                    navigation.navigate('passport', { screen: 'index' });
                   } else {
                     Haptics.selectionChanged();
                   }
@@ -134,13 +137,24 @@ export function GustraTabBar(props: Record<string, unknown>) {
                 }
 
                 Haptics.selectionChanged();
-                navigation.navigate(route.name, route.params);
+                // New tab: same requirement — My Gustra always opens its home
+                // screen (never the Time Machine / review detail).
+                navigation.navigate(
+                  route.name,
+                  route.name === 'passport' ? { screen: 'index' } : route.params,
+                );
               }}
               onLongPress={() => {
                 navigation.emit({
                   type: 'tabLongPress',
                   target: route.key,
                 });
+                // Secret advanced-settings gate: long-press the Settings tab
+                // to reveal the hidden "Advanced" section in Settings.
+                if (route.name === 'settings' && unlockAdvancedMenu()) {
+                  // Distinct confirmation so the gesture feels intentional.
+                  Haptics.success();
+                }
               }}
             />
           );

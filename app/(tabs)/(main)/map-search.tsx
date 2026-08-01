@@ -18,14 +18,18 @@ import {
 } from '@/components/map/GoogleMapsView';
 import { SelectedRestaurantBanner } from '@/components/review/SelectedRestaurantBanner';
 import { SelectionCheckmark } from '@/components/review/SelectionCheckmark';
+import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
+import { useReviewsStore } from '@/context/ReviewsStore';
+import { resolveReviewOrigin } from '@/data/types';
 import { Haptics } from '@/services/haptics';
 import { resolveCurrentLocation } from '@/services/location/resolveCurrentLocation';
 import {
   DEFAULT_SEARCH_RADIUS_M,
   FALLBACK_MAP_CENTER,
+  findExistingRestaurant,
   formattedDistance,
   isSameRestaurantDraft,
   isSignificantRegionChange,
@@ -37,6 +41,9 @@ import {
 } from '@/services/places';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 
+/** Fixed row height for the results list (paddingVertical 14 ×2 + two lines). */
+const ROW_HEIGHT = 64;
+
 /**
  * Map restaurant search (Swift `MapSearchView`).
  * Uses Google Maps JavaScript API (works in Expo Go with our API key).
@@ -45,6 +52,7 @@ export default function MapSearchScreen() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { reviews, restaurants } = useReviewsStore();
   const mapRef = useRef<GoogleMapsViewHandle>(null);
   const listRef = useRef<FlatListType<RestaurantSearchResult>>(null);
   const searchTaskRef = useRef(0);
@@ -148,6 +156,16 @@ export default function MapSearchScreen() {
   };
 
   const clearSelection = () => setSelected(null);
+
+  const selectedVisitedCount = useMemo(() => {
+    if (!selected) return 0;
+    const existing = findExistingRestaurant(selected, restaurants);
+    if (!existing) return 0;
+    return reviews.filter(
+      (r) =>
+        r.restaurantId === existing.id && resolveReviewOrigin(r) === 'own',
+    ).length;
+  }, [reviews, restaurants, selected]);
 
   const selectDraft = (draft: RestaurantDraft) => {
     ignoreNextMapPressRef.current = true;
@@ -261,6 +279,7 @@ export default function MapSearchScreen() {
           <SelectedRestaurantBanner
             draft={selected}
             actionTitle={t("forms.mapSearch.startReview")}
+            visitedCount={selectedVisitedCount}
             onClear={clearSelection}
             onAction={() =>
               router.push({
@@ -280,9 +299,14 @@ export default function MapSearchScreen() {
         overScrollMode="never"
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.list, { paddingBottom: bottomPad }]}
+        getItemLayout={(_, index) => ({
+          length: ROW_HEIGHT,
+          offset: ROW_HEIGHT * index,
+          index,
+        })}
         onScrollToIndexFailed={({ index }) => {
           listRef.current?.scrollToOffset({
-            offset: Math.max(0, index * 64),
+            offset: Math.max(0, index * ROW_HEIGHT),
             animated: true,
           });
         }}
@@ -295,9 +319,14 @@ export default function MapSearchScreen() {
               </Text>
             </View>
           ) : (
-            <Text style={styles.emptyHint}>
-              {t("forms.mapSearch.hint")}
-            </Text>
+            <View style={styles.flexFill}>
+              <HouseEmptyState
+                title={t('forms.mapSearch.emptyTitle')}
+                description={t('forms.mapSearch.hint')}
+                systemImage="magnifyingglass"
+                androidImage="search_off"
+              />
+            </View>
           )
         }
         ItemSeparatorComponent={() => <View style={styles.sep} />}
@@ -373,11 +402,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 999,
     backgroundColor: GustraColors.forestGreen,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
+    ...Theme.overlayShadow,
   },
   searchAreaPressed: {
     opacity: 0.88,
@@ -393,6 +418,9 @@ const styles = StyleSheet.create({
     backgroundColor: GustraColors.cream,
   },
   listFlex: {
+    flex: 1,
+  },
+  flexFill: {
     flex: 1,
   },
   list: {
@@ -413,14 +441,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: 'rgba(35, 32, 26, 0.65)',
-  },
-  emptyHint: {
-    ...bodyTextStyle,
-    paddingVertical: 24,
-    paddingHorizontal: 8,
-    textAlign: 'center',
-    fontSize: 15,
-    color: 'rgba(35, 32, 26, 0.55)',
   },
   sep: {
     height: StyleSheet.hairlineWidth,

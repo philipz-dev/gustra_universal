@@ -1,12 +1,13 @@
 import { useCallback, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { dismissOpenSwipeable } from '@/components/feed/openSwipeable';
 import { VisitRowCard } from '@/components/feed/VisitRowCard';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
+import { HousePrimaryButton } from '@/components/ui/HousePrimaryButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
 import { GustraColors } from '@/constants/Colors';
@@ -19,6 +20,7 @@ import {
   RatingValue,
 } from '@/services/reviews/ratings';
 import { isReviewDraft } from '@/services/reviews/draftReview';
+import { Haptics } from '@/services/haptics';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { requestSwipeDelete } from '@/services/swipeDelete';
 
@@ -34,6 +36,10 @@ function displayLocation(name: string, city: string, country: string): string {
 
 /**
  * Chronological visits for one restaurant (Swift `RestaurantVisitsView`).
+ *
+ * When rendered from the My Gustra stack the pathname starts with
+ * `/passport/restaurant`, so review taps stay inside the passport stack and
+ * Back returns to My Gustra instead of the Reviews feed.
  */
 export default function RestaurantVisitsScreen() {
   const { t } = useAppTranslation();
@@ -42,6 +48,8 @@ export default function RestaurantVisitsScreen() {
     origin?: string;
   }>();
   const router = useRouter();
+  const pathname = usePathname();
+  const inPassportStack = pathname.startsWith('/passport');
   const insets = useSafeAreaInsets();
   const { enabledCriteria } = useCriteriaSettings();
   const { getRestaurant, getReviewsForRestaurant, deleteReview } =
@@ -57,6 +65,13 @@ export default function RestaurantVisitsScreen() {
     [reviews, pendingDeleteIds],
   );
 
+  const openAddReview = useCallback(() => {
+    Haptics.selectionChanged();
+    router.push({
+      pathname: '/review-form',
+      params: { restaurantId: id },
+    });
+  }, [id, router]);
   const bottomPad =
     Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
 
@@ -106,23 +121,28 @@ export default function RestaurantVisitsScreen() {
             await deleteReview(reviewId);
             if (remainingInSource.length === 0) {
               if (router.canGoBack()) router.back();
+              else if (inPassportStack) router.replace('/passport');
               else router.replace('/(tabs)/(main)');
               return;
             }
             if (remainingInSource.length === 1) {
-              router.replace(`/review/${remainingInSource[0]!.id}`);
+              router.replace(
+                inPassportStack
+                  ? `/passport/review/${remainingInSource[0]!.id}`
+                  : `/review/${remainingInSource[0]!.id}`,
+              );
             }
           })();
         },
       });
     },
-    [deleteReview, reviews, router, t],
+    [deleteReview, inPassportStack, reviews, router, t],
   );
 
   return (
     <View style={styles.screen}>
       <HouseNavHeader
-        title={restaurant?.name ?? t('detail.restaurant.title')}
+        title={t('detail.review.title')}
         titleSize={Theme.navigation.secondaryTitleSize}
         showBack
         onBack={() => router.back()}
@@ -163,6 +183,11 @@ export default function RestaurantVisitsScreen() {
                 <Text style={styles.visitCount}>
                   {t('detail.restaurant.visitCount', { count: reviews.length })}
                 </Text>
+                <HousePrimaryButton
+                  title={t('detail.options.recordVisit')}
+                  onPress={openAddReview}
+                  style={styles.addVisitButton}
+                />
               </View>
               <Text style={styles.sectionLabel}>{t("detail.restaurant.visits")}</Text>
             </View>
@@ -178,7 +203,11 @@ export default function RestaurantVisitsScreen() {
                   });
                   return;
                 }
-                router.push(`/review/${item.id}`);
+                router.push(
+                  inPassportStack
+                    ? `/passport/review/${item.id}`
+                    : `/review/${item.id}`,
+                );
               }}
               onDelete={() => confirmDeleteVisit(item)}
             />
@@ -210,6 +239,9 @@ const styles = StyleSheet.create({
     borderRadius: Theme.radius.xl,
     backgroundColor: 'rgba(236, 227, 207, 0.45)',
     gap: 8,
+  },
+  addVisitButton: {
+    marginTop: 6,
   },
   location: {
     color: GustraColors.forestGreen,

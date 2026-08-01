@@ -15,6 +15,7 @@
     "recover": "Recuperar",
     "openSettings": "Abrir Ajustes",
     "tryAgain": "Intentar de nuevo",
+    "browseMap": "Explorar el mapa",
     "error": "Error",
     "close": "Cerrar",
     "share": "Compartir",
@@ -26,7 +27,10 @@
     "add": "Añadir",
     "clear": "Borrar",
     "import": "Importar",
-    "undo": "Deshacer"
+    "undo": "Deshacer",
+    "required": "Obligatorio",
+    "selectedRestaurant": "Restaurante seleccionado",
+    "deselectRestaurant": "Deseleccionar restaurante"
   },
   "rating": {
     "labels": {
@@ -88,7 +92,9 @@
       "importReviews": "Importar reseñas",
       "addReview": "Añadir reseña"
     },
-    "draftLabel": "Draft"
+    "draftLabel": "Draft",
+    "visitedBefore_one": "Visitado 1 vez",
+    "visitedBefore_other": "Visitado {{count}} veces"
   },
   "filters": {
     "title": "Opciones de filtro",
@@ -151,10 +157,23 @@
     "averageOverall": "Media general",
     "bestRestaurant": "Mejor restaurante",
     "bestRestaurants": "Mejores restaurantes",
+    "bestWines": "Mejores vinos",
     "categoryAverages": "Medias por categoría",
     "topCities": "Mejores ciudades",
     "cityAverages": "Mejores ciudades",
-    "noCityData": "Aún no hay datos de ciudades."
+    "noCityData": "Aún no hay datos de ciudades.",
+    "timeTravel": "Viaje en el tiempo",
+    "timeTravelSubtitle": "Viaja atrás a través de todas tus visitas.",
+    "timeTravelYears": "Años",
+    "timeTravelReviews_one": "{{count}} visita",
+    "timeTravelReviews_other": "{{count}} visitas",
+    "timeTravelAverage": "Media",
+    "timeTravelTotal": "Visitas en total",
+    "timeTravelEmptyTitle": "Nada que recorrer todavía",
+    "timeTravelEmptyBody": "Añade reseñas de restaurantes y tu línea temporal aparecerá aquí.",
+    "timeTravelMonthHeader": "{{month}} {{year}}",
+    "timeTravelMonthCount_one": "{{count}} visita",
+    "timeTravelMonthCount_other": "{{count}} visitas"
   },
   "settings": {
     "language": "Idioma",
@@ -167,13 +186,16 @@
     "sectionReviewing": "Reseñas",
     "sectionCriteria": "Criterios de reseña",
     "sectionPassport": "Mi Gustra",
+    "sectionShowcase": "Escaparate",
+    "demoShowcase": "Reseñas de ejemplo",
+    "demoShowcaseOn": "Seis restaurantes ficticios con fotos y fichas de vino",
+    "demoShowcaseOff": "Desactivado — solo se muestran tus reseñas reales",
+    "demoShowcaseShareBlocked": "Las reseñas de ejemplo son solo para explorar Gustra y no se pueden compartir.",
     "sectionStorage": "Almacenamiento",
     "sectionData": "Datos y copia de seguridad",
     "sectionGoogle": "Uso de la API de Google",
     "sectionAdvanced": "Avanzado",
     "sectionLanguage": "Idioma",
-    "advancedExpandA11y": "Mostrar ajustes avanzados",
-    "advancedCollapseA11y": "Ocultar ajustes avanzados",
     "editPhotoHint": "Toca la foto para cambiarla",
     "editCriteria": "Editar criterios de reseña",
     "dataSavings": "Ahorro de datos para fotos",
@@ -278,20 +300,23 @@
       "finding": "Buscando restaurantes cercanos…",
       "sectionTitle": "Restaurantes cercanos",
       "tryMap": "Inténtalo de nuevo o busca en el mapa.",
-      "searchFailed": "No se pudo conectar con el servicio de búsqueda de restaurantes."
+      "searchFailed": "No se pudo conectar con el servicio de búsqueda de restaurantes.",
+      "usingFallback": "Sin acceso a la ubicación — se muestran restaurantes cerca de tus reseñas recientes.",
+      "usingFallbackCity": "Sin acceso a la ubicación — se muestran restaurantes cerca de {{city}}."
     },
     "mapSearch": {
       "title": "Buscar en el mapa",
       "searchArea": "Buscar en esta zona",
       "startReview": "Empezar reseña",
       "hint": "Mueve el mapa y pulsa Buscar en esta zona.",
+      "emptyTitle": "No se encontraron restaurantes",
       "searchAreaHint": "Buscar restaurantes en la zona visible del mapa"
     },
     "manual": {
       "title": "Entrada manual",
       "restaurantName": "Nombre del restaurante",
-      "city": "Ciudad",
-      "country": "País",
+      "city": "Ciudad (opcional)",
+      "country": "País (opcional)",
       "findOnGoogle": "Buscar en Google",
       "searchHint": "Busca en Google para añadir detalles del lugar o continúa manualmente.",
       "googleMatches": "Resultados de Google",
@@ -328,6 +353,7 @@
         "a11yPhoto": "Foto. Toca para seleccionar, mantén pulsado para reordenar."
       },
       "draftBannerCriteria": "Valora al menos un criterio para terminar esta reseña.",
+      "draftBannerFood": "Valora la comida para completar esta reseña.",
       "draftBannerWine": "Un vino aún necesita valoración."
     },
     "photos": {
@@ -353,7 +379,7 @@
     "options": {
       "title": "Opciones",
       "a11y": "Opciones",
-      "recordVisit": "Registrar nueva visita",
+      "recordVisit": "Añadir nueva reseña",
       "editReview": "Editar reseña",
       "cannotEditFriend": "No puedes editar la reseña de un amigo",
       "deleteReview": "Eliminar reseña",
@@ -401,6 +427,7 @@
       "cancel": "Cancelar",
       "continue": "Continuar"
     },
+    "selectReviews": "Seleccionar reseñas",
     "selectRestaurants": "Seleccionar restaurantes",
     "selectOneRestaurant": "Seleccionar 1 restaurante"
   },
@@ -487,7 +514,9 @@
     "share": {
       "failed": "No se pudieron compartir reseñas.",
       "reviewFailed": "No se pudo compartir esta reseña.",
-      "needName": "Agrega tu nombre en Configuración antes de compartir reseñas."
+      "needName": "Agrega tu nombre en Configuración antes de compartir reseñas.",
+      "draftTitle": "El borrador no se puede compartir",
+      "draftBody": "Valora la comida y completa esta reseña antes de compartirla."
     },
     "location": {
       "deniedTitle": "Ubicación necesaria",
@@ -503,6 +532,8 @@
     },
     "reviewForm": {
       "needStars": "Agregue al menos una calificación de estrellas para guardar esta reseña.",
+      "foodRequiredTitle": "Valoración de comida obligatoria",
+      "foodRequiredBody": "Valora la comida antes de completar esta reseña.",
       "removePhotosTitle": "¿Quitar fotos?",
       "removePhotosBody": "Las fotos seleccionadas se eliminarán de esta revisión.",
       "photosSaveFailed": "No se pudieron guardar las fotos.",
@@ -569,7 +600,7 @@
     "drinksSuggestionPlaceholder": "Nombre del vino y año",
     "useInDrinks": "Usar en Bebidas",
     "confirmA11y": "Añadir vino a Bebidas",
-    "resultRatingTitle": "Valora esta botella",
+    "resultRatingTitle": "Valora este vino",
     "ratingRequired": "Añade estrellas para guardar este vino.",
     "scanButton": "Añadir vino",
     "scanButtonA11y": "Añadir vino a Bebidas",
@@ -651,23 +682,7 @@
       "alcohol": "Alcohol",
       "foodPairings": "Se empareja con",
       "myJudgment": "Mi valoración",
-      "openFull": "Abrir ficha completa",
-      "tasteProfile": {
-        "title": "Perfil de sabor",
-        "source": "Estimación a partir de la etiqueta.",
-        "expandA11y": "Expandir perfil de sabor",
-        "collapseA11y": "Contraer perfil de sabor",
-        "poles": {
-          "bodyLight": "Ligero",
-          "bodyFull": "Con cuerpo",
-          "tanninsSoft": "Suave",
-          "tanninsFirm": "Firme",
-          "aciditySoft": "Suave",
-          "acidityLively": "Viva",
-          "sweetnessDry": "Seco",
-          "sweetnessSweet": "Dulce"
-        }
-      }
+      "openFull": "Abrir ficha completa"
     },
     "deleteWineUndo": "“{{name}}” eliminado",
     "methodLead": "¿Cómo quieres añadir este vino?",
@@ -703,7 +718,8 @@
       "body": "Elige qué criterios importan al reseñar. Puedes cambiarlo después en Ajustes.",
       "minOne": "Elige al menos un criterio.",
       "tip": "Consejo",
-      "idealThree": ": 3 criterios son ideales"
+      "idealThree": ": 3 criterios son ideales",
+      "footer": "Los criterios añadidos aparecen en las nuevas reseñas."
     }
   }
 }

@@ -21,6 +21,7 @@ import {
   type GoogleMapsViewHandle,
 } from '@/components/map/GoogleMapsView';
 import { houseAlert } from '@/components/ui/HouseAlert';
+import { HouseErrorBoundary } from '@/components/ui/HouseErrorBoundary';
 import { ReviewsHeader } from '@/components/ui/ReviewsHeader';
 import { GustraColors } from '@/constants/Colors';
 import {
@@ -39,10 +40,10 @@ import {
 } from '@/services/location/resolveCurrentLocation';
 import { FALLBACK_MAP_CENTER, type LatLng } from '@/services/places';
 
-/** Own reviews — house gold (pops on parks/water/roads; forest green blends into map greens). */
-const OWN_PIN_COLOR = GustraColors.gold;
-/** Friends' reviews — house avoid red (warm contrast vs gold; not map-water blue). */
-const FRIENDS_PIN_COLOR = GustraColors.ratingAvoid;
+/** Own reviews — bright green (pops on parks/water/roads; clearly the user's own pins). */
+const OWN_PIN_COLOR = GustraColors.mapOwnPin;
+/** Friends' reviews — map blue. */
+const FRIENDS_PIN_COLOR = GustraColors.mapFriendsPin;
 
 /** Survives push/pop to review detail so Back restores the same map view. */
 type MemoriesMapCamera = { center: LatLng; zoom: number };
@@ -76,7 +77,7 @@ export default function MemoriesMapScreen() {
 }
 
 /**
- * My map — pins by ownership (own = gold, friends = house red).
+ * My map — pins by ownership (own = bright green, friends = blue).
  * Same shared filter state as Reviews / My Gustra (Sort by ignored here).
  */
 function MemoriesMapContent() {
@@ -302,6 +303,7 @@ function MemoriesMapContent() {
         totalResultCount={sourceSummaries.length}
         criterionTitleFor={criterionTitleFor}
         onChange={applyFiltersAndFit}
+        containerStyle={styles.filterGap}
       />
       <View style={styles.mapBody}>
         <GoogleMapsView
@@ -487,6 +489,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: GustraColors.cream,
   },
+  /** Gap between the green banner and the filter chips (no search bar here). */
+  filterGap: {
+    backgroundColor: GustraColors.cream,
+    paddingTop: Theme.spacing.searchVertical,
+  },
   mapBody: {
     flex: 1,
   },
@@ -505,11 +512,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    ...Theme.overlayShadow,
   },
   legendHeader: {
     flexDirection: 'row',
@@ -557,11 +560,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(36, 78, 57, 0.35)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    ...Theme.overlayShadow,
   },
   emptyCardWrap: {
     ...StyleSheet.absoluteFill,

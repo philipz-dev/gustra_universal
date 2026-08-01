@@ -20,15 +20,15 @@ export function SettingsSection({ title, children }: SettingsSectionProps) {
 
 const styles = StyleSheet.create({
   section: {
-    gap: 8,
+    gap: 6,
   },
   title: {
     ...captionTextStyle,
     fontSize: Theme.list.sectionHeaderSize,
     fontWeight: '600',
-    color: 'rgba(35, 32, 26, 0.5)',
-    paddingHorizontal: 16,
-    letterSpacing: Platform.OS === 'ios' ? 0.4 : 0.6,
+    color: 'rgba(35, 32, 26, 0.45)',
+    paddingHorizontal: 18,
+    letterSpacing: Platform.OS === 'ios' ? 0.6 : 0.8,
   },
   card: {
     backgroundColor: Theme.list.cardBackground,

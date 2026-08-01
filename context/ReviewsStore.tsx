@@ -12,7 +12,7 @@ import {
 
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewerProfile } from '@/context/ReviewerProfile';
-import { stripShippingSeedData } from '@/data/mockReviews';
+import { stripShippingSeedData, mergeDemoShowcase, stripDemoShowcase } from '@/data/mockReviews';
 import type {
   CriterionRating,
   Restaurant,
@@ -67,6 +67,7 @@ import {
 const STORAGE_KEY = 'gustraReviewsStore.v3';
 /** Pre–half-star store (integer 1–5 criterion ratings). */
 const LEGACY_STORAGE_KEY = 'gustraReviewsStore.v2';
+const DEMO_SHOWCASE_KEY = 'gustra.demoShowcaseEnabled';
 const THUMB_COLORS = ['#3D6B52', '#5A4634', '#2F4A3C', '#4A5C3A', '#6B5344'];
 
 type StoredShape = {
@@ -140,6 +141,9 @@ type ReviewsStoreValue = {
     password: string,
     mode: BackupImportMode,
   ) => Promise<void>;
+  /** Marketing / QA showcase restaurants (fictional names, real addresses). */
+  demoShowcaseEnabled: boolean;
+  setDemoShowcaseEnabled: (enabled: boolean) => Promise<void>;
   /** Import leftover Swift SwiftData store + Application Support photos. */
   importSwiftLegacyData: () => Promise<{
     restaurantCount: number;
@@ -377,7 +381,42 @@ function buildFeedSummaries(
 }
 
 async function persist(data: StoredShape) {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  // Never write showcase IDs into the durable store (backups stay clean).
+  const cleaned = stripDemoShowcase(data.restaurants, data.reviews);
+  await AsyncStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      restaurants: cleaned.restaurants,
+      reviews: cleaned.reviews,
+    }),
+  );
+}
+
+async function readDemoShowcasePreference(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(DEMO_SHOWCASE_KEY);
+    return raw === '1' || raw === 'true';
+  } catch {
+    return false;
+  }
+}
+
+async function writeDemoShowcasePreference(enabled: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(DEMO_SHOWCASE_KEY, enabled ? '1' : '0');
+  } catch {
+    // Preference still held in memory for this session.
+  }
+}
+
+function withOptionalDemo(
+  restaurants: Restaurant[],
+  reviews: Review[],
+  enabled: boolean,
+): StoredShape {
+  const cleaned = stripDemoShowcase(restaurants, reviews);
+  if (!enabled) return cleaned;
+  return mergeDemoShowcase(cleaned.restaurants, cleaned.reviews);
 }
 
 export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
@@ -391,6 +430,7 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
   } = useReviewerProfile();
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [demoShowcaseEnabled, setDemoShowcaseEnabledState] = useState(false);
   const [ready, setReady] = useState(false);
   const restaurantsRef = useRef(restaurants);
   const reviewsRef = useRef(reviews);
@@ -455,8 +495,17 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
             });
             hydratedRestaurants = relocated.restaurants;
             hydratedReviews = relocated.reviews;
-            setRestaurants(hydratedRestaurants);
-            setReviews(hydratedReviews);
+            const demoOn = await readDemoShowcasePreference();
+            const withDemo = withOptionalDemo(
+              hydratedRestaurants,
+              hydratedReviews,
+              demoOn,
+            );
+            if (!cancelled) {
+              setDemoShowcaseEnabledState(demoOn);
+              setRestaurants(withDemo.restaurants);
+              setReviews(withDemo.reviews);
+            }
             await persist({
               restaurants: hydratedRestaurants,
               reviews: hydratedReviews,
@@ -483,8 +532,14 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
                     restaurants,
                     reviews,
                   });
-                  setRestaurants(relocatedImport.restaurants);
-                  setReviews(relocatedImport.reviews);
+                  const demoPref = await readDemoShowcasePreference();
+                  const merged = withOptionalDemo(
+                    relocatedImport.restaurants,
+                    relocatedImport.reviews,
+                    demoPref,
+                  );
+                  setRestaurants(merged.restaurants);
+                  setReviews(merged.reviews);
                   await persist({
                     restaurants: relocatedImport.restaurants,
                     reviews: relocatedImport.reviews,
@@ -497,10 +552,13 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
             return;
           }
         }
-        // Fresh install / empty store — no demo seed.
+        // Fresh install / empty store — no demo seed unless preference is on.
         if (!cancelled) {
-          setRestaurants([]);
-          setReviews([]);
+          const demoOn = await readDemoShowcasePreference();
+          const empty = withOptionalDemo([], [], demoOn);
+          setDemoShowcaseEnabledState(demoOn);
+          setRestaurants(empty.restaurants);
+          setReviews(empty.reviews);
           await persist({ restaurants: [], reviews: [] });
           setReady(true);
           void (async () => {
@@ -520,8 +578,14 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
                   restaurants,
                   reviews,
                 });
-                setRestaurants(relocatedImport.restaurants);
-                setReviews(relocatedImport.reviews);
+                const demoPref = await readDemoShowcasePreference();
+                const merged = withOptionalDemo(
+                  relocatedImport.restaurants,
+                  relocatedImport.reviews,
+                  demoPref,
+                );
+                setRestaurants(merged.restaurants);
+                setReviews(merged.reviews);
                 await persist({
                   restaurants: relocatedImport.restaurants,
                   reviews: relocatedImport.reviews,
@@ -977,9 +1041,11 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
         photoFiles[REVIEWER_PHOTO_BACKUP_KEY] = profileSnap.photoBase64;
       }
       // Local review photos are collected inside exportEncryptedBackup (Swift parity).
+      // Showcase data is never included in backups.
+      const userOnly = stripDemoShowcase(restaurants, reviews);
       return exportEncryptedBackup({
-        restaurants,
-        reviews,
+        restaurants: userOnly.restaurants,
+        reviews: userOnly.reviews,
         password,
         photoFiles,
         reviewerProfile: reviewerProfileToBackup({
@@ -993,18 +1059,44 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
     [getCriteriaSnapshot, getProfileSnapshot, restaurants, reviews],
   );
 
+  const setDemoShowcaseEnabled = useCallback(async (enabled: boolean) => {
+    setDemoShowcaseEnabledState(enabled);
+    await writeDemoShowcasePreference(enabled);
+    const userOnly = stripDemoShowcase(
+      restaurantsRef.current,
+      reviewsRef.current,
+    );
+    const next = withOptionalDemo(
+      userOnly.restaurants,
+      userOnly.reviews,
+      enabled,
+    );
+    setRestaurants(next.restaurants);
+    setReviews(next.reviews);
+    await persist({
+      restaurants: userOnly.restaurants,
+      reviews: userOnly.reviews,
+    });
+  }, []);
+
   const importEncryptedBackup = useCallback(
     async (data: Uint8Array, password: string, mode: BackupImportMode) => {
       const payload = decryptBackup(data, password);
+      const userOnly = stripDemoShowcase(restaurants, reviews);
       const next = await applyBackupPayload({
         payload,
         mode,
-        currentRestaurants: restaurants,
-        currentReviews: reviews,
+        currentRestaurants: userOnly.restaurants,
+        currentReviews: userOnly.reviews,
       });
       const relocated = relocateStoredPhotoRefs(next);
-      setRestaurants(relocated.restaurants);
-      setReviews(relocated.reviews);
+      const merged = withOptionalDemo(
+        relocated.restaurants,
+        relocated.reviews,
+        demoShowcaseEnabled,
+      );
+      setRestaurants(merged.restaurants);
+      setReviews(merged.reviews);
       await persist({
         restaurants: relocated.restaurants,
         reviews: relocated.reviews,
@@ -1027,6 +1119,7 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
     [
       applyCriteriaSnapshot,
       applyProfileSnapshot,
+      demoShowcaseEnabled,
       restaurants,
       reviews,
     ],
@@ -1097,14 +1190,17 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       const removeReviewIds = new Set(result.removeReviewIds ?? []);
       const removeRestaurantIds = new Set(result.removeRestaurantIds ?? []);
 
-      let nextReviews = reviews.filter((r) => !removeReviewIds.has(r.id));
+      const userBaseline = stripDemoShowcase(restaurants, reviews);
+      let nextReviews = userBaseline.reviews.filter(
+        (r) => !removeReviewIds.has(r.id),
+      );
       for (const incoming of result.reviews.map((r) => normalizeReview(r))) {
         const index = nextReviews.findIndex((r) => r.id === incoming.id);
         if (index >= 0) nextReviews[index] = incoming;
         else nextReviews.push(incoming);
       }
 
-      let nextRestaurants = restaurants.filter(
+      let nextRestaurants = userBaseline.restaurants.filter(
         (r) => !removeRestaurantIds.has(r.id),
       );
       for (const incoming of result.restaurants.map((r) =>
@@ -1148,14 +1244,23 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
         restaurants: nextRestaurants,
         reviews: nextReviews,
       });
-      setRestaurants(relocated.restaurants);
-      setReviews(relocated.reviews);
+      const userOnly = stripDemoShowcase(
+        relocated.restaurants,
+        relocated.reviews,
+      );
+      const merged = withOptionalDemo(
+        userOnly.restaurants,
+        userOnly.reviews,
+        demoShowcaseEnabled,
+      );
+      setRestaurants(merged.restaurants);
+      setReviews(merged.reviews);
       await persist({
-        restaurants: relocated.restaurants,
-        reviews: relocated.reviews,
+        restaurants: userOnly.restaurants,
+        reviews: userOnly.reviews,
       });
     },
-    [restaurants, reviews],
+    [demoShowcaseEnabled, restaurants, reviews],
   );
 
   const value = useMemo(
@@ -1176,6 +1281,8 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       removeWineFromReview,
       createEncryptedBackup,
       importEncryptedBackup,
+      demoShowcaseEnabled,
+      setDemoShowcaseEnabled,
       importSwiftLegacyData,
       ensureSwiftLegacyMigration: runEnsureSwiftLegacyMigration,
       importSharePackage,
@@ -1197,6 +1304,8 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       removeWineFromReview,
       createEncryptedBackup,
       importEncryptedBackup,
+      demoShowcaseEnabled,
+      setDemoShowcaseEnabled,
       importSwiftLegacyData,
       runEnsureSwiftLegacyMigration,
       importSharePackage,

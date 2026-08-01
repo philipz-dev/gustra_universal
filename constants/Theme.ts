@@ -1,4 +1,4 @@
-import { Platform, StyleSheet, type TextStyle } from 'react-native';
+import { Platform, StyleSheet, type TextStyle, type ViewStyle } from 'react-native';
 
 import { GustraColors } from '@/constants/Colors';
 
@@ -58,18 +58,26 @@ export const captionTextStyle: TextStyle =
       };
 
 /** Soft press wash (lists / settings) — prefer over dimming the whole row. */
-export const listPressedStyle: TextStyle = {
+export const listPressedStyle: ViewStyle = {
   backgroundColor: 'rgba(35, 32, 26, 0.06)',
 };
+
+const TYPOGRAPHY = {
+  serifDefault: 18,
+  sectionHeader: 14,
+  navTitle: Platform.OS === 'android' ? 34 : 36,
+  navSecondaryTitle: Platform.OS === 'android' ? 30 : 32,
+  navLargeTitle: Platform.OS === 'android' ? 36 : 39,
+} as const;
 
 /**
  * Android Material-ish type ramp (sp).
  * Use these instead of one-off fontSizes for a calmer, premium density.
  */
 export const Type = {
-  display: Platform.OS === 'android' ? 32 : 34,
-  title: Platform.OS === 'android' ? 28 : 30,
-  titleSmall: 20,
+  display: TYPOGRAPHY.navTitle,
+  title: TYPOGRAPHY.navSecondaryTitle,
+  titleSmall: 22,
   body: Platform.OS === 'android' ? 16 : 17,
   bodySmall: Platform.OS === 'android' ? 14 : 15,
   label: 13,
@@ -78,21 +86,21 @@ export const Type = {
 
 /** Surface elevation tokens — keep 0–2 only for a tonal cream UI. */
 export const Surface = {
-  flat: {} as TextStyle,
+  flat: {} as ViewStyle,
   raised: (Platform.OS === 'android'
     ? {
         elevation: 1,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: 'rgba(35, 32, 26, 0.06)',
       }
-    : {}) as TextStyle,
+    : {}) as ViewStyle,
   floating: (Platform.OS === 'android'
     ? {
         elevation: 2,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: 'rgba(35, 32, 26, 0.08)',
       }
-    : {}) as TextStyle,
+    : {}) as ViewStyle,
 } as const;
 
 export const Theme = {
@@ -120,6 +128,8 @@ export const Theme = {
     floatingTabBarClearance: 78,
   },
 
+  typography: TYPOGRAPHY,
+
   size: {
     thumbnail: 64,
     fab: 60,
@@ -133,9 +143,9 @@ export const Theme = {
   },
 
   navigation: {
-    titleSize: Platform.OS === 'android' ? Type.display : 34,
-    secondaryTitleSize: Platform.OS === 'android' ? Type.title : 30,
-    largeTitleSize: Platform.OS === 'android' ? 34 : 37,
+    titleSize: Type.display,
+    secondaryTitleSize: Type.title,
+    largeTitleSize: TYPOGRAPHY.navLargeTitle,
     /** Extra breathing room under the title (matches iOS Theme.navigationBarExtraHeight). */
     barExtraHeight: 9,
   },
@@ -156,6 +166,15 @@ export const Theme = {
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 6,
+  },
+
+  /** Subtle floating overlay shadow (map chips, legend cards, map buttons). */
+  overlayShadow: {
+    shadowColor: '#000000',
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
 } as const;
 

@@ -16,6 +16,10 @@ type HouseToolbarIconButtonProps = {
    * Prefer this when SF Symbol / Material shapes diverge.
    */
   ionName?: ComponentProps<typeof Ionicons>['name'];
+  /** Shared icon point size for all icon implementations. */
+  size?: number;
+  /** SF Symbol weight for iOS/macOS. */
+  symbolWeight?: ComponentProps<typeof SymbolView>['weight'];
   accessibilityLabel: string;
   onPress: () => void;
   /** Orange when filters/sort are active. */
@@ -31,6 +35,8 @@ export function HouseToolbarIconButton({
   iosName,
   androidName,
   ionName,
+  size,
+  symbolWeight = 'semibold',
   accessibilityLabel,
   onPress,
   emphasized = false,
@@ -43,7 +49,7 @@ export function HouseToolbarIconButton({
       : 'rgba(255, 255, 255, 0.85)'; // Clean, slightly translucent white for inactive
 
   // Slightly larger than Swift `.body` so toolbar glyphs read clearly on both platforms.
-  const iconSize = Platform.OS === 'ios' ? 24 : 26; // Scaled down slightly to fit beautifully inside the circle when active
+  const iconSize = size ?? (Platform.OS === 'ios' ? 24 : 26); // Scaled down slightly to fit beautifully inside the circle when active
 
   let icon = null;
   if (ionName) {
@@ -54,7 +60,7 @@ export function HouseToolbarIconButton({
         name={iosName}
         tintColor={color}
         size={iconSize}
-        weight="semibold"
+        weight={symbolWeight}
       />
     );
   } else if (androidName) {

@@ -11,12 +11,12 @@ import {
   View,
 } from 'react-native';
 import Constants from 'expo-constants';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SymbolView } from 'expo-symbols';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LanguagePickerSheet } from '@/components/settings/LanguagePickerSheet';
-import { SettingsCollapsibleSection } from '@/components/settings/SettingsCollapsibleSection';
 import { SettingsRow } from '@/components/settings/SettingsRow';
 import { SettingsSection } from '@/components/settings/SettingsSection';
 import { houseAlert } from '@/components/ui/HouseAlert';
@@ -40,6 +40,7 @@ import { useReviewsStore } from '@/context/ReviewsStore';
 import { useShareImportLaunch } from '@/context/ShareImportLaunch';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import type { LanguagePreference } from '@/i18n/resolveLanguage';
+import { useAdvancedMenuUnlocked } from '@/context/AdvancedMenu';
 import { getPhotosDiskUsage } from '@/services/photos/diskUsage';
 import { Haptics } from '@/services/haptics';
 import { scanSwiftLegacyData } from '@/services/migration/SwiftDataMigration';
@@ -74,7 +75,7 @@ export default function SettingsScreen() {
   const nameInputRef = useRef<TextInput>(null);
   const { preference, setPreference } = useLanguageSettings();
   const [languagePickerOpen, setLanguagePickerOpen] = useState(false);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const advancedUnlocked = useAdvancedMenuUnlocked();
   const {
     categoryAveragesStyle,
     categoryAveragesToggleTitle,
@@ -94,7 +95,8 @@ export default function SettingsScreen() {
   } = useGoogleApiTracker();
   const { name, photoUri, hasPhoto, updateName, ready, syncPhotoFromDisk } =
     useReviewerProfile();
-  const { reviews, restaurants, importSwiftLegacyData } = useReviewsStore();
+  const { reviews, restaurants, importSwiftLegacyData, demoShowcaseEnabled, setDemoShowcaseEnabled } =
+    useReviewsStore();
   const { pickSharePackage } = useShareImportLaunch();
   const { reopenCriteriaSetupForDev } = useCriteriaSettings();
   const [reviewerNameDraft, setReviewerNameDraft] = useState('');
@@ -276,21 +278,22 @@ export default function SettingsScreen() {
   }, []);
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={[
-        styles.content,
-        {
-          paddingBottom:
-            (keyboardHeight > 0
-              ? keyboardHeight
-              : Theme.spacing.floatingTabBarClearance + insets.bottom) + 24,
-        },
-      ]}
-      overScrollMode="never"
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode="interactive"
-      showsVerticalScrollIndicator={false}>
+    <View style={styles.screenWrap}>
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingBottom:
+              (keyboardHeight > 0
+                ? keyboardHeight
+                : Theme.spacing.floatingTabBarClearance + insets.bottom) + 24,
+          },
+        ]}
+        overScrollMode="never"
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        showsVerticalScrollIndicator={false}>
       <SettingsSection title={t('settings.sectionReviewer')}>
         <View style={styles.reviewerBlock}>
           <Pressable
@@ -316,52 +319,56 @@ export default function SettingsScreen() {
                     web: 'photo_camera',
                   }}
                   tintColor="rgba(36, 78, 57, 0.7)"
-                  size={28}
+                  size={24}
                 />
               )}
             </View>
-            <Text style={styles.photoHint}>{t('settings.editPhotoHint')}</Text>
           </Pressable>
-          <View style={styles.nameField}>
-            <TextInput
-              ref={nameInputRef}
-              value={reviewerNameDraft}
-              onChangeText={onNameChange}
-              placeholder={t('settings.namePlaceholder')}
-              placeholderTextColor="rgba(36, 78, 57, 0.45)"
-              style={styles.nameInput}
-              accessibilityLabel={t('settings.nameA11y')}
-              maxLength={REVIEWER_MAX_NAME_LENGTH}
-              keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
-              autoCorrect={false}
-              autoCapitalize="words"
-              returnKeyType="done"
-              onSubmitEditing={() => {
-                nameInputRef.current?.blur();
-                Keyboard.dismiss();
-              }}
-            />
-            {reviewerNameDraft.length > 0 ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('settings.clearNameA11y')}
-                hitSlop={8}
-                onPress={clearName}
-                style={({ pressed }) => [
-                  styles.clearButton,
-                  pressed && styles.pressed,
-                ]}>
-                <SymbolView
-                  name={{
-                    ios: 'xmark.circle.fill',
-                    android: 'cancel',
-                    web: 'cancel',
-                  }}
-                  size={22}
-                  tintColor="rgba(36, 78, 57, 0.4)"
-                />
-              </Pressable>
-            ) : null}
+          <View style={styles.profileCopy}>
+            <Text style={styles.profileCaption}>
+              {t('settings.editPhotoHint')}
+            </Text>
+            <View style={styles.nameField}>
+              <TextInput
+                ref={nameInputRef}
+                value={reviewerNameDraft}
+                onChangeText={onNameChange}
+                placeholder={t('settings.namePlaceholder')}
+                placeholderTextColor="rgba(36, 78, 57, 0.45)"
+                style={styles.nameInput}
+                accessibilityLabel={t('settings.nameA11y')}
+                maxLength={REVIEWER_MAX_NAME_LENGTH}
+                keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
+                autoCorrect={false}
+                autoCapitalize="words"
+                returnKeyType="done"
+                onSubmitEditing={() => {
+                  nameInputRef.current?.blur();
+                  Keyboard.dismiss();
+                }}
+              />
+              {reviewerNameDraft.length > 0 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('settings.clearNameA11y')}
+                  hitSlop={8}
+                  onPress={clearName}
+                  style={({ pressed }) => [
+                    styles.clearButton,
+                    pressed && styles.pressed,
+                  ]}>
+                  <SymbolView
+                    name={{
+                      ios: 'xmark.circle.fill',
+                      android: 'cancel',
+                      web: 'cancel',
+                    }}
+                    size={22}
+                    tintColor="rgba(36, 78, 57, 0.4)"
+                  />
+                </Pressable>
+              ) : null}
+            </View>
           </View>
         </View>
         <SettingsRow
@@ -393,6 +400,7 @@ export default function SettingsScreen() {
           title={categoryAveragesToggleTitle}
           icon={{ ios: 'star.fill', android: 'star', web: 'star' }}
           accent
+          iconTint="accent"
           isLast
           onPress={() => {
             if (!passportDisplayReady) return;
@@ -414,67 +422,64 @@ export default function SettingsScreen() {
       </SettingsSection>
 
       <SettingsSection title={t('settings.sectionStorage')}>
-        <View style={[styles.rowPad, styles.rowBorder]}>
-          <View style={styles.iconSlot}>
-            <SymbolView
-              name={{
-                ios: 'arrow.down.circle',
-                android: 'data_saver_on',
-                web: 'data_saver_on',
-              }}
-              tintColor="rgba(36, 78, 57, 0.75)"
-              size={20}
-              weight="medium"
+        <SettingsRow
+          title={t('settings.dataSavings')}
+          subtitle={
+            isDataSavingsEnabled
+              ? t('settings.dataSavingsOn')
+              : t('settings.dataSavingsOff')
+          }
+          icon={{
+            ios: 'arrow.down.circle',
+            android: 'data_saver_on',
+            web: 'data_saver_on',
+          }}
+          trailing={
+            <GustraSwitch
+              value={isDataSavingsEnabled}
+              onValueChange={setDataSavingsEnabled}
             />
-          </View>
-          <View style={styles.copy}>
-            <Text style={styles.rowTitle}>{t('settings.dataSavings')}</Text>
-            <Text style={styles.rowSubtitle}>
-              {isDataSavingsEnabled
-                ? t('settings.dataSavingsOn')
-                : t('settings.dataSavingsOff')}
-            </Text>
-          </View>
-          <GustraSwitch
-            value={isDataSavingsEnabled}
-            onValueChange={setDataSavingsEnabled}
-          />
-        </View>
-        <View style={styles.rowPad}>
-          <View style={styles.iconSlot}>
-            <SymbolView
-              name={{
-                ios: 'photo.on.rectangle',
-                android: 'photo_library',
-                web: 'photo_library',
+          }
+        />
+        <SettingsRow
+          title={t('settings.photos')}
+          subtitle={photosSubtitle}
+          icon={{
+            ios: 'photo.on.rectangle',
+            android: 'photo_library',
+            web: 'photo_library',
+          }}
+          isLast
+          trailing={
+            <Text style={styles.secondaryValue}>{photosBytesLabel}</Text>
+          }
+        />
+      </SettingsSection>
+
+      <SettingsSection title={t('settings.sectionShowcase')}>
+        <SettingsRow
+          title={t('settings.demoShowcase')}
+          subtitle={
+            demoShowcaseEnabled
+              ? t('settings.demoShowcaseOn')
+              : t('settings.demoShowcaseOff')
+          }
+          icon={{ ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' }}
+          iconTint="accent"
+          isLast
+          trailing={
+            <GustraSwitch
+              value={demoShowcaseEnabled}
+              onValueChange={(next) => {
+                Haptics.selectionChanged();
+                void setDemoShowcaseEnabled(next);
               }}
-              tintColor="rgba(36, 78, 57, 0.75)"
-              size={20}
-              weight="medium"
             />
-          </View>
-          <View style={styles.copy}>
-            <Text style={styles.rowTitle}>{t('settings.photos')}</Text>
-            <Text style={styles.rowSubtitle}>{photosSubtitle}</Text>
-          </View>
-          <Text style={styles.secondaryValue}>{photosBytesLabel}</Text>
-        </View>
+          }
+        />
       </SettingsSection>
 
       <SettingsSection title={t('settings.sectionData')}>
-        <SettingsRow
-          title={t('settings.importShared')}
-          subtitle={t('settings.importSharedSubtitle')}
-          icon={{
-            ios: 'square.and.arrow.down',
-            android: 'download',
-            web: 'download',
-          }}
-          showChevron
-          onPress={() => {
-            void pickSharePackage();
-          }}
-        />
         <SettingsRow
           title={t('settings.backupRestore')}
           icon={{
@@ -488,39 +493,58 @@ export default function SettingsScreen() {
         />
       </SettingsSection>
 
-      <SettingsCollapsibleSection
-        title={t('settings.sectionAdvanced')}
-        expanded={advancedOpen}
-        onExpandedChange={setAdvancedOpen}
-        accessibilityExpandLabel={t('settings.advancedExpandA11y')}
-        accessibilityCollapseLabel={t('settings.advancedCollapseA11y')}>
-        <View style={[styles.apiRow, styles.rowBorder]}>
-          <Text style={styles.rowTitle}>{t('settings.mapsSdk')}</Text>
-          <SerifText size={15} weight="semibold" style={styles.apiValue}>
-            {t('settings.usageToday', {
-              today: mapsToday,
-              allTime: mapsTotal,
-            })}
-          </SerifText>
-        </View>
-        <View style={[styles.apiRow, styles.rowBorder]}>
-          <Text style={styles.rowTitle}>{t('settings.placesApi')}</Text>
-          <SerifText size={15} weight="semibold" style={styles.apiValue}>
-            {t('settings.usageToday', {
-              today: placesToday,
-              allTime: placesTotal,
-            })}
-          </SerifText>
-        </View>
-        <View style={[styles.apiRow, styles.rowBorder]}>
-          <Text style={styles.rowTitle}>{t('settings.geminiApi')}</Text>
-          <SerifText size={15} weight="semibold" style={styles.apiValue}>
-            {t('settings.usageToday', {
-              today: geminiToday,
-              allTime: geminiTotal,
-            })}
-          </SerifText>
-        </View>
+      {advancedUnlocked ? (
+        <SettingsSection title={t('settings.sectionAdvanced')}>
+          <SettingsRow
+            title={t('settings.importShared')}
+          subtitle={t('settings.importSharedSubtitle')}
+          icon={{
+            ios: 'square.and.arrow.down',
+            android: 'download',
+            web: 'download',
+          }}
+          showChevron
+          onPress={() => {
+            void pickSharePackage();
+          }}
+        />
+        <SettingsRow
+          title={t('settings.mapsSdk')}
+          icon={{ ios: 'map.fill', android: 'map', web: 'map' }}
+          trailing={
+            <SerifText size={15} weight="semibold" style={styles.apiValue}>
+              {t('settings.usageToday', {
+                today: mapsToday,
+                allTime: mapsTotal,
+              })}
+            </SerifText>
+          }
+        />
+        <SettingsRow
+          title={t('settings.placesApi')}
+          icon={{ ios: 'mappin.and.ellipse', android: 'place', web: 'place' }}
+          trailing={
+            <SerifText size={15} weight="semibold" style={styles.apiValue}>
+              {t('settings.usageToday', {
+                today: placesToday,
+                allTime: placesTotal,
+              })}
+            </SerifText>
+          }
+        />
+        <SettingsRow
+          title={t('settings.geminiApi')}
+          icon={{ ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' }}
+          iconTint="accent"
+          trailing={
+            <SerifText size={15} weight="semibold" style={styles.apiValue}>
+              {t('settings.usageToday', {
+                today: geminiToday,
+                allTime: geminiTotal,
+              })}
+            </SerifText>
+          }
+        />
         <SettingsRow
           title={t('settings.resetCounters')}
           icon={{
@@ -599,7 +623,8 @@ export default function SettingsScreen() {
             />
           </>
         ) : null}
-      </SettingsCollapsibleSection>
+        </SettingsSection>
+      ) : null}
 
       <Text
         style={styles.versionFooter}
@@ -616,14 +641,52 @@ export default function SettingsScreen() {
         onClose={() => setLanguagePickerOpen(false)}
         onSelect={setPreference}
       />
-    </ScrollView>
+      </ScrollView>
+
+      <View
+        pointerEvents="none"
+        style={[
+          styles.bottomSolid,
+          { height: Theme.spacing.floatingTabBarClearance + insets.bottom },
+        ]}
+      />
+      <View
+        pointerEvents="none"
+        style={[
+          styles.bottomFade,
+          { bottom: Theme.spacing.floatingTabBarClearance + insets.bottom },
+        ]}>
+        <LinearGradient
+          colors={['rgba(245, 240, 225, 0)', GustraColors.cream]}
+          style={StyleSheet.absoluteFill}
+        />
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screenWrap: {
+    flex: 1,
+    backgroundColor: GustraColors.cream,
+  },
   screen: {
     flex: 1,
     backgroundColor: GustraColors.cream,
+  },
+  /** Bottom fade over the floating tab bar (same as Reviews feed). */
+  bottomSolid: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: GustraColors.cream,
+  },
+  bottomFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: Theme.size.fab + 24,
   },
   content: {
     paddingHorizontal: Theme.spacing.listRowHorizontal,
@@ -639,20 +702,20 @@ const styles = StyleSheet.create({
     color: 'rgba(35, 32, 26, 0.45)',
   },
   reviewerBlock: {
-    paddingTop: 16,
-    paddingBottom: 8,
-    paddingHorizontal: 16,
-    gap: 14,
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
   },
   avatarWrap: {
     alignItems: 'center',
     gap: 8,
   },
   avatar: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: 'rgba(36, 78, 57, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -662,7 +725,11 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  photoHint: {
+  profileCopy: {
+    flex: 1,
+    gap: 8,
+  },
+  profileCaption: {
     ...captionTextStyle,
     fontSize: 12,
     color: 'rgba(35, 32, 26, 0.45)',
@@ -691,46 +758,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconSlot: {
-    width: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rowPad: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 13,
-    paddingHorizontal: 16,
-    minHeight: 48,
-  },
-  rowBorder: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(35, 32, 26, 0.1)',
-  },
-  copy: {
-    flex: 1,
-    gap: 2,
-  },
-  rowTitle: {
-    ...bodyTextStyle,
-    fontSize: 16,
-    color: GustraColors.ink,
-  },
-  rowSubtitle: {
-    ...captionTextStyle,
-    fontSize: 12,
-    color: 'rgba(35, 32, 26, 0.5)',
-  },
   secondaryValue: {
     ...bodyTextStyle,
     fontSize: 15,
     color: 'rgba(35, 32, 26, 0.5)',
-  },
-  apiRow: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    gap: 2,
   },
   apiValue: {
     color: GustraColors.forestGreen,
