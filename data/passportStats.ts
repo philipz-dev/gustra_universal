@@ -1,5 +1,7 @@
-import type { Restaurant, Review } from '@/data/types';
+import type { Restaurant, Review, WineLabelFiche } from '@/data/types';
 import { isReviewDraft } from '@/services/reviews/draftReview';
+import { wineLabelsForReview } from '@/services/wine/wineLabelTypes';
+import type { TimeMachineEntry } from '@/data/timeMachine';
 import {
   RatingValue,
   overallScoreFromCriteria,
@@ -10,6 +12,18 @@ export type BestRestaurantEntry = {
   title: string;
   reviewId: string;
   average: number;
+  /** Hero/feed photo for the #1 podium card (additive—optional for safety). */
+  photoUrl?: string;
+  /** Fallback tile color when no photo (additive—optional for safety). */
+  thumbnailColor?: string;
+};
+
+/** A top bottle: name + its user star rating (half-star 1…10). */
+export type BestWineEntry = {
+  fiche: WineLabelFiche;
+  reviewId: string;
+  /** Half-star steps 1…10 (use `RatingValue.starValue` → 0.5…5.0). */
+  rating: number;
 };
 
 export type CriterionAverage = {
@@ -29,6 +43,19 @@ export type PassportStats = {
   bestRestaurants: BestRestaurantEntry[];
   criterionAverages: CriterionAverage[];
   cityAverages: CityAverage[];
+};
+
+/** Per-year rollup for the Time Travel overview. */
+export type TimeTravelYearStats = {
+  year: number;
+  totalReviews: number;
+  averageScore: number;
+};
+
+export type TimeTravelStats = {
+  years: TimeTravelYearStats[];
+  totalAllTime: number;
+  averageAllTime: number;
 };
 
 export type EnabledCriterion = { id: string; title: string };
@@ -126,18 +153,28 @@ export function getPassportStats(
   const bestRestaurants: BestRestaurantEntry[] = Array.from(
     restaurantBuckets.entries(),
   )
-    .map(([restaurantId, bucket]) => {
-      const restaurant = restaurantById.get(restaurantId);
-      if (!restaurant) return null;
-      const average =
-        bucket.scores.reduce((a, b) => a + b, 0) / bucket.scores.length;
-      return {
-        restaurantId,
-        title: displayLocation(restaurant.name, restaurant.city),
-        reviewId: bucket.newestReviewId,
-        average,
-      };
-    })
+    .map(
+      (
+        [restaurantId, bucket]: [
+          string,
+          { scores: number[]; newestReviewId: string; newestAt: number },
+        ],
+      ): BestRestaurantEntry | null => {
+        const restaurant = restaurantById.get(restaurantId);
+        if (!restaurant) return null;
+        const average =
+          bucket.scores.reduce((a, b) => a + b, 0) / bucket.scores.length;
+        return {
+          restaurantId,
+          title: displayLocation(restaurant.name, restaurant.city),
+          reviewId: bucket.newestReviewId,
+          average,
+          // Additive: feed/detail photo so the #1 podium can show a hero image.
+          photoUrl: restaurant.photoUrl?.trim() ? restaurant.photoUrl : undefined,
+          thumbnailColor: restaurant.thumbnailColor || undefined,
+        };
+      },
+    )
     .filter((e): e is BestRestaurantEntry => e !== null)
     .sort((a, b) => {
       if (b.average !== a.average) return b.average - a.average;
@@ -173,4 +210,68 @@ export function getPassportStats(
     criterionAverages: criterionAveragesFromReviews(reviews, enabledCriteria),
     cityAverages,
   };
+}
+
+/**
+ * Per-year rollups over the Time Travel timeline (newest year first).
+ * Entries are already filtered (non-draft, own + imported) and sorted
+ * newest-first by buildTimeMachineEntries.
+ */
+export function getTimeTravelStats(
+  entries: TimeMachineEntry[],
+): TimeTravelStats {
+  if (entries.length === 0) {
+    return { years: [], totalAllTime: 0, averageAllTime: 0 };
+  }
+
+  const yearBuckets = new Map<number, number[]>();
+  for (const entry of entries) {
+    const year = new Date(entry.date).getFullYear();
+    if (!Number.isFinite(year)) continue;
+    const list = yearBuckets.get(year) ?? [];
+    list.push(entry.score);
+    yearBuckets.set(year, list);
+  }
+
+  const years = Array.from(yearBuckets.entries())
+    .map(([year, scores]) => ({
+      year,
+      totalReviews: scores.length,
+      averageScore: scores.reduce((a, b) => a + b, 0) / scores.length,
+    }))
+    .sort((a, b) => b.year - a.year);
+
+  const totalAllTime = years.reduce((sum, y) => sum + y.totalReviews, 0);
+  const averageAllTime =
+    totalAllTime === 0
+      ? 0
+      : years.reduce((sum, y) => sum + y.averageScore * y.totalReviews, 0) /
+        totalAllTime;
+
+  return { years, totalAllTime, averageAllTime };
+}
+
+const TOP_WINES = 3;
+
+/**
+ * Top bottles by their own user rating (half-star 1…10), across the filtered
+ * review set. Not an average per review — each rated bottle is ranked
+ * individually. Sorted best first, then by newest review date as a tiebreaker.
+ * Empty when no bottle has been star-rated (UI hides the section entirely).
+ */
+export function getBestWines(sourceReviews: Review[]): BestWineEntry[] {
+  const candidates: BestWineEntry[] = [];
+
+  for (const review of sourceReviews) {
+    if (isReviewDraft(review)) continue;
+    for (const fiche of wineLabelsForReview(review)) {
+      const rating = fiche.userRating ?? RatingValue.unrated;
+      if (!RatingValue.isStarRating(rating)) continue;
+      candidates.push({ fiche, reviewId: review.id, rating });
+    }
+  }
+
+  return candidates
+    .sort((a, b) => b.rating - a.rating)
+    .slice(0, TOP_WINES);
 }
