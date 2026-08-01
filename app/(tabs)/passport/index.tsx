@@ -598,7 +598,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 14,
     minHeight: 132,
-    padding: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 18,
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
@@ -633,10 +634,14 @@ const styles = StyleSheet.create({
   },
   podiumHeroCopy: {
     flex: 1,
-    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 12,
   },
   podiumHeroTitle: {
     ...serifStyle(22, 'bold'),
+    flex: 1,
     color: '#FFFFFF',
     textShadowColor: 'rgba(0, 0, 0, 0.4)',
     textShadowOffset: { width: 0, height: 1 },
@@ -648,7 +653,6 @@ const styles = StyleSheet.create({
   },
   /** Frosted pill so "5/5" stays readable on any photo. */
   podiumHeroScoreBadge: {
-    alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
@@ -692,21 +696,22 @@ const styles = StyleSheet.create({
 
   /* ——— Rank medal ——— */
   medal: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: GustraColors.gold,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(217, 162, 39, 0.26)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(217, 162, 39, 0.85)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000000',
-    shadowOpacity: 0.35,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    shadowOpacity: 0.16,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
   },
   medalText: {
     ...serifStyle(15, 'bold'),
-    color: '#FFFFFF',
+    color: GustraColors.gold,
     fontVariant: ['tabular-nums'],
   },
 
