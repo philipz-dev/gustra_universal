@@ -82,7 +82,6 @@ export function ReviewWinesSection({
       </View>
     );
   }
-
   return (
     <View
       style={[styles.winesBlock, richWines && styles.winesBlockRich]}>
@@ -97,10 +96,10 @@ export function ReviewWinesSection({
 
 const styles = StyleSheet.create({
   panel: {
-    backgroundColor: GustraColors.bubble,
+    backgroundColor: 'rgba(236, 227, 207, 0.5)',
     borderRadius: Theme.radius.xl,
-    paddingTop: 12,
-    paddingBottom: 4,
+    paddingTop: 14,
+    paddingBottom: 6,
     overflow: 'hidden',
   },
   panelHeading: {
@@ -109,9 +108,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
-    color: 'rgba(36, 78, 57, 0.7)',
-    paddingHorizontal: 14,
-    marginBottom: 4,
+    color: 'rgba(36, 78, 57, 0.65)',
+    paddingHorizontal: 16,
+    marginBottom: 6,
   },
   winesBlock: {
     marginTop: 10,

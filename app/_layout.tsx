@@ -37,6 +37,7 @@ import { HouseAlertHost } from '@/components/ui/HouseAlert';
 import { HouseUndoSnackbarHost } from '@/components/ui/HouseUndoSnackbar';
 import { GustraColors } from '@/constants/Colors';
 import { CriteriaSettingsProvider } from '@/context/CriteriaSettings';
+import { DemoLabelSettingsProvider } from '@/context/DemoLabelSettings';
 import { FeedFilterProvider } from '@/context/FeedFilterContext';
 import { GoogleApiTrackerProvider } from '@/context/GoogleApiTracker';
 import { LanguageSettingsProvider } from '@/context/LanguageSettings';
@@ -154,6 +155,7 @@ function RootLayout() {
     <GestureHandlerRootView style={styles.root}>
       <LanguageSettingsProvider>
         <CriteriaSettingsProvider>
+          <DemoLabelSettingsProvider>
           <PassportDisplaySettingsProvider>
             <PhotoQualitySettingsProvider>
               <GoogleApiTrackerProvider>
@@ -203,6 +205,7 @@ function RootLayout() {
               </GoogleApiTrackerProvider>
             </PhotoQualitySettingsProvider>
           </PassportDisplaySettingsProvider>
+          </DemoLabelSettingsProvider>
         </CriteriaSettingsProvider>
       </LanguageSettingsProvider>
     </GestureHandlerRootView>

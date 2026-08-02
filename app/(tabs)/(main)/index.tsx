@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { SymbolView } from 'expo-symbols';
 
 import { houseAlert } from '@/components/ui/HouseAlert';
@@ -18,6 +17,7 @@ import { HouseErrorBoundary } from '@/components/ui/HouseErrorBoundary';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseFAB } from '@/components/ui/HouseFAB';
 import { ReviewsHeader } from '@/components/ui/ReviewsHeader';
+import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, bodyTextStyle } from '@/constants/Theme';
 import { useReviewerProfile } from '@/context/ReviewerProfile';
@@ -461,33 +461,7 @@ function ReviewsFeedContent() {
             )}
           />
         )}
-        <View
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height:
-              Theme.spacing.floatingTabBarClearance + insets.bottom,
-            backgroundColor: GustraColors.cream,
-          }}
-        />
-        <View
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom:
-              Theme.spacing.floatingTabBarClearance + insets.bottom,
-            height: Theme.size.fab + 24,
-          }}>
-          <LinearGradient
-            colors={['rgba(245, 240, 225, 0)', GustraColors.cream]}
-            style={StyleSheet.absoluteFill}
-          />
-        </View>
+        <TabBarBottomFade />
         {!isShareSelecting ? (
           <HouseFAB
             collapsable={false}
@@ -495,7 +469,7 @@ function ReviewsFeedContent() {
               bottom:
                 Theme.spacing.floatingTabBarClearance +
                 insets.bottom +
-                24,
+                Theme.spacing.fabClearance,
             }}
             onPress={() => router.push('/add-review')}
           />

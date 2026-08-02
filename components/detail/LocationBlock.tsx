@@ -41,8 +41,7 @@ export function LocationBlock({
   if (compact) {
     return (
       <View style={styles.sectionCompact}>
-        <View style={styles.accentRule} />
-        <SerifText size={17} weight="bold" style={styles.title}>
+        <SerifText size={17} weight="semibold" style={styles.titleCompact}>
           {t('detail.location.title')}
         </SerifText>
         <View style={styles.compactStack}>
@@ -208,6 +207,10 @@ const styles = StyleSheet.create({
   },
   title: {
     color: GustraColors.ink,
+  },
+  titleCompact: {
+    color: GustraColors.ink,
+    fontSize: 16,
   },
   row: {
     flexDirection: 'row',

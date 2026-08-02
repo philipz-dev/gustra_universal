@@ -21,9 +21,9 @@ import { PhotoViewerModal } from '@/components/detail/photoViewer/PhotoViewerMod
 import { RestaurantMapViewer } from '@/components/detail/RestaurantMapViewer';
 import { ReviewWinesSection } from '@/components/detail/ReviewWinesSection';
 import { FavoriteHeartButton } from '@/components/ui/FavoriteHeartButton';
+import { HouseFAB } from '@/components/ui/HouseFAB';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
-import { HousePrimaryButton } from '@/components/ui/HousePrimaryButton';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
@@ -33,7 +33,7 @@ import { SERIF_FONT, Theme } from '@/constants/Theme';
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewerProfile } from '@/context/ReviewerProfile';
 import { useReviewsStore } from '@/context/ReviewsStore';
-import { formatReviewDate } from '@/data/mockReviews';
+import { formatReviewDate, isDemoReviewId } from '@/data/mockReviews';
 import {
   resolveReviewOrigin,
   resolveReviewerAvatarUri,
@@ -96,8 +96,12 @@ export default function ReviewDetailScreen() {
     () => new Set(),
   );
 
-  const bottomPad =
-    Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
+  // FAB sits at the standard clearance above the tab bar; content must always
+  // stop *above* the FAB (bottomPad = FAB top + FAB height + breathing room)
+  // so the plus button never covers the location row or other last content.
+  const fabBottom =
+    Theme.spacing.floatingTabBarClearance + insets.bottom + Theme.spacing.fabClearance;
+  const bottomPad = fabBottom + Theme.size.fab + 16;
 
   const reviewerPhotoRaw = review
     ? resolveReviewerAvatarUri(review, photoUri)
@@ -199,7 +203,7 @@ export default function ReviewDetailScreen() {
   );
 
   const reviewerRow =
-    review?.reviewedBy ? (
+    review?.reviewedBy && !isDemoReviewId(review.id) ? (
       <View
         style={[
           styles.reviewedBy,
@@ -281,7 +285,8 @@ export default function ReviewDetailScreen() {
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]}
         overScrollMode="never"
-        nestedScrollEnabled>
+        nestedScrollEnabled
+        showsVerticalScrollIndicator={false}>
         <HeroPhotoPager
           key={photoUris.join('|') || 'empty'}
           uris={photoUris}
@@ -297,15 +302,6 @@ export default function ReviewDetailScreen() {
             setShowPhotoViewer(true);
           }}
         />
-
-        {!isFriendReview && visitCount < 2 ? (
-          <View style={styles.recordVisitContainer}>
-            <HousePrimaryButton
-              title={t('detail.options.recordVisit')}
-              onPress={openAddReview}
-            />
-          </View>
-        ) : null}
 
         <View style={[styles.content, polished && styles.contentPolished, { paddingTop: 8 }]}>
           <View style={[styles.header, polished && styles.headerPolished]}>
@@ -437,6 +433,14 @@ export default function ReviewDetailScreen() {
         onClose={() => setShowMap(false)}
       />
 
+      {!isFriendReview && visitCount < 2 ? (
+        <HouseFAB
+          collapsable={false}
+          style={{ bottom: fabBottom }}
+          onPress={openAddReview}
+        />
+      ) : null}
+
     </View>
   );
 }
@@ -452,7 +456,7 @@ const styles = StyleSheet.create({
     gap: Theme.spacing.detailSection,
   },
   contentPolished: {
-    gap: 16,
+    gap: 22,
   },
   headerActions: {
     flexDirection: 'row',
@@ -462,13 +466,13 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   headerPolished: {
-    gap: 8,
+    gap: 14,
     marginBottom: 4,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 8,
+    gap: 12,
   },
   titleBlock: {
     flex: 1,
@@ -477,22 +481,21 @@ const styles = StyleSheet.create({
   },
   restaurantName: {
     color: GustraColors.forestGreen,
+    lineHeight: 28,
   },
   scoreRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    alignSelf: 'flex-start',
     gap: 10,
-    // Match FavoriteHeartButton hit padding so `/5` lines up with the heart glyph.
-    paddingRight: 2,
   },
   score: {
     color: GustraColors.forestGreen,
     fontVariant: ['tabular-nums'],
   },
   date: {
-    fontSize: 14,
-    color: 'rgba(35, 32, 26, 0.6)',
+    fontSize: 13,
+    color: 'rgba(35, 32, 26, 0.55)',
   },
   divider: {
     height: StyleSheet.hairlineWidth,
@@ -506,24 +509,24 @@ const styles = StyleSheet.create({
     color: GustraColors.ink,
   },
   quoteBlock: {
-    gap: 4,
-    paddingLeft: 4,
+    gap: 6,
+    paddingLeft: 6,
     borderLeftWidth: 2,
-    borderLeftColor: 'rgba(36, 78, 57, 0.28)',
+    borderLeftColor: 'rgba(36, 78, 57, 0.22)',
     paddingVertical: 2,
   },
   quoteMark: {
     fontFamily: SERIF_FONT,
-    fontSize: 28,
-    lineHeight: 28,
-    color: 'rgba(36, 78, 57, 0.35)',
-    marginBottom: -8,
+    fontSize: 24,
+    lineHeight: 24,
+    color: 'rgba(36, 78, 57, 0.3)',
+    marginBottom: -6,
   },
   quoteText: {
     fontFamily: SERIF_FONT,
     fontSize: 17,
-    lineHeight: 26,
-    color: 'rgba(35, 32, 26, 0.82)',
+    lineHeight: 27,
+    color: 'rgba(35, 32, 26, 0.8)',
   },
   reviewedBy: {
     flexDirection: 'row',
@@ -569,10 +572,5 @@ const styles = StyleSheet.create({
   reviewedByLabel: {
     fontSize: 13,
     color: 'rgba(35, 32, 26, 0.6)',
-  },
-  recordVisitContainer: {
-    paddingHorizontal: Theme.spacing.detailContent,
-    paddingTop: 16,
-    paddingBottom: 4,
   },
 });

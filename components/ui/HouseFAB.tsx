@@ -61,6 +61,10 @@ const styles = StyleSheet.create({
     backgroundColor: GustraColors.forestGreen,
     alignItems: 'center',
     justifyContent: 'center',
+    // Thin contrasting rim — lifts the pill visually off the cream surface
+    // (HIG floating button). A subtle lighter edge reads as a glass highlight.
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.45)',
     zIndex: 100,
     elevation: 16,
   },

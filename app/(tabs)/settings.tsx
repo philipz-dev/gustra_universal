@@ -11,7 +11,6 @@ import {
   View,
 } from 'react-native';
 import Constants from 'expo-constants';
-import { LinearGradient } from 'expo-linear-gradient';
 import { SymbolView } from 'expo-symbols';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,12 +22,14 @@ import { houseAlert } from '@/components/ui/HouseAlert';
 import { GustraSwitch } from '@/components/ui/GustraSwitch';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
+import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
 import { GustraColors } from '@/constants/Colors';
 import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { SERIF_FONT, Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useGoogleApiTracker } from '@/context/GoogleApiTracker';
 import { useLanguageSettings } from '@/context/LanguageSettings';
 import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
+import { useDemoLabelSettings } from '@/context/DemoLabelSettings';
 import { usePassportDisplaySettings } from '@/context/PassportDisplaySettings';
 import { usePhotoQualitySettings } from '@/context/PhotoQualitySettings';
 import {
@@ -94,6 +95,7 @@ export default function SettingsScreen() {
   } = useGoogleApiTracker();
   const { name, photoUri, hasPhoto, updateName, ready, syncPhotoFromDisk } =
     useReviewerProfile();
+  const { showDemoLabel, setShowDemoLabel } = useDemoLabelSettings();
   const { reviews, restaurants, importSwiftLegacyData, demoShowcaseEnabled, setDemoShowcaseEnabled } =
     useReviewsStore();
   const { reopenCriteriaSetupForDev } = useCriteriaSettings();
@@ -541,6 +543,26 @@ export default function SettingsScreen() {
           isLast={Platform.OS !== 'ios' && !__DEV__}
           onPress={confirmResetCounters}
         />
+        <SettingsRow
+          title={t('settings.demoLabel')}
+          subtitle={
+            showDemoLabel
+              ? t('settings.demoLabelOn')
+              : t('settings.demoLabelOff')
+          }
+          icon={{ ios: 'tag', android: 'tag', web: 'tag' }}
+          iconTint="accent"
+          isLast={Platform.OS !== 'ios'}
+          trailing={
+            <GustraSwitch
+              value={showDemoLabel}
+              onValueChange={(next) => {
+                Haptics.selectionChanged();
+                setShowDemoLabel(next);
+              }}
+            />
+          }
+        />
         {Platform.OS === 'ios' ? (
           <SettingsRow
             title={t('settings.recoverPrevious')}
@@ -628,24 +650,7 @@ export default function SettingsScreen() {
       />
       </ScrollView>
 
-      <View
-        pointerEvents="none"
-        style={[
-          styles.bottomSolid,
-          { height: Theme.spacing.floatingTabBarClearance + insets.bottom },
-        ]}
-      />
-      <View
-        pointerEvents="none"
-        style={[
-          styles.bottomFade,
-          { bottom: Theme.spacing.floatingTabBarClearance + insets.bottom },
-        ]}>
-        <LinearGradient
-          colors={['rgba(245, 240, 225, 0)', GustraColors.cream]}
-          style={StyleSheet.absoluteFill}
-        />
-      </View>
+      <TabBarBottomFade />
     </View>
   );
 }
@@ -659,20 +664,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: GustraColors.cream,
   },
-  /** Bottom fade over the floating tab bar (same as Reviews feed). */
-  bottomSolid: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: GustraColors.cream,
-  },
-  bottomFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: Theme.size.fab + 24,
-  },
+  /** Bottom fade over the floating tab bar — see TabBarBottomFade. */
   content: {
     paddingHorizontal: Theme.spacing.listRowHorizontal,
     paddingTop: 16,

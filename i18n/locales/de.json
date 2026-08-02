@@ -93,6 +93,7 @@
       "addReview": "Bewertung hinzufügen"
     },
     "draftLabel": "Draft",
+    "demoLabel": "Demo",
     "visitedBefore_one": "Bereits 1 Mal besucht",
     "visitedBefore_other": "Bereits {{count}} Mal besucht"
   },
@@ -191,6 +192,9 @@
     "demoShowcaseOn": "Sechs fiktive Restaurants mit Fotos und Weinfiches",
     "demoShowcaseOff": "Aus — es werden nur deine echten Bewertungen gezeigt",
     "demoShowcaseShareBlocked": "Beispielbewertungen dienen nur zum Erkunden von Gustra und können nicht geteilt werden.",
+    "demoLabel": "Demo-Label",
+    "demoLabelOn": "Bei Beispielbewertungen gezeigt",
+    "demoLabelOff": "Ausgeblendet — für saubere Screenshots",
     "sectionStorage": "Speicher",
     "sectionData": "Daten & Backup",
     "sectionGoogle": "Google-API-Nutzung",

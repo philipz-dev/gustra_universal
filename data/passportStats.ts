@@ -26,12 +26,6 @@ export type BestWineEntry = {
   rating: number;
 };
 
-export type CriterionAverage = {
-  id: string;
-  title: string;
-  average: number;
-};
-
 export type CityAverage = {
   city: string;
   average: number;
@@ -41,7 +35,6 @@ export type PassportStats = {
   totalReviews: number;
   averageOverall: number;
   bestRestaurants: BestRestaurantEntry[];
-  criterionAverages: CriterionAverage[];
   cityAverages: CityAverage[];
 };
 
@@ -73,28 +66,6 @@ function scoreForEnabled(review: Review, enabledIds: Set<string>): number {
   );
 }
 
-function criterionAveragesFromReviews(
-  reviews: Review[],
-  enabled: EnabledCriterion[],
-): CriterionAverage[] {
-  return enabled
-    .map((criterion) => {
-      const values = reviews
-        .map(
-          (r) => r.criteria.find((c) => c.id === criterion.id)?.rating ?? 0,
-        )
-        .filter((rating) => RatingValue.isStarRating(rating))
-        .map((rating) => RatingValue.starValue(rating));
-      if (values.length === 0) return null;
-      return {
-        id: criterion.id,
-        title: criterion.title,
-        average: values.reduce((a, b) => a + b, 0) / values.length,
-      };
-    })
-    .filter((row): row is CriterionAverage => row !== null);
-}
-
 /** Passport stats over the (already filtered) review set. */
 export function getPassportStats(
   enabledCriteria: EnabledCriterion[],
@@ -114,7 +85,6 @@ export function getPassportStats(
       totalReviews: 0,
       averageOverall: 0,
       bestRestaurants: [],
-      criterionAverages: [],
       cityAverages: [],
     };
   }
@@ -207,7 +177,6 @@ export function getPassportStats(
     totalReviews,
     averageOverall,
     bestRestaurants,
-    criterionAverages: criterionAveragesFromReviews(reviews, enabledCriteria),
     cityAverages,
   };
 }

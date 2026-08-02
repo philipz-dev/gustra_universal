@@ -15,6 +15,8 @@ module.exports = {
     '^@/i18n$': '<rootDir>/__mocks__/i18n.ts',
     // expo-localization ships Metro-compiled ESM; stub it out entirely.
     '^expo-localization$': '<rootDir>/__mocks__/expo-localization.ts',
+    // expo-file-system/legacy needs native FileSystem; stub the subset used.
+    '^expo-file-system/legacy$': '<rootDir>/__mocks__/expo-file-system-legacy.ts',
     // ESM-only noble packages → native node crypto equivalents.
     '^@noble/ciphers/aes\\.js$': '<rootDir>/__mocks__/noble-ciphers-aes.js',
     '^@noble/ciphers/utils\\.js$': '<rootDir>/__mocks__/noble-ciphers-utils.js',

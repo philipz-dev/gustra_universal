@@ -16,6 +16,7 @@ import { SelectedRestaurantBanner } from '@/components/review/SelectedRestaurant
 import { SelectionCheckmark } from '@/components/review/SelectionCheckmark';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
+import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useReviewsStore } from '@/context/ReviewsStore';
@@ -324,6 +325,8 @@ export default function NearbyRestaurantsScreen() {
           }}
         />
       )}
+
+      <TabBarBottomFade />
     </View>
   );
 }

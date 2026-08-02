@@ -73,6 +73,7 @@
   "reviews": {
     "searchPlaceholder": "Search restaurants, comments, photos…",
     "draftLabel": "Draft",
+    "demoLabel": "Demo",
     "visitedBefore_one": "Visited once before",
     "visitedBefore_other": "Visited {{count}} times before",
     "visitCount_one": "{{count}} visit · {{date}}",
@@ -191,6 +192,9 @@
     "demoShowcaseOn": "Six fictional restaurants with photos and wine fiches",
     "demoShowcaseOff": "Off — only your real reviews are shown",
     "demoShowcaseShareBlocked": "Sample reviews are for exploring Gustra only and can’t be shared.",
+    "demoLabel": "Demo label",
+    "demoLabelOn": "Shown on sample reviews",
+    "demoLabelOff": "Hidden — for clean screenshots",
     "sectionStorage": "Storage",
     "sectionData": "Data & backup",
     "sectionGoogle": "Google API usage",

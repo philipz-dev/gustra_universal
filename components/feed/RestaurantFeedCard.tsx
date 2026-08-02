@@ -15,7 +15,9 @@ import {
   Theme,
   Type,
 } from '@/constants/Theme';
+import { useDemoLabelSettings } from '@/context/DemoLabelSettings';
 import type { RestaurantVisitSummary } from '@/data/types';
+import { isDemoRestaurantId } from '@/data/mockReviews';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { Haptics } from '@/services/haptics';
 import { formatScoreOutOfFive } from '@/services/reviews/ratings';
@@ -47,7 +49,9 @@ export function RestaurantFeedCard({
   onSelectToggle,
 }: RestaurantFeedCardProps) {
   const { t } = useAppTranslation();
+  const { showDemoLabel } = useDemoLabelSettings();
   const isDraft = Boolean(summary.isDraft);
+  const isDemo = isDemoRestaurantId(summary.restaurantId);
   const displayScore =
     typeof scoreOverride === 'number' ? scoreOverride : summary.averageScore;
 
@@ -94,7 +98,7 @@ export function RestaurantFeedCard({
                 date: summary.lastVisitDate,
               })}
         </Text>
-        {summary.reviewerName ? (
+        {summary.reviewerName && !isDemo ? (
           <Text style={styles.reviewer}>
             {t('detail.review.reviewedBy', { name: summary.reviewerName })}
           </Text>
@@ -114,10 +118,17 @@ export function RestaurantFeedCard({
               </SerifText>
             ) : null}
             {!shareSelecting ? (
-              <FavoriteHeartButton
-                favorite={summary.isFavorite}
-                onToggle={onFavoriteToggle}
-              />
+              <>
+                <FavoriteHeartButton
+                  favorite={summary.isFavorite}
+                  onToggle={onFavoriteToggle}
+                />
+                {isDemo && showDemoLabel ? (
+                  <View style={styles.demoPill}>
+                    <Text style={styles.demoPillText}>{t('reviews.demoLabel')}</Text>
+                  </View>
+                ) : null}
+              </>
             ) : null}
           </>
         )}
@@ -220,6 +231,22 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: 'rgba(199, 71, 66, 0.85)',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  demoPill: {
+    backgroundColor: 'rgba(217, 162, 39, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(217, 162, 39, 0.4)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    alignSelf: 'flex-end',
+  },
+  demoPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(176, 121, 18, 0.95)',
     textTransform: 'uppercase',
     letterSpacing: 1.2,
   },

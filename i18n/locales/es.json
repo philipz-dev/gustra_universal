@@ -93,6 +93,7 @@
       "addReview": "Añadir reseña"
     },
     "draftLabel": "Draft",
+    "demoLabel": "Demo",
     "visitedBefore_one": "Visitado 1 vez",
     "visitedBefore_other": "Visitado {{count}} veces"
   },
@@ -191,6 +192,9 @@
     "demoShowcaseOn": "Seis restaurantes ficticios con fotos y fichas de vino",
     "demoShowcaseOff": "Desactivado — solo se muestran tus reseñas reales",
     "demoShowcaseShareBlocked": "Las reseñas de ejemplo son solo para explorar Gustra y no se pueden compartir.",
+    "demoLabel": "Etiqueta Demo",
+    "demoLabelOn": "Mostrada en reseñas de ejemplo",
+    "demoLabelOff": "Oculta — para capturas limpias",
     "sectionStorage": "Almacenamiento",
     "sectionData": "Datos y copia de seguridad",
     "sectionGoogle": "Uso de la API de Google",

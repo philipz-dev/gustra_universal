@@ -1,8 +1,8 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-08-01T23:04:34Z
+Generated: 2026-08-02T10:08:40Z
 Root: /Users/philipzvar/Desktop/gustra_universal
-Files: 238
+Files: 243
 ================================================================================
 
 ================================================================================
@@ -53,6 +53,74 @@ User-facing strings must be translated in **all** locales (`en`, `nl`, `fr`, `es
 FILE: CLAUDE.md
 ================================================================================
 @AGENTS.md
+
+
+================================================================================
+FILE: __mocks__/expo-file-system-legacy.ts
+================================================================================
+/**
+ * Minimal `expo-file-system/legacy` mock for pure-logic Jest tests.
+ * Only what `services/backup/photos.ts` and `services/photos/orphanCleanup.ts`
+ * touch at import time: `documentDirectory` and the `getInfoAsync` helper.
+ * The mock also exposes `__mockFile` / `__resetMockFiles` test helpers.
+ */
+const EXISTING_FILES = new Set<string>();
+
+export const documentDirectory = '/mock/documents/';
+
+export async function getInfoAsync(
+  uri: string,
+): Promise<{ exists: boolean; isDirectory: boolean }> {
+  const path = uri.replace('file://', '');
+  return {
+    exists: EXISTING_FILES.has(path),
+    isDirectory: false,
+  };
+}
+
+export async function readDirectoryAsync(_dir: string): Promise<string[]> {
+  return [];
+}
+
+export async function deleteAsync(_uri: string, _options?: unknown): Promise<void> {
+  return;
+}
+
+export async function makeDirectoryAsync(
+  _uri: string,
+  _options?: unknown,
+): Promise<void> {
+  return;
+}
+
+export async function readAsStringAsync(
+  _uri: string,
+  _options?: unknown,
+): Promise<string> {
+  return '';
+}
+
+export async function writeAsStringAsync(
+  _uri: string,
+  _content: string,
+  _options?: unknown,
+): Promise<void> {
+  return;
+}
+
+export const EncodingType = {
+  Base64: 'base64',
+  UTF8: 'utf8',
+};
+
+/** Test helper — mark a file as present on the fake disk. */
+export function __mockFile(path: string): void {
+  EXISTING_FILES.add(path.replace('file://', ''));
+}
+
+export function __resetMockFiles(): void {
+  EXISTING_FILES.clear();
+}
 
 
 ================================================================================
@@ -373,6 +441,136 @@ describe('wineNeedsRating', () => {
 
 
 ================================================================================
+FILE: __tests__/expo-file-system-legacy.d.ts
+================================================================================
+/**
+ * Ambient types for the `expo-file-system/legacy` Jest mock
+ * (see `jest.config.js` moduleNameMapper + `__mocks__/expo-file-system-legacy.ts`).
+ */
+declare module 'expo-file-system/legacy' {
+  export const documentDirectory: string;
+  export function getInfoAsync(
+    uri: string,
+  ): Promise<{ exists: boolean; isDirectory: boolean }>;
+  export function readDirectoryAsync(dir: string): Promise<string[]>;
+  export function deleteAsync(
+    uri: string,
+    options?: { idempotent?: boolean },
+  ): Promise<void>;
+  export function makeDirectoryAsync(
+    uri: string,
+    options?: { intermediates?: boolean },
+  ): Promise<void>;
+  export function readAsStringAsync(
+    uri: string,
+    options?: { encoding?: string },
+  ): Promise<string>;
+  export function writeAsStringAsync(
+    uri: string,
+    content: string,
+    options?: { encoding?: string },
+  ): Promise<void>;
+  export const EncodingType: { Base64: string; UTF8: string };
+  export function __mockFile(path: string): void;
+  export function __resetMockFiles(): void;
+}
+
+
+================================================================================
+FILE: __tests__/orphanCleanup.test.ts
+================================================================================
+import { __mockFile, __resetMockFiles } from 'expo-file-system/legacy';
+
+import { pruneBrokenPhotoRefs } from '@/services/photos/orphanCleanup';
+import type { Restaurant, Review } from '@/data/types';
+
+function review(id: string, restaurantId: string, photoUrls: string[]): Review {
+  return {
+    id,
+    restaurantId,
+    date: '2024-06-01',
+    generalComment: '',
+    criteria: [],
+    photoUrls,
+    reviewedBy: '',
+    overallScore: 0,
+    origin: 'own',
+  };
+}
+
+function restaurant(id: string, name: string, photoUrl: string): Restaurant {
+  return {
+    id,
+    name,
+    city: 'Gent',
+    country: 'BE',
+    address: 'Straat 1',
+    latitude: 51,
+    longitude: 4,
+    primaryType: 'restaurant',
+    isFavorite: false,
+    thumbnailColor: '#3D6B52',
+    photoUrl,
+  };
+}
+
+beforeEach(() => {
+  __resetMockFiles();
+});
+
+describe('pruneBrokenPhotoRefs', () => {
+  it('keeps existing local photos and remote URLs', async () => {
+    __mockFile('/mock/documents/Photos/a.jpg');
+    __mockFile('/mock/documents/Photos/b.jpg');
+    const result = await pruneBrokenPhotoRefs({
+      reviews: [
+        review('r1', 'x', [
+          'file:///mock/documents/Photos/a.jpg',
+          'https://example.com/demo.jpg',
+        ]),
+      ],
+      restaurants: [],
+    });
+    expect(result.removedRefs).toBe(0);
+    expect(result.reviews[0]!.photoUrls).toEqual([
+      'file:///mock/documents/Photos/a.jpg',
+      'https://example.com/demo.jpg',
+    ]);
+  });
+
+  it('drops local refs whose file is missing, but keeps remote demo URLs', async () => {
+    __mockFile('/mock/documents/Photos/keep.jpg');
+    const result = await pruneBrokenPhotoRefs({
+      reviews: [
+        review('r1', 'x', [
+          'file:///mock/documents/Photos/missing.jpg',
+          'https://example.com/demo.jpg',
+          'file:///mock/documents/Photos/keep.jpg',
+        ]),
+      ],
+      restaurants: [],
+    });
+    expect(result.removedRefs).toBe(1);
+    expect(result.reviews[0]!.photoUrls).toEqual([
+      'https://example.com/demo.jpg',
+      'file:///mock/documents/Photos/keep.jpg',
+    ]);
+  });
+
+  it('clears a restaurant cover whose file is gone', async () => {
+    const result = await pruneBrokenPhotoRefs({
+      reviews: [],
+      restaurants: [
+        restaurant('r1', 'Het Huis', 'file:///mock/documents/Photos/gone.jpg'),
+      ],
+    });
+    expect(result.removedRefs).toBe(1);
+    expect(result.restaurants[0]!.photoUrl).toBe('');
+  });
+});
+
+
+================================================================================
 FILE: __tests__/passportStats.test.ts
 ================================================================================
 import {
@@ -590,6 +788,92 @@ describe('buildTimeMachineEntries', () => {
       [],
     );
     expect(entries[0]!.restaurantTitle).toBe('—');
+  });
+
+  it('shows each visit its own cover photo only', () => {
+    const restaurants = [restaurant('r1', 'Het Huis', 'Gent')];
+    const reviews = [
+      review('a', 'r1', '2024-06-01', { food: 8 }), // no photo
+      review('b', 'r1', '2025-01-01', { food: 10 }, { photoUrls: ['file:///b.jpg'] }),
+    ];
+    const entries = buildTimeMachineEntries(reviews, restaurants);
+    // Newest visit (b) shows its own photo; the older visit (a) has no photo
+    // and stays empty — photos are never borrowed from other visits.
+    expect(entries[0]!.photoUrl).toBe('file:///b.jpg');
+    expect(entries[1]!.photoUrl).toBe('');
+  });
+
+  it('skips an empty first slot and uses the next real photo as cover', () => {
+    const restaurants = [restaurant('r1', 'Het Huis', 'Gent')];
+    const reviews = [
+      review('a', 'r1', '2024-06-01', { food: 8 }, {
+        photoUrls: ['', 'file:///second.jpg'],
+      }),
+    ];
+    const entries = buildTimeMachineEntries(reviews, restaurants);
+    // A blank first slot must not hide the real photo at index 1.
+    expect(entries[0]!.photoUrl).toBe('file:///second.jpg');
+  });
+
+  it('keeps each visit own photo regardless of other visits', () => {
+    const restaurants = [restaurant('r1', 'Het Huis', 'Gent')];
+    const reviews = [
+      review('a', 'r1', '2024-03-01', { food: 8 }, {
+        photoUrls: ['file:///oldest.jpg'],
+      }),
+      review('b', 'r1', '2024-06-01', { food: 9 }, {
+        photoUrls: ['file:///middle.jpg'],
+      }),
+      review('c', 'r1', '2025-01-01', { food: 10 }, {
+        photoUrls: ['file:///newest.jpg'],
+      }),
+    ];
+    const entries = buildTimeMachineEntries(reviews, restaurants);
+    // Every visit shows exactly its own cover photo.
+    expect(entries[0]!.photoUrl).toBe('file:///newest.jpg');
+    expect(entries[1]!.photoUrl).toBe('file:///middle.jpg');
+    expect(entries[2]!.photoUrl).toBe('file:///oldest.jpg');
+  });
+
+  it('leaves photo-less visits empty even when another visit has a photo', () => {
+    const restaurants = [restaurant('r1', 'Het Huis', 'Gent')];
+    const reviews = [
+      review('a', 'r1', '2024-03-01', { food: 8 }), // no photo
+      review('b', 'r1', '2024-06-01', { food: 9 }), // no photo
+      review('c', 'r1', '2025-01-01', { food: 10 }, {
+        photoUrls: ['file:///only.jpg'],
+      }),
+    ];
+    const entries = buildTimeMachineEntries(reviews, restaurants);
+    // Only the newest visit has a photo — the two older visits stay empty
+    // (green tile) instead of reusing that photo.
+    expect(entries[0]!.photoUrl).toBe('file:///only.jpg');
+    expect(entries[1]!.photoUrl).toBe('');
+    expect(entries[2]!.photoUrl).toBe('');
+  });
+
+  it('spreads a single visit with multiple photos across the other visits', () => {
+    const restaurants = [restaurant('r1', 'Dirty Habit', 'San Francisco')];
+    const reviews = [
+      review('a', 'r1', '2024-03-01', { food: 8 }), // no photo
+      review('b', 'r1', '2025-01-01', { food: 10 }, {
+        photoUrls: ['file:///newest.jpg', 'file:///second.jpg'],
+      }),
+    ];
+    const entries = buildTimeMachineEntries(reviews, restaurants);
+    // The newest visit keeps its own cover; the photo-less older visit is
+    // empty — no borrowing across visits.
+    expect(entries[0]!.photoUrl).toBe('file:///newest.jpg');
+    expect(entries[1]!.photoUrl).toBe('');
+  });
+
+  it('keeps an empty cover when no visit has a photo', () => {
+    const restaurants = [restaurant('r1', 'Het Huis', 'Gent')];
+    const entries = buildTimeMachineEntries(
+      [review('a', 'r1', '2024-06-01', { food: 8 })],
+      restaurants,
+    );
+    expect(entries[0]!.photoUrl).toBe('');
   });
 });
 
@@ -1043,7 +1327,6 @@ FILE: app/(tabs)/(main)/index.tsx
 ================================================================================
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { SymbolView } from 'expo-symbols';
 
 import { houseAlert } from '@/components/ui/HouseAlert';
@@ -1061,6 +1344,7 @@ import { HouseErrorBoundary } from '@/components/ui/HouseErrorBoundary';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseFAB } from '@/components/ui/HouseFAB';
 import { ReviewsHeader } from '@/components/ui/ReviewsHeader';
+import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, bodyTextStyle } from '@/constants/Theme';
 import { useReviewerProfile } from '@/context/ReviewerProfile';
@@ -1504,33 +1788,7 @@ function ReviewsFeedContent() {
             )}
           />
         )}
-        <View
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height:
-              Theme.spacing.floatingTabBarClearance + insets.bottom,
-            backgroundColor: GustraColors.cream,
-          }}
-        />
-        <View
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            bottom:
-              Theme.spacing.floatingTabBarClearance + insets.bottom,
-            height: Theme.size.fab + 24,
-          }}>
-          <LinearGradient
-            colors={['rgba(245, 240, 225, 0)', GustraColors.cream]}
-            style={StyleSheet.absoluteFill}
-          />
-        </View>
+        <TabBarBottomFade />
         {!isShareSelecting ? (
           <HouseFAB
             collapsable={false}
@@ -1538,7 +1796,7 @@ function ReviewsFeedContent() {
               bottom:
                 Theme.spacing.floatingTabBarClearance +
                 insets.bottom +
-                24,
+                Theme.spacing.fabClearance,
             }}
             onPress={() => router.push('/add-review')}
           />
@@ -2311,6 +2569,7 @@ import { SelectedRestaurantBanner } from '@/components/review/SelectedRestaurant
 import { SelectionCheckmark } from '@/components/review/SelectionCheckmark';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
+import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useReviewsStore } from '@/context/ReviewsStore';
@@ -2650,6 +2909,8 @@ export default function MapSearchScreen() {
           );
         }}
       />
+
+      <TabBarBottomFade />
     </View>
   );
 }
@@ -2795,6 +3056,7 @@ import { SelectedRestaurantBanner } from '@/components/review/SelectedRestaurant
 import { SelectionCheckmark } from '@/components/review/SelectionCheckmark';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
+import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useReviewsStore } from '@/context/ReviewsStore';
@@ -3103,6 +3365,8 @@ export default function NearbyRestaurantsScreen() {
           }}
         />
       )}
+
+      <TabBarBottomFade />
     </View>
   );
 }
@@ -3213,20 +3477,24 @@ const styles = StyleSheet.create({
 FILE: app/(tabs)/(main)/restaurant/[id].tsx
 ================================================================================
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { dismissOpenSwipeable } from '@/components/feed/openSwipeable';
-import { VisitRowCard } from '@/components/feed/VisitRowCard';
+import {
+  VisitTimelineCard,
+  type VisitTimelineEntry,
+} from '@/components/timeline/VisitTimelineCard';
+import { VisitTimeline } from '@/components/timeline/VisitTimeline';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
+import { HouseFAB } from '@/components/ui/HouseFAB';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
-import { HousePrimaryButton } from '@/components/ui/HousePrimaryButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
+import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
 import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle, Theme } from '@/constants/Theme';
-import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import type { Review, ReviewOrigin } from '@/data/types';
 import {
@@ -3248,8 +3516,20 @@ function displayLocation(name: string, city: string, country: string): string {
   return parts.join(', ');
 }
 
+function firstPhotoUrl(photoUrls: string[] | undefined): string {
+  if (!photoUrls?.length) return '';
+  for (const raw of photoUrls) {
+    const uri = raw?.trim();
+    if (uri) return uri;
+  }
+  return '';
+}
+
 /**
- * Chronological visits for one restaurant (Swift `RestaurantVisitsView`).
+ * Restaurant visits in the Time Travel look — one large cinematic card per
+ * visit (own cover photo or house-green fallback tile), a timeline rail with
+ * gold nodes, and the floating star badge bottom-right. The "Add new review"
+ * control is a collapsing extended FAB pinned at the Reviews-feed position.
  *
  * When rendered from the My Gustra stack the pathname starts with
  * `/passport/restaurant`, so review taps stay inside the passport stack and
@@ -3265,7 +3545,6 @@ export default function RestaurantVisitsScreen() {
   const pathname = usePathname();
   const inPassportStack = pathname.startsWith('/passport');
   const insets = useSafeAreaInsets();
-  const { enabledCriteria } = useCriteriaSettings();
   const { getRestaurant, getReviewsForRestaurant, deleteReview } =
     useReviewsStore();
   const origin = parseOrigin(originParam);
@@ -3274,9 +3553,26 @@ export default function RestaurantVisitsScreen() {
   const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(
     () => new Set(),
   );
+
   const visibleReviews = useMemo(
     () => reviews.filter((r) => !pendingDeleteIds.has(r.id)),
     [reviews, pendingDeleteIds],
+  );
+
+  const entries = useMemo<VisitTimelineEntry[]>(
+    () =>
+      visibleReviews.map((review) => ({
+        reviewId: review.id,
+        restaurantId: review.restaurantId,
+        restaurantTitle: restaurant
+          ? displayLocation(restaurant.name, restaurant.city, restaurant.country)
+          : '—',
+        date: review.date,
+        score: review.overallScore,
+        photoUrl: firstPhotoUrl(review.photoUrls),
+        thumbnailColor: restaurant?.thumbnailColor || '#3D6B52',
+      })),
+    [restaurant, visibleReviews],
   );
 
   const openAddReview = useCallback(() => {
@@ -3286,17 +3582,22 @@ export default function RestaurantVisitsScreen() {
       params: { restaurantId: id },
     });
   }, [id, router]);
-  const bottomPad =
-    Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
+
+  // FAB sits at the standard clearance above the tab bar; content must always
+  // stop *above* the FAB so the plus button never covers the last card.
+  const fabBottom =
+    Theme.spacing.floatingTabBarClearance + insets.bottom + Theme.spacing.fabClearance;
+  const bottomPad = fabBottom + Theme.size.fab + 16;
 
   const averageScore = useMemo(() => {
-    const enabledIds = new Set(enabledCriteria.map((c) => c.id));
     const scores = reviews
       .filter((review) => !isReviewDraft(review))
       .map((review) => {
         const rated = review.criteria
           .filter(
-            (c) => enabledIds.has(c.id) && RatingValue.isStarRating(c.rating),
+            (c) =>
+              c.rating !== undefined &&
+              RatingValue.isStarRating(c.rating),
           )
           .map((c) => RatingValue.starValue(c.rating));
         if (rated.length === 0) return review.overallScore;
@@ -3305,7 +3606,7 @@ export default function RestaurantVisitsScreen() {
       .filter((score) => score > 0);
     if (scores.length === 0) return 0;
     return scores.reduce((a, b) => a + b, 0) / scores.length;
-  }, [enabledCriteria, reviews]);
+  }, [reviews]);
 
   const confirmDeleteVisit = useCallback(
     (review: Review) => {
@@ -3353,6 +3654,24 @@ export default function RestaurantVisitsScreen() {
     [deleteReview, inPassportStack, reviews, router, t],
   );
 
+  const openReview = useCallback(
+    (review: Review) => {
+      if (isReviewDraft(review)) {
+        router.push({
+          pathname: '/review-form',
+          params: { reviewId: review.id },
+        });
+        return;
+      }
+      router.push(
+        inPassportStack
+          ? `/passport/review/${review.id}`
+          : `/review/${review.id}`,
+      );
+    },
+    [inPassportStack, router],
+  );
+
   return (
     <View style={styles.screen}>
       <HouseNavHeader
@@ -3363,20 +3682,21 @@ export default function RestaurantVisitsScreen() {
       />
       {reviews.length === 0 || !restaurant ? (
         <HouseEmptyState
-          title={t("detail.restaurant.noVisits")}
-          description={t("detail.restaurant.noReviews")}
+          title={t('detail.restaurant.noVisits')}
+          description={t('detail.restaurant.noReviews')}
           systemImage="fork.knife"
           androidImage="restaurant"
         />
       ) : (
-        <FlatList
-          data={visibleReviews}
-          keyExtractor={(item) => item.id}
-          overScrollMode="never"
-          onScrollBeginDrag={dismissOpenSwipeable}
-          contentContainerStyle={[styles.list, { paddingBottom: bottomPad }]}
-          ItemSeparatorComponent={() => <View style={styles.sep} />}
-          ListHeaderComponent={
+        <View style={styles.body} collapsable={false}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
+            overScrollMode="never"
+            onScrollBeginDrag={dismissOpenSwipeable}
+            scrollEventThrottle={16}
+            showsVerticalScrollIndicator={false}>
+            {/* ——— Summary header ——— */}
             <View style={styles.headerBlock}>
               <View style={styles.summaryCard}>
                 <SerifText size={20} weight="semibold" style={styles.location}>
@@ -3394,42 +3714,54 @@ export default function RestaurantVisitsScreen() {
                     </SerifText>
                   </View>
                 ) : null}
-                <Text style={styles.visitCount}>
-                  {t('detail.restaurant.visitCount', { count: reviews.length })}
-                </Text>
-                <HousePrimaryButton
-                  title={t('detail.options.recordVisit')}
-                  onPress={openAddReview}
-                  style={styles.addVisitButton}
-                />
+                {reviews.length > 1 ? (
+                  <Text style={styles.visitCount}>
+                    {t('detail.restaurant.visitCount', {
+                      count: reviews.length,
+                    })}
+                  </Text>
+                ) : null}
               </View>
-              <Text style={styles.sectionLabel}>{t("detail.restaurant.visits")}</Text>
             </View>
-          }
-          renderItem={({ item }) => (
-            <VisitRowCard
-              review={item}
-              onPress={() => {
-                if (isReviewDraft(item)) {
-                  router.push({
-                    pathname: '/review-form',
-                    params: { reviewId: item.id },
-                  });
-                  return;
-                }
-                router.push(
-                  inPassportStack
-                    ? `/passport/review/${item.id}`
-                    : `/review/${item.id}`,
+
+            {/* ——— Visit timeline (identical to Time Travel) ——— */}
+            <VisitTimeline
+              entries={entries}
+              showCounts={false}
+              renderCard={(entry) => {
+                const review = visibleReviews.find(
+                  (r) => r.id === entry.reviewId,
+                );
+                if (!review) return null;
+                const deletable = resolveReviewOrigin(review) === 'own';
+                return (
+                  <VisitTimelineCard
+                    key={entry.reviewId}
+                    entry={entry}
+                    onPress={() => openReview(review)}
+                    onDelete={
+                      deletable ? () => confirmDeleteVisit(review) : undefined
+                    }
+                  />
                 );
               }}
-              onDelete={() => confirmDeleteVisit(item)}
             />
-          )}
-        />
+          </ScrollView>
+
+          <TabBarBottomFade />
+          <HouseFAB
+            collapsable={false}
+            style={{ bottom: fabBottom }}
+            onPress={openAddReview}
+          />
+        </View>
       )}
     </View>
   );
+}
+
+function resolveReviewOrigin(review: Review): ReviewOrigin {
+  return review.origin ?? 'own';
 }
 
 const styles = StyleSheet.create({
@@ -3437,15 +3769,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: GustraColors.cream,
   },
-  list: {
-    paddingHorizontal: Theme.spacing.listRowHorizontal,
-    paddingTop: Theme.spacing.listRowVertical + 8,
+  body: {
+    flex: 1,
+    position: 'relative',
   },
-  sep: {
-    height: Theme.spacing.listRowVertical * 2,
+  scroll: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: Theme.spacing.listRowHorizontal,
+    paddingTop: 24,
+    gap: 22,
   },
   headerBlock: {
-    marginBottom: 12,
     gap: 14,
   },
   summaryCard: {
@@ -3453,9 +3789,6 @@ const styles = StyleSheet.create({
     borderRadius: Theme.radius.xl,
     backgroundColor: 'rgba(236, 227, 207, 0.45)',
     gap: 8,
-  },
-  addVisitButton: {
-    marginTop: 6,
   },
   location: {
     color: GustraColors.forestGreen,
@@ -3472,15 +3805,6 @@ const styles = StyleSheet.create({
     ...bodyTextStyle,
     fontSize: 15,
     color: 'rgba(35, 32, 26, 0.65)',
-  },
-  sectionLabel: {
-    ...bodyTextStyle,
-    fontSize: 13,
-    fontWeight: '600',
-    color: 'rgba(35, 32, 26, 0.45)',
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginLeft: 4,
   },
 });
 
@@ -3511,9 +3835,9 @@ import { PhotoViewerModal } from '@/components/detail/photoViewer/PhotoViewerMod
 import { RestaurantMapViewer } from '@/components/detail/RestaurantMapViewer';
 import { ReviewWinesSection } from '@/components/detail/ReviewWinesSection';
 import { FavoriteHeartButton } from '@/components/ui/FavoriteHeartButton';
+import { HouseFAB } from '@/components/ui/HouseFAB';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
-import { HousePrimaryButton } from '@/components/ui/HousePrimaryButton';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
@@ -3523,7 +3847,7 @@ import { SERIF_FONT, Theme } from '@/constants/Theme';
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewerProfile } from '@/context/ReviewerProfile';
 import { useReviewsStore } from '@/context/ReviewsStore';
-import { formatReviewDate } from '@/data/mockReviews';
+import { formatReviewDate, isDemoReviewId } from '@/data/mockReviews';
 import {
   resolveReviewOrigin,
   resolveReviewerAvatarUri,
@@ -3586,8 +3910,12 @@ export default function ReviewDetailScreen() {
     () => new Set(),
   );
 
-  const bottomPad =
-    Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
+  // FAB sits at the standard clearance above the tab bar; content must always
+  // stop *above* the FAB (bottomPad = FAB top + FAB height + breathing room)
+  // so the plus button never covers the location row or other last content.
+  const fabBottom =
+    Theme.spacing.floatingTabBarClearance + insets.bottom + Theme.spacing.fabClearance;
+  const bottomPad = fabBottom + Theme.size.fab + 16;
 
   const reviewerPhotoRaw = review
     ? resolveReviewerAvatarUri(review, photoUri)
@@ -3689,7 +4017,7 @@ export default function ReviewDetailScreen() {
   );
 
   const reviewerRow =
-    review?.reviewedBy ? (
+    review?.reviewedBy && !isDemoReviewId(review.id) ? (
       <View
         style={[
           styles.reviewedBy,
@@ -3771,7 +4099,8 @@ export default function ReviewDetailScreen() {
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]}
         overScrollMode="never"
-        nestedScrollEnabled>
+        nestedScrollEnabled
+        showsVerticalScrollIndicator={false}>
         <HeroPhotoPager
           key={photoUris.join('|') || 'empty'}
           uris={photoUris}
@@ -3787,15 +4116,6 @@ export default function ReviewDetailScreen() {
             setShowPhotoViewer(true);
           }}
         />
-
-        {!isFriendReview && visitCount < 2 ? (
-          <View style={styles.recordVisitContainer}>
-            <HousePrimaryButton
-              title={t('detail.options.recordVisit')}
-              onPress={openAddReview}
-            />
-          </View>
-        ) : null}
 
         <View style={[styles.content, polished && styles.contentPolished, { paddingTop: 8 }]}>
           <View style={[styles.header, polished && styles.headerPolished]}>
@@ -3927,6 +4247,14 @@ export default function ReviewDetailScreen() {
         onClose={() => setShowMap(false)}
       />
 
+      {!isFriendReview && visitCount < 2 ? (
+        <HouseFAB
+          collapsable={false}
+          style={{ bottom: fabBottom }}
+          onPress={openAddReview}
+        />
+      ) : null}
+
     </View>
   );
 }
@@ -3942,7 +4270,7 @@ const styles = StyleSheet.create({
     gap: Theme.spacing.detailSection,
   },
   contentPolished: {
-    gap: 16,
+    gap: 22,
   },
   headerActions: {
     flexDirection: 'row',
@@ -3952,13 +4280,13 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   headerPolished: {
-    gap: 8,
+    gap: 14,
     marginBottom: 4,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 8,
+    gap: 12,
   },
   titleBlock: {
     flex: 1,
@@ -3967,22 +4295,21 @@ const styles = StyleSheet.create({
   },
   restaurantName: {
     color: GustraColors.forestGreen,
+    lineHeight: 28,
   },
   scoreRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    alignSelf: 'flex-start',
     gap: 10,
-    // Match FavoriteHeartButton hit padding so `/5` lines up with the heart glyph.
-    paddingRight: 2,
   },
   score: {
     color: GustraColors.forestGreen,
     fontVariant: ['tabular-nums'],
   },
   date: {
-    fontSize: 14,
-    color: 'rgba(35, 32, 26, 0.6)',
+    fontSize: 13,
+    color: 'rgba(35, 32, 26, 0.55)',
   },
   divider: {
     height: StyleSheet.hairlineWidth,
@@ -3996,24 +4323,24 @@ const styles = StyleSheet.create({
     color: GustraColors.ink,
   },
   quoteBlock: {
-    gap: 4,
-    paddingLeft: 4,
+    gap: 6,
+    paddingLeft: 6,
     borderLeftWidth: 2,
-    borderLeftColor: 'rgba(36, 78, 57, 0.28)',
+    borderLeftColor: 'rgba(36, 78, 57, 0.22)',
     paddingVertical: 2,
   },
   quoteMark: {
     fontFamily: SERIF_FONT,
-    fontSize: 28,
-    lineHeight: 28,
-    color: 'rgba(36, 78, 57, 0.35)',
-    marginBottom: -8,
+    fontSize: 24,
+    lineHeight: 24,
+    color: 'rgba(36, 78, 57, 0.3)',
+    marginBottom: -6,
   },
   quoteText: {
     fontFamily: SERIF_FONT,
     fontSize: 17,
-    lineHeight: 26,
-    color: 'rgba(35, 32, 26, 0.82)',
+    lineHeight: 27,
+    color: 'rgba(35, 32, 26, 0.8)',
   },
   reviewedBy: {
     flexDirection: 'row',
@@ -4059,11 +4386,6 @@ const styles = StyleSheet.create({
   reviewedByLabel: {
     fontSize: 13,
     color: 'rgba(35, 32, 26, 0.6)',
-  },
-  recordVisitContainer: {
-    paddingHorizontal: Theme.spacing.detailContent,
-    paddingTop: 16,
-    paddingBottom: 4,
   },
 });
 
@@ -8136,11 +8458,15 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { PassportSection } from '@/components/passport/PassportSection';
 import { PassportStatRow } from '@/components/passport/PassportStatRow';
 import { SerifText } from '@/components/ui/SerifText';
+import { FractionalStarRating } from '@/components/ui/StarRating';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
+import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
 import { ReviewsHeader } from '@/components/ui/ReviewsHeader';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, captionTextStyle, serifStyle } from '@/constants/Theme';
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
+import { usePassportDisplaySettings } from '@/context/PassportDisplaySettings';
+import type { CategoryAveragesDisplayStyle } from '@/context/PassportDisplaySettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import {
   getBestWines,
@@ -8173,9 +8499,11 @@ function RankMedal({ rank }: { rank: number }) {
 function BestRestaurantPodium({
   entries,
   onPress,
+  style,
 }: {
   entries: BestRestaurantEntry[];
   onPress: (entry: BestRestaurantEntry) => void;
+  style: CategoryAveragesDisplayStyle;
 }) {
   const [first, ...rest] = entries;
   if (!first) return null;
@@ -8225,9 +8553,13 @@ function BestRestaurantPodium({
             {first.title}
           </Text>
           <View style={styles.podiumHeroScoreBadge}>
-            <SerifText size={18} weight="bold" style={styles.podiumHeroScore}>
-              {formatScoreOutOfFive(first.average)}
-            </SerifText>
+            {style === 'stars' ? (
+              <FractionalStarRating score={first.average} size={18} gap={2} />
+            ) : (
+              <SerifText size={18} weight="bold" style={styles.podiumHeroScore}>
+                {formatScoreOutOfFive(first.average)}
+              </SerifText>
+            )}
           </View>
         </View>
       </Pressable>
@@ -8248,9 +8580,13 @@ function BestRestaurantPodium({
               <Text style={styles.podiumCardTitle} numberOfLines={2}>
                 {entry.title}
               </Text>
-              <SerifText size={17} weight="semibold" style={styles.podiumCardScore}>
-                {formatScoreOutOfFive(entry.average)}
-              </SerifText>
+              {style === 'stars' ? (
+                <FractionalStarRating score={entry.average} size={15} gap={1} />
+              ) : (
+                <SerifText size={17} weight="semibold" style={styles.podiumCardScore}>
+                  {formatScoreOutOfFive(entry.average)}
+                </SerifText>
+              )}
             </Pressable>
           ))}
         </View>
@@ -8263,17 +8599,20 @@ function BestRestaurantPodium({
 function RankedWineRow({
   entry,
   rank,
+  style,
   onPress,
 }: {
   entry: BestWineEntry;
   rank: number;
+  style: CategoryAveragesDisplayStyle;
   onPress: () => void;
 }) {
+  const score = RatingValue.starValue(entry.rating);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${rank}. ${entry.fiche.nameAndEstate}, ${formatScoreOutOfFive(
-        RatingValue.starValue(entry.rating),
+        score,
       )}`}
       onPress={onPress}
       style={({ pressed }) => [
@@ -8285,23 +8624,29 @@ function RankedWineRow({
         {entry.fiche.nameAndEstate}
       </Text>
       <View style={styles.wineScoreRow}>
-        <SerifText size={17} weight="semibold" style={styles.wineScore}>
-          {formatScoreOutOfFive(RatingValue.starValue(entry.rating))}
-        </SerifText>
+        {style === 'stars' ? (
+          <FractionalStarRating score={score} size={15} gap={1} />
+        ) : (
+          <SerifText size={17} weight="semibold" style={styles.wineScore}>
+            {formatScoreOutOfFive(score)}
+          </SerifText>
+        )}
       </View>
     </Pressable>
   );
 }
 
-/** City average row: reserved serif number (stars stay exclusive to top). */
+/** City average row: reserved serif number or stars (per display style). */
 function CityRow({
   rank,
   city,
   average,
+  style,
 }: {
   rank: number;
   city: string;
   average: number;
+  style: CategoryAveragesDisplayStyle;
 }) {
   return (
     <View style={styles.cityRow}>
@@ -8309,9 +8654,13 @@ function CityRow({
       <Text style={styles.cityTitle} numberOfLines={2}>
         {city}
       </Text>
-      <SerifText size={17} weight="semibold" style={styles.cityScore}>
-        {formatScoreOutOfFive(average)}
-      </SerifText>
+      {style === 'stars' ? (
+        <FractionalStarRating score={average} size={15} gap={1} />
+      ) : (
+        <SerifText size={17} weight="semibold" style={styles.cityScore}>
+          {formatScoreOutOfFive(average)}
+        </SerifText>
+      )}
     </View>
   );
 }
@@ -8333,6 +8682,7 @@ function CulinaryPassportContent() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { enabledCriteria } = useCriteriaSettings();
+  const { categoryAveragesStyle } = usePassportDisplaySettings();
   const { reviews, restaurants, ready } = useReviewsStore();
 
   // My Gustra is a personal passport: only the user's own reviews count
@@ -8432,6 +8782,7 @@ function CulinaryPassportContent() {
             <PassportSection title={bestSectionTitle}>
               <BestRestaurantPodium
                 entries={stats.bestRestaurants}
+                style={categoryAveragesStyle}
                 onPress={openBestRestaurant}
               />
             </PassportSection>
@@ -8444,6 +8795,7 @@ function CulinaryPassportContent() {
                   key={`${entry.reviewId}-${index}`}
                   entry={entry}
                   rank={index + 1}
+                  style={categoryAveragesStyle}
                   onPress={() =>
                     router.push(`/passport/review/${entry.reviewId}`)
                   }
@@ -8459,7 +8811,13 @@ function CulinaryPassportContent() {
               </View>
             ) : (
               stats.cityAverages.map((row, index) => (
-                <CityRow key={row.city} rank={index + 1} city={row.city} average={row.average} />
+                <CityRow
+                  key={row.city}
+                  rank={index + 1}
+                  city={row.city}
+                  average={row.average}
+                  style={categoryAveragesStyle}
+                />
               ))
             )}
           </PassportSection>
@@ -8522,24 +8880,7 @@ function CulinaryPassportContent() {
         </ScrollView>
       )}
 
-      <View
-        pointerEvents="none"
-        style={[
-          styles.bottomSolid,
-          { height: Theme.spacing.floatingTabBarClearance + insets.bottom },
-        ]}
-      />
-      <View
-        pointerEvents="none"
-        style={[
-          styles.bottomFade,
-          { bottom: Theme.spacing.floatingTabBarClearance + insets.bottom },
-        ]}>
-        <LinearGradient
-          colors={['rgba(245, 240, 225, 0)', GustraColors.cream]}
-          style={StyleSheet.absoluteFill}
-        />
-      </View>
+      <TabBarBottomFade />
     </View>
   );
 }
@@ -8560,19 +8901,6 @@ const styles = StyleSheet.create({
   emptyPad: {
     flex: 1,
     paddingHorizontal: Theme.spacing.listRowHorizontal,
-  },
-  bottomSolid: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: GustraColors.cream,
-  },
-  bottomFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: Theme.size.fab + 24,
   },
   mutedRow: {
     paddingVertical: 12,
@@ -8705,6 +9033,9 @@ const styles = StyleSheet.create({
   /** Frosted pill so "5/5" stays readable on any photo. */
   podiumHeroScoreBadge: {
     alignSelf: 'flex-start',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
@@ -8850,101 +9181,27 @@ export { default } from '../../(main)/review/[id]';
 ================================================================================
 FILE: app/(tabs)/passport/timemachine.tsx
 ================================================================================
-import { useEffect, useMemo, type ReactNode } from 'react';
-import {
-  ImageBackground,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  type StyleProp,
-  type ViewStyle,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useMemo } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SymbolView, type SFSymbol } from 'expo-symbols';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-  withDelay,
-} from 'react-native-reanimated';
+import type { SFSymbol } from 'expo-symbols';
 
 import { PassportSection } from '@/components/passport/PassportSection';
 import { AnimatedCounter } from '@/components/passport/AnimatedCounter';
 import { SerifText } from '@/components/ui/SerifText';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
-import { GustraColors } from '@/constants/Colors';
-import { Theme, serifStyle, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
+import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
+import { HouseGlyph } from '@/components/timeline/VisitTimelineCard';
+import { VisitTimeline } from '@/components/timeline/VisitTimeline';import { GustraColors } from '@/constants/Colors';
+import { Theme, serifStyle, captionTextStyle } from '@/constants/Theme';
 import { useReviewsStore } from '@/context/ReviewsStore';
-import { buildTimeMachineEntries, type TimeMachineEntry } from '@/data/timeMachine';
+import { buildTimeMachineEntries } from '@/data/timeMachine';
 import { getTimeTravelStats } from '@/data/passportStats';
-import { activeIntlLocale, formatLongDate } from '@/i18n/formatDates';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
-import { formatScoreOutOfFive } from '@/services/reviews/ratings';
 import { HouseErrorBoundary } from '@/components/ui/HouseErrorBoundary';
-
-type GroupedMonth = {
-  key: string;
-  label: string;
-  entries: ReturnType<typeof buildTimeMachineEntries>;
-};
-
-/** Group a (newest-first) entry list into year → month buckets. */
-function groupByYearAndMonth(
-  entries: ReturnType<typeof buildTimeMachineEntries>,
-): { year: number; months: GroupedMonth[] }[] {
-  const locale = activeIntlLocale();
-  const years: { year: number; months: GroupedMonth[] }[] = [];
-  for (const entry of entries) {
-    const date = new Date(entry.date);
-    if (!Number.isFinite(date.getTime())) continue;
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    let yearGroup = years.find((y) => y.year === year);
-    if (!yearGroup) {
-      yearGroup = { year, months: [] };
-      years.push(yearGroup);
-    }
-    let monthGroup = yearGroup.months.find((m) => m.key === `${year}-${month}`);
-    if (!monthGroup) {
-      monthGroup = {
-        key: `${year}-${month}`,
-        label: date.toLocaleString(locale, { month: 'long' }),
-        entries: [],
-      };
-      yearGroup.months.push(monthGroup);
-    }
-    monthGroup.entries.push(entry);
-  }
-  return years;
-}
-
-/** Platform-adaptive glyph (SF Symbol on iOS, Material on Android). */
-function HouseGlyph({
-  ios,
-  android,
-  color,
-  size = 22,
-}: {
-  ios: SFSymbol;
-  android: keyof typeof MaterialIcons.glyphMap;
-  color: string;
-  size?: number;
-}) {
-  if (Platform.OS === 'ios') {
-    return (
-      <SymbolView name={ios} tintColor={color} size={size} weight="semibold" />
-    );
-  }
-  return <MaterialIcons name={android} size={size} color={color} />;
-}
 
 /** One elegant stat card: icon medallion + animated counter + caption. */
 function StatCard({
@@ -8983,188 +9240,6 @@ function StatCard({
   );
 }
 
-/**
- * A timeline marker that scales in gently when it mounts (Apple-style reveal).
- * Pure spring pop — no scroll-driven/parallax motion (deliberately minimal).
- */
-function MountNode({
-  children,
-  delay = 0,
-  style,
-}: {
-  children?: ReactNode;
-  delay?: number;
-  style?: StyleProp<ViewStyle>;
-}) {
-  const scale = useSharedValue(0.55);
-  const opacity = useSharedValue(0);
-
-  useEffect(() => {
-    scale.value = withSpring(1, { damping: 14, stiffness: 200 });
-    opacity.value = withDelay(delay, withTiming(1, { duration: 260 }));
-  }, [scale, opacity, delay]);
-
-  const animated = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-    opacity: opacity.value,
-  }));
-
-  return (
-    <Animated.View style={[style, animated]}>{children}</Animated.View>
-  );
-}
-
-/** One visit on the timeline: a large cinematic photo card (~340pt) with the
- * restaurant info overlaid on a bottom gradient, and the rating in a floating
- * glassmorphism badge at the bottom-right. Without a photo it falls back to a
- * compact card in the restaurant `thumbnailColor` that wraps the text (no
- * fixed height — the frame is as tall as the content).
- */
-function EntryTimelineRow({
-  entry,
-  onPress,
-}: {
-  entry: TimeMachineEntry;
-  onPress: () => void;
-}) {
-  const hasPhoto = Boolean(entry.photoUrl);
-  const accessibilityLabel = `${entry.restaurantTitle}, ${formatLongDate(
-    entry.date,
-  )}, ${formatScoreOutOfFive(entry.score)}`;
-
-  return (
-    <View style={styles.timelineRow}>
-      {/* Rail with an animated node sitting on the timeline line. */}
-      <View style={styles.rail}>
-        <MountNode style={styles.railNodeShell}>
-          <View style={styles.railNode}>
-            <HouseGlyph
-              ios="circle.fill"
-              android="circle"
-              color={GustraColors.gold}
-              size={9}
-            />
-          </View>
-        </MountNode>
-      </View>
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel}
-        onPress={onPress}
-        style={({ pressed }) => [
-          hasPhoto ? styles.storyCard : styles.storyCardNoPhoto,
-          pressed && styles.storyPressed,
-        ]}>
-        {hasPhoto ? (
-          <ImageBackground
-            source={{ uri: entry.photoUrl }}
-            style={styles.storyBg}
-            imageStyle={styles.storyImg}
-            resizeMode="cover">
-            <LinearGradient
-              colors={[
-                'rgba(10, 8, 4, 0)',
-                'rgba(10, 8, 4, 0.28)',
-                'rgba(10, 8, 4, 0.9)',
-              ]}
-              locations={[0, 0.45, 1]}
-              style={StyleSheet.absoluteFill}
-            />
-            <StoryOverlay entry={entry} />
-          </ImageBackground>
-        ) : (
-          <StoryFallbackCard entry={entry} />
-        )}
-      </Pressable>
-    </View>
-  );
-}
-
-/** Compact no-photo card: restaurant-tinted background, the height wraps the
- * text (title + date + score badge) instead of a fixed empty box. */
-function StoryFallbackCard({ entry }: { entry: TimeMachineEntry }) {
-  return (
-    <View
-      style={[
-        styles.storyFallback,
-        { backgroundColor: entry.thumbnailColor },
-      ]}>
-      <View style={styles.storyFallbackCopy}>
-        <SerifText
-          size={24}
-          weight="bold"
-          style={styles.storyTitle}
-          numberOfLines={2}>
-          {entry.restaurantTitle}
-        </SerifText>
-        <View style={styles.storyMetaRow}>
-          <Text style={styles.storyDate}>{formatLongDate(entry.date)}</Text>
-        </View>
-      </View>
-      <View style={styles.scoreBadge} pointerEvents="none">
-        <HouseGlyph
-          ios="star.fill"
-          android="star"
-          color={GustraColors.gold}
-          size={13}
-        />
-        <Text style={styles.scoreBadgeText}>
-          {formatScoreOutOfFive(entry.score)}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-/** Bottom-overlay copy block sitting on the cinematic gradient. */
-function StoryOverlay({ entry }: { entry: TimeMachineEntry }) {
-  return (
-    <View style={styles.storyCopy}>
-      <SerifText
-        size={24}
-        weight="bold"
-        style={styles.storyTitle}
-        numberOfLines={2}>
-        {entry.restaurantTitle}
-      </SerifText>
-      <View style={styles.storyMetaRow}>
-        <Text style={styles.storyDate}>{formatLongDate(entry.date)}</Text>
-      </View>
-
-      {/* Floating glassmorphism rating badge, bottom-right. */}
-      <View style={styles.scoreBadge} pointerEvents="none">
-        <HouseGlyph
-          ios="star.fill"
-          android="star"
-          color={GustraColors.gold}
-          size={13}
-        />
-        <Text style={styles.scoreBadgeText}>
-          {formatScoreOutOfFive(entry.score)}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-/** Large serif year header, centered on the timeline (Apple tilt). */
-function YearHeader({ year, count }: { year: number; count: number }) {
-  const { t } = useAppTranslation();
-  return (
-    <View style={styles.yearHeaderRow}>
-      <View style={styles.yearHeaderRule} />
-      <MountNode style={styles.yearHeaderChip}>
-        <SerifText size={28} weight="bold" style={styles.yearHeaderText}>
-          {year}
-        </SerifText>
-      </MountNode>
-      <View style={styles.yearHeaderRule} />
-      <Text style={styles.yearCount}>{count}</Text>
-    </View>
-  );
-}
-
 export default function TimeMachineScreen() {
   const { t } = useAppTranslation();
   const router = useRouter();
@@ -9176,7 +9251,6 @@ export default function TimeMachineScreen() {
     [reviews, restaurants],
   );
   const stats = useMemo(() => getTimeTravelStats(entries), [entries]);
-  const yearGroups = useMemo(() => groupByYearAndMonth(entries), [entries]);
 
   return (
     <HouseErrorBoundary
@@ -9239,81 +9313,16 @@ export default function TimeMachineScreen() {
             </PassportSection>
 
             {/* ——— Timeline ——— */}
-            <View style={styles.timeline}>
-              {yearGroups.map((yearGroup) => {
-                const entriesInYear = yearGroup.months.reduce(
-                  (sum, m) => sum + m.entries.length,
-                  0,
-                );
-                return (
-                  <View key={yearGroup.year} style={styles.yearBlock}>
-                    <YearHeader year={yearGroup.year} count={entriesInYear} />
-
-                    <View style={styles.yearSpineTrack}>
-                      <View style={styles.yearSpineLine} />
-                      {yearGroup.months.map((month) => {
-                        if (month.entries.length === 0) return null;
-                        return (
-                          <View key={month.key} style={styles.monthGroup}>
-                            <View style={styles.monthRow}>
-                              <View style={styles.rail}>
-                                <MountNode delay={90} style={styles.monthMarker}>
-                                  <View style={styles.monthMarkerInner} />
-                                </MountNode>
-                              </View>
-                              <Text style={styles.monthTitle}>
-                                {t('passport.timeTravelMonthHeader', {
-                                  month: month.label,
-                                  year: yearGroup.year,
-                                })}
-                              </Text>
-                              <Text style={styles.monthCount}>
-                                {t('passport.timeTravelMonthCount', {
-                                  count: month.entries.length,
-                                })}
-                              </Text>
-                            </View>
-
-                            {month.entries.map((entry) => (
-                              <EntryTimelineRow
-                                key={entry.reviewId}
-                                entry={entry}
-                                onPress={() =>
-                                  router.push(
-                                    `/passport/review/${entry.reviewId}`,
-                                  )
-                                }
-                              />
-                            ))}
-                          </View>
-                        );
-                      })}
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
+            <VisitTimeline
+              entries={entries}
+              onPressEntry={(entry) =>
+                router.push(`/passport/review/${entry.reviewId}`)
+              }
+            />
           </ScrollView>
         )}
 
-        <View
-          pointerEvents="none"
-          style={[
-            styles.bottomSolid,
-            { height: Theme.spacing.floatingTabBarClearance + insets.bottom },
-          ]}
-        />
-        <View
-          pointerEvents="none"
-          style={[
-            styles.bottomFade,
-            { bottom: Theme.spacing.floatingTabBarClearance + insets.bottom },
-          ]}>
-          <LinearGradient
-            colors={['rgba(245, 240, 225, 0)', GustraColors.cream]}
-            style={StyleSheet.absoluteFill}
-          />
-        </View>
+        <TabBarBottomFade />
       </View>
     </HouseErrorBoundary>
   );
@@ -9379,262 +9388,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'rgba(35, 32, 26, 0.55)',
     textAlign: 'center',
-  },
-
-  /* ——— Year header (large serif, centered) ——— */
-  yearHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-    paddingVertical: 8,
-  },
-  yearHeaderRule: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(217, 162, 39, 0.35)',
-  },
-  yearHeaderChip: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 4,
-  },
-  yearHeaderText: {
-    color: GustraColors.forestGreen,
-    fontVariant: ['tabular-nums'],
-  },
-  yearCount: {
-    ...captionTextStyle,
-    fontSize: 13,
-    color: 'rgba(35, 32, 26, 0.5)',
-    fontVariant: ['tabular-nums'],
-  },
-
-  /* ——— Timeline layout ——— */
-  timeline: {
-    gap: 10,
-  },
-  yearBlock: {
-    gap: 14,
-    paddingBottom: 12,
-  },
-  yearSpineTrack: {
-    position: 'relative',
-  },
-  /** Single continuous 3px vertical line, centered on the rail. */
-  yearSpineLine: {
-    position: 'absolute',
-    left: 27,
-    top: 0,
-    bottom: 0,
-    width: 3,
-    borderRadius: 2,
-    backgroundColor: 'rgba(217, 162, 39, 0.25)',
-  },
-  monthGroup: {
-    gap: 14,
-  },
-  monthRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 4,
-    marginBottom: 6,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(35, 32, 26, 0.08)',
-  },
-  monthTitle: {
-    ...captionTextStyle,
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    color: 'rgba(35, 32, 26, 0.55)',
-  },
-  monthCount: {
-    ...captionTextStyle,
-    fontSize: 12,
-    color: 'rgba(217, 162, 39, 1)',
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
-  monthMarker: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 18,
-    height: 18,
-    zIndex: 2,
-  },
-  monthMarkerInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: GustraColors.gold,
-    borderWidth: 2,
-    borderColor: GustraColors.cream,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
-  },
-
-  /* ——— Visit rows ——— */
-  timelineRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  /** Fixed-width rail column; markers/thumbnails live here, centered on line. */
-  rail: {
-    width: 56,
-    alignItems: 'center',
-  },
-  railNodeShell: {
-    width: 28,
-    height: 28,
-    marginTop: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 2,
-  },
-  railNode: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: GustraColors.cream,
-    borderWidth: 2,
-    borderColor: 'rgba(217, 162, 39, 0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-
-  /* ——— Cinematic story card (~340pt) ——— */
-  storyCard: {
-    flex: 1,
-    height: 340,
-    borderRadius: 26,
-    overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(35, 32, 26, 0.1)',
-    shadowColor: '#000000',
-    shadowOpacity: 0.16,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
-    marginBottom: 6,
-  },
-  /** No-photo variant: no fixed height — the card wraps its text content. */
-  storyCardNoPhoto: {
-    flex: 1,
-    borderRadius: 26,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(35, 32, 26, 0.1)',
-    shadowColor: '#000000',
-    shadowOpacity: 0.16,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
-    marginBottom: 6,
-  },
-  storyPressed: {
-    opacity: 0.94,
-  },
-  storyBg: {
-    flex: 1,
-  },
-  storyImg: {
-    borderRadius: 26,
-  },
-  storyFallback: {
-    minHeight: 96,
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  storyFallbackCopy: {
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    paddingRight: 88,
-    gap: 4,
-  },
-  storyCopy: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 18,
-    paddingBottom: 16,
-    paddingTop: 48,
-    gap: 4,
-  },
-  storyTitle: {
-    color: '#FFFFFF',
-    textShadowColor: 'rgba(0, 0, 0, 0.45)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  storyMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  storyDate: {
-    ...captionTextStyle,
-    fontSize: 14,
-    fontWeight: '500',
-    color: 'rgba(255, 253, 245, 0.92)',
-    textShadowColor: 'rgba(0, 0, 0, 0.35)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  /** Floating glassmorphism rating badge, bottom-right. */
-  scoreBadge: {
-    position: 'absolute',
-    right: 18,
-    bottom: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255, 255, 255, 0.16)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255, 255, 255, 0.35)',
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-  scoreBadgeText: {
-    ...bodyTextStyle,
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    fontVariant: ['tabular-nums'],
-  },
-
-  bottomSolid: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: GustraColors.cream,
-  },
-  bottomFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: Theme.size.fab + 24,
   },
 });
 
@@ -10041,7 +9794,6 @@ import {
   View,
 } from 'react-native';
 import Constants from 'expo-constants';
-import { LinearGradient } from 'expo-linear-gradient';
 import { SymbolView } from 'expo-symbols';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10053,12 +9805,14 @@ import { houseAlert } from '@/components/ui/HouseAlert';
 import { GustraSwitch } from '@/components/ui/GustraSwitch';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
+import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
 import { GustraColors } from '@/constants/Colors';
 import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { SERIF_FONT, Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useGoogleApiTracker } from '@/context/GoogleApiTracker';
 import { useLanguageSettings } from '@/context/LanguageSettings';
 import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
+import { useDemoLabelSettings } from '@/context/DemoLabelSettings';
 import { usePassportDisplaySettings } from '@/context/PassportDisplaySettings';
 import { usePhotoQualitySettings } from '@/context/PhotoQualitySettings';
 import {
@@ -10124,6 +9878,7 @@ export default function SettingsScreen() {
   } = useGoogleApiTracker();
   const { name, photoUri, hasPhoto, updateName, ready, syncPhotoFromDisk } =
     useReviewerProfile();
+  const { showDemoLabel, setShowDemoLabel } = useDemoLabelSettings();
   const { reviews, restaurants, importSwiftLegacyData, demoShowcaseEnabled, setDemoShowcaseEnabled } =
     useReviewsStore();
   const { reopenCriteriaSetupForDev } = useCriteriaSettings();
@@ -10571,6 +10326,26 @@ export default function SettingsScreen() {
           isLast={Platform.OS !== 'ios' && !__DEV__}
           onPress={confirmResetCounters}
         />
+        <SettingsRow
+          title={t('settings.demoLabel')}
+          subtitle={
+            showDemoLabel
+              ? t('settings.demoLabelOn')
+              : t('settings.demoLabelOff')
+          }
+          icon={{ ios: 'tag', android: 'tag', web: 'tag' }}
+          iconTint="accent"
+          isLast={Platform.OS !== 'ios'}
+          trailing={
+            <GustraSwitch
+              value={showDemoLabel}
+              onValueChange={(next) => {
+                Haptics.selectionChanged();
+                setShowDemoLabel(next);
+              }}
+            />
+          }
+        />
         {Platform.OS === 'ios' ? (
           <SettingsRow
             title={t('settings.recoverPrevious')}
@@ -10658,24 +10433,7 @@ export default function SettingsScreen() {
       />
       </ScrollView>
 
-      <View
-        pointerEvents="none"
-        style={[
-          styles.bottomSolid,
-          { height: Theme.spacing.floatingTabBarClearance + insets.bottom },
-        ]}
-      />
-      <View
-        pointerEvents="none"
-        style={[
-          styles.bottomFade,
-          { bottom: Theme.spacing.floatingTabBarClearance + insets.bottom },
-        ]}>
-        <LinearGradient
-          colors={['rgba(245, 240, 225, 0)', GustraColors.cream]}
-          style={StyleSheet.absoluteFill}
-        />
-      </View>
+      <TabBarBottomFade />
     </View>
   );
 }
@@ -10689,20 +10447,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: GustraColors.cream,
   },
-  /** Bottom fade over the floating tab bar (same as Reviews feed). */
-  bottomSolid: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: GustraColors.cream,
-  },
-  bottomFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: Theme.size.fab + 24,
-  },
+  /** Bottom fade over the floating tab bar — see TabBarBottomFade. */
   content: {
     paddingHorizontal: Theme.spacing.listRowHorizontal,
     paddingTop: 16,
@@ -10998,6 +10743,7 @@ import { HouseAlertHost } from '@/components/ui/HouseAlert';
 import { HouseUndoSnackbarHost } from '@/components/ui/HouseUndoSnackbar';
 import { GustraColors } from '@/constants/Colors';
 import { CriteriaSettingsProvider } from '@/context/CriteriaSettings';
+import { DemoLabelSettingsProvider } from '@/context/DemoLabelSettings';
 import { FeedFilterProvider } from '@/context/FeedFilterContext';
 import { GoogleApiTrackerProvider } from '@/context/GoogleApiTracker';
 import { LanguageSettingsProvider } from '@/context/LanguageSettings';
@@ -11115,6 +10861,7 @@ function RootLayout() {
     <GestureHandlerRootView style={styles.root}>
       <LanguageSettingsProvider>
         <CriteriaSettingsProvider>
+          <DemoLabelSettingsProvider>
           <PassportDisplaySettingsProvider>
             <PhotoQualitySettingsProvider>
               <GoogleApiTrackerProvider>
@@ -11164,6 +10911,7 @@ function RootLayout() {
               </GoogleApiTrackerProvider>
             </PhotoQualitySettingsProvider>
           </PassportDisplaySettingsProvider>
+          </DemoLabelSettingsProvider>
         </CriteriaSettingsProvider>
       </LanguageSettingsProvider>
     </GestureHandlerRootView>
@@ -12095,7 +11843,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       supportsTablet: true,
       // Must match the existing App Store Connect / Swift app.
       bundleIdentifier: 'com.philip.gustra',
-      buildNumber: '50',
+      buildNumber: '52',
       // Keep in sync with android.versionCode — deploy-store.sh bumps both together.
       entitlements: {
         'com.apple.security.application-groups': ['group.com.philip.gustra'],
@@ -12154,7 +11902,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
       package: 'net.gustra.app',
       // Keep in sync with ios.buildNumber — deploy-store.sh bumps both together.
-      versionCode: 50,
+      versionCode: 52,
       // Material / gesture navigation — cream surfaces bleed under system bars.
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: true,
@@ -12631,10 +12379,10 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   sectionPolished: {
-    gap: 6,
+    gap: 8,
   },
   sectionStreamlined: {
-    gap: 4,
+    gap: 6,
   },
   title: {
     color: GustraColors.ink,
@@ -12644,13 +12392,13 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     minWidth: 0,
     color: GustraColors.ink,
-    marginRight: 10,
+    marginRight: 12,
   },
   compactRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 10,
     minHeight: 24,
   },
   starsWrap: {
@@ -12671,7 +12419,7 @@ const styles = StyleSheet.create({
   quietComment: {
     ...bodyTextStyle,
     fontSize: 15,
-    lineHeight: 21,
+    lineHeight: 22,
     color: 'rgba(35, 32, 26, 0.72)',
   },
 });
@@ -12868,9 +12616,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   heroFrame: {
-    borderRadius: Theme.radius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(35, 32, 26, 0.14)',
+    borderRadius: Theme.radius.lg,
     overflow: 'hidden',
     backgroundColor: GustraColors.bubble,
     alignItems: 'center',
@@ -12878,10 +12624,11 @@ const styles = StyleSheet.create({
   },
   pageIndicator: {
     alignSelf: 'center',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
-    color: 'rgba(35, 32, 26, 0.55)',
+    color: 'rgba(35, 32, 26, 0.45)',
     fontVariant: ['tabular-nums'],
+    letterSpacing: 0.3,
   },
 });
 
@@ -12932,8 +12679,7 @@ export function LocationBlock({
   if (compact) {
     return (
       <View style={styles.sectionCompact}>
-        <View style={styles.accentRule} />
-        <SerifText size={17} weight="bold" style={styles.title}>
+        <SerifText size={17} weight="semibold" style={styles.titleCompact}>
           {t('detail.location.title')}
         </SerifText>
         <View style={styles.compactStack}>
@@ -13099,6 +12845,10 @@ const styles = StyleSheet.create({
   },
   title: {
     color: GustraColors.ink,
+  },
+  titleCompact: {
+    color: GustraColors.ink,
+    fontSize: 16,
   },
   row: {
     flexDirection: 'row',
@@ -13672,7 +13422,6 @@ export function ReviewWinesSection({
       </View>
     );
   }
-
   return (
     <View
       style={[styles.winesBlock, richWines && styles.winesBlockRich]}>
@@ -13687,10 +13436,10 @@ export function ReviewWinesSection({
 
 const styles = StyleSheet.create({
   panel: {
-    backgroundColor: GustraColors.bubble,
+    backgroundColor: 'rgba(236, 227, 207, 0.5)',
     borderRadius: Theme.radius.xl,
-    paddingTop: 12,
-    paddingBottom: 4,
+    paddingTop: 14,
+    paddingBottom: 6,
     overflow: 'hidden',
   },
   panelHeading: {
@@ -13699,9 +13448,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
-    color: 'rgba(36, 78, 57, 0.7)',
-    paddingHorizontal: 14,
-    marginBottom: 4,
+    color: 'rgba(36, 78, 57, 0.65)',
+    paddingHorizontal: 16,
+    marginBottom: 6,
   },
   winesBlock: {
     marginTop: 10,
@@ -16425,7 +16174,9 @@ import {
   Theme,
   Type,
 } from '@/constants/Theme';
+import { useDemoLabelSettings } from '@/context/DemoLabelSettings';
 import type { RestaurantVisitSummary } from '@/data/types';
+import { isDemoRestaurantId } from '@/data/mockReviews';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { Haptics } from '@/services/haptics';
 import { formatScoreOutOfFive } from '@/services/reviews/ratings';
@@ -16457,7 +16208,9 @@ export function RestaurantFeedCard({
   onSelectToggle,
 }: RestaurantFeedCardProps) {
   const { t } = useAppTranslation();
+  const { showDemoLabel } = useDemoLabelSettings();
   const isDraft = Boolean(summary.isDraft);
+  const isDemo = isDemoRestaurantId(summary.restaurantId);
   const displayScore =
     typeof scoreOverride === 'number' ? scoreOverride : summary.averageScore;
 
@@ -16504,7 +16257,7 @@ export function RestaurantFeedCard({
                 date: summary.lastVisitDate,
               })}
         </Text>
-        {summary.reviewerName ? (
+        {summary.reviewerName && !isDemo ? (
           <Text style={styles.reviewer}>
             {t('detail.review.reviewedBy', { name: summary.reviewerName })}
           </Text>
@@ -16524,10 +16277,17 @@ export function RestaurantFeedCard({
               </SerifText>
             ) : null}
             {!shareSelecting ? (
-              <FavoriteHeartButton
-                favorite={summary.isFavorite}
-                onToggle={onFavoriteToggle}
-              />
+              <>
+                <FavoriteHeartButton
+                  favorite={summary.isFavorite}
+                  onToggle={onFavoriteToggle}
+                />
+                {isDemo && showDemoLabel ? (
+                  <View style={styles.demoPill}>
+                    <Text style={styles.demoPillText}>{t('reviews.demoLabel')}</Text>
+                  </View>
+                ) : null}
+              </>
             ) : null}
           </>
         )}
@@ -16630,6 +16390,22 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: 'rgba(199, 71, 66, 0.85)',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  demoPill: {
+    backgroundColor: 'rgba(217, 162, 39, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(217, 162, 39, 0.4)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    alignSelf: 'flex-end',
+  },
+  demoPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(176, 121, 18, 0.95)',
     textTransform: 'uppercase',
     letterSpacing: 1.2,
   },
@@ -17432,129 +17208,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-  },
-});
-
-
-================================================================================
-FILE: components/feed/VisitRowCard.tsx
-================================================================================
-import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
-
-import { FeedSwipeDelete } from '@/components/feed/FeedSwipeDelete';
-import { SerifText } from '@/components/ui/SerifText';
-import { FractionalStarRating } from '@/components/ui/StarRating';
-import { GustraColors } from '@/constants/Colors';
-import {
-  captionTextStyle,
-  listPressedStyle,
-  Surface,
-  Theme,
-} from '@/constants/Theme';
-import type { Review } from '@/data/types';
-import { useAppTranslation } from '@/hooks/useAppTranslation';
-import { formatLongDate } from '@/i18n/formatDates';
-import { Haptics } from '@/services/haptics';
-import { isReviewDraft } from '@/services/reviews/draftReview';
-import { formatScoreOutOfFive } from '@/services/reviews/ratings';
-
-function formatVisitDate(iso: string): string {
-  return formatLongDate(iso);
-}
-
-type VisitRowCardProps = {
-  review: Review;
-  onPress: () => void;
-  /** Trailing swipe Delete (Swift `RestaurantVisitsView` swipeActions). */
-  onDelete?: () => void;
-};
-
-/**
- * Visit row for restaurant visit list (Swift `RestaurantVisitsView.visitRow`).
- */
-export function VisitRowCard({ review, onPress, onDelete }: VisitRowCardProps) {
-  const { t } = useAppTranslation();
-  const draft = isReviewDraft(review);
-  const score = review.overallScore;
-
-  const row = (
-    <Pressable
-      accessibilityRole="button"
-      onPress={() => {
-        Haptics.light();
-        onPress();
-      }}
-      android_ripple={
-        Platform.OS === 'android'
-          ? { color: Theme.list.androidRipple, borderless: false }
-          : undefined
-      }
-      style={({ pressed }) =>
-        [
-          styles.row,
-          Platform.OS === 'ios' && pressed
-            ? (listPressedStyle as ViewStyle)
-            : null,
-        ] as ViewStyle[]
-      }>
-      <View style={styles.main}>
-        <SerifText size={17} weight="semibold" style={styles.date}>
-          {formatVisitDate(review.date)}
-        </SerifText>
-        {!draft && score > 0 ? (
-          <FractionalStarRating score={score} size={18} />
-        ) : null}
-      </View>
-      {draft ? (
-        <Text style={styles.draftBadge}>{t('reviews.draftLabel')}</Text>
-      ) : score > 0 ? (
-        <SerifText size={20} weight="bold" style={styles.score}>
-          {formatScoreOutOfFive(score)}
-        </SerifText>
-      ) : null}
-    </Pressable>
-  );
-
-  if (!onDelete) return row;
-
-  return (
-    <FeedSwipeDelete
-      id={`visit_${review.id}`}
-      onDelete={onDelete}
-      cornerRadius={Platform.OS === 'ios' ? Theme.radius.sm : Theme.radius.xl}>
-      {row}
-    </FeedSwipeDelete>
-  );
-}
-
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    backgroundColor: Theme.list.cardBackground,
-    borderRadius: Platform.OS === 'ios' ? Theme.radius.sm : Theme.radius.xl,
-    ...(Platform.OS === 'ios' ? Surface.raised : Surface.flat),
-  },
-  main: {
-    flex: 1,
-    gap: 4,
-  },
-  date: {
-    color: GustraColors.ink,
-  },
-  score: {
-    color: GustraColors.forestGreen,
-  },
-  draftBadge: {
-    ...captionTextStyle,
-    fontSize: 13,
-    fontWeight: '700',
-    color: GustraColors.gold,
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
   },
 });
 
@@ -18556,84 +18209,6 @@ export default AnimatedCounter;
 
 
 ================================================================================
-FILE: components/passport/CategoryAverageRow.tsx
-================================================================================
-import { Platform, StyleSheet, Text, View } from 'react-native';
-
-import { SerifText } from '@/components/ui/SerifText';
-import { FractionalStarRating } from '@/components/ui/StarRating';
-import { GustraColors } from '@/constants/Colors';
-import { bodyTextStyle } from '@/constants/Theme';
-import type { CategoryAveragesDisplayStyle } from '@/context/PassportDisplaySettings';
-import { formatScoreOutOfFive } from '@/services/reviews/ratings';
-
-/** Android reads smaller at the same pt size; bump + tighter gap for passport. */
-const STAR_SIZE = Platform.OS === 'android' ? 26 : 20;
-const STAR_GAP = Platform.OS === 'android' ? -2 : 0;
-
-type CategoryAverageRowProps = {
-  title: string;
-  average: number;
-  style: CategoryAveragesDisplayStyle;
-  /** 1-based rank prefix (City Averages). */
-  rank?: number;
-};
-
-/** Matches Swift passport category row: numbers or fractional stars. */
-export function CategoryAverageRow({
-  title,
-  average,
-  style,
-  rank,
-}: CategoryAverageRowProps) {
-  const label = typeof rank === 'number' ? `${rank}. ${title}` : title;
-  return (
-    <View
-      style={styles.row}
-      accessibilityLabel={`${label}, ${formatScoreOutOfFive(average)}`}>
-      <Text style={styles.title} numberOfLines={2}>
-        {label}
-      </Text>
-      {style === 'stars' ? (
-        <FractionalStarRating
-          score={average}
-          size={STAR_SIZE}
-          gap={STAR_GAP}
-        />
-      ) : (
-        <SerifText size={17} weight="semibold" style={styles.value}>
-          {formatScoreOutOfFive(average)}
-        </SerifText>
-      )}
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    backgroundColor: 'rgba(236, 227, 207, 0.45)',
-    borderRadius: 12,
-  },
-  title: {
-    ...bodyTextStyle,
-    flex: 1,
-    fontSize: 16,
-    color: GustraColors.ink,
-  },
-
-  value: {
-    color: GustraColors.forestGreen,
-  },
-});
-
-
-================================================================================
 FILE: components/passport/PassportSection.tsx
 ================================================================================
 import type { ReactNode } from 'react';
@@ -19156,7 +18731,7 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: components/review/ReorderablePhotoStrip.tsx
 ================================================================================
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Platform, StyleSheet, Text, View } from 'react-native';
 import DraggableFlatList, {
   ScaleDecorator,
@@ -19210,11 +18785,38 @@ export function ReorderablePhotoStrip({
   const selected = new Set(selectedUris);
   /** Skip the press that can follow a completed long-press drag. */
   const skipNextPressRef = useRef(false);
+  /** Track photos whose file can no longer be loaded (orphaned refs). */
+  const [failedUris, setFailedUris] = useState<Set<string>>(() => new Set());
+
+  // A URI that disappears from the list (removed) should reset its failed state
+  // so a re-added photo gets a fresh load attempt.
+  useEffect(() => {
+    setFailedUris((prev) => {
+      const next = new Set<string>();
+      for (const uri of prev) {
+        if (photoUrls.includes(uri)) next.add(uri);
+      }
+      return next;
+    });
+  }, [photoUrls]);
+
+  // Empty slots are not photos — never render a blank tile for them.
+  const visiblePhotoUrls = photoUrls.filter((uri) => uri.trim());
+
+  const markFailed = (uri: string) => {
+    setFailedUris((prev) => {
+      const next = new Set(prev);
+      next.add(uri);
+      return next;
+    });
+  };
 
   const renderItem = ({ item, drag, isActive, getIndex }: RenderItemParams<string>) => {
     const index = getIndex() ?? 0;
     const isCover = index === 0;
     const isSelected = selected.has(item);
+    const isFailed = failedUris.has(item);
+    const displayUri = item.trim() ? relocateLocalPhotoRef(item) : '';
 
     return (
       <View style={styles.cell}>
@@ -19245,15 +18847,35 @@ export function ReorderablePhotoStrip({
                   : t('forms.review.photoStrip.a11yPhoto')
               }
               style={styles.thumbHit}>
-              <Image
-                source={{ uri: relocateLocalPhotoRef(item) }}
-                style={styles.thumb}
-                resizeMode="cover"
-              />
+              {displayUri && !isFailed ? (
+                <Image
+                  key={displayUri}
+                  source={{ uri: displayUri }}
+                  style={styles.thumb}
+                  resizeMode="cover"
+                  onError={() => markFailed(item)}
+                />
+              ) : (
+                <View style={[styles.thumb, styles.thumbFailed]}>
+                  {Platform.OS === 'ios' ? (
+                    <SymbolView
+                      name="photo.badge.exclamationmark"
+                      size={22}
+                      tintColor="rgba(35, 32, 26, 0.35)"
+                    />
+                  ) : (
+                    <MaterialIcons
+                      name="broken-image"
+                      size={22}
+                      color="rgba(35, 32, 26, 0.35)"
+                    />
+                  )}
+                </View>
+              )}
               {isSelected ? (
                 <View style={styles.selectedRing} pointerEvents="none" />
               ) : null}
-              {isCover ? (
+              {isCover && !isFailed ? (
                 <View style={styles.coverBadge} pointerEvents="none">
                   <Text style={styles.coverBadgeText}>
                     {t('forms.review.photoStrip.cover')}
@@ -19295,7 +18917,7 @@ export function ReorderablePhotoStrip({
       ) : null}
       <DraggableFlatList
         horizontal
-        data={photoUrls}
+        data={visiblePhotoUrls}
         keyExtractor={(item) => item}
         onDragBegin={() => {
           onDraggingChange?.(true);
@@ -19400,6 +19022,15 @@ const styles = StyleSheet.create({
     height: PHOTO_SIZE,
     borderRadius: Theme.radius.sm,
     backgroundColor: 'rgba(36, 78, 57, 0.08)',
+  },
+  /** Missing/broken photo — clearly not a real image slot. */
+  thumbFailed: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(36, 78, 57, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(35, 32, 26, 0.1)',
+    borderStyle: 'dashed',
   },
   selectedRing: {
     ...StyleSheet.absoluteFill,
@@ -21359,6 +20990,708 @@ const styles = StyleSheet.create({
 
 
 ================================================================================
+FILE: components/timeline/VisitTimeline.tsx
+================================================================================
+import { useMemo, type ReactNode } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+
+import {
+  MountNode,
+  VisitTimelineCard,
+  type VisitTimelineEntry,
+} from '@/components/timeline/VisitTimelineCard';
+import { SerifText } from '@/components/ui/SerifText';
+import { GustraColors } from '@/constants/Colors';
+import { captionTextStyle } from '@/constants/Theme';
+import { activeIntlLocale } from '@/i18n/formatDates';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
+
+type GroupedMonth = {
+  key: string;
+  label: string;
+  entries: VisitTimelineEntry[];
+};
+
+type YearGroup = {
+  year: number;
+  months: GroupedMonth[];
+};
+
+/** Group a (newest-first) entry list into year → month buckets. */
+export function groupByYearAndMonth(
+  entries: VisitTimelineEntry[],
+): YearGroup[] {
+  const locale = activeIntlLocale();
+  const years: YearGroup[] = [];
+  for (const entry of entries) {
+    const date = new Date(entry.date);
+    if (!Number.isFinite(date.getTime())) continue;
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    let yearGroup = years.find((y) => y.year === year);
+    if (!yearGroup) {
+      yearGroup = { year, months: [] };
+      years.push(yearGroup);
+    }
+    let monthGroup = yearGroup.months.find((m) => m.key === `${year}-${month}`);
+    if (!monthGroup) {
+      monthGroup = {
+        key: `${year}-${month}`,
+        label: date.toLocaleString(locale, { month: 'long' }),
+        entries: [],
+      };
+      yearGroup.months.push(monthGroup);
+    }
+    monthGroup.entries.push(entry);
+  }
+  return years;
+}
+
+/** Large serif year header, centered on the timeline (Apple tilt). */
+function YearHeader({
+  year,
+  count,
+}: {
+  year: number;
+  count: number | undefined;
+}) {
+  return (
+    <View style={styles.yearHeaderRow}>
+      <View style={styles.yearHeaderRule} />
+      <MountNode style={styles.yearHeaderChip}>
+        <SerifText size={28} weight="bold" style={styles.yearHeaderText}>
+          {year}
+        </SerifText>
+      </MountNode>
+      <View style={styles.yearHeaderRule} />
+      {count !== undefined ? (
+        <Text style={styles.yearCount}>{count}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+export type VisitTimelineProps = {
+  entries: VisitTimelineEntry[];
+  /** Render the card for one entry. Replaces the default press behavior. */
+  renderCard?: (entry: VisitTimelineEntry, index: number) => ReactNode;
+  /** Tap handler for the default card rendering. */
+  onPressEntry?: (entry: VisitTimelineEntry) => void;
+  /**
+   * Show the year/month visit-count labels. Time Travel keeps them (total per
+   * year, visits per month); the restaurant visits overview hides them because
+   * every row is already an individual visit.
+   */
+  showCounts?: boolean;
+};
+
+/**
+ * The shared Time Travel timeline: a continuous gold spine with animated
+ * nodes, large serif year headers, month headers with visit counts, and the
+ * cinematic visit cards. Used identically by Time Travel and the restaurant
+ * visits overview so the two always match.
+ *
+ * Entries are expected newest-first (the same order as the timeline).
+ */
+export function VisitTimeline({
+  entries,
+  renderCard,
+  onPressEntry,
+  showCounts = true,
+}: VisitTimelineProps) {
+  const { t } = useAppTranslation();
+  const yearGroups = useMemo(() => groupByYearAndMonth(entries), [entries]);
+
+  if (entries.length === 0) return null;
+
+  return (
+    <View style={styles.timeline}>
+      {yearGroups.map((yearGroup) => {
+        const entriesInYear = yearGroup.months.reduce(
+          (sum, m) => sum + m.entries.length,
+          0,
+        );
+        return (
+          <View key={yearGroup.year} style={styles.yearBlock}>
+            <YearHeader year={yearGroup.year} count={showCounts ? entriesInYear : undefined} />
+
+            <View style={styles.yearSpineTrack}>
+              <View style={styles.yearSpineLine} />
+              {yearGroup.months.map((month) => {
+                if (month.entries.length === 0) return null;
+                return (
+                  <View key={month.key} style={styles.monthGroup}>
+                    <View style={styles.monthRow}>
+                      <View style={styles.monthRail}>
+                        <MountNode delay={90} style={styles.monthMarker}>
+                          <View style={styles.monthMarkerInner} />
+                        </MountNode>
+                      </View>
+                      <Text style={styles.monthTitle}>
+                        {t('passport.timeTravelMonthHeader', {
+                          month: month.label,
+                          year: yearGroup.year,
+                        })}
+                      </Text>
+                      {showCounts ? (
+                        <Text style={styles.monthCount}>
+                          {t('passport.timeTravelMonthCount', {
+                            count: month.entries.length,
+                          })}
+                        </Text>
+                      ) : null}
+                    </View>
+
+                    {month.entries.map((entry, index) =>
+                      renderCard ? (
+                        renderCard(entry, index)
+                      ) : (
+                        <VisitTimelineCard
+                          key={entry.reviewId}
+                          entry={entry}
+                          onPress={() => {
+                            if (onPressEntry) onPressEntry(entry);
+                          }}
+                        />
+                      ),
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  /* ——— Timeline layout ——— */
+  timeline: {
+    gap: 10,
+  },
+  yearBlock: {
+    gap: 14,
+    paddingBottom: 12,
+  },
+  yearSpineTrack: {
+    position: 'relative',
+  },
+  /** Single continuous 3px vertical line, centered on the rail. */
+  yearSpineLine: {
+    position: 'absolute',
+    left: 27,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    borderRadius: 2,
+    backgroundColor: 'rgba(217, 162, 39, 0.25)',
+  },
+  monthGroup: {
+    gap: 14,
+  },
+  monthRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 4,
+    marginBottom: 6,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(35, 32, 26, 0.08)',
+  },
+  monthTitle: {
+    ...captionTextStyle,
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: 'rgba(35, 32, 26, 0.55)',
+  },
+  monthCount: {
+    ...captionTextStyle,
+    fontSize: 12,
+    color: 'rgba(217, 162, 39, 1)',
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+  /** Slim rail for the month marker (the visit cards bring their own rail). */
+  monthRail: {
+    width: 56,
+    alignItems: 'center',
+  },
+  monthMarker: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 18,
+    height: 18,
+    zIndex: 2,
+  },
+  monthMarkerInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: GustraColors.gold,
+    borderWidth: 2,
+    borderColor: GustraColors.cream,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+
+  /* ——— Year header (large serif, centered) ——— */
+  yearHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    paddingVertical: 8,
+  },
+  yearHeaderRule: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(217, 162, 39, 0.35)',
+  },
+  yearHeaderChip: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 4,
+  },
+  yearHeaderText: {
+    color: GustraColors.forestGreen,
+    fontVariant: ['tabular-nums'],
+  },
+  yearCount: {
+    ...captionTextStyle,
+    fontSize: 13,
+    color: 'rgba(35, 32, 26, 0.5)',
+    fontVariant: ['tabular-nums'],
+  },
+});
+
+
+================================================================================
+FILE: components/timeline/VisitTimelineCard.tsx
+================================================================================
+import { useEffect, useState, type ReactNode } from 'react';
+import {
+  ImageBackground,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { SymbolView, type SFSymbol } from 'expo-symbols';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+
+import { FeedSwipeDelete } from '@/components/feed/FeedSwipeDelete';
+import { SerifText } from '@/components/ui/SerifText';
+import { GustraColors } from '@/constants/Colors';
+import { bodyTextStyle, captionTextStyle } from '@/constants/Theme';
+import { formatLongDate } from '@/i18n/formatDates';
+import { formatScoreOutOfFive } from '@/services/reviews/ratings';
+
+/** A visit entry — same shape as the Time Travel entries. */
+export type VisitTimelineEntry = {
+  reviewId: string;
+  restaurantId: string;
+  restaurantTitle: string;
+  date: string;
+  score: number;
+  photoUrl: string;
+  thumbnailColor: string;
+};
+
+/** Platform-adaptive glyph (SF Symbol on iOS, Material on Android). */
+export function HouseGlyph({
+  ios,
+  android,
+  color,
+  size = 22,
+}: {
+  ios: SFSymbol;
+  android: keyof typeof MaterialIcons.glyphMap;
+  color: string;
+  size?: number;
+}) {
+  if (Platform.OS === 'ios') {
+    return (
+      <SymbolView name={ios} tintColor={color} size={size} weight="semibold" />
+    );
+  }
+  return <MaterialIcons name={android} size={size} color={color} />;
+}
+
+/**
+ * A timeline marker that scales in gently when it mounts (Apple-style reveal).
+ * Pure spring pop — no scroll-driven/parallax motion (deliberately minimal).
+ */
+export function MountNode({
+  children,
+  delay = 0,
+  style,
+}: {
+  children?: ReactNode;
+  delay?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const scale = useSharedValue(0.55);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    scale.value = withSpring(1, { damping: 14, stiffness: 200 });
+    opacity.value = withDelay(delay, withTiming(1, { duration: 260 }));
+  }, [scale, opacity, delay]);
+
+  const animated = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View style={[style, animated]}>{children}</Animated.View>
+  );
+}
+
+/**
+ * Compact no-photo card in house-style green (same for every restaurant — the
+ * per-restaurant thumbnail color can be brown/amber and would clash with the
+ * green/gold palette). The star badge sits in the bottom-right corner
+ * (identical to the photo cards) via the shared `scoreBadge`; right padding
+ * keeps the fully-expanded restaurant name clear of it. No fixed height — the
+ * card wraps exactly its text content, so short names stay compact.
+ */
+export function StoryFallbackCard({ entry }: { entry: VisitTimelineEntry }) {
+  return (
+    <View style={[styles.storyFallback, styles.storyFallbackGreen]}>
+      <View style={styles.storyFallbackText}>
+        <SerifText size={24} weight="bold" style={styles.storyTitle}>
+          {entry.restaurantTitle}
+        </SerifText>
+        <Text style={styles.storyDate}>{formatLongDate(entry.date)}</Text>
+      </View>
+      <View style={styles.scoreBadge} pointerEvents="none">
+        <HouseGlyph
+          ios="star.fill"
+          android="star"
+          color={GustraColors.gold}
+          size={13}
+        />
+        <Text style={styles.scoreBadgeText}>
+          {formatScoreOutOfFive(entry.score)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/** Bottom-overlay copy block sitting on the cinematic gradient. */
+export function StoryOverlay({ entry }: { entry: VisitTimelineEntry }) {
+  return (
+    <View style={styles.storyCopy}>
+      <SerifText size={24} weight="bold" style={styles.storyTitle}>
+        {entry.restaurantTitle}
+      </SerifText>
+      <View style={styles.storyMetaRow}>
+        <Text style={styles.storyDate}>{formatLongDate(entry.date)}</Text>
+      </View>
+
+      {/* Floating glassmorphism rating badge, bottom-right. */}
+      <View style={styles.scoreBadge} pointerEvents="none">
+        <HouseGlyph
+          ios="star.fill"
+          android="star"
+          color={GustraColors.gold}
+          size={13}
+        />
+        <Text style={styles.scoreBadgeText}>
+          {formatScoreOutOfFive(entry.score)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * One visit on a timeline: a large cinematic photo card (~340pt) with the
+ * restaurant info overlaid on a bottom gradient, and the rating in a floating
+ * glassmorphism badge at the bottom-right. Without a photo it falls back to a
+ * compact card in house-style green that wraps the text (no fixed height —
+ * the frame is as tall as the content).
+ *
+ * `onPress` opens the review detail. `onDelete` (optional) wraps the card in
+ * the Mail-style swipe-to-delete row.
+ */
+export function VisitTimelineCard({
+  entry,
+  onPress,
+  onDelete,
+}: {
+  entry: VisitTimelineEntry;
+  onPress: () => void;
+  onDelete?: () => void;
+}) {
+  const [photoFailed, setPhotoFailed] = useState(false);
+  // A non-empty uri that fails to load (e.g. an orphaned local path after a
+  // restore) must not render as a broken 340pt photo card — fall back to the
+  // compact restaurant-colored tile instead.
+  const hasPhoto = Boolean(entry.photoUrl) && !photoFailed;
+  const accessibilityLabel = `${entry.restaurantTitle}, ${formatLongDate(
+    entry.date,
+  )}, ${formatScoreOutOfFive(entry.score)}`;
+
+  const card = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      onPress={onPress}
+      style={({ pressed }) => [
+        hasPhoto ? styles.storyCard : styles.storyCardNoPhoto,
+        pressed && styles.storyPressed,
+      ]}>
+      {hasPhoto ? (
+        <ImageBackground
+          source={{ uri: entry.photoUrl }}
+          style={styles.storyBg}
+          imageStyle={styles.storyImg}
+          resizeMode="cover"
+          onError={() => setPhotoFailed(true)}>
+          <LinearGradient
+            colors={[
+              'rgba(10, 8, 4, 0)',
+              'rgba(10, 8, 4, 0.28)',
+              'rgba(10, 8, 4, 0.9)',
+            ]}
+            locations={[0, 0.45, 1]}
+            style={StyleSheet.absoluteFill}
+          />
+          <StoryOverlay entry={entry} />
+        </ImageBackground>
+      ) : (
+        <StoryFallbackCard entry={entry} />
+      )}
+    </Pressable>
+  );
+
+  if (!onDelete) {
+    return (
+      <View style={styles.timelineRow}>
+        <View style={styles.rail}>
+          <MountNode style={styles.railNodeShell}>
+            <View style={styles.railNode}>
+              <HouseGlyph
+                ios="circle.fill"
+                android="circle"
+                color={GustraColors.gold}
+                size={9}
+              />
+            </View>
+          </MountNode>
+        </View>
+        {card}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.timelineRow}>
+      <View style={styles.rail}>
+        <MountNode style={styles.railNodeShell}>
+          <View style={styles.railNode}>
+            <HouseGlyph
+              ios="circle.fill"
+              android="circle"
+              color={GustraColors.gold}
+              size={9}
+            />
+          </View>
+        </MountNode>
+      </View>
+      <View style={styles.swipeWrap}>
+        <FeedSwipeDelete
+          id={`visit_${entry.reviewId}`}
+          onDelete={onDelete}
+          cornerRadius={26}>
+          {card}
+        </FeedSwipeDelete>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  /* ——— Timeline layout ——— */
+  timelineRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  swipeWrap: {
+    flex: 1,
+  },
+  /** Fixed-width rail column; markers/thumbnails live here, centered on line. */
+  rail: {
+    width: 56,
+    alignItems: 'center',
+  },
+  railNodeShell: {
+    width: 28,
+    height: 28,
+    marginTop: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  railNode: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: GustraColors.cream,
+    borderWidth: 2,
+    borderColor: 'rgba(217, 162, 39, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+
+  /* ——— Cinematic story card (~340pt) ——— */
+  storyCard: {
+    flex: 1,
+    height: 340,
+    borderRadius: 26,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(35, 32, 26, 0.1)',
+    shadowColor: '#000000',
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+    marginBottom: 6,
+  },
+  /** No-photo variant: no fixed height — the card wraps its text content. */
+  storyCardNoPhoto: {
+    flex: 1,
+    borderRadius: 26,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(35, 32, 26, 0.1)',
+    shadowColor: '#000000',
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+    marginBottom: 6,
+  },
+  storyPressed: {
+    opacity: 0.94,
+  },
+  storyBg: {
+    flex: 1,
+  },
+  storyImg: {
+    borderRadius: 26,
+  },
+  storyFallback: {
+    position: 'relative',
+    paddingTop: 18,
+    paddingBottom: 18,
+    paddingLeft: 18,
+    borderRadius: 26,
+    overflow: 'hidden',
+  },
+  /** House-style green fallback tile for visits without a photo. */
+  storyFallbackGreen: {
+    backgroundColor: GustraColors.forestGreen,
+  },
+  storyFallbackText: {
+    // Keep the fully-expanded name clear of the badge zone on the right edge.
+    paddingRight: 92,
+    gap: 6,
+  },
+  storyCopy: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingLeft: 18,
+    // Reserve the right edge past the floating star badge so a long restaurant
+    // name wraps before it and never runs under/into the rating label.
+    paddingRight: 120,
+    paddingBottom: 16,
+    paddingTop: 48,
+    gap: 4,
+  },
+  storyTitle: {
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  storyMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  storyDate: {
+    ...captionTextStyle,
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'rgba(255, 253, 245, 0.92)',
+    textShadowColor: 'rgba(0, 0, 0, 0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  /** Floating glassmorphism rating badge, bottom-right. */
+  scoreBadge: {
+    position: 'absolute',
+    right: 18,
+    bottom: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  scoreBadgeText: {
+    ...bodyTextStyle,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontVariant: ['tabular-nums'],
+  },
+});
+
+
+================================================================================
 FILE: components/ui/FavoriteHeartButton.tsx
 ================================================================================
 import { useEffect, useState } from 'react';
@@ -21862,9 +22195,9 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(35, 32, 26, 0.08)',
     shadowColor: '#000000',
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 5 },
     ...Surface.floating,
   },
   item: {
@@ -22707,6 +23040,10 @@ const styles = StyleSheet.create({
     backgroundColor: GustraColors.forestGreen,
     alignItems: 'center',
     justifyContent: 'center',
+    // Thin contrasting rim — lifts the pill visually off the cream surface
+    // (HIG floating button). A subtle lighter edge reads as a glass highlight.
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.45)',
     zIndex: 100,
     elevation: 16,
   },
@@ -24032,6 +24369,49 @@ const styles = StyleSheet.create({
 
 
 ================================================================================
+FILE: components/ui/TabBarBottomFade.tsx
+================================================================================
+import { StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { GustraColors } from '@/constants/Colors';
+
+/** Floating pill bar height — must match `GustraTabBar` `pill.minHeight`. */
+const TAB_PILL_HEIGHT = 62;
+/** Wrap bottom inset — must match `GustraTabBar` `paddingBottom`. */
+const TAB_WRAP_BOTTOM = 8;
+
+/**
+ * Solid cream underlay under the floating pill tab bar — shared by every
+ * scrollable tab screen (Reviews, Nearby, Map search, My Gustra, Time
+ * Machine, Settings) so scrolled content never shows through around the pill
+ * or the home indicator. The bar itself already carries a soft shadow, which
+ * provides the "floating" layering — no gradient is needed (a translucent
+ * fade over cards looks muddy).
+ */
+export function TabBarBottomFade() {
+  const insets = useSafeAreaInsets();
+  const pillBottom = Math.max(insets.bottom, TAB_WRAP_BOTTOM);
+  // Cream from the screen bottom up to the pill's top edge: full coverage
+  // under/behind the bar, while the pill's own shadow stays visible above it.
+  const solidHeight = pillBottom + TAB_PILL_HEIGHT;
+  return (
+    <View pointerEvents="none" style={[styles.solid, { height: solidHeight }]} />
+  );
+}
+
+const styles = StyleSheet.create({
+  solid: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: GustraColors.cream,
+  },
+});
+
+
+================================================================================
 FILE: components/useClientOnlyValue.ts
 ================================================================================
 // This function is web-only as native doesn't currently support server (or build-time) rendering.
@@ -24653,12 +25033,12 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   inlineRow: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
   },
   inlineRowBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(35, 32, 26, 0.12)',
+    borderBottomColor: 'rgba(35, 32, 26, 0.08)',
   },
   richRow: {
     flexDirection: 'row',
@@ -25712,6 +26092,11 @@ export const Theme = {
     searchVertical: 8,
     fabTrailing: 20,
     fabBottom: 12,
+    /**
+     * Breathing room between the FAB and the last scrollable content — content
+     * must always stop above the FAB so it never blocks text/location rows.
+     */
+    fabClearance: 24,
     /** Clearance above the floating cream pill tab bar (+ home indicator). */
     floatingTabBarClearance: 78,
   },
@@ -25750,10 +26135,10 @@ export const Theme = {
 
   fabShadow: {
     shadowColor: '#000000',
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
   },
 
   /** Subtle floating overlay shadow (map chips, legend cards, map buttons). */
@@ -26338,6 +26723,114 @@ export function useCriteriaSettings(): CriteriaSettingsValue {
   if (!ctx) {
     throw new Error(
       'useCriteriaSettings must be used within CriteriaSettingsProvider',
+    );
+  }
+  return ctx;
+}
+
+
+================================================================================
+FILE: context/DemoLabelSettings.tsx
+================================================================================
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+
+const STORAGE_KEY = 'showDemoLabelOnDemoReviews';
+
+/** Survives provider remounts / Fast Refresh so the choice is not lost. */
+let cached = true;
+let hydrated = false;
+let hydratePromise: Promise<boolean> | null = null;
+
+async function hydrate(): Promise<boolean> {
+  if (hydrated) return cached;
+  if (hydratePromise) return hydratePromise;
+  hydratePromise = (async () => {
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      if (raw === '0' || raw === 'false') cached = false;
+      else if (raw === '1' || raw === 'true') cached = true;
+    } catch {
+      // keep cached default
+    } finally {
+      hydrated = true;
+      hydratePromise = null;
+    }
+    return cached;
+  })();
+  return hydratePromise;
+}
+
+async function persist(next: boolean): Promise<void> {
+  cached = next;
+  hydrated = true;
+  try {
+    await AsyncStorage.setItem(STORAGE_KEY, next ? '1' : '0');
+  } catch {
+    // Preference still held in memory for this session.
+  }
+}
+
+type DemoLabelSettingsValue = {
+  showDemoLabel: boolean;
+  setShowDemoLabel: (next: boolean) => void;
+  ready: boolean;
+};
+
+const DemoLabelSettingsContext =
+  createContext<DemoLabelSettingsValue | null>(null);
+
+export function DemoLabelSettingsProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const [showDemoLabel, setShowDemoLabelState] = useState(cached);
+  const [ready, setReady] = useState(hydrated);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const value = await hydrate();
+      if (cancelled) return;
+      setShowDemoLabelState(value);
+      setReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const setShowDemoLabel = useCallback((next: boolean) => {
+    setShowDemoLabelState(next);
+    void persist(next);
+  }, []);
+
+  const value = useMemo(
+    () => ({ showDemoLabel, setShowDemoLabel, ready }),
+    [showDemoLabel, setShowDemoLabel, ready],
+  );
+
+  return (
+    <DemoLabelSettingsContext.Provider value={value}>
+      {children}
+    </DemoLabelSettingsContext.Provider>
+  );
+}
+
+export function useDemoLabelSettings(): DemoLabelSettingsValue {
+  const ctx = useContext(DemoLabelSettingsContext);
+  if (!ctx) {
+    throw new Error(
+      'useDemoLabelSettings must be used within DemoLabelSettingsProvider',
     );
   }
   return ctx;
@@ -27188,6 +27681,7 @@ import {
   relocateStoredPhotoRefs,
   stripWineLabelUrisFromPhotoUrls,
 } from '@/services/backup/photos';
+import { pruneBrokenPhotoRefs } from '@/services/photos/orphanCleanup';
 import {
   REVIEWER_PHOTO_BACKUP_KEY,
   type BackupImportMode,
@@ -27648,6 +28142,16 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
             });
             hydratedRestaurants = relocated.restaurants;
             hydratedReviews = relocated.reviews;
+            // Drop broken photo references — refs whose local file no longer
+            // exists on disk (orphaned paths after a restore / sandbox change)
+            // would otherwise render as empty slots in the edit strip and as
+            // blank covers in the feed. Remote demo URLs are always kept.
+            const pruned = await pruneBrokenPhotoRefs({
+              reviews: hydratedReviews,
+              restaurants: hydratedRestaurants,
+            });
+            hydratedRestaurants = pruned.restaurants;
+            hydratedReviews = pruned.reviews;
             const demoOn = await readDemoShowcasePreference();
             const withDemo = withOptionalDemo(
               hydratedRestaurants,
@@ -29524,12 +30028,6 @@ export type BestWineEntry = {
   rating: number;
 };
 
-export type CriterionAverage = {
-  id: string;
-  title: string;
-  average: number;
-};
-
 export type CityAverage = {
   city: string;
   average: number;
@@ -29539,7 +30037,6 @@ export type PassportStats = {
   totalReviews: number;
   averageOverall: number;
   bestRestaurants: BestRestaurantEntry[];
-  criterionAverages: CriterionAverage[];
   cityAverages: CityAverage[];
 };
 
@@ -29571,28 +30068,6 @@ function scoreForEnabled(review: Review, enabledIds: Set<string>): number {
   );
 }
 
-function criterionAveragesFromReviews(
-  reviews: Review[],
-  enabled: EnabledCriterion[],
-): CriterionAverage[] {
-  return enabled
-    .map((criterion) => {
-      const values = reviews
-        .map(
-          (r) => r.criteria.find((c) => c.id === criterion.id)?.rating ?? 0,
-        )
-        .filter((rating) => RatingValue.isStarRating(rating))
-        .map((rating) => RatingValue.starValue(rating));
-      if (values.length === 0) return null;
-      return {
-        id: criterion.id,
-        title: criterion.title,
-        average: values.reduce((a, b) => a + b, 0) / values.length,
-      };
-    })
-    .filter((row): row is CriterionAverage => row !== null);
-}
-
 /** Passport stats over the (already filtered) review set. */
 export function getPassportStats(
   enabledCriteria: EnabledCriterion[],
@@ -29612,7 +30087,6 @@ export function getPassportStats(
       totalReviews: 0,
       averageOverall: 0,
       bestRestaurants: [],
-      criterionAverages: [],
       cityAverages: [],
     };
   }
@@ -29705,7 +30179,6 @@ export function getPassportStats(
     totalReviews,
     averageOverall,
     bestRestaurants,
-    criterionAverages: criterionAveragesFromReviews(reviews, enabledCriteria),
     cityAverages,
   };
 }
@@ -29791,7 +30264,7 @@ export type TimeMachineEntry = {
   /** ISO date of the visit (Review.date). */
   date: string;
   score: number;
-  /** Best photo for this visit (review hero, else restaurant photo). */
+  /** This visit's own cover photo — empty when the visit has no photo. */
   photoUrl: string;
   /** Restaurant thumbnail color for the fallback tile when no photo. */
   thumbnailColor: string;
@@ -29802,38 +30275,53 @@ function displayLocation(name: string, city: string): string {
   return name;
 }
 
+/** First non-empty photo URI from a review’s ordered list (cover = index 0). */
+function firstPhotoUrl(photoUrls: string[] | undefined): string {
+  if (!photoUrls?.length) return '';
+  for (const raw of photoUrls) {
+    const uri = raw?.trim();
+    if (uri) return uri;
+  }
+  return '';
+}
+
 /**
  * All completed visits on the personal timeline (own reviews only, newest
  * first) for the Apple Time Machine-style timeline. Friend/imported reviews
  * are excluded so the timeline and its statistics only reflect your own
  * visits. Drafts are excluded as well (same rule as the passport stats).
+ *
+ * Photos: each visit shows exactly its own cover photo (the first non-empty
+ * photo of that visit). A visit without a photo gets an empty `photoUrl` and
+ * renders as the green house-style tile — photos are never borrowed from
+ * other visits.
  */
 export function buildTimeMachineEntries(
   reviews: Review[],
   restaurants: Restaurant[],
 ): TimeMachineEntry[] {
   const restaurantById = new Map(restaurants.map((r) => [r.id, r]));
-  return reviews
+  const ownComplete = reviews
     .filter(
       (review) =>
         !isReviewDraft(review) && resolveReviewOrigin(review) === 'own',
     )
-    .map((review) => {
-      const restaurant = restaurantById.get(review.restaurantId);
-      return {
-        reviewId: review.id,
-        restaurantId: review.restaurantId,
-        restaurantTitle: restaurant
-          ? displayLocation(restaurant.name, restaurant.city)
-          : '—',
-        date: review.date,
-        score: review.overallScore,
-        photoUrl:
-          review.photoUrls[0]?.trim() || restaurant?.photoUrl?.trim() || '',
-        thumbnailColor: restaurant?.thumbnailColor || '#3D6B52',
-      };
-    })
     .sort((a, b) => +new Date(b.date) - +new Date(a.date));
+
+  return ownComplete.map((review) => {
+    const restaurant = restaurantById.get(review.restaurantId);
+    return {
+      reviewId: review.id,
+      restaurantId: review.restaurantId,
+      restaurantTitle: restaurant
+        ? displayLocation(restaurant.name, restaurant.city)
+        : '—',
+      date: review.date,
+      score: review.overallScore,
+      photoUrl: firstPhotoUrl(review.photoUrls),
+      thumbnailColor: restaurant?.thumbnailColor || '#3D6B52',
+    };
+  });
 }
 
 
@@ -30448,7 +30936,10 @@ import { houseAlert, houseSaveChangesAlert } from '@/components/ui/HouseAlert';
 import { Haptics } from '@/services/haptics';
 
 import type { CriterionRating, WineLabelFiche } from '@/data/types';
-import { stripWineLabelUrisFromPhotoUrls } from '@/services/backup/photos';
+import {
+  stripWineLabelUrisFromPhotoUrls,
+  filterExistingLocalPhotos,
+} from '@/services/backup/photos';
 import { extractTextFromImages } from '@/services/ocr/OCRService';
 import { deleteReviewPhotoFiles } from '@/services/reviews/photoStorage';
 import { RatingValue } from '@/services/reviews/ratings';
@@ -30656,6 +31147,35 @@ export function useReviewFormState() {
     });
   }, [existingReview, getRestaurant, initialDraft, ready, restaurants]);
 
+  // Auto-remove broken photo references when opening an existing review: refs
+  // whose local file is missing (e.g. orphaned paths after a restore) would
+  // otherwise show as empty slots in the edit strip. Runs once after hydrate,
+  // rewrites state + refs + baseline so it never marks the form as "dirty".
+  useEffect(() => {
+    if (!ready || !initialLoadComplete || !existingReview || !didHydrate.current) {
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const current = photoUrlsRef.current;
+      const hasLocalRef = current.some(
+        (u) => u.trim() && !u.trim().startsWith('http'),
+      );
+      if (!hasLocalRef) return;
+      const { photoUrls: kept } = await filterExistingLocalPhotos(current);
+      if (cancelled || kept.length === current.length) return;
+      photoUrlsRef.current = kept;
+      setPhotoUrls(kept);
+      const baseline = editBaselineRef.current;
+      if (baseline) {
+        editBaselineRef.current = { ...baseline, photoUrls: kept };
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [existingReview, filterExistingLocalPhotos, initialLoadComplete, ready]);
+
   const criteriaList: CriterionRating[] = useMemo(
     () =>
       enabledCriteria.map((c) => {
@@ -30723,14 +31243,24 @@ export function useReviewFormState() {
     };
   }, [criteriaList, customCriterionNames, draft, generalComment, isFavorite, ocrIndexedText, visitDate]);
 
-  const hasPersistableContent = useCallback(() => {
-    if (draft) return true;
+  /**
+   * True when the user actually entered something (rating, comment, photo,
+   * favorite, wine label). A brand-new form that only pre-filled the
+   * restaurant (the draft exists) is NOT "content" — backing out of it must
+   * not trigger the "save changes?" dialog.
+   */
+  const hasEnteredContent = useCallback(() => {
     if (isFavorite) return true;
     if (generalComment.trim()) return true;
     if (photoUrls.length > 0) return true;
     if (wineLabels.length > 0) return true;
     return criteriaList.some((c) => RatingValue.isStarRating(c.rating) || c.comment.trim().length > 0);
-  }, [criteriaList, draft, generalComment, isFavorite, photoUrls.length, wineLabels.length]);
+  }, [criteriaList, generalComment, isFavorite, photoUrls.length, wineLabels.length]);
+
+  const hasPersistableContent = useCallback(() => {
+    if (draft) return true;
+    return hasEnteredContent();
+  }, [draft, hasEnteredContent]);
 
   const persistNow = useCallback(
     async (markBusy = false): Promise<boolean> => {
@@ -30819,8 +31349,8 @@ export function useReviewFormState() {
 
   const isNewDirty = useMemo(() => {
     if (isEdit || !initialLoadComplete) return false;
-    return hasPersistableContent();
-  }, [hasPersistableContent, initialLoadComplete, isEdit]);
+    return hasEnteredContent();
+  }, [hasEnteredContent, initialLoadComplete, isEdit]);
 
   const isFormDirty = isEdit ? isEditDirty : isNewDirty;
   const isFormDirtyRef = useRef(false);
@@ -31032,6 +31562,9 @@ export function useReviewFormState() {
     // through a long stack. Edits keep the normal back-to-origin behavior.
     if (!isEditRef.current) {
       if (isFormDirty) {
+        // Only ask when something was actually entered. A fresh form with
+        // nothing but the pre-filled restaurant discards silently — pressing
+        // the FAB and backing out must never prompt "save changes?".
         promptDiscardEdits(() => {
           allowLeaveRef.current = true;
           leaveToReviews();
@@ -31828,6 +32361,7 @@ FILE: i18n/locales/de.json
       "addReview": "Bewertung hinzufügen"
     },
     "draftLabel": "Draft",
+    "demoLabel": "Demo",
     "visitedBefore_one": "Bereits 1 Mal besucht",
     "visitedBefore_other": "Bereits {{count}} Mal besucht"
   },
@@ -31926,6 +32460,9 @@ FILE: i18n/locales/de.json
     "demoShowcaseOn": "Sechs fiktive Restaurants mit Fotos und Weinfiches",
     "demoShowcaseOff": "Aus — es werden nur deine echten Bewertungen gezeigt",
     "demoShowcaseShareBlocked": "Beispielbewertungen dienen nur zum Erkunden von Gustra und können nicht geteilt werden.",
+    "demoLabel": "Demo-Label",
+    "demoLabelOn": "Bei Beispielbewertungen gezeigt",
+    "demoLabelOff": "Ausgeblendet — für saubere Screenshots",
     "sectionStorage": "Speicher",
     "sectionData": "Daten & Backup",
     "sectionGoogle": "Google-API-Nutzung",
@@ -32539,6 +33076,7 @@ FILE: i18n/locales/en.json
   "reviews": {
     "searchPlaceholder": "Search restaurants, comments, photos…",
     "draftLabel": "Draft",
+    "demoLabel": "Demo",
     "visitedBefore_one": "Visited once before",
     "visitedBefore_other": "Visited {{count}} times before",
     "visitCount_one": "{{count}} visit · {{date}}",
@@ -32657,6 +33195,9 @@ FILE: i18n/locales/en.json
     "demoShowcaseOn": "Six fictional restaurants with photos and wine fiches",
     "demoShowcaseOff": "Off — only your real reviews are shown",
     "demoShowcaseShareBlocked": "Sample reviews are for exploring Gustra only and can’t be shared.",
+    "demoLabel": "Demo label",
+    "demoLabelOn": "Shown on sample reviews",
+    "demoLabelOff": "Hidden — for clean screenshots",
     "sectionStorage": "Storage",
     "sectionData": "Data & backup",
     "sectionGoogle": "Google API usage",
@@ -33290,6 +33831,7 @@ FILE: i18n/locales/es.json
       "addReview": "Añadir reseña"
     },
     "draftLabel": "Draft",
+    "demoLabel": "Demo",
     "visitedBefore_one": "Visitado 1 vez",
     "visitedBefore_other": "Visitado {{count}} veces"
   },
@@ -33388,6 +33930,9 @@ FILE: i18n/locales/es.json
     "demoShowcaseOn": "Seis restaurantes ficticios con fotos y fichas de vino",
     "demoShowcaseOff": "Desactivado — solo se muestran tus reseñas reales",
     "demoShowcaseShareBlocked": "Las reseñas de ejemplo son solo para explorar Gustra y no se pueden compartir.",
+    "demoLabel": "Etiqueta Demo",
+    "demoLabelOn": "Mostrada en reseñas de ejemplo",
+    "demoLabelOff": "Oculta — para capturas limpias",
     "sectionStorage": "Almacenamiento",
     "sectionData": "Datos y copia de seguridad",
     "sectionGoogle": "Uso de la API de Google",
@@ -34021,6 +34566,7 @@ FILE: i18n/locales/fr.json
       "addReview": "Ajouter un avis"
     },
     "draftLabel": "Draft",
+    "demoLabel": "Demo",
     "visitedBefore_one": "Déjà visité 1 fois",
     "visitedBefore_other": "Déjà visité {{count}} fois"
   },
@@ -34119,6 +34665,9 @@ FILE: i18n/locales/fr.json
     "demoShowcaseOn": "Six restaurants fictifs avec photos et fiches vins",
     "demoShowcaseOff": "Désactivé — seuls vos vrais avis s’affichent",
     "demoShowcaseShareBlocked": "Les avis d’exemple servent à explorer Gustra et ne peuvent pas être partagés.",
+    "demoLabel": "Libellé Démo",
+    "demoLabelOn": "Affiché sur les avis d’exemple",
+    "demoLabelOff": "Masqué — pour des captures propres",
     "sectionStorage": "Stockage",
     "sectionData": "Données et sauvegarde",
     "sectionGoogle": "Utilisation de l’API Google",
@@ -34752,6 +35301,7 @@ FILE: i18n/locales/it.json
       "addReview": "Aggiungi recensione"
     },
     "draftLabel": "Draft",
+    "demoLabel": "Demo",
     "visitedBefore_one": "Già visitato 1 volta",
     "visitedBefore_other": "Già visitato {{count}} volte"
   },
@@ -34850,6 +35400,9 @@ FILE: i18n/locales/it.json
     "demoShowcaseOn": "Sei ristoranti fittizi con foto e schede vino",
     "demoShowcaseOff": "Disattivato — vengono mostrate solo le tue recensioni reali",
     "demoShowcaseShareBlocked": "Le recensioni di esempio servono solo a esplorare Gustra e non possono essere condivise.",
+    "demoLabel": "Etichetta Demo",
+    "demoLabelOn": "Mostrata sulle recensioni di esempio",
+    "demoLabelOff": "Nascosta — per screenshot puliti",
     "sectionStorage": "Archiviazione",
     "sectionData": "Dati e backup",
     "sectionGoogle": "Utilizzo API Google",
@@ -35483,6 +36036,7 @@ FILE: i18n/locales/nl.json
       "addReview": "Recensie toevoegen"
     },
     "draftLabel": "Draft",
+    "demoLabel": "Demo",
     "visitedBefore_one": "Al 1 keer bezocht",
     "visitedBefore_other": "Al {{count}} keer bezocht"
   },
@@ -35581,6 +36135,9 @@ FILE: i18n/locales/nl.json
     "demoShowcaseOn": "Zes fictieve restaurants met foto’s en wijnfiches",
     "demoShowcaseOff": "Uit — alleen jouw echte recensies worden getoond",
     "demoShowcaseShareBlocked": "Voorbeeldrecensies zijn alleen om Gustra te verkennen en kunnen niet worden gedeeld.",
+    "demoLabel": "Demo-label",
+    "demoLabelOn": "Getoond op voorbeeldrecensies",
+    "demoLabelOff": "Verborgen — voor schone screenshots",
     "sectionStorage": "Opslag",
     "sectionData": "Data & back-up",
     "sectionGoogle": "Google API-gebruik",
@@ -36203,6 +36760,8 @@ module.exports = {
     '^@/i18n$': '<rootDir>/__mocks__/i18n.ts',
     // expo-localization ships Metro-compiled ESM; stub it out entirely.
     '^expo-localization$': '<rootDir>/__mocks__/expo-localization.ts',
+    // expo-file-system/legacy needs native FileSystem; stub the subset used.
+    '^expo-file-system/legacy$': '<rootDir>/__mocks__/expo-file-system-legacy.ts',
     // ESM-only noble packages → native node crypto equivalents.
     '^@noble/ciphers/aes\\.js$': '<rootDir>/__mocks__/noble-ciphers-aes.js',
     '^@noble/ciphers/utils\\.js$': '<rootDir>/__mocks__/noble-ciphers-utils.js',
@@ -38062,6 +38621,33 @@ export async function resolveLocalPhotoUri(
     }
   }
   return null;
+}
+
+/**
+ * Drop review gallery refs that no longer point to a readable file.
+ * Remote http(s) URLs (demo/showcase mock photos) are always kept — only
+ * local refs whose file is missing from disk are considered broken.
+ */
+export async function filterExistingLocalPhotos(
+  photoUrls: string[],
+): Promise<{ photoUrls: string[]; removed: string[] }> {
+  const kept: string[] = [];
+  const removed: string[] = [];
+  for (const raw of photoUrls) {
+    const trimmed = raw?.trim();
+    if (!trimmed) continue;
+    if (isRemotePhotoUrl(trimmed)) {
+      kept.push(trimmed);
+      continue;
+    }
+    const resolved = await resolveLocalPhotoUri(trimmed);
+    if (resolved) {
+      kept.push(resolved);
+    } else {
+      removed.push(trimmed);
+    }
+  }
+  return { photoUrls: kept, removed };
 }
 
 /**
@@ -40578,6 +41164,7 @@ import {
   backupPhotoKey,
   isRemotePhotoUrl,
   photosDirectory,
+  resolveLocalPhotoUri,
 } from '@/services/backup/photos';
 
 const MEDIA_EXT = /\.(jpe?g|png|heic|heif|webp)$/i;
@@ -40702,6 +41289,68 @@ export async function pruneProfileDirectory(
   );
 
   return removed;
+}
+
+/**
+ * Resolve one persisted photo ref to a readable file URI, or `null` when the
+ * file is gone. Remote (demo/showcase) URLs are always kept.
+ */
+async function existingOrNull(raw: string | undefined | null): Promise<string | null> {
+  const trimmed = raw?.trim();
+  if (!trimmed) return null;
+  if (isRemotePhotoUrl(trimmed)) return trimmed;
+  return resolveLocalPhotoUri(trimmed);
+}
+
+/**
+ * Remove review/restaurant photo references whose file no longer exists on
+ * disk ("broken refs" — e.g. an orphaned path after a restore or sandbox
+ * change). Remote mock URLs are preserved. Returns the cleaned dataset plus
+ * how many refs were dropped so callers can decide whether to persist.
+ */
+export async function pruneBrokenPhotoRefs(data: {
+  reviews: Review[];
+  restaurants: Restaurant[];
+}): Promise<{
+  reviews: Review[];
+  restaurants: Restaurant[];
+  removedRefs: number;
+}> {
+  let removedRefs = 0;
+  const reviews: Review[] = [];
+  for (const review of data.reviews) {
+    const kept: string[] = [];
+    for (const raw of review.photoUrls ?? []) {
+      const existing = await existingOrNull(raw);
+      if (existing) kept.push(existing);
+      else removedRefs += 1;
+    }
+    const cleaned =
+      kept.length === (review.photoUrls ?? []).length
+        ? review
+        : { ...review, photoUrls: kept };
+    reviews.push(cleaned);
+  }
+
+  const restaurants: Restaurant[] = [];
+  for (const restaurant of data.restaurants) {
+    const raw = restaurant.photoUrl?.trim();
+    if (!raw || isRemotePhotoUrl(raw)) {
+      restaurants.push(restaurant);
+      continue;
+    }
+    const existing = await resolveLocalPhotoUri(raw);
+    if (existing) {
+      restaurants.push(
+        existing === raw ? restaurant : { ...restaurant, photoUrl: existing },
+      );
+    } else {
+      removedRefs += 1;
+      restaurants.push({ ...restaurant, photoUrl: '' });
+    }
+  }
+
+  return { reviews, restaurants, removedRefs };
 }
 
 /**
@@ -45892,6 +46541,127 @@ a:hover {
 .legal li + li {
   margin-top: 0.35rem;
 }
+
+/* —— Security guide (gustra.net/security) —— */
+.security {
+  max-width: 46rem;
+}
+
+.security__intro {
+  padding: 1.2rem 1.4rem;
+  margin-bottom: 1.5rem;
+  border-left: 4px solid var(--gold);
+  background: rgba(217, 162, 39, 0.1);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.security__intro p {
+  margin: 0;
+}
+
+.security__lede {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.security__toc {
+  padding-left: 1.2rem;
+  margin: 0.5rem 0 2rem;
+}
+
+.security__toc li {
+  margin: 0.45rem 0;
+}
+
+.security__toc a {
+  font-weight: 600;
+}
+
+.security__note {
+  padding: 1.1rem 1.3rem;
+  margin: 1.5rem 0;
+  border-radius: var(--radius);
+  border: 1px solid rgba(36, 78, 57, 0.12);
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.security--warn {
+  border-color: rgba(199, 71, 66, 0.4);
+  background: rgba(199, 71, 66, 0.08);
+}
+
+.security__note p:first-child {
+  margin-top: 0;
+}
+
+.security h2 {
+  margin-top: 2.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(36, 78, 57, 0.12);
+}
+
+.security h3.security__step {
+  margin-top: 1.5rem;
+  color: var(--forest);
+  font-size: 1.1rem;
+}
+
+.security code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.85em;
+  background: rgba(36, 78, 57, 0.08);
+  padding: 0.1em 0.35em;
+  border-radius: 6px;
+}
+
+.security pre {
+  margin: 0.6rem 0;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  background: var(--forest-deep);
+  color: var(--cream);
+  border-radius: 12px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.security pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+}
+
+.security .security__cta {
+  margin-top: 2.5rem;
+  padding: 1.4rem 1.5rem;
+  border-radius: var(--radius);
+  background: linear-gradient(145deg, rgba(36, 78, 57, 0.94), var(--forest-deep));
+  color: var(--cream);
+}
+
+.security .security__cta h3 {
+  margin: 0 0 0.6rem;
+  font-family: var(--font-display);
+  color: var(--cream);
+}
+
+.security .security__cta ol {
+  margin: 0.6rem 0 0;
+  padding-left: 1.2rem;
+  color: var(--cream);
+}
+
+.security .security__cta li {
+  color: var(--cream);
+  opacity: 0.95;
+}
+
+.security .security__cta a {
+  color: var(--gold);
+  text-decoration-color: var(--gold);
+}
+
 
 /* —— Footer —— */
 .site-footer {

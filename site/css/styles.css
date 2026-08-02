@@ -504,6 +504,127 @@ a:hover {
   margin-top: 0.35rem;
 }
 
+/* —— Security guide (gustra.net/security) —— */
+.security {
+  max-width: 46rem;
+}
+
+.security__intro {
+  padding: 1.2rem 1.4rem;
+  margin-bottom: 1.5rem;
+  border-left: 4px solid var(--gold);
+  background: rgba(217, 162, 39, 0.1);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.security__intro p {
+  margin: 0;
+}
+
+.security__lede {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.security__toc {
+  padding-left: 1.2rem;
+  margin: 0.5rem 0 2rem;
+}
+
+.security__toc li {
+  margin: 0.45rem 0;
+}
+
+.security__toc a {
+  font-weight: 600;
+}
+
+.security__note {
+  padding: 1.1rem 1.3rem;
+  margin: 1.5rem 0;
+  border-radius: var(--radius);
+  border: 1px solid rgba(36, 78, 57, 0.12);
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.security--warn {
+  border-color: rgba(199, 71, 66, 0.4);
+  background: rgba(199, 71, 66, 0.08);
+}
+
+.security__note p:first-child {
+  margin-top: 0;
+}
+
+.security h2 {
+  margin-top: 2.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(36, 78, 57, 0.12);
+}
+
+.security h3.security__step {
+  margin-top: 1.5rem;
+  color: var(--forest);
+  font-size: 1.1rem;
+}
+
+.security code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.85em;
+  background: rgba(36, 78, 57, 0.08);
+  padding: 0.1em 0.35em;
+  border-radius: 6px;
+}
+
+.security pre {
+  margin: 0.6rem 0;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  background: var(--forest-deep);
+  color: var(--cream);
+  border-radius: 12px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.security pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+}
+
+.security .security__cta {
+  margin-top: 2.5rem;
+  padding: 1.4rem 1.5rem;
+  border-radius: var(--radius);
+  background: linear-gradient(145deg, rgba(36, 78, 57, 0.94), var(--forest-deep));
+  color: var(--cream);
+}
+
+.security .security__cta h3 {
+  margin: 0 0 0.6rem;
+  font-family: var(--font-display);
+  color: var(--cream);
+}
+
+.security .security__cta ol {
+  margin: 0.6rem 0 0;
+  padding-left: 1.2rem;
+  color: var(--cream);
+}
+
+.security .security__cta li {
+  color: var(--cream);
+  opacity: 0.95;
+}
+
+.security .security__cta a {
+  color: var(--gold);
+  text-decoration-color: var(--gold);
+}
+
+
 /* —— Footer —— */
 .site-footer {
   padding: 2.5rem 0 2rem;

@@ -214,4 +214,90 @@ describe('buildTimeMachineEntries', () => {
     );
     expect(entries[0]!.restaurantTitle).toBe('—');
   });
+
+  it('shows each visit its own cover photo only', () => {
+    const restaurants = [restaurant('r1', 'Het Huis', 'Gent')];
+    const reviews = [
+      review('a', 'r1', '2024-06-01', { food: 8 }), // no photo
+      review('b', 'r1', '2025-01-01', { food: 10 }, { photoUrls: ['file:///b.jpg'] }),
+    ];
+    const entries = buildTimeMachineEntries(reviews, restaurants);
+    // Newest visit (b) shows its own photo; the older visit (a) has no photo
+    // and stays empty — photos are never borrowed from other visits.
+    expect(entries[0]!.photoUrl).toBe('file:///b.jpg');
+    expect(entries[1]!.photoUrl).toBe('');
+  });
+
+  it('skips an empty first slot and uses the next real photo as cover', () => {
+    const restaurants = [restaurant('r1', 'Het Huis', 'Gent')];
+    const reviews = [
+      review('a', 'r1', '2024-06-01', { food: 8 }, {
+        photoUrls: ['', 'file:///second.jpg'],
+      }),
+    ];
+    const entries = buildTimeMachineEntries(reviews, restaurants);
+    // A blank first slot must not hide the real photo at index 1.
+    expect(entries[0]!.photoUrl).toBe('file:///second.jpg');
+  });
+
+  it('keeps each visit own photo regardless of other visits', () => {
+    const restaurants = [restaurant('r1', 'Het Huis', 'Gent')];
+    const reviews = [
+      review('a', 'r1', '2024-03-01', { food: 8 }, {
+        photoUrls: ['file:///oldest.jpg'],
+      }),
+      review('b', 'r1', '2024-06-01', { food: 9 }, {
+        photoUrls: ['file:///middle.jpg'],
+      }),
+      review('c', 'r1', '2025-01-01', { food: 10 }, {
+        photoUrls: ['file:///newest.jpg'],
+      }),
+    ];
+    const entries = buildTimeMachineEntries(reviews, restaurants);
+    // Every visit shows exactly its own cover photo.
+    expect(entries[0]!.photoUrl).toBe('file:///newest.jpg');
+    expect(entries[1]!.photoUrl).toBe('file:///middle.jpg');
+    expect(entries[2]!.photoUrl).toBe('file:///oldest.jpg');
+  });
+
+  it('leaves photo-less visits empty even when another visit has a photo', () => {
+    const restaurants = [restaurant('r1', 'Het Huis', 'Gent')];
+    const reviews = [
+      review('a', 'r1', '2024-03-01', { food: 8 }), // no photo
+      review('b', 'r1', '2024-06-01', { food: 9 }), // no photo
+      review('c', 'r1', '2025-01-01', { food: 10 }, {
+        photoUrls: ['file:///only.jpg'],
+      }),
+    ];
+    const entries = buildTimeMachineEntries(reviews, restaurants);
+    // Only the newest visit has a photo — the two older visits stay empty
+    // (green tile) instead of reusing that photo.
+    expect(entries[0]!.photoUrl).toBe('file:///only.jpg');
+    expect(entries[1]!.photoUrl).toBe('');
+    expect(entries[2]!.photoUrl).toBe('');
+  });
+
+  it('spreads a single visit with multiple photos across the other visits', () => {
+    const restaurants = [restaurant('r1', 'Dirty Habit', 'San Francisco')];
+    const reviews = [
+      review('a', 'r1', '2024-03-01', { food: 8 }), // no photo
+      review('b', 'r1', '2025-01-01', { food: 10 }, {
+        photoUrls: ['file:///newest.jpg', 'file:///second.jpg'],
+      }),
+    ];
+    const entries = buildTimeMachineEntries(reviews, restaurants);
+    // The newest visit keeps its own cover; the photo-less older visit is
+    // empty — no borrowing across visits.
+    expect(entries[0]!.photoUrl).toBe('file:///newest.jpg');
+    expect(entries[1]!.photoUrl).toBe('');
+  });
+
+  it('keeps an empty cover when no visit has a photo', () => {
+    const restaurants = [restaurant('r1', 'Het Huis', 'Gent')];
+    const entries = buildTimeMachineEntries(
+      [review('a', 'r1', '2024-06-01', { food: 8 })],
+      restaurants,
+    );
+    expect(entries[0]!.photoUrl).toBe('');
+  });
 });

@@ -39,6 +39,7 @@ import {
   relocateStoredPhotoRefs,
   stripWineLabelUrisFromPhotoUrls,
 } from '@/services/backup/photos';
+import { pruneBrokenPhotoRefs } from '@/services/photos/orphanCleanup';
 import {
   REVIEWER_PHOTO_BACKUP_KEY,
   type BackupImportMode,
@@ -499,6 +500,16 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
             });
             hydratedRestaurants = relocated.restaurants;
             hydratedReviews = relocated.reviews;
+            // Drop broken photo references — refs whose local file no longer
+            // exists on disk (orphaned paths after a restore / sandbox change)
+            // would otherwise render as empty slots in the edit strip and as
+            // blank covers in the feed. Remote demo URLs are always kept.
+            const pruned = await pruneBrokenPhotoRefs({
+              reviews: hydratedReviews,
+              restaurants: hydratedRestaurants,
+            });
+            hydratedRestaurants = pruned.restaurants;
+            hydratedReviews = pruned.reviews;
             const demoOn = await readDemoShowcasePreference();
             const withDemo = withOptionalDemo(
               hydratedRestaurants,

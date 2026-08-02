@@ -10,7 +10,10 @@ import { houseAlert, houseSaveChangesAlert } from '@/components/ui/HouseAlert';
 import { Haptics } from '@/services/haptics';
 
 import type { CriterionRating, WineLabelFiche } from '@/data/types';
-import { stripWineLabelUrisFromPhotoUrls } from '@/services/backup/photos';
+import {
+  stripWineLabelUrisFromPhotoUrls,
+  filterExistingLocalPhotos,
+} from '@/services/backup/photos';
 import { extractTextFromImages } from '@/services/ocr/OCRService';
 import { deleteReviewPhotoFiles } from '@/services/reviews/photoStorage';
 import { RatingValue } from '@/services/reviews/ratings';
@@ -218,6 +221,35 @@ export function useReviewFormState() {
     });
   }, [existingReview, getRestaurant, initialDraft, ready, restaurants]);
 
+  // Auto-remove broken photo references when opening an existing review: refs
+  // whose local file is missing (e.g. orphaned paths after a restore) would
+  // otherwise show as empty slots in the edit strip. Runs once after hydrate,
+  // rewrites state + refs + baseline so it never marks the form as "dirty".
+  useEffect(() => {
+    if (!ready || !initialLoadComplete || !existingReview || !didHydrate.current) {
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const current = photoUrlsRef.current;
+      const hasLocalRef = current.some(
+        (u) => u.trim() && !u.trim().startsWith('http'),
+      );
+      if (!hasLocalRef) return;
+      const { photoUrls: kept } = await filterExistingLocalPhotos(current);
+      if (cancelled || kept.length === current.length) return;
+      photoUrlsRef.current = kept;
+      setPhotoUrls(kept);
+      const baseline = editBaselineRef.current;
+      if (baseline) {
+        editBaselineRef.current = { ...baseline, photoUrls: kept };
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [existingReview, filterExistingLocalPhotos, initialLoadComplete, ready]);
+
   const criteriaList: CriterionRating[] = useMemo(
     () =>
       enabledCriteria.map((c) => {
@@ -285,14 +317,24 @@ export function useReviewFormState() {
     };
   }, [criteriaList, customCriterionNames, draft, generalComment, isFavorite, ocrIndexedText, visitDate]);
 
-  const hasPersistableContent = useCallback(() => {
-    if (draft) return true;
+  /**
+   * True when the user actually entered something (rating, comment, photo,
+   * favorite, wine label). A brand-new form that only pre-filled the
+   * restaurant (the draft exists) is NOT "content" — backing out of it must
+   * not trigger the "save changes?" dialog.
+   */
+  const hasEnteredContent = useCallback(() => {
     if (isFavorite) return true;
     if (generalComment.trim()) return true;
     if (photoUrls.length > 0) return true;
     if (wineLabels.length > 0) return true;
     return criteriaList.some((c) => RatingValue.isStarRating(c.rating) || c.comment.trim().length > 0);
-  }, [criteriaList, draft, generalComment, isFavorite, photoUrls.length, wineLabels.length]);
+  }, [criteriaList, generalComment, isFavorite, photoUrls.length, wineLabels.length]);
+
+  const hasPersistableContent = useCallback(() => {
+    if (draft) return true;
+    return hasEnteredContent();
+  }, [draft, hasEnteredContent]);
 
   const persistNow = useCallback(
     async (markBusy = false): Promise<boolean> => {
@@ -381,8 +423,8 @@ export function useReviewFormState() {
 
   const isNewDirty = useMemo(() => {
     if (isEdit || !initialLoadComplete) return false;
-    return hasPersistableContent();
-  }, [hasPersistableContent, initialLoadComplete, isEdit]);
+    return hasEnteredContent();
+  }, [hasEnteredContent, initialLoadComplete, isEdit]);
 
   const isFormDirty = isEdit ? isEditDirty : isNewDirty;
   const isFormDirtyRef = useRef(false);
@@ -594,6 +636,9 @@ export function useReviewFormState() {
     // through a long stack. Edits keep the normal back-to-origin behavior.
     if (!isEditRef.current) {
       if (isFormDirty) {
+        // Only ask when something was actually entered. A fresh form with
+        // nothing but the pre-filled restaurant discards silently — pressing
+        // the FAB and backing out must never prompt "save changes?".
         promptDiscardEdits(() => {
           allowLeaveRef.current = true;
           leaveToReviews();

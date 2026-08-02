@@ -222,6 +222,33 @@ export async function resolveLocalPhotoUri(
 }
 
 /**
+ * Drop review gallery refs that no longer point to a readable file.
+ * Remote http(s) URLs (demo/showcase mock photos) are always kept — only
+ * local refs whose file is missing from disk are considered broken.
+ */
+export async function filterExistingLocalPhotos(
+  photoUrls: string[],
+): Promise<{ photoUrls: string[]; removed: string[] }> {
+  const kept: string[] = [];
+  const removed: string[] = [];
+  for (const raw of photoUrls) {
+    const trimmed = raw?.trim();
+    if (!trimmed) continue;
+    if (isRemotePhotoUrl(trimmed)) {
+      kept.push(trimmed);
+      continue;
+    }
+    const resolved = await resolveLocalPhotoUri(trimmed);
+    if (resolved) {
+      kept.push(resolved);
+    } else {
+      removed.push(trimmed);
+    }
+  }
+  return { photoUrls: kept, removed };
+}
+
+/**
  * Collect local review / reviewer photo bytes for a `.gustra` package
  * (Swift `BackupService.exportEncryptedBackup` photo loop).
  * Remote http(s) mock URLs are ignored.

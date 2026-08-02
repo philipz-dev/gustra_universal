@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Platform, StyleSheet, Text, View } from 'react-native';
 import DraggableFlatList, {
   ScaleDecorator,
@@ -52,11 +52,38 @@ export function ReorderablePhotoStrip({
   const selected = new Set(selectedUris);
   /** Skip the press that can follow a completed long-press drag. */
   const skipNextPressRef = useRef(false);
+  /** Track photos whose file can no longer be loaded (orphaned refs). */
+  const [failedUris, setFailedUris] = useState<Set<string>>(() => new Set());
+
+  // A URI that disappears from the list (removed) should reset its failed state
+  // so a re-added photo gets a fresh load attempt.
+  useEffect(() => {
+    setFailedUris((prev) => {
+      const next = new Set<string>();
+      for (const uri of prev) {
+        if (photoUrls.includes(uri)) next.add(uri);
+      }
+      return next;
+    });
+  }, [photoUrls]);
+
+  // Empty slots are not photos — never render a blank tile for them.
+  const visiblePhotoUrls = photoUrls.filter((uri) => uri.trim());
+
+  const markFailed = (uri: string) => {
+    setFailedUris((prev) => {
+      const next = new Set(prev);
+      next.add(uri);
+      return next;
+    });
+  };
 
   const renderItem = ({ item, drag, isActive, getIndex }: RenderItemParams<string>) => {
     const index = getIndex() ?? 0;
     const isCover = index === 0;
     const isSelected = selected.has(item);
+    const isFailed = failedUris.has(item);
+    const displayUri = item.trim() ? relocateLocalPhotoRef(item) : '';
 
     return (
       <View style={styles.cell}>
@@ -87,15 +114,35 @@ export function ReorderablePhotoStrip({
                   : t('forms.review.photoStrip.a11yPhoto')
               }
               style={styles.thumbHit}>
-              <Image
-                source={{ uri: relocateLocalPhotoRef(item) }}
-                style={styles.thumb}
-                resizeMode="cover"
-              />
+              {displayUri && !isFailed ? (
+                <Image
+                  key={displayUri}
+                  source={{ uri: displayUri }}
+                  style={styles.thumb}
+                  resizeMode="cover"
+                  onError={() => markFailed(item)}
+                />
+              ) : (
+                <View style={[styles.thumb, styles.thumbFailed]}>
+                  {Platform.OS === 'ios' ? (
+                    <SymbolView
+                      name="photo.badge.exclamationmark"
+                      size={22}
+                      tintColor="rgba(35, 32, 26, 0.35)"
+                    />
+                  ) : (
+                    <MaterialIcons
+                      name="broken-image"
+                      size={22}
+                      color="rgba(35, 32, 26, 0.35)"
+                    />
+                  )}
+                </View>
+              )}
               {isSelected ? (
                 <View style={styles.selectedRing} pointerEvents="none" />
               ) : null}
-              {isCover ? (
+              {isCover && !isFailed ? (
                 <View style={styles.coverBadge} pointerEvents="none">
                   <Text style={styles.coverBadgeText}>
                     {t('forms.review.photoStrip.cover')}
@@ -137,7 +184,7 @@ export function ReorderablePhotoStrip({
       ) : null}
       <DraggableFlatList
         horizontal
-        data={photoUrls}
+        data={visiblePhotoUrls}
         keyExtractor={(item) => item}
         onDragBegin={() => {
           onDraggingChange?.(true);
@@ -242,6 +289,15 @@ const styles = StyleSheet.create({
     height: PHOTO_SIZE,
     borderRadius: Theme.radius.sm,
     backgroundColor: 'rgba(36, 78, 57, 0.08)',
+  },
+  /** Missing/broken photo — clearly not a real image slot. */
+  thumbFailed: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(36, 78, 57, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(35, 32, 26, 0.1)',
+    borderStyle: 'dashed',
   },
   selectedRing: {
     ...StyleSheet.absoluteFill,

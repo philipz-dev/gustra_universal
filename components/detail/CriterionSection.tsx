@@ -125,10 +125,10 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   sectionPolished: {
-    gap: 6,
+    gap: 8,
   },
   sectionStreamlined: {
-    gap: 4,
+    gap: 6,
   },
   title: {
     color: GustraColors.ink,
@@ -138,13 +138,13 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     minWidth: 0,
     color: GustraColors.ink,
-    marginRight: 10,
+    marginRight: 12,
   },
   compactRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 10,
     minHeight: 24,
   },
   starsWrap: {
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
   quietComment: {
     ...bodyTextStyle,
     fontSize: 15,
-    lineHeight: 21,
+    lineHeight: 22,
     color: 'rgba(35, 32, 26, 0.72)',
   },
 });

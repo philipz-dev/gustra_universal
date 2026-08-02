@@ -186,9 +186,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   heroFrame: {
-    borderRadius: Theme.radius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(35, 32, 26, 0.14)',
+    borderRadius: Theme.radius.lg,
     overflow: 'hidden',
     backgroundColor: GustraColors.bubble,
     alignItems: 'center',
@@ -196,9 +194,10 @@ const styles = StyleSheet.create({
   },
   pageIndicator: {
     alignSelf: 'center',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
-    color: 'rgba(35, 32, 26, 0.55)',
+    color: 'rgba(35, 32, 26, 0.45)',
     fontVariant: ['tabular-nums'],
+    letterSpacing: 0.3,
   },
 });

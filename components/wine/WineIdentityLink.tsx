@@ -231,12 +231,12 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   inlineRow: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
   },
   inlineRowBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(35, 32, 26, 0.12)',
+    borderBottomColor: 'rgba(35, 32, 26, 0.08)',
   },
   richRow: {
     flexDirection: 'row',

@@ -5,6 +5,7 @@ import {
   backupPhotoKey,
   isRemotePhotoUrl,
   photosDirectory,
+  resolveLocalPhotoUri,
 } from '@/services/backup/photos';
 
 const MEDIA_EXT = /\.(jpe?g|png|heic|heif|webp)$/i;
@@ -129,6 +130,68 @@ export async function pruneProfileDirectory(
   );
 
   return removed;
+}
+
+/**
+ * Resolve one persisted photo ref to a readable file URI, or `null` when the
+ * file is gone. Remote (demo/showcase) URLs are always kept.
+ */
+async function existingOrNull(raw: string | undefined | null): Promise<string | null> {
+  const trimmed = raw?.trim();
+  if (!trimmed) return null;
+  if (isRemotePhotoUrl(trimmed)) return trimmed;
+  return resolveLocalPhotoUri(trimmed);
+}
+
+/**
+ * Remove review/restaurant photo references whose file no longer exists on
+ * disk ("broken refs" — e.g. an orphaned path after a restore or sandbox
+ * change). Remote mock URLs are preserved. Returns the cleaned dataset plus
+ * how many refs were dropped so callers can decide whether to persist.
+ */
+export async function pruneBrokenPhotoRefs(data: {
+  reviews: Review[];
+  restaurants: Restaurant[];
+}): Promise<{
+  reviews: Review[];
+  restaurants: Restaurant[];
+  removedRefs: number;
+}> {
+  let removedRefs = 0;
+  const reviews: Review[] = [];
+  for (const review of data.reviews) {
+    const kept: string[] = [];
+    for (const raw of review.photoUrls ?? []) {
+      const existing = await existingOrNull(raw);
+      if (existing) kept.push(existing);
+      else removedRefs += 1;
+    }
+    const cleaned =
+      kept.length === (review.photoUrls ?? []).length
+        ? review
+        : { ...review, photoUrls: kept };
+    reviews.push(cleaned);
+  }
+
+  const restaurants: Restaurant[] = [];
+  for (const restaurant of data.restaurants) {
+    const raw = restaurant.photoUrl?.trim();
+    if (!raw || isRemotePhotoUrl(raw)) {
+      restaurants.push(restaurant);
+      continue;
+    }
+    const existing = await resolveLocalPhotoUri(raw);
+    if (existing) {
+      restaurants.push(
+        existing === raw ? restaurant : { ...restaurant, photoUrl: existing },
+      );
+    } else {
+      removedRefs += 1;
+      restaurants.push({ ...restaurant, photoUrl: '' });
+    }
+  }
+
+  return { reviews, restaurants, removedRefs };
 }
 
 /**

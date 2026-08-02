@@ -93,6 +93,7 @@
       "addReview": "Recensie toevoegen"
     },
     "draftLabel": "Draft",
+    "demoLabel": "Demo",
     "visitedBefore_one": "Al 1 keer bezocht",
     "visitedBefore_other": "Al {{count}} keer bezocht"
   },
@@ -191,6 +192,9 @@
     "demoShowcaseOn": "Zes fictieve restaurants met foto’s en wijnfiches",
     "demoShowcaseOff": "Uit — alleen jouw echte recensies worden getoond",
     "demoShowcaseShareBlocked": "Voorbeeldrecensies zijn alleen om Gustra te verkennen en kunnen niet worden gedeeld.",
+    "demoLabel": "Demo-label",
+    "demoLabelOn": "Getoond op voorbeeldrecensies",
+    "demoLabelOff": "Verborgen — voor schone screenshots",
     "sectionStorage": "Opslag",
     "sectionData": "Data & back-up",
     "sectionGoogle": "Google API-gebruik",

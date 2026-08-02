@@ -93,6 +93,7 @@
       "addReview": "Ajouter un avis"
     },
     "draftLabel": "Draft",
+    "demoLabel": "Demo",
     "visitedBefore_one": "Déjà visité 1 fois",
     "visitedBefore_other": "Déjà visité {{count}} fois"
   },
@@ -191,6 +192,9 @@
     "demoShowcaseOn": "Six restaurants fictifs avec photos et fiches vins",
     "demoShowcaseOff": "Désactivé — seuls vos vrais avis s’affichent",
     "demoShowcaseShareBlocked": "Les avis d’exemple servent à explorer Gustra et ne peuvent pas être partagés.",
+    "demoLabel": "Libellé Démo",
+    "demoLabelOn": "Affiché sur les avis d’exemple",
+    "demoLabelOff": "Masqué — pour des captures propres",
     "sectionStorage": "Stockage",
     "sectionData": "Données et sauvegarde",
     "sectionGoogle": "Utilisation de l’API Google",

@@ -17,11 +17,15 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { PassportSection } from '@/components/passport/PassportSection';
 import { PassportStatRow } from '@/components/passport/PassportStatRow';
 import { SerifText } from '@/components/ui/SerifText';
+import { FractionalStarRating } from '@/components/ui/StarRating';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
+import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
 import { ReviewsHeader } from '@/components/ui/ReviewsHeader';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, captionTextStyle, serifStyle } from '@/constants/Theme';
 import { useCriteriaSettings } from '@/context/CriteriaSettings';
+import { usePassportDisplaySettings } from '@/context/PassportDisplaySettings';
+import type { CategoryAveragesDisplayStyle } from '@/context/PassportDisplaySettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import {
   getBestWines,
@@ -54,9 +58,11 @@ function RankMedal({ rank }: { rank: number }) {
 function BestRestaurantPodium({
   entries,
   onPress,
+  style,
 }: {
   entries: BestRestaurantEntry[];
   onPress: (entry: BestRestaurantEntry) => void;
+  style: CategoryAveragesDisplayStyle;
 }) {
   const [first, ...rest] = entries;
   if (!first) return null;
@@ -106,9 +112,13 @@ function BestRestaurantPodium({
             {first.title}
           </Text>
           <View style={styles.podiumHeroScoreBadge}>
-            <SerifText size={18} weight="bold" style={styles.podiumHeroScore}>
-              {formatScoreOutOfFive(first.average)}
-            </SerifText>
+            {style === 'stars' ? (
+              <FractionalStarRating score={first.average} size={18} gap={2} />
+            ) : (
+              <SerifText size={18} weight="bold" style={styles.podiumHeroScore}>
+                {formatScoreOutOfFive(first.average)}
+              </SerifText>
+            )}
           </View>
         </View>
       </Pressable>
@@ -129,9 +139,13 @@ function BestRestaurantPodium({
               <Text style={styles.podiumCardTitle} numberOfLines={2}>
                 {entry.title}
               </Text>
-              <SerifText size={17} weight="semibold" style={styles.podiumCardScore}>
-                {formatScoreOutOfFive(entry.average)}
-              </SerifText>
+              {style === 'stars' ? (
+                <FractionalStarRating score={entry.average} size={15} gap={1} />
+              ) : (
+                <SerifText size={17} weight="semibold" style={styles.podiumCardScore}>
+                  {formatScoreOutOfFive(entry.average)}
+                </SerifText>
+              )}
             </Pressable>
           ))}
         </View>
@@ -144,17 +158,20 @@ function BestRestaurantPodium({
 function RankedWineRow({
   entry,
   rank,
+  style,
   onPress,
 }: {
   entry: BestWineEntry;
   rank: number;
+  style: CategoryAveragesDisplayStyle;
   onPress: () => void;
 }) {
+  const score = RatingValue.starValue(entry.rating);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${rank}. ${entry.fiche.nameAndEstate}, ${formatScoreOutOfFive(
-        RatingValue.starValue(entry.rating),
+        score,
       )}`}
       onPress={onPress}
       style={({ pressed }) => [
@@ -166,23 +183,29 @@ function RankedWineRow({
         {entry.fiche.nameAndEstate}
       </Text>
       <View style={styles.wineScoreRow}>
-        <SerifText size={17} weight="semibold" style={styles.wineScore}>
-          {formatScoreOutOfFive(RatingValue.starValue(entry.rating))}
-        </SerifText>
+        {style === 'stars' ? (
+          <FractionalStarRating score={score} size={15} gap={1} />
+        ) : (
+          <SerifText size={17} weight="semibold" style={styles.wineScore}>
+            {formatScoreOutOfFive(score)}
+          </SerifText>
+        )}
       </View>
     </Pressable>
   );
 }
 
-/** City average row: reserved serif number (stars stay exclusive to top). */
+/** City average row: reserved serif number or stars (per display style). */
 function CityRow({
   rank,
   city,
   average,
+  style,
 }: {
   rank: number;
   city: string;
   average: number;
+  style: CategoryAveragesDisplayStyle;
 }) {
   return (
     <View style={styles.cityRow}>
@@ -190,9 +213,13 @@ function CityRow({
       <Text style={styles.cityTitle} numberOfLines={2}>
         {city}
       </Text>
-      <SerifText size={17} weight="semibold" style={styles.cityScore}>
-        {formatScoreOutOfFive(average)}
-      </SerifText>
+      {style === 'stars' ? (
+        <FractionalStarRating score={average} size={15} gap={1} />
+      ) : (
+        <SerifText size={17} weight="semibold" style={styles.cityScore}>
+          {formatScoreOutOfFive(average)}
+        </SerifText>
+      )}
     </View>
   );
 }
@@ -214,6 +241,7 @@ function CulinaryPassportContent() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { enabledCriteria } = useCriteriaSettings();
+  const { categoryAveragesStyle } = usePassportDisplaySettings();
   const { reviews, restaurants, ready } = useReviewsStore();
 
   // My Gustra is a personal passport: only the user's own reviews count
@@ -313,6 +341,7 @@ function CulinaryPassportContent() {
             <PassportSection title={bestSectionTitle}>
               <BestRestaurantPodium
                 entries={stats.bestRestaurants}
+                style={categoryAveragesStyle}
                 onPress={openBestRestaurant}
               />
             </PassportSection>
@@ -325,6 +354,7 @@ function CulinaryPassportContent() {
                   key={`${entry.reviewId}-${index}`}
                   entry={entry}
                   rank={index + 1}
+                  style={categoryAveragesStyle}
                   onPress={() =>
                     router.push(`/passport/review/${entry.reviewId}`)
                   }
@@ -340,7 +370,13 @@ function CulinaryPassportContent() {
               </View>
             ) : (
               stats.cityAverages.map((row, index) => (
-                <CityRow key={row.city} rank={index + 1} city={row.city} average={row.average} />
+                <CityRow
+                  key={row.city}
+                  rank={index + 1}
+                  city={row.city}
+                  average={row.average}
+                  style={categoryAveragesStyle}
+                />
               ))
             )}
           </PassportSection>
@@ -403,24 +439,7 @@ function CulinaryPassportContent() {
         </ScrollView>
       )}
 
-      <View
-        pointerEvents="none"
-        style={[
-          styles.bottomSolid,
-          { height: Theme.spacing.floatingTabBarClearance + insets.bottom },
-        ]}
-      />
-      <View
-        pointerEvents="none"
-        style={[
-          styles.bottomFade,
-          { bottom: Theme.spacing.floatingTabBarClearance + insets.bottom },
-        ]}>
-        <LinearGradient
-          colors={['rgba(245, 240, 225, 0)', GustraColors.cream]}
-          style={StyleSheet.absoluteFill}
-        />
-      </View>
+      <TabBarBottomFade />
     </View>
   );
 }
@@ -441,19 +460,6 @@ const styles = StyleSheet.create({
   emptyPad: {
     flex: 1,
     paddingHorizontal: Theme.spacing.listRowHorizontal,
-  },
-  bottomSolid: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: GustraColors.cream,
-  },
-  bottomFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: Theme.size.fab + 24,
   },
   mutedRow: {
     paddingVertical: 12,
@@ -586,6 +592,9 @@ const styles = StyleSheet.create({
   /** Frosted pill so "5/5" stays readable on any photo. */
   podiumHeroScoreBadge: {
     alignSelf: 'flex-start',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,

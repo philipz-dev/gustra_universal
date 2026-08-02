@@ -1,18 +1,22 @@
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { dismissOpenSwipeable } from '@/components/feed/openSwipeable';
-import { VisitRowCard } from '@/components/feed/VisitRowCard';
+import {
+  VisitTimelineCard,
+  type VisitTimelineEntry,
+} from '@/components/timeline/VisitTimelineCard';
+import { VisitTimeline } from '@/components/timeline/VisitTimeline';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
+import { HouseFAB } from '@/components/ui/HouseFAB';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
-import { HousePrimaryButton } from '@/components/ui/HousePrimaryButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
+import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
 import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle, Theme } from '@/constants/Theme';
-import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import type { Review, ReviewOrigin } from '@/data/types';
 import {
@@ -34,8 +38,20 @@ function displayLocation(name: string, city: string, country: string): string {
   return parts.join(', ');
 }
 
+function firstPhotoUrl(photoUrls: string[] | undefined): string {
+  if (!photoUrls?.length) return '';
+  for (const raw of photoUrls) {
+    const uri = raw?.trim();
+    if (uri) return uri;
+  }
+  return '';
+}
+
 /**
- * Chronological visits for one restaurant (Swift `RestaurantVisitsView`).
+ * Restaurant visits in the Time Travel look — one large cinematic card per
+ * visit (own cover photo or house-green fallback tile), a timeline rail with
+ * gold nodes, and the floating star badge bottom-right. The "Add new review"
+ * control is a collapsing extended FAB pinned at the Reviews-feed position.
  *
  * When rendered from the My Gustra stack the pathname starts with
  * `/passport/restaurant`, so review taps stay inside the passport stack and
@@ -51,7 +67,6 @@ export default function RestaurantVisitsScreen() {
   const pathname = usePathname();
   const inPassportStack = pathname.startsWith('/passport');
   const insets = useSafeAreaInsets();
-  const { enabledCriteria } = useCriteriaSettings();
   const { getRestaurant, getReviewsForRestaurant, deleteReview } =
     useReviewsStore();
   const origin = parseOrigin(originParam);
@@ -60,9 +75,26 @@ export default function RestaurantVisitsScreen() {
   const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(
     () => new Set(),
   );
+
   const visibleReviews = useMemo(
     () => reviews.filter((r) => !pendingDeleteIds.has(r.id)),
     [reviews, pendingDeleteIds],
+  );
+
+  const entries = useMemo<VisitTimelineEntry[]>(
+    () =>
+      visibleReviews.map((review) => ({
+        reviewId: review.id,
+        restaurantId: review.restaurantId,
+        restaurantTitle: restaurant
+          ? displayLocation(restaurant.name, restaurant.city, restaurant.country)
+          : '—',
+        date: review.date,
+        score: review.overallScore,
+        photoUrl: firstPhotoUrl(review.photoUrls),
+        thumbnailColor: restaurant?.thumbnailColor || '#3D6B52',
+      })),
+    [restaurant, visibleReviews],
   );
 
   const openAddReview = useCallback(() => {
@@ -72,17 +104,22 @@ export default function RestaurantVisitsScreen() {
       params: { restaurantId: id },
     });
   }, [id, router]);
-  const bottomPad =
-    Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
+
+  // FAB sits at the standard clearance above the tab bar; content must always
+  // stop *above* the FAB so the plus button never covers the last card.
+  const fabBottom =
+    Theme.spacing.floatingTabBarClearance + insets.bottom + Theme.spacing.fabClearance;
+  const bottomPad = fabBottom + Theme.size.fab + 16;
 
   const averageScore = useMemo(() => {
-    const enabledIds = new Set(enabledCriteria.map((c) => c.id));
     const scores = reviews
       .filter((review) => !isReviewDraft(review))
       .map((review) => {
         const rated = review.criteria
           .filter(
-            (c) => enabledIds.has(c.id) && RatingValue.isStarRating(c.rating),
+            (c) =>
+              c.rating !== undefined &&
+              RatingValue.isStarRating(c.rating),
           )
           .map((c) => RatingValue.starValue(c.rating));
         if (rated.length === 0) return review.overallScore;
@@ -91,7 +128,7 @@ export default function RestaurantVisitsScreen() {
       .filter((score) => score > 0);
     if (scores.length === 0) return 0;
     return scores.reduce((a, b) => a + b, 0) / scores.length;
-  }, [enabledCriteria, reviews]);
+  }, [reviews]);
 
   const confirmDeleteVisit = useCallback(
     (review: Review) => {
@@ -139,6 +176,24 @@ export default function RestaurantVisitsScreen() {
     [deleteReview, inPassportStack, reviews, router, t],
   );
 
+  const openReview = useCallback(
+    (review: Review) => {
+      if (isReviewDraft(review)) {
+        router.push({
+          pathname: '/review-form',
+          params: { reviewId: review.id },
+        });
+        return;
+      }
+      router.push(
+        inPassportStack
+          ? `/passport/review/${review.id}`
+          : `/review/${review.id}`,
+      );
+    },
+    [inPassportStack, router],
+  );
+
   return (
     <View style={styles.screen}>
       <HouseNavHeader
@@ -149,20 +204,21 @@ export default function RestaurantVisitsScreen() {
       />
       {reviews.length === 0 || !restaurant ? (
         <HouseEmptyState
-          title={t("detail.restaurant.noVisits")}
-          description={t("detail.restaurant.noReviews")}
+          title={t('detail.restaurant.noVisits')}
+          description={t('detail.restaurant.noReviews')}
           systemImage="fork.knife"
           androidImage="restaurant"
         />
       ) : (
-        <FlatList
-          data={visibleReviews}
-          keyExtractor={(item) => item.id}
-          overScrollMode="never"
-          onScrollBeginDrag={dismissOpenSwipeable}
-          contentContainerStyle={[styles.list, { paddingBottom: bottomPad }]}
-          ItemSeparatorComponent={() => <View style={styles.sep} />}
-          ListHeaderComponent={
+        <View style={styles.body} collapsable={false}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
+            overScrollMode="never"
+            onScrollBeginDrag={dismissOpenSwipeable}
+            scrollEventThrottle={16}
+            showsVerticalScrollIndicator={false}>
+            {/* ——— Summary header ——— */}
             <View style={styles.headerBlock}>
               <View style={styles.summaryCard}>
                 <SerifText size={20} weight="semibold" style={styles.location}>
@@ -180,42 +236,54 @@ export default function RestaurantVisitsScreen() {
                     </SerifText>
                   </View>
                 ) : null}
-                <Text style={styles.visitCount}>
-                  {t('detail.restaurant.visitCount', { count: reviews.length })}
-                </Text>
-                <HousePrimaryButton
-                  title={t('detail.options.recordVisit')}
-                  onPress={openAddReview}
-                  style={styles.addVisitButton}
-                />
+                {reviews.length > 1 ? (
+                  <Text style={styles.visitCount}>
+                    {t('detail.restaurant.visitCount', {
+                      count: reviews.length,
+                    })}
+                  </Text>
+                ) : null}
               </View>
-              <Text style={styles.sectionLabel}>{t("detail.restaurant.visits")}</Text>
             </View>
-          }
-          renderItem={({ item }) => (
-            <VisitRowCard
-              review={item}
-              onPress={() => {
-                if (isReviewDraft(item)) {
-                  router.push({
-                    pathname: '/review-form',
-                    params: { reviewId: item.id },
-                  });
-                  return;
-                }
-                router.push(
-                  inPassportStack
-                    ? `/passport/review/${item.id}`
-                    : `/review/${item.id}`,
+
+            {/* ——— Visit timeline (identical to Time Travel) ——— */}
+            <VisitTimeline
+              entries={entries}
+              showCounts={false}
+              renderCard={(entry) => {
+                const review = visibleReviews.find(
+                  (r) => r.id === entry.reviewId,
+                );
+                if (!review) return null;
+                const deletable = resolveReviewOrigin(review) === 'own';
+                return (
+                  <VisitTimelineCard
+                    key={entry.reviewId}
+                    entry={entry}
+                    onPress={() => openReview(review)}
+                    onDelete={
+                      deletable ? () => confirmDeleteVisit(review) : undefined
+                    }
+                  />
                 );
               }}
-              onDelete={() => confirmDeleteVisit(item)}
             />
-          )}
-        />
+          </ScrollView>
+
+          <TabBarBottomFade />
+          <HouseFAB
+            collapsable={false}
+            style={{ bottom: fabBottom }}
+            onPress={openAddReview}
+          />
+        </View>
       )}
     </View>
   );
+}
+
+function resolveReviewOrigin(review: Review): ReviewOrigin {
+  return review.origin ?? 'own';
 }
 
 const styles = StyleSheet.create({
@@ -223,15 +291,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: GustraColors.cream,
   },
-  list: {
-    paddingHorizontal: Theme.spacing.listRowHorizontal,
-    paddingTop: Theme.spacing.listRowVertical + 8,
+  body: {
+    flex: 1,
+    position: 'relative',
   },
-  sep: {
-    height: Theme.spacing.listRowVertical * 2,
+  scroll: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: Theme.spacing.listRowHorizontal,
+    paddingTop: 24,
+    gap: 22,
   },
   headerBlock: {
-    marginBottom: 12,
     gap: 14,
   },
   summaryCard: {
@@ -239,9 +311,6 @@ const styles = StyleSheet.create({
     borderRadius: Theme.radius.xl,
     backgroundColor: 'rgba(236, 227, 207, 0.45)',
     gap: 8,
-  },
-  addVisitButton: {
-    marginTop: 6,
   },
   location: {
     color: GustraColors.forestGreen,
@@ -258,14 +327,5 @@ const styles = StyleSheet.create({
     ...bodyTextStyle,
     fontSize: 15,
     color: 'rgba(35, 32, 26, 0.65)',
-  },
-  sectionLabel: {
-    ...bodyTextStyle,
-    fontSize: 13,
-    fontWeight: '600',
-    color: 'rgba(35, 32, 26, 0.45)',
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginLeft: 4,
   },
 });

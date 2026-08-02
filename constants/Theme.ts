@@ -124,6 +124,11 @@ export const Theme = {
     searchVertical: 8,
     fabTrailing: 20,
     fabBottom: 12,
+    /**
+     * Breathing room between the FAB and the last scrollable content — content
+     * must always stop above the FAB so it never blocks text/location rows.
+     */
+    fabClearance: 24,
     /** Clearance above the floating cream pill tab bar (+ home indicator). */
     floatingTabBarClearance: 78,
   },
@@ -162,10 +167,10 @@ export const Theme = {
 
   fabShadow: {
     shadowColor: '#000000',
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
   },
 
   /** Subtle floating overlay shadow (map chips, legend cards, map buttons). */

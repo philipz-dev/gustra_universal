@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Security — Gustra API-sleutels beveiligen</title>
+  <meta name="description" content="Stap-voor-stap handleiding om de Google Maps, Places en Gemini API-sleutels van Gustra te beveiligen met restricties en quota. Voor de Gustra-ontwikkelaar.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://gustra.net/security/">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://gustra.net/security/">
+  <meta property="og:title" content="Security — Gustra API-sleutels beveiligen">
+  <link rel="icon" href="/assets/logo.png?v=19" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,450;0,9..144,600;0,9..144,650;1,9..144,450&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container site-header__inner">
+      <a class="brand" href="/" aria-label="Gustra home">
+        <img src="/assets/logo.png?v=19" width="40" height="40" alt="">
+        <span class="brand__name">Gustra</span>
+      </a>
+      <nav class="nav nav--desktop" aria-label="Primary">
+        <a href="/#features">Features</a>
+        <a href="/#how">How it works</a>
+        <a href="/support.html">Support</a>
+        <a class="nav__cta" href="/#download">Get the app</a>
+      </nav>
+      <a class="nav__cta nav--mobile-cta" href="/#download">Get the app</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="page-hero">
+      <div class="container">
+        <h1>API-sleutels beveiligen</h1>
+        <p>Stap-voor-stap: maak Google en Gemini-sleutels restrictief, zodat een gelekte key jouw kosten of data niet raakt.</p>
+      </div>
+    </section>
+
+    <section class="container legal security">
+      <div class="security__intro">
+        <p><strong>Waarom dit ertoe doet:</strong> in de app draaien de Google Maps/Places-, Gemini- en web-kaart-sleutels ingebakken in de client (elke gedownloade app of web-JS kan ze uitlezen). Dat is normaal voor deze API's — je kunt ze dus <em>niet</em> écht verbergen. Wat wel kan: de schade beperken als één ervan misbruikt wordt. Dat doe je met <strong>toepassings-restricties</strong> (alleen jouw app/website mag de sleutel gebruiken) en <strong>quota</strong> (begrenzen wat er misbruikt kan worden).</p>
+      </div>
+
+      <p class="security__lede">De handleiding hieronder gaat over <strong>drie</strong> sleuteltypes die Gustra gebruikt. Kies wat voor jou van toepassing is:</p>
+      <ul class="security__toc">
+        <li><a href="#google">Google Cloud Platform (Maps &amp; Places) — belangrijkste, doe dit eerst</a></li>
+        <li><a href="#gemini">Google AI Studio (Gemini) — nodig voor wijnlabels</a></li>
+        <li><a href="#sentry">Sentry (optioneel) — alleen indien je eigen backend</a></li>
+      </ul>
+
+      <div class="security__note security--warn">
+        <p><strong>0. Controleer eerst of er geen sleutel in git is gecommit.</strong> Open een terminal in de projectmap en draai:</p>
+        <pre><code>git ls-files | grep -iE "env|key|secret"</code></pre>
+        <p>Er mag alleen <code>.env.example</code> verschijnen. Als <code>.env</code> in de lijst staat, trek die sleutels meteen in en draai ze om (rotatie). Alleen <code>.env.example</code> (zonder echte waarden) hoort gecommitted te zijn.</p>
+        <p><em>Doel:</em> voorkom geheimen in de repository-geschiedenis. <em>Zwakke plek die dit dekt:</em> gelekte sleutels via het GitHub-archief.</p>
+      </div>
+
+      <!-- ============ GOOGLE CLOUD ============ -->
+      <h2 id="google">1. Google Maps &amp; Places API-sleutel (Google Cloud)</h2>
+      <p>Deze sleutel zit ingebakken in de iPhone- en Android-app én in de web-kaart. Dit is de belangrijkste om goed af te schermen.</p>
+
+      <h3 class="security__step">Stap 1.1 — Open de juiste console</h3>
+      <ul>
+        <li><strong>URL:</strong> <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer">https://console.cloud.google.com/apis/credentials</a></li>
+        <li>Zorg dat bovenaan het <strong>juiste project</strong> geselecteerd is (het project dat je bij de Gustra-app gebruikt).</li>
+        <li><strong>Doel:</strong> jullie API-keys centraliseren. <strong>Weakness die dit dekt:</strong> verspreide/onbekende sleutels die je over het hoofd ziet.</li>
+      </ul>
+
+      <h3 class="security__step">Stap 1.2 — Vind je Google Maps/Places-sleutel</h3>
+      <ul>
+        <li>Open lokaal de file <code>.env</code> in de projectmap en lees de waarde van <code>EXPO_PUBLIC_GOOGLE_API_KEY</code> af.</li>
+        <li>Zoek in de console de corresponderende rij onder <strong>“API keys”</strong> (bijv. naam <em>Gustra</em>).</li>
+        <li><strong>Doel:</strong> de sleutel die de app gebruikt exact terugvinden. <strong>Weakness:</strong> als je de verkeerde sleutel afschermt, bescherm je niets.</li>
+      </ul>
+
+      <h3 class="security__step">Stap 1.3 — Zet de applicatie-restricties (belangrijkste stap!)</h3>
+      <ul>
+        <li>Klik op de sleutel om hem te openen. Scroll naar <strong>“Application restrictions”</strong> → klik <strong>“Restrict and edit key”</strong> / <strong>“Beperken en sleutel bewerken”</strong>.</li>
+        <li>Kies het type dat past bij waar de sleutel gebruikt wordt:
+          <ul>
+            <li><strong>Android apps</strong> — voeg <code>net.gustra.app</code> toe en plak de <strong>SHA-1</strong> van je release-sleutel (zie stap 1.4).</li>
+            <li><strong>iOS apps</strong> — voeg <code>com.philip.gustra</code> toe.</li>
+            <li><strong>HTTP referrers (Web)</strong> — voeg <code>gustra.net</code> toe voor de webkaart.</li>
+          </ul>
+        </li>
+        <li>Klik <strong>“Save”</strong>.</li>
+        <li><strong>Doel:</strong> de sleutel mag alleen vanuit je eigen app/website gebruikt worden. <strong>Weakness die dit dekt:</strong> misbruik van de sleutel door iemand anders (bijv. via een gekopieerde app of ander web-publiek) om jouw quota op te vreten of kosten te maken.</li>
+      </ul>
+
+      <h3 class="security__step">Stap 1.4 — Pak de SHA-1 vingerafdruk (voor Android) op</h3>
+      <ul>
+        <li>Dit is nodig alleen als je de Android-restrictie instelt. Open een terminal en draai (pas het pad naar je keystore aan):</li>
+        <li><pre><code>keytool -list -v -keystore &lt;path-to-keystore&gt; -alias &lt;alias&gt; -storepass &lt;pass&gt; | grep -A1 "SHA1"</code></pre></li>
+        <li>Plak de hex-code (bv. <code>3B:…:28</code>) in het Android-veld uit stap 1.3.</li>
+        <li><strong>Doel:</strong> alleen jouw specifieke app-build mag de sleutel gebruiken, niet elke Android-app. <strong>Weakness:</strong> zonder SHA-1 kun je een telefoon+app alleen niet individueel herkennen.</li>
+      </ul>
+
+      <h3 class="security__step">Stap 1.5 — Zet de API-restrictie (welke API's deze sleutel mag aanroepen)</h3>
+      <ul>
+        <li>Scroll naar <strong>“API restrictions”</strong> → kies <strong>“Restrict key”</strong>.</li>
+        <li>Vink alleen de API's aan die Gustra echt gebruikt: <strong>Maps JavaScript API</strong>, <strong>Places API</strong> en (indien gebruikt) <strong>Geocoding API</strong>. Laat de rest uit.</li>
+        <li>Klik <strong>“Save”</strong>.</li>
+        <li><strong>Doel:</strong> zelfs als de sleutel lekt, kan een aanvaller er geen andere Google API's mee aanroepen. <strong>Weakness:</strong> anders is één sleutel een greep in de volledige Google Cloud-mogelijkheden.</li>
+      </ul>
+
+      <h3 class="security__step">Stap 1.6 — Zet quota-limieten</h3>
+      <ul>
+        <li><strong>URL:</strong> <a href="https://console.cloud.google.com/apis/quotas" target="_blank" rel="noopener noreferrer">https://console.cloud.google.com/apis/quotas</a></li>
+        <li>Kies in het linker-menu <strong>“API Keys”</strong> (of onder <em>Quotas</em> de specifieke API). Druk op <strong>“Request increase” / “Daily quota”</strong> en stel een realistisch lager quotum in dan het standaard maximum.</li>
+        <li>Tips: zet een <strong>daghlimiet</strong> (bv. enkele duizenden verzoeken per dag) en pas aan naar gebruik.</li>
+        <li><strong>Doel:</strong> begrenzen wat een aanvaller in één dag kan verbruiken, ook als ze de sleutel tóch bemachtigen. <strong>Weakness:</strong> zonder quotum kan misbruik onbeperkt doorgaan tot er kosten ontstaan.</li>
+      </ul>
+
+      <!-- ============ GEMINI ============ -->
+      <h2 id="gemini">2. Gemini API-sleutel (Google AI Studio / wijnlabels)</h2>
+      <p>Deze sleutel wordt gebruikt om wijnlabels te herkennen (via <code>EXPO_PUBLIC_GEMINI_API_KEY</code>).</p>
+
+      <h3 class="security__step">Stap 2.1 — Open Google AI Studio</h3>
+      <ul>
+        <li><strong>URL:</strong> <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">https://aistudio.google.com/apikey</a></li>
+        <li>Kies het juiste Google-project bovenaan.</li>
+        <li><strong>Doel:</strong> jullie Gemini-sleutels beheren. <strong>Weakness:</strong> zonder centrale plaats zie je niet alle regels/changes voor je project.</li>
+      </ul>
+
+      <h3 class="security__step">Stap 2.2 — Geen applicatie-restricties bij Gemini (belangrijk: beperk via quota/monitoring)</h3>
+      <ul>
+        <li>Google AI Studio biedt momenteel <strong>geen</strong> per-app-restrictie (geen SHA-1/bundle-ID-binding) voor Gemini-API-keys.</li>
+        <li>Daarom is je beste verdediging een <strong>strikt dagquotum</strong>: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">aistudio.google.com</a> → sleutel → limieten.</li>
+        <li>Ook: houd telkens het gebruik in de gaten zodra je een melding ziet dat het “veel scans vandaag” zijn.</li>
+        <li><strong>Doel:</strong> kosten en misbruik begrenzen. <strong>Weakness die (helaas) overblijft:</strong> een Gemini-key is client-side niet per-app af te bakenen; alleen quotum/monitoring helpt.</li>
+      </ul>
+
+      <h3 class="security__step">Stap 2.3 — Overweeg later een backend-proxy (de echte oplossing)</h3>
+      <ul>
+        <li>Als je wilt dat een Gemini-key écht geheim blijft, moet die alleen op een eigen server staan: stuur het label-scan-verzoek via jouw backend, dat zelf de sleutel bewaart.</li>
+        <li>In dat geval haal je <code>EXPO_PUBLIC_GEMINI_API_KEY</code> uit de client en bewaar je die server-side.</li>
+        <li><strong>Doel:</strong> dan wordt de sleutel een echt geheim. <strong>Zwakke plek die dit verhelpt:</strong> ingebakken client-sleutels die een aanvaller kan uitlezen.</li>
+      </ul>
+
+      <!-- ============ SENTRY ============ -->
+      <h2 id="sentry">3. Sentry DSN (optioneel, alleen bij eigen backend)</h2>
+      <ul>
+        <li>De <code>EXPO_PUBLIC_SENTRY_DSN</code> is gewoonlijk een <strong>client-DSN</strong> en is bedoeld om publiek te zijn — je hoeft die dus niet te verbergen.</li>
+        <li>Zorg alleen dat je <strong>nooit de Sentry Auth Token</strong> of het organisatie/project-gevoelige geheimen in de client zet; die horen in een server/project.</li>
+      </ul>
+
+      <div class="security__cta">
+        <h3>Klaar? Verifieer het resultaat</h3>
+        <p>Herstart de app zodra je restricties en quota hebt ingesteld. Test dat je de kaart nog altijd ziet en zoeken nog werkt. Als iets springt, betekent dat meestal dat de restrictie te strikt is (bijv. vergeten SHA-1 of referrer).</p>
+        <ol>
+          <li>Kaart opent, zoeken werkt → <strong>goedgekeurd</strong>.</li>
+          <li>Kaart blank / “development purposes only” → controleer RESTRICTIE + QUOTA, niet alleen de key zelf.</li>
+        </ol>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container site-footer__inner">
+      <div class="site-footer__top">
+        <a class="brand" href="/">
+          <img src="/assets/logo.png?v=19" width="36" height="36" alt="">
+          <span class="brand__name">Gustra</span>
+        </a>
+        <nav class="site-footer__links" aria-label="Footer">
+          <a href="/privacy.html">Privacy Policy</a>
+          <a href="/terms.html">Terms of Use</a>
+          <a href="/support.html">Support</a>
+          <a href="/security/">Security</a>
+        </nav>
+      </div>
+      <p class="site-footer__copy">© 2026 <a href="/">gustra.net</a> — Gustra. All rights reserved.</p>
+    </div>
+  </footer>
+</body>
+</html>
