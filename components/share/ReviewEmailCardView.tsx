@@ -114,7 +114,7 @@ export function ReviewEmailCardView({
           <Text style={styles.introName}>{sharedBy}</Text>
           {' '}
           <Text style={styles.introRest}>
-            shared a restaurant review with you.
+            shared a restaurant memory with you.
           </Text>
         </Text>
 

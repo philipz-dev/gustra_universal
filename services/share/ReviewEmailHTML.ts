@@ -27,7 +27,7 @@ export function emailSubject(restaurant: Restaurant): string {
 }
 
 export function defaultIntroMessage(sharedBy: string): string {
-  return `${sharedBy} shared a restaurant review`;
+  return `${sharedBy} shared a restaurant memory`;
 }
 
 export function resolvedIntroMessage(
@@ -69,13 +69,13 @@ export function makeCompanionHTML(args: {
   const city = args.restaurant.city.trim();
   const restaurant = titledRestaurantName(args.restaurant.name);
   const preheader = escapeHtml(
-    `${args.sharedBy} shared a Gustra review of ${restaurant}${
+    `${args.sharedBy} shared a Gustra memory of ${restaurant}${
       city ? ` in ${city}` : ''
     } — creating food memories.`,
   );
   const introHTML = htmlIntroMarkup(args.introMessage, args.sharedBy);
   const reviewBelow = escapeHtml(
-    `My personal review of ${restaurant} is below.`,
+    `My personal memory of ${restaurant} is below.`,
   );
   const lang =
     typeof Intl !== 'undefined'

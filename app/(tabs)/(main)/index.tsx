@@ -37,7 +37,7 @@ export default function ReviewsFeedScreen() {
   return (
     <HouseErrorBoundary
       fallbackTitle={t('tabs.reviews') || 'Reviews'}
-      fallbackMessage="We konden de reviews op dit moment niet laden. Probeer het scherm opnieuw te openen."
+      fallbackMessage="We konden je herinneringen op dit moment niet laden. Probeer het scherm opnieuw te openen."
     >
       <ReviewsFeedContent />
     </HouseErrorBoundary>

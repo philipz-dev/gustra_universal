@@ -110,10 +110,28 @@ ALLOW_IDENTICAL_KEYS = {
     "rating.labels.na",
     "rating.labels.okay",
     "criteria.service",
+    "settings.sectionCriteria",
     "setup.criteria.tip",
     "reviews.draftLabel",
     "reviews.demoLabel",
     "passport.timeTravelMonthHeader",
+}
+
+# Review-platform wording must not reappear in user-facing values — the product
+# language moved to "memory"/"visit" wording. German "Bewertung" and French
+# "avis" also mean rating/opinion; those legitimate labels are allowlisted.
+REVIEW_CONCEPT_RE = re.compile(
+    r"(?i)\b(reviews?|recensies?|recensioni?|reseñ[ao]s?|avis|bewertungen?)\b"
+)
+REVIEW_CONCEPT_ALLOWED_KEYS = {
+    # Rating/opinion labels that legitimately share the word (not the review artefact).
+    "rating.a11y.rating",
+    "rating.a11y.clear",
+    "reviews.empty.noCriterionRating",
+    "forms.review.ratings",
+    "wineScan.fiche.myJudgment",
+    "wineScan.clearDrinksWithWinesTitle",
+    "wineScan.clearWinesWithRatingsTitle",
 }
 
 
@@ -172,6 +190,7 @@ def main() -> int:
 
         placeholder_mismatches = []
         leftovers = []
+        review_wording = []
         for key, en_val in en.items():
             if key not in loc:
                 continue
@@ -180,6 +199,11 @@ def main() -> int:
                 placeholder_mismatches.append(key)
             if loc_val == en_val and not is_allowed_identical(key, en_val):
                 leftovers.append(key)
+            if (
+                REVIEW_CONCEPT_RE.search(loc_val)
+                and key not in REVIEW_CONCEPT_ALLOWED_KEYS
+            ):
+                review_wording.append(key)
 
         if placeholder_mismatches:
             errors.append(
@@ -192,10 +216,17 @@ def main() -> int:
                 f"{lang}: {len(leftovers)} strings still identical to English "
                 f"(e.g. {leftovers[:8]})"
             )
+        if review_wording:
+            # Hard fail: product wording is "memories", not "reviews".
+            errors.append(
+                f"{lang}: {len(review_wording)} values still use review wording "
+                f"(e.g. {review_wording[:8]})"
+            )
 
         print(
             f"{lang}: keys={len(loc)} missing={len(missing)} extra={len(extra)} "
-            f"leftover_en={len(leftovers)} placeholder_issues={len(placeholder_mismatches)}"
+            f"leftover_en={len(leftovers)} placeholder_issues={len(placeholder_mismatches)} "
+            f"review_wording={len(review_wording)}"
         )
 
     if warnings:

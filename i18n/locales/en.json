@@ -48,25 +48,25 @@
     }
   },
   "tabs": {
-    "reviews": "Reviews",
+    "reviews": "Memories",
     "map": "My map",
     "passport": "My Gustra",
     "settings": "Settings",
-    "editCriteria": "Edit review criteria",
+    "editCriteria": "Edit criteria",
     "profilePhoto": "Profile photo",
     "backupRestore": "Backup / Restore"
   },
   "a11y": {
-    "importReviews": "Import reviews",
+    "importReviews": "Import memories",
     "share": "Share",
     "filters": "Filters",
-    "addReview": "Add review",
+    "addReview": "Add memory",
     "myLocation": "My location",
     "mapLegend": "Map pin legend",
     "clearLocation": "Clear location filter",
     "clearCuisine": "Clear cuisine filter",
     "clearFavorites": "Clear favorites filter",
-    "clearFriends": "Clear friend's reviews filter",
+    "clearFriends": "Clear friend's memories filter",
     "clearSort": "Clear sort",
     "delete": "Delete"
   },
@@ -79,22 +79,22 @@
     "visitCount_one": "{{count}} visit · {{date}}",
     "visitCount_other": "{{count}} visits · {{date}}",
     "source": {
-      "mine": "My reviews",
-      "friends": "Friends' reviews"
+      "mine": "My memories",
+      "friends": "Shared with you"
     },
     "empty": {
       "noMatchesTitle": "No Matching Restaurants",
       "noMatchesBody": "No restaurants match your current filters.",
       "noMatchesShort": "No matches",
-      "noFriendsTitle": "No Friend Reviews",
-      "noFriendsBody": "Import shared reviews from friends to see them here.",
-      "noReviewsTitle": "No reviews yet",
-      "noReviewsBody": "Add your first restaurant review to get started.",
+      "noFriendsTitle": "No Shared Memories",
+      "noFriendsBody": "Import memories shared by friends to see them here.",
+      "noReviewsTitle": "No memories yet",
+      "noReviewsBody": "Add your first restaurant memory to get started.",
       "tryAnotherSearch": "Try another restaurant, city, comment, or text from a photo.",
       "noCriterionRating": "No restaurants have a rating for this criterion yet.",
       "clearFilters": "Clear filters",
-      "importReviews": "Import reviews",
-      "addReview": "Add review"
+      "importReviews": "Import memories",
+      "addReview": "Add memory"
     }
   },
   "filters": {
@@ -102,7 +102,7 @@
     "filters": "Filters",
     "none": "None",
     "favorites": "Favorites",
-    "friendsReviews": "Include friend's reviews",
+    "friendsReviews": "Include shared memories",
     "location": "Location",
     "cuisine": "Cuisine type",
     "sortBy": "Sort by",
@@ -117,7 +117,7 @@
     "restaurantCount": "{{shown}} of {{total}} restaurants",
     "resultsCount": "{{shown}} of {{total}} results",
     "emptyLocationTitle": "No locations yet",
-    "emptyLocationBody": "Locations appear when your reviews include a city or country.",
+    "emptyLocationBody": "Locations appear when your memories include a city or country.",
     "emptyCuisineTitle": "No cuisine types yet",
     "emptyCuisineBody": "Cuisine types appear when restaurants have place categories.",
     "sort": {
@@ -129,7 +129,7 @@
       "location": "Location",
       "cuisine": "Cuisine type",
       "favorites": "Favorites",
-      "friends": "Friend's reviews included"
+      "friends": "Shared memories included"
     }
   },
   "map": {
@@ -137,24 +137,24 @@
     "friendSuffix": "(friend)",
     "legend": {
       "title": "Pins",
-      "own": "My reviews",
-      "friends": "Friends' reviews"
+      "own": "My memories",
+      "friends": "Shared with you"
     },
     "empty": {
       "noMatchesTitle": "No matches",
       "noMatchesBody": "No restaurants match your current filters.",
       "noMemoriesTitle": "No Map Memories Yet",
-      "noMemoriesBody": "Add a review with a location to see it on your map.",
+      "noMemoriesBody": "Add a memory with a location to see it on your map.",
       "clearFilters": "Clear filters",
-      "addReview": "Add Review"
+      "addReview": "Add Memory"
     }
   },
   "passport": {
-    "emptyTitle": "No Reviews Yet",
-    "emptyBody": "Your tasting passport fills in as you add restaurant reviews.",
-    "addReview": "Add Review",
+    "emptyTitle": "No Memories Yet",
+    "emptyBody": "Your tasting passport fills in as you add restaurant memories.",
+    "addReview": "Add Memory",
     "overview": "Overview",
-    "totalReviews": "Total Reviews",
+    "totalReviews": "Total Memories",
     "averageOverall": "Average Overall",
     "bestRestaurant": "Best restaurant",
     "bestRestaurants": "Best restaurants",
@@ -171,7 +171,7 @@
     "timeTravelAverage": "Average",
     "timeTravelTotal": "All-time visits",
     "timeTravelEmptyTitle": "Nothing to travel through yet",
-    "timeTravelEmptyBody": "Add restaurant reviews and your timeline will appear here.",
+    "timeTravelEmptyBody": "Add restaurant memories and your timeline will appear here.",
     "timeTravelMonthHeader": "{{month}} {{year}}",
     "timeTravelMonthCount_one": "{{count}} visit",
     "timeTravelMonthCount_other": "{{count}} visits"
@@ -184,16 +184,16 @@
     "languageEnglish": "English",
     "languageItalian": "Italiano",
     "sectionReviewer": "You",
-    "sectionReviewing": "Reviewing",
-    "sectionCriteria": "Review criteria",
+    "sectionReviewing": "Remembering",
+    "sectionCriteria": "Criteria",
     "sectionPassport": "My Gustra",
     "sectionShowcase": "Showcase",
-    "demoShowcase": "Sample reviews",
+    "demoShowcase": "Sample memories",
     "demoShowcaseOn": "Six fictional restaurants with photos and wine fiches",
-    "demoShowcaseOff": "Off — only your real reviews are shown",
-    "demoShowcaseShareBlocked": "Sample reviews are for exploring Gustra only and can’t be shared.",
+    "demoShowcaseOff": "Off — only your real memories are shown",
+    "demoShowcaseShareBlocked": "Sample memories are for exploring Gustra only and can’t be shared.",
     "demoLabel": "Demo label",
-    "demoLabelOn": "Shown on sample reviews",
+    "demoLabelOn": "Shown on sample memories",
     "demoLabelOff": "Hidden — for clean screenshots",
     "sectionStorage": "Storage",
     "sectionData": "Data & backup",
@@ -201,7 +201,7 @@
     "sectionAdvanced": "Advanced",
     "sectionLanguage": "Language",
     "editPhotoHint": "Tap photo to change",
-    "editCriteria": "Edit review criteria",
+    "editCriteria": "Edit criteria",
     "dataSavings": "Data savings for photos",
     "dataSavingsOn": "Lower resolution",
     "dataSavingsOff": "Higher resolution",
@@ -215,7 +215,7 @@
     "usageToday": "{{today}} today / {{allTime}} all-time",
     "resetCounters": "Reset counters",
     "namePlaceholder": "Your name",
-    "nameA11y": "Reviewer name",
+    "nameA11y": "Your name",
     "photoA11y": "Profile photo",
     "editPhotoA11y": "Edit profile photo",
     "addPhotoA11y": "Add profile photo",
@@ -230,7 +230,7 @@
       "photos": "{{count}} photos",
       "backups": "{{count}} backup file(s)",
       "alreadyRecovered": "already recovered",
-      "photosOnly": "{{count}} old photos found, but no database — reviews need a .gustra backup or the Swift store",
+      "photosOnly": "{{count}} old photos found, but no database — memories need a .gustra backup or the Swift store",
       "backupsOnly": "{{count}} backup file(s) in Backups — use Backup / Restore",
       "unreadable": "{{count}} DB file(s) found but not readable as Gustra data",
       "none": "No previous Swift data found on this device"
@@ -247,7 +247,7 @@
       "deleteTitle": "Delete criterion",
       "deleteBody": "Remove “{{name}}”?",
       "custom": "Custom",
-      "footer": "Added criteria appear in new reviews.",
+      "footer": "Added criteria appear in new memories.",
       "discardEdits": {
         "title": "Save changes?"
       }
@@ -302,13 +302,13 @@
   },
   "forms": {
     "addReview": {
-      "title": "Add Review",
+      "title": "Add Memory",
       "nearby": "Show nearby restaurants",
       "mapSearch": "Search on map",
       "manual": "Manual entry"
     },
     "nearby": {
-      "startReview": "Start Review",
+      "startReview": "Start Memory",
       "loadFailed": "Couldn't load nearby restaurants.",
       "noNearby": "No nearby restaurants found.",
       "searchNearby": "Search Nearby",
@@ -318,13 +318,13 @@
       "sectionTitle": "Nearby Restaurants",
       "tryMap": "Try again or search on the map instead.",
       "searchFailed": "Could not reach the restaurant search service.",
-      "usingFallback": "No location access — showing restaurants near your recent reviews.",
+      "usingFallback": "No location access — showing restaurants near your recent memories.",
       "usingFallbackCity": "No location access — showing restaurants near {{city}}."
     },
     "mapSearch": {
       "title": "Search on map",
       "searchArea": "Search this area",
-      "startReview": "Start Review",
+      "startReview": "Start Memory",
       "hint": "Move the map, then tap Search this area.",
       "emptyTitle": "No restaurants found",
       "searchAreaHint": "Search restaurants in the visible map area"
@@ -345,7 +345,7 @@
     },
     "review": {
       "editTitle": "Edit",
-      "title": "Review",
+      "title": "Memory",
       "done": "Done",
       "visitDate": "Visit date",
       "ratings": "Ratings",
@@ -357,8 +357,8 @@
       "otherVisits_one": "{{count}} other visit at this restaurant",
       "otherVisits_other": "{{count}} other visits at this restaurant",
       "mostRecent": "Most recent {{date}}",
-      "draftBannerCriteria": "Rate at least one criterion to finish this review.",
-      "draftBannerFood": "Rate Food to complete this review.",
+      "draftBannerCriteria": "Rate at least one criterion to finish this memory.",
+      "draftBannerFood": "Rate Food to complete this memory.",
       "draftBannerWine": "A wine still needs a star rating.",
       "addPhotos": "Add Photos",
       "delete": "Delete",
@@ -383,13 +383,13 @@
   },
   "detail": {
     "review": {
-      "title": "Review",
-      "notFound": "Review not found",
-      "notFoundBody": "This review could not be found.",
+      "title": "Memory",
+      "notFound": "Memory not found",
+      "notFoundBody": "This memory could not be found.",
       "generalComments": "General comments",
       "newVisit": "New visit",
       "edit": "Edit",
-      "reviewedBy": "Reviewed by {{name}}",
+      "reviewedBy": "Shared by {{name}}",
       "share": "Share",
       "winesDrunk_one": "Wine tasted",
       "winesDrunk_other": "Wines tasted",
@@ -398,16 +398,16 @@
     "options": {
       "title": "Options",
       "a11y": "Options",
-      "recordVisit": "Add new review",
-      "editReview": "Edit review",
-      "cannotEditFriend": "You can’t edit a friend’s review",
-      "deleteReview": "Delete review",
+      "recordVisit": "Add new memory",
+      "editReview": "Edit memory",
+      "cannotEditFriend": "You can’t edit a friend’s memory",
+      "deleteReview": "Delete memory",
       "shareSection": "Share"
     },
     "restaurant": {
       "title": "Restaurant",
       "noVisits": "No visits",
-      "noReviews": "This restaurant has no reviews yet.",
+      "noReviews": "This restaurant has no memories yet.",
       "visitCount_one": "{{count}} visit",
       "visitCount_other": "{{count}} visits",
       "visits": "Visits"
@@ -434,34 +434,34 @@
   "share": {
     "chooser": {
       "gustraFile": "Share Gustra Package",
-      "gustraFileSubtitle": "Send 1 or more reviews for other Gustra users to import",
+      "gustraFileSubtitle": "Send 1 or more memories for other Gustra users to import",
       "visual": "Share via Email",
-      "visualSubtitle": "Send a styled review card of 1 restaurant (for anyone)",
+      "visualSubtitle": "Send a styled memory card of 1 restaurant (for anyone)",
       "cancel": "Cancel"
     },
     "nameSheet": {
       "title": "Your name",
-      "body": "Your name is included when you share reviews with friends.",
-      "placeholder": "Reviewer name",
+      "body": "Your name is included when you share memories with friends.",
+      "placeholder": "Your name",
       "cancel": "Cancel",
       "continue": "Continue"
     },
-    "selectReviews": "Select reviews",
+    "selectReviews": "Select memories",
     "selectRestaurants": "Select restaurants",
     "selectOneRestaurant": "Select 1 restaurant"
   },
   "import": {
-    "title": "Import Reviews",
-    "from": "Reviews from {{name}}",
+    "title": "Import Memories",
+    "from": "Memories from {{name}}",
     "unknownRestaurant": "Unknown Restaurant",
-    "noReviews": "No Reviews",
-    "noReviewsBody": "This shared file contains no reviews.",
+    "noReviews": "No Memories",
+    "noReviewsBody": "This shared file contains no memories.",
     "selectAll": "Select All",
     "selectNone": "Select None"
   },
   "backup": {
     "encryptedTitle": "Encrypted Backup",
-    "encryptedBody": "Create a password-protected backup of your reviews, or restore from a previous backup.",
+    "encryptedBody": "Create a password-protected backup of your memories, or restore from a previous backup.",
     "create": "Create Backup",
     "restore": "Restore",
     "restoreTitle": "Restore Backup",
@@ -487,13 +487,13 @@
     "passwordNeedsNumber": "Password must include at least one number.",
     "passwordNeedsSymbol": "Password must include at least one symbol.",
     "passwordMismatch": "Passwords do not match.",
-    "needReviewFirst": "Add at least one review before creating a backup.",
+    "needReviewFirst": "Add at least one memory before creating a backup.",
     "choosePasswordHint": "Choose a password you will need later to restore this backup.",
     "localFolderHint": "Local backups are stored in the app’s Backups folder on this device.",
     "enterRestorePassword": "Enter the password used when this backup was created.",
     "applyHow": "How should this backup be applied?",
     "mergeHint": "Keep existing restaurants and add or update items from the backup.",
-    "overwriteHint": "Replace all restaurants and reviews with the backup.",
+    "overwriteHint": "Replace all restaurants and memories with the backup.",
     "encryptFailed": "Could not encrypt the backup file.",
     "shareFailed": "Could not share the backup.",
     "readFailed": "Could not read the backup file.",
@@ -534,11 +534,11 @@
       "undoMessage": "Visit removed"
     },
     "share": {
-      "failed": "Could not share reviews.",
-      "reviewFailed": "Could not share this review.",
-      "needName": "Add your name in Settings before sharing reviews.",
+      "failed": "Could not share memories.",
+      "reviewFailed": "Could not share this memory.",
+      "needName": "Add your name in Settings before sharing memories.",
       "draftTitle": "Draft can't be shared",
-      "draftBody": "Rate Food and complete this review before sharing it."
+      "draftBody": "Rate Food and complete this memory before sharing it."
     },
     "location": {
       "deniedTitle": "Location needed",
@@ -553,26 +553,26 @@
       "camera": "Camera access is required."
     },
     "reviewForm": {
-      "needStars": "Add at least one star rating to save this review.",
-      "saveFailed": "Could not save this review.",
+      "needStars": "Add at least one star rating to save this memory.",
+      "saveFailed": "Could not save this memory.",
       "foodRequiredTitle": "Food rating required",
-      "foodRequiredBody": "Rate Food before completing this review.",
+      "foodRequiredBody": "Rate Food before completing this memory.",
       "removePhotosTitle": "Remove Photos?",
-      "removePhotosBody": "Selected photos will be removed from this review.",
+      "removePhotosBody": "Selected photos will be removed from this memory.",
       "photosSaveFailed": "Could not save photos.",
       "photoLimitTitle": "Photo limit",
-      "photoLimitBody": "You can add up to {{max}} photos to a review.",
+      "photoLimitBody": "You can add up to {{max}} photos to a memory.",
       "deleteTitle": "Delete?",
-      "deleteBody": "This review will be deleted.",
+      "deleteBody": "This memory will be deleted.",
       "discardEdits": {
         "title": "Save changes?"
       }
     },
     "recovery": {
-      "confirmTitle": "Recover previous reviews?",
+      "confirmTitle": "Recover previous memories?",
       "confirmBody": "Scans this iPhone for the old Swift database (any .store/.sqlite under Application Support, Documents, Library) and photos. Current Expo data is auto-saved to Backups first. Encrypted .gustra backups are separate — use Backup / Restore for those.",
       "completeTitle": "Recovery complete",
-      "completeBody": "Imported {{reviewCount}} reviews across {{restaurantCount}} restaurants ({{photosCopied}} photos copied, {{mode}}).",
+      "completeBody": "Imported {{reviewCount}} memories across {{restaurantCount}} restaurants ({{photosCopied}} photos copied, {{mode}}).",
       "failedTitle": "Recovery failed",
       "failedBody": "Could not import previous Gustra data."
     },
@@ -582,14 +582,14 @@
     },
     "backup": {
       "overwriteTitle": "Overwrite existing data?",
-      "overwriteBody": "Your current reviews will be replaced by the backup.",
+      "overwriteBody": "Your current memories will be replaced by the backup.",
       "deleteFileTitle": "Delete backup file?",
       "deleteFileBody": "This removes the selected backup from this device."
     },
     "import": {
       "readFailed": "Could not read the share file.",
       "openFailed": "Could not open the share file.",
-      "importFailed": "Could not import reviews."
+      "importFailed": "Could not import memories."
     },
     "linking": {
       "unableTitle": "Unable to open",
@@ -654,7 +654,7 @@
     "clearWinesWithRatingsTitle": "Clear Wines rating?",
     "clearWinesWithRatingsBody": "Scanned wines on this visit will be removed too.",
     "deleteWineTitle": "Remove wine?",
-    "deleteWineBody": "“{{name}}” will be removed from this review.",
+    "deleteWineBody": "“{{name}}” will be removed from this memory.",
     "deleteWineA11y": "Delete wine",
     "drinksCommentPlaceholder": "Your notes on the wine…",
     "discardUnsaved": {
@@ -735,7 +735,7 @@
       "tapToContinue": "Tap to continue"
     },
     "choose": {
-      "headline": "How do you want to review?",
+      "headline": "How do you want to remember?",
       "body": "Pick a starting point. You can change your criteria later in Settings.",
       "recommended": "Recommended",
       "quick": {
@@ -754,11 +754,11 @@
     "criteria": {
       "title": "Initial setup",
       "headline": "Personalize your experience",
-      "body": "Choose which criteria matter when you review. You can change this later in Settings.",
+      "body": "Choose which criteria matter when you remember. You can change this later in Settings.",
       "minOne": "Pick at least one criterion.",
       "tip": "Tip",
       "idealThree": ": 3 criteria are ideal",
-      "footer": "Added criteria appear in new reviews."
+      "footer": "Added criteria appear in new memories."
     }
   }
 }

@@ -13,7 +13,7 @@ export default function NotFoundScreen() {
           This screen doesn't exist.
         </SerifText>
         <Link href="/" style={styles.link}>
-          <Text style={styles.linkText}>Back to Reviews</Text>
+          <Text style={styles.linkText}>Back to Memories</Text>
         </Link>
       </View>
     </>

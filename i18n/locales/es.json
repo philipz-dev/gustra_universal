@@ -48,25 +48,25 @@
     }
   },
   "tabs": {
-    "reviews": "Reseñas",
+    "reviews": "Recuerdos",
     "map": "Mi mapa",
     "passport": "Mi Gustra",
     "settings": "Ajustes",
-    "editCriteria": "Editar criterios de reseña",
+    "editCriteria": "Editar criterios",
     "profilePhoto": "Foto de perfil",
     "backupRestore": "Copia / Restaurar"
   },
   "a11y": {
-    "importReviews": "Importar reseñas",
+    "importReviews": "Importar recuerdos",
     "share": "Compartir",
     "filters": "Filtros",
-    "addReview": "Añadir reseña",
+    "addReview": "Añadir recuerdo",
     "myLocation": "Mi ubicación",
     "mapLegend": "Leyenda del mapa",
     "clearLocation": "Borrar filtro de ubicación",
     "clearCuisine": "Borrar filtro de cocina",
     "clearFavorites": "Borrar filtro de favoritos",
-    "clearFriends": "Borrar filtro de reseñas de amigos",
+    "clearFriends": "Borrar filtro de recuerdos compartidos",
     "clearSort": "Borrar ordenación",
     "delete": "Eliminar"
   },
@@ -75,22 +75,22 @@
     "visitCount_one": "{{count}} visita · {{date}}",
     "visitCount_other": "{{count}} visitas · {{date}}",
     "source": {
-      "mine": "Mis reseñas",
-      "friends": "Reseñas de amigos"
+      "mine": "Mis recuerdos",
+      "friends": "Compartidos contigo"
     },
     "empty": {
       "noMatchesTitle": "Ningún restaurante coincide",
       "noMatchesBody": "Ningún restaurante coincide con los filtros actuales.",
       "noMatchesShort": "Sin resultados",
-      "noFriendsTitle": "No hay reseñas de amigos",
-      "noFriendsBody": "Importa reseñas compartidas de amigos para verlas aquí.",
-      "noReviewsTitle": "Aún no hay reseñas",
-      "noReviewsBody": "Añade tu primera reseña de restaurante para empezar.",
+      "noFriendsTitle": "No hay recuerdos compartidos",
+      "noFriendsBody": "Importa recuerdos compartidos por amigos para verlos aquí.",
+      "noReviewsTitle": "Aún no hay recuerdos",
+      "noReviewsBody": "Añade tu primer recuerdo de restaurante para empezar.",
       "tryAnotherSearch": "Prueba con otro restaurante, ciudad, comentario o texto de una foto.",
       "noCriterionRating": "Aún no hay restaurantes con una valoración para este criterio.",
       "clearFilters": "Borrar filtros",
-      "importReviews": "Importar reseñas",
-      "addReview": "Añadir reseña"
+      "importReviews": "Importar recuerdos",
+      "addReview": "Añadir recuerdo"
     },
     "draftLabel": "Draft",
     "demoLabel": "Demo",
@@ -102,7 +102,7 @@
     "filters": "Filtros",
     "none": "Ninguno",
     "favorites": "Favoritos",
-    "friendsReviews": "Incluir reseñas de amigos",
+    "friendsReviews": "Incluir recuerdos compartidos",
     "location": "Ubicación",
     "cuisine": "Tipo de cocina",
     "sortBy": "Ordenar por",
@@ -117,7 +117,7 @@
     "restaurantCount": "{{shown}} de {{total}} restaurantes",
     "resultsCount": "{{shown}} de {{total}} resultados",
     "emptyLocationTitle": "Aún no hay ubicaciones",
-    "emptyLocationBody": "Las ubicaciones aparecen cuando tus reseñas incluyen una ciudad o un país.",
+    "emptyLocationBody": "Las ubicaciones aparecen cuando tus recuerdos incluyen una ciudad o un país.",
     "emptyCuisineTitle": "Aún no hay tipos de cocina",
     "emptyCuisineBody": "Los tipos de cocina aparecen cuando los restaurantes tienen categorías.",
     "sort": {
@@ -129,7 +129,7 @@
       "location": "Ubicación",
       "cuisine": "Tipo de cocina",
       "favorites": "Favoritos",
-      "friends": "Reseñas de amigos incluidas"
+      "friends": "Recuerdos compartidos incluidos"
     }
   },
   "map": {
@@ -137,24 +137,24 @@
     "friendSuffix": "(amigo)",
     "legend": {
       "title": "Marcadores",
-      "own": "Mis reseñas",
-      "friends": "Reseñas de amigos"
+      "own": "Mis recuerdos",
+      "friends": "Compartidos contigo"
     },
     "empty": {
       "noMatchesTitle": "Sin resultados",
       "noMatchesBody": "Ningún restaurante coincide con los filtros actuales.",
       "noMemoriesTitle": "Aún no hay recuerdos en el mapa",
-      "noMemoriesBody": "Añade una reseña con ubicación para verla en el mapa.",
+      "noMemoriesBody": "Añade un recuerdo con ubicación para verlo en el mapa.",
       "clearFilters": "Borrar filtros",
-      "addReview": "Añadir reseña"
+      "addReview": "Añadir recuerdo"
     }
   },
   "passport": {
-    "emptyTitle": "Aún no hay reseñas",
-    "emptyBody": "Tu pasaporte gastronómico se completa a medida que añades reseñas de restaurantes.",
-    "addReview": "Añadir reseña",
+    "emptyTitle": "Aún no hay recuerdos",
+    "emptyBody": "Tu pasaporte gastronómico se completa a medida que añades recuerdos de restaurantes.",
+    "addReview": "Añadir recuerdo",
     "overview": "Resumen",
-    "totalReviews": "Reseñas totales",
+    "totalReviews": "Recuerdos totales",
     "averageOverall": "Media general",
     "bestRestaurant": "Mejor restaurante",
     "bestRestaurants": "Mejores restaurantes",
@@ -171,7 +171,7 @@
     "timeTravelAverage": "Media",
     "timeTravelTotal": "Visitas en total",
     "timeTravelEmptyTitle": "Nada que recorrer todavía",
-    "timeTravelEmptyBody": "Añade reseñas de restaurantes y tu línea temporal aparecerá aquí.",
+    "timeTravelEmptyBody": "Añade recuerdos de restaurantes y tu línea temporal aparecerá aquí.",
     "timeTravelMonthHeader": "{{month}} {{year}}",
     "timeTravelMonthCount_one": "{{count}} visita",
     "timeTravelMonthCount_other": "{{count}} visitas"
@@ -184,16 +184,16 @@
     "languageEnglish": "English",
     "languageItalian": "Italiano",
     "sectionReviewer": "Tú",
-    "sectionReviewing": "Reseñas",
-    "sectionCriteria": "Criterios de reseña",
+    "sectionReviewing": "Recuerdos",
+    "sectionCriteria": "Criterios",
     "sectionPassport": "Mi Gustra",
     "sectionShowcase": "Escaparate",
-    "demoShowcase": "Reseñas de ejemplo",
+    "demoShowcase": "Recuerdos de ejemplo",
     "demoShowcaseOn": "Seis restaurantes ficticios con fotos y fichas de vino",
-    "demoShowcaseOff": "Desactivado — solo se muestran tus reseñas reales",
-    "demoShowcaseShareBlocked": "Las reseñas de ejemplo son solo para explorar Gustra y no se pueden compartir.",
+    "demoShowcaseOff": "Desactivado — solo se muestran tus recuerdos reales",
+    "demoShowcaseShareBlocked": "Los recuerdos de ejemplo son solo para explorar Gustra y no se pueden compartir.",
     "demoLabel": "Etiqueta Demo",
-    "demoLabelOn": "Mostrada en reseñas de ejemplo",
+    "demoLabelOn": "Mostrado en recuerdos de ejemplo",
     "demoLabelOff": "Oculta — para capturas limpias",
     "sectionStorage": "Almacenamiento",
     "sectionData": "Datos y copia de seguridad",
@@ -201,7 +201,7 @@
     "sectionAdvanced": "Avanzado",
     "sectionLanguage": "Idioma",
     "editPhotoHint": "Toca la foto para cambiarla",
-    "editCriteria": "Editar criterios de reseña",
+    "editCriteria": "Editar criterios",
     "dataSavings": "Ahorro de datos para fotos",
     "dataSavingsOn": "Resolución más baja",
     "dataSavingsOff": "Resolución más alta",
@@ -215,7 +215,7 @@
     "usageToday": "{{today}} hoy / {{allTime}} total",
     "resetCounters": "Restablecer contadores",
     "namePlaceholder": "Tu nombre",
-    "nameA11y": "Nombre del reseñador",
+    "nameA11y": "Tu nombre",
     "photoA11y": "Foto de perfil",
     "editPhotoA11y": "Editar foto de perfil",
     "addPhotoA11y": "Agregar foto de perfil",
@@ -230,7 +230,7 @@
       "photos": "{{count}} fotos",
       "backups": "{{count}} archivo(s) de copia de seguridad",
       "alreadyRecovered": "ya recuperado",
-      "photosOnly": "{{count}} fotos antiguas encontradas, pero no hay base de datos; las reseñas necesitan una copia .gustra o el almacén Swift",
+      "photosOnly": "{{count}} fotos antiguas encontradas, pero no hay base de datos; los recuerdos necesitan una copia .gustra o el almacén Swift",
       "backupsOnly": "{{count}} archivo(s) de copia en Backups; usa Copia de seguridad / Restaurar",
       "unreadable": "{{count}} archivo(s) de base de datos encontrados, pero no se pueden leer como datos de Gustra",
       "none": "No se encontraron datos anteriores de Swift en este dispositivo"
@@ -247,7 +247,7 @@
       "deleteTitle": "Eliminar criterio",
       "deleteBody": "¿Quitar «{{name}}»?",
       "custom": "Personalizado",
-      "footer": "Los nombres personalizados aparecen en las nuevas reseñas. Los criterios desactivados se ocultan al valorar.",
+      "footer": "Los criterios añadidos aparecen en los nuevos recuerdos.",
       "discardEdits": {
         "title": "¿Guardar cambios?"
       }
@@ -302,13 +302,13 @@
   },
   "forms": {
     "addReview": {
-      "title": "Añadir reseña",
+      "title": "Añadir recuerdo",
       "nearby": "Mostrar restaurantes cercanos",
       "mapSearch": "Buscar en el mapa",
       "manual": "Entrada manual"
     },
     "nearby": {
-      "startReview": "Empezar reseña",
+      "startReview": "Empezar recuerdo",
       "loadFailed": "No se pudieron cargar los restaurantes cercanos.",
       "noNearby": "No se encontraron restaurantes cercanos.",
       "searchNearby": "Buscar cerca",
@@ -318,13 +318,13 @@
       "sectionTitle": "Restaurantes cercanos",
       "tryMap": "Inténtalo de nuevo o busca en el mapa.",
       "searchFailed": "No se pudo conectar con el servicio de búsqueda de restaurantes.",
-      "usingFallback": "Sin acceso a la ubicación — se muestran restaurantes cerca de tus reseñas recientes.",
+      "usingFallback": "Sin acceso a la ubicación — se muestran restaurantes cerca de tus recuerdos recientes.",
       "usingFallbackCity": "Sin acceso a la ubicación — se muestran restaurantes cerca de {{city}}."
     },
     "mapSearch": {
       "title": "Buscar en el mapa",
       "searchArea": "Buscar en esta zona",
-      "startReview": "Empezar reseña",
+      "startReview": "Empezar recuerdo",
       "hint": "Mueve el mapa y pulsa Buscar en esta zona.",
       "emptyTitle": "No se encontraron restaurantes",
       "searchAreaHint": "Buscar restaurantes en la zona visible del mapa"
@@ -345,7 +345,7 @@
     },
     "review": {
       "editTitle": "Editar",
-      "title": "Reseña",
+      "title": "Recuerdo",
       "done": "Hecho",
       "visitDate": "Fecha de visita",
       "ratings": "Valoraciones",
@@ -369,8 +369,8 @@
         "a11yCover": "Foto de portada. Toca para seleccionar, mantén pulsado para reordenar.",
         "a11yPhoto": "Foto. Toca para seleccionar, mantén pulsado para reordenar."
       },
-      "draftBannerCriteria": "Valora al menos un criterio para terminar esta reseña.",
-      "draftBannerFood": "Valora la comida para completar esta reseña.",
+      "draftBannerCriteria": "Valora al menos un criterio para terminar este recuerdo.",
+      "draftBannerFood": "Valora la comida para completar este recuerdo.",
       "draftBannerWine": "Un vino aún necesita valoración.",
       "showMoreCriteria": "Mostrar {{count}} más",
       "hideMoreCriteria": "Mostrar menos"
@@ -383,13 +383,13 @@
   },
   "detail": {
     "review": {
-      "title": "Reseña",
-      "notFound": "Reseña no encontrada",
-      "notFoundBody": "No se pudo encontrar esta reseña.",
+      "title": "Recuerdo",
+      "notFound": "Recuerdo no encontrado",
+      "notFoundBody": "No se pudo encontrar este recuerdo.",
       "generalComments": "Comentarios generales",
       "newVisit": "Nueva visita",
       "edit": "Editar",
-      "reviewedBy": "Reseñado por {{name}}",
+      "reviewedBy": "Compartido por {{name}}",
       "share": "Compartir",
       "winesDrunk_one": "Vino catado",
       "winesDrunk_other": "Vinos catados",
@@ -398,16 +398,16 @@
     "options": {
       "title": "Opciones",
       "a11y": "Opciones",
-      "recordVisit": "Añadir nueva reseña",
-      "editReview": "Editar reseña",
-      "cannotEditFriend": "No puedes editar la reseña de un amigo",
-      "deleteReview": "Eliminar reseña",
+      "recordVisit": "Añadir nuevo recuerdo",
+      "editReview": "Editar recuerdo",
+      "cannotEditFriend": "No puedes editar el recuerdo de un amigo",
+      "deleteReview": "Eliminar recuerdo",
       "shareSection": "Compartir"
     },
     "restaurant": {
       "title": "Restaurant",
       "noVisits": "Sin visitas",
-      "noReviews": "Este restaurante aún no tiene reseñas.",
+      "noReviews": "Este restaurante aún no tiene recuerdos.",
       "visitCount_one": "{{count}} visita",
       "visitCount_other": "{{count}} visitas",
       "visits": "Visitas"
@@ -434,34 +434,34 @@
   "share": {
     "chooser": {
       "gustraFile": "Compartir Gustra Package",
-      "gustraFileSubtitle": "Envía 1 o más reseñas para que otros usuarios de Gustra las importen",
+      "gustraFileSubtitle": "Envía 1 o más recuerdos para que otros usuarios de Gustra los importen",
       "visual": "Compartir por correo",
-      "visualSubtitle": "Envía una tarjeta de reseña diseñada de 1 restaurante (para cualquiera)",
+      "visualSubtitle": "Envía una tarjeta de recuerdo diseñada de 1 restaurante (para cualquiera)",
       "cancel": "Cancelar"
     },
     "nameSheet": {
       "title": "Tu nombre",
-      "body": "Tu nombre se incluye cuando compartes reseñas con amigos.",
-      "placeholder": "Nombre del reseñador",
+      "body": "Tu nombre se incluye cuando compartes recuerdos con amigos.",
+      "placeholder": "Tu nombre",
       "cancel": "Cancelar",
       "continue": "Continuar"
     },
-    "selectReviews": "Seleccionar reseñas",
+    "selectReviews": "Seleccionar recuerdos",
     "selectRestaurants": "Seleccionar restaurantes",
     "selectOneRestaurant": "Seleccionar 1 restaurante"
   },
   "import": {
-    "title": "Importar reseñas",
-    "from": "Reseñas de {{name}}",
+    "title": "Importar recuerdos",
+    "from": "Recuerdos de {{name}}",
     "unknownRestaurant": "Restaurante desconocido",
-    "noReviews": "Sin reseñas",
-    "noReviewsBody": "Este archivo compartido no contiene reseñas.",
+    "noReviews": "Sin recuerdos",
+    "noReviewsBody": "Este archivo compartido no contiene recuerdos.",
     "selectAll": "Seleccionar todo",
     "selectNone": "No seleccionar ninguno"
   },
   "backup": {
     "encryptedTitle": "Copia cifrada",
-    "encryptedBody": "Crea una copia de seguridad protegida con contraseña de tus reseñas o restaura una copia anterior.",
+    "encryptedBody": "Crea una copia de seguridad protegida con contraseña de tus recuerdos o restaura una copia anterior.",
     "create": "Crear copia",
     "restore": "Restaurar",
     "restoreTitle": "Restaurar copia de seguridad",
@@ -487,13 +487,13 @@
     "passwordNeedsNumber": "La contraseña debe incluir al menos un número.",
     "passwordNeedsSymbol": "La contraseña debe incluir al menos un símbolo.",
     "passwordMismatch": "Las contraseñas no coinciden.",
-    "needReviewFirst": "Añade al menos una reseña antes de crear una copia de seguridad.",
+    "needReviewFirst": "Añade al menos un recuerdo antes de crear una copia de seguridad.",
     "choosePasswordHint": "Elige una contraseña que necesitarás más tarde para restaurar esta copia.",
     "localFolderHint": "Las copias locales se guardan en la carpeta Backups de la app en este dispositivo.",
     "enterRestorePassword": "Introduce la contraseña utilizada al crear esta copia de seguridad.",
     "applyHow": "¿Cómo se debe aplicar esta copia de seguridad?",
     "mergeHint": "Conserva los restaurantes existentes y añade o actualiza elementos de la copia.",
-    "overwriteHint": "Sustituye todos los restaurantes y reseñas por los de la copia.",
+    "overwriteHint": "Sustituye todos los restaurantes y recuerdos por los de la copia.",
     "encryptFailed": "No se pudo cifrar el archivo de copia.",
     "shareFailed": "No se pudo compartir la copia de seguridad.",
     "readFailed": "No se pudo leer el archivo de copia.",
@@ -534,11 +534,11 @@
       "undoMessage": "Visita eliminada"
     },
     "share": {
-      "failed": "No se pudieron compartir reseñas.",
-      "reviewFailed": "No se pudo compartir esta reseña.",
-      "needName": "Agrega tu nombre en Configuración antes de compartir reseñas.",
+      "failed": "No se pudieron compartir los recuerdos.",
+      "reviewFailed": "No se pudo compartir este recuerdo.",
+      "needName": "Agrega tu nombre en Configuración antes de compartir recuerdos.",
       "draftTitle": "El borrador no se puede compartir",
-      "draftBody": "Valora la comida y completa esta reseña antes de compartirla."
+      "draftBody": "Valora la comida y completa este recuerdo antes de compartirlo."
     },
     "location": {
       "deniedTitle": "Ubicación necesaria",
@@ -553,26 +553,26 @@
       "camera": "Se requiere acceso a la cámara."
     },
     "reviewForm": {
-      "needStars": "Agregue al menos una calificación de estrellas para guardar esta reseña.",
+      "needStars": "Agrega al menos una calificación de estrellas para guardar este recuerdo.",
       "foodRequiredTitle": "Valoración de comida obligatoria",
-      "foodRequiredBody": "Valora la comida antes de completar esta reseña.",
+      "foodRequiredBody": "Valora la comida antes de completar este recuerdo.",
       "removePhotosTitle": "¿Quitar fotos?",
-      "removePhotosBody": "Las fotos seleccionadas se eliminarán de esta revisión.",
+      "removePhotosBody": "Las fotos seleccionadas se eliminarán de este recuerdo.",
       "photosSaveFailed": "No se pudieron guardar las fotos.",
       "photoLimitTitle": "Límite de fotos",
-      "photoLimitBody": "Puedes añadir hasta {{max}} fotos a una reseña.",
+      "photoLimitBody": "Puedes añadir hasta {{max}} fotos a un recuerdo.",
       "deleteTitle": "¿Borrar?",
-      "deleteBody": "Esta reseña será eliminada.",
+      "deleteBody": "Este recuerdo será eliminado.",
       "discardEdits": {
         "title": "¿Guardar cambios?"
       },
-      "saveFailed": "No se pudo guardar esta reseña."
+      "saveFailed": "No se pudo guardar este recuerdo."
     },
     "recovery": {
-      "confirmTitle": "¿Recuperar reseñas anteriores?",
+      "confirmTitle": "¿Recuperar recuerdos anteriores?",
       "confirmBody": "Escanea este iPhone en busca de la antigua base de datos Swift (cualquier .store/.sqlite en Soporte de aplicaciones, Documentos, Biblioteca) y fotos. Los datos actuales de la Expo se guardan automáticamente primero en Copias de seguridad. Las copias de seguridad cifradas de .gustra son independientes; utilice Copia de seguridad/Restaurar para ellas.",
       "completeTitle": "Recuperación completa",
-      "completeBody": "Reseñas importadas de {{reviewCount}} en restaurantes {{restaurantCount}} (fotos {{photosCopied}} copiadas, {{mode}}).",
+      "completeBody": "Recuerdos importados de {{reviewCount}} en restaurantes {{restaurantCount}} (fotos {{photosCopied}} copiadas, {{mode}}).",
       "failedTitle": "La recuperación falló",
       "failedBody": "No se pudieron importar datos anteriores de Gustra."
     },
@@ -582,14 +582,14 @@
     },
     "backup": {
       "overwriteTitle": "¿Sobrescribir datos existentes?",
-      "overwriteBody": "Sus revisiones actuales serán reemplazadas por la copia de seguridad.",
+      "overwriteBody": "Tus recuerdos actuales serán reemplazados por la copia.",
       "deleteFileTitle": "¿Eliminar el archivo de copia de seguridad?",
       "deleteFileBody": "Esto elimina la copia de seguridad seleccionada de este dispositivo."
     },
     "import": {
       "readFailed": "No se pudo leer el archivo compartido.",
       "openFailed": "No se pudo abrir el archivo compartido.",
-      "importFailed": "No se pudieron importar reseñas."
+      "importFailed": "No se pudieron importar recuerdos."
     },
     "linking": {
       "unableTitle": "No se puede abrir",
@@ -633,7 +633,7 @@
     "clearWinesWithRatingsTitle": "¿Borrar la nota de Vinos?",
     "clearWinesWithRatingsBody": "También se eliminarán los vinos escaneados de esta visita.",
     "deleteWineTitle": "¿Eliminar vino?",
-    "deleteWineBody": "“{{name}}” se eliminará de esta reseña.",
+    "deleteWineBody": "“{{name}}” se eliminará de este recuerdo.",
     "deleteWineA11y": "Eliminar vino",
     "drinksCommentPlaceholder": "Tus notas sobre el vino…",
     "discardUnsaved": {
@@ -735,7 +735,7 @@
       "tapToContinue": "Toca para continuar"
     },
     "choose": {
-      "headline": "¿Cómo quieres reseñar?",
+      "headline": "¿Cómo quieres recordar?",
       "body": "Elige un punto de partida. Puedes cambiar los criterios más tarde en Ajustes.",
       "recommended": "Recomendado",
       "quick": {
@@ -754,11 +754,11 @@
     "criteria": {
       "title": "Configuración inicial",
       "headline": "Personaliza tu experiencia",
-      "body": "Elige qué criterios importan al reseñar. Puedes cambiarlo después en Ajustes.",
+      "body": "Elige qué criterios importan al recordar. Puedes cambiarlo después en Ajustes.",
       "minOne": "Elige al menos un criterio.",
       "tip": "Consejo",
       "idealThree": ": 3 criterios son ideales",
-      "footer": "Los criterios añadidos aparecen en las nuevas reseñas."
+      "footer": "Los criterios añadidos aparecen en los nuevos recuerdos."
     }
   }
 }
