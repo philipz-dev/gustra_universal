@@ -275,6 +275,12 @@
     "sentryTestCrashSubtitle": "Verifica i report crash (errore sicuro)",
     "sentryTestCrashNoDsn": "Imposta prima EXPO_PUBLIC_SENTRY_DSN in .env",
     "sentryTestCrashSent": "Evento di test inviato — controlla Issues in Sentry.",
+    "debugLog": "Registro di debug",
+    "debugLogSubtitle": "Ricerche e corrispondenze ristoranti recenti",
+    "debugLogTitle": "Registro di debug",
+    "debugLogHint": "Tieni premuto il testo per selezionarlo e copiarlo.",
+    "debugLogRefresh": "Aggiorna",
+    "debugLogClear": "Cancella registro",
     "appVersionA11y": "Versione dell’app {{version}}"
   },
   "criteria": {

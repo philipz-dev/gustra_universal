@@ -37,17 +37,26 @@ export type RestaurantDraft = {
 export function restaurantDraftFromResult(
   result: RestaurantSearchResult,
 ): RestaurantDraft {
+  // Never propagate undefined ids/fields into a draft — downstream code
+  // (e.g. RestaurantMatcher) calls `.trim()` / builds id-based keys on these.
+  const id =
+    (result.id ?? '').trim() ||
+    (result.mapItemIdentifier ?? '').trim() ||
+    (result.coordinate
+      ? `${result.name}-${result.coordinate.latitude}-${result.coordinate.longitude}`
+      : result.name);
+  const mapItemIdentifier = (result.mapItemIdentifier ?? '').trim() || null;
   return {
-    id: result.id,
+    id,
     name: result.name,
-    city: result.city,
-    country: result.country,
-    streetAddress: result.streetAddress,
-    phoneNumber: result.phoneNumber,
-    latitude: result.coordinate.latitude,
-    longitude: result.coordinate.longitude,
-    mapItemIdentifier: result.mapItemIdentifier,
-    primaryType: result.primaryType,
+    city: result.city ?? '',
+    country: result.country ?? '',
+    streetAddress: result.streetAddress ?? '',
+    phoneNumber: result.phoneNumber ?? '',
+    latitude: result.coordinate?.latitude ?? 0,
+    longitude: result.coordinate?.longitude ?? 0,
+    mapItemIdentifier,
+    primaryType: result.primaryType ?? '',
   };
 }
 

@@ -275,6 +275,12 @@
     "sentryTestCrashSubtitle": "Controleert crashrapportage (veilige fout)",
     "sentryTestCrashNoDsn": "Zet eerst EXPO_PUBLIC_SENTRY_DSN in .env",
     "sentryTestCrashSent": "Testevent verzonden — bekijk Issues in Sentry.",
+    "debugLog": "Debuglog",
+    "debugLogSubtitle": "Recente restaurantzoekopdrachten en matches",
+    "debugLogTitle": "Debuglog",
+    "debugLogHint": "Houd de tekst lang ingedrukt om te selecteren en te kopiëren.",
+    "debugLogRefresh": "Vernieuwen",
+    "debugLogClear": "Log wissen",
     "appVersionA11y": "Appversie {{version}}"
   },
   "criteria": {

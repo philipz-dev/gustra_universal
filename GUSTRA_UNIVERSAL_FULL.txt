@@ -1,8 +1,8 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-08-03T17:45:39Z
+Generated: 2026-08-03T18:31:14Z
 Root: /Users/philipzvar/Desktop/gustra_universal
-Files: 249
+Files: 254
 ================================================================================
 
 ================================================================================
@@ -390,6 +390,138 @@ describe('criteria presets', () => {
     expect(disabled.has('setting')).toBe(false);
     expect(disabled.has('valueForMoney')).toBe(false);
     expect(disabled.has('acoustics')).toBe(true);
+  });
+});
+
+
+================================================================================
+FILE: __tests__/debugLog.test.ts
+================================================================================
+import {
+  clearDebugLog,
+  debugLogSize,
+  formatDebugLogReport,
+  getDebugLogEvents,
+  recordMatcherEvent,
+  recordSearchEvent,
+  type DebugLogSnapshot,
+} from '@/services/debug/debugLog';
+
+const emptySnapshot: DebugLogSnapshot = {
+  events: [],
+  counters: {
+    placesToday: 0,
+    placesTotal: 0,
+    mapsToday: 0,
+    mapsTotal: 0,
+    geminiToday: 0,
+    geminiTotal: 0,
+  },
+  version: '1.0(1)',
+  os: 'iOS',
+  appState: 'settings',
+};
+
+beforeEach(() => {
+  clearDebugLog();
+});
+
+describe('debugLog', () => {
+  it('records a search event and exposes it', () => {
+    recordSearchEvent({
+      center: { latitude: 51.05, longitude: 3.72 },
+      radius: 2000,
+      mode: 'nearby',
+      rawPlaces: 12,
+      results: 9,
+      noPlaceId: 2,
+      samples: [
+        { id: 'a', name: 'Het Huis', city: 'Gent', distanceMeters: 120 },
+      ],
+    });
+    expect(debugLogSize()).toBe(1);
+    const [event] = getDebugLogEvents();
+    expect(event.kind).toBe('search');
+    if (event.kind === 'search') {
+      expect(event.mode).toBe('nearby');
+      expect(event.rawPlaces).toBe(12);
+      expect(event.results).toBe(9);
+      expect(event.noPlaceId).toBe(2);
+    }
+  });
+
+  it('records a matcher event with matchedVia', () => {
+    recordMatcherEvent({
+      draftName: 'Het Huis',
+      draftPlaceId: 'place_1',
+      restaurantsChecked: 3,
+      matchedRestaurantId: 'r1',
+      matchedVia: 'placeId',
+    });
+    const [event] = getDebugLogEvents();
+    expect(event.kind).toBe('matcher');
+    if (event.kind === 'matcher') {
+      expect(event.matchedVia).toBe('placeId');
+      expect(event.matchedRestaurantId).toBe('r1');
+    }
+  });
+
+  it('caps the buffer at 30 events (oldest dropped)', () => {
+    for (let i = 0; i < 35; i += 1) {
+      recordSearchEvent({
+        center: null,
+        radius: 0,
+        mode: 'text-no-center',
+        rawPlaces: 1,
+        results: 1,
+        noPlaceId: 0,
+        samples: [],
+      });
+    }
+    expect(debugLogSize()).toBe(30);
+    const events = getDebugLogEvents();
+    // The first recorded event (index 0) must have been dropped.
+    expect(events[0]?.kind).toBe('search');
+  });
+
+  it('formats an empty report with a hint', () => {
+    const report = formatDebugLogReport(emptySnapshot);
+    expect(report).toContain('1.0(1)');
+    expect(report).toContain('places 0/0 today');
+    expect(report).toContain('geen events');
+  });
+
+  it('formats a report with events and counters', () => {
+    recordSearchEvent({
+      center: { latitude: 51.05, longitude: 3.72 },
+      radius: 2000,
+      mode: 'nearby',
+      rawPlaces: 5,
+      results: 3,
+      noPlaceId: 1,
+      samples: [{ id: 'x', name: 'A', city: 'Gent', distanceMeters: 100 }],
+    });
+    const report = formatDebugLogReport({
+      ...emptySnapshot,
+      events: getDebugLogEvents(),
+      counters: { ...emptySnapshot.counters, placesToday: 7, placesTotal: 42 },
+    });
+    expect(report).toContain('places 7/42 today');
+    expect(report).toContain('search nearby');
+    expect(report).toContain('raw 5 / result 3');
+    expect(report).toContain('x «A» Gent 100m');
+  });
+
+  it('does not crash when __DEV__ is undefined (node test env)', () => {
+    expect(() => {
+      recordMatcherEvent({
+        draftName: 'X',
+        draftPlaceId: null,
+        restaurantsChecked: 0,
+        matchedRestaurantId: null,
+        matchedVia: null,
+      });
+    }).not.toThrow();
   });
 });
 
@@ -1233,6 +1365,118 @@ describe('mapCriteriaToFixed', () => {
     ]);
     const twice = mapCriteriaToFixed(once);
     expect(once).toEqual(twice);
+  });
+});
+
+
+================================================================================
+FILE: __tests__/restaurantDraft.test.ts
+================================================================================
+import {
+  restaurantDraftFromResult,
+  type RestaurantSearchResult,
+} from '@/services/places/types';
+import { findExistingRestaurant } from '@/services/places/RestaurantMatcher';
+import type { Restaurant } from '@/data/types';
+
+function restaurant(id: string, name: string, placeId?: string): Restaurant {
+  return {
+    id,
+    name,
+    city: 'Gent',
+    country: 'BE',
+    address: 'Straat 1',
+    latitude: 51.05,
+    longitude: 3.72,
+    mapItemIdentifier: placeId ?? null,
+    primaryType: 'restaurant',
+    isFavorite: false,
+    thumbnailColor: '#3D6B52',
+    photoUrl: '',
+  };
+}
+
+function searchResult(overrides: Partial<RestaurantSearchResult> = {}): RestaurantSearchResult {
+  return {
+    id: 'place_1',
+    name: 'Het Huis',
+    city: 'Gent',
+    country: 'BE',
+    streetAddress: 'Straat 1',
+    phoneNumber: '',
+    coordinate: { latitude: 51.05, longitude: 3.72 },
+    mapItemIdentifier: 'place_1',
+    distanceMeters: null,
+    primaryType: 'restaurant',
+    ...overrides,
+  };
+}
+
+describe('restaurantDraftFromResult', () => {
+  it('keeps the Google place id when present', () => {
+    const draft = restaurantDraftFromResult(searchResult());
+    expect(draft.id).toBe('place_1');
+    expect(draft.mapItemIdentifier).toBe('place_1');
+  });
+
+  it('derives a stable id when Google omits place.id (never undefined)', () => {
+    const draft = restaurantDraftFromResult(
+      searchResult({ id: '', mapItemIdentifier: null }),
+    );
+    expect(draft.id.length).toBeGreaterThan(0);
+    expect(draft.id).toContain('Het Huis');
+    expect(draft.mapItemIdentifier).toBeNull();
+  });
+
+  it('never propagates undefined fields into a draft', () => {
+    const draft = restaurantDraftFromResult(
+      searchResult({
+        id: undefined as unknown as string,
+        city: undefined as unknown as string,
+        country: undefined as unknown as string,
+        streetAddress: undefined as unknown as string,
+        phoneNumber: undefined as unknown as string,
+        mapItemIdentifier: undefined as unknown as string | null,
+        primaryType: undefined as unknown as string,
+      }),
+    );
+    expect(typeof draft.id).toBe('string');
+    expect(draft.city).toBe('');
+    expect(draft.country).toBe('');
+    expect(draft.streetAddress).toBe('');
+    expect(draft.phoneNumber).toBe('');
+    expect(draft.mapItemIdentifier).toBeNull();
+    expect(draft.primaryType).toBe('');
+  });
+
+  it('guards a missing coordinate instead of crashing', () => {
+    const draft = restaurantDraftFromResult(
+      searchResult({
+        coordinate: undefined as unknown as { latitude: number; longitude: number },
+      }),
+    );
+    expect(draft.latitude).toBe(0);
+    expect(draft.longitude).toBe(0);
+  });
+});
+
+describe('findExistingRestaurant with missing place id', () => {
+  it('matches by name+city when the draft has no mapItemIdentifier', () => {
+    const existing = restaurant('r1', 'Het Huis', 'place_1');
+    const draft = restaurantDraftFromResult(
+      searchResult({ mapItemIdentifier: null }),
+    );
+    const match = findExistingRestaurant(draft, [existing]);
+    expect(match?.id).toBe('r1');
+  });
+
+  it('never throws when mapItemIdentifier is undefined', () => {
+    const existing = restaurant('r1', 'Anders', 'place_2');
+    const draft = restaurantDraftFromResult(
+      searchResult({ mapItemIdentifier: undefined as unknown as string | null }),
+    );
+    expect(() => findExistingRestaurant(draft, [existing])).not.toThrow();
+    expect(findExistingRestaurant(draft, [existing])).toBeUndefined();
   });
 });
 
@@ -9951,6 +10195,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LanguagePickerSheet } from '@/components/settings/LanguagePickerSheet';
+import { DebugLogSheet } from '@/components/settings/DebugLogSheet';
 import { SettingsRow } from '@/components/settings/SettingsRow';
 import { SettingsSection } from '@/components/settings/SettingsSection';
 import { houseAlert } from '@/components/ui/HouseAlert';
@@ -9976,6 +10221,11 @@ import { useReviewsStore } from '@/context/ReviewsStore';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import type { LanguagePreference } from '@/i18n/resolveLanguage';
 import { useAdvancedMenuUnlocked } from '@/context/AdvancedMenu';
+import {
+  formatDebugLogReport,
+  getDebugLogEvents,
+  type DebugLogSnapshot,
+} from '@/services/debug/debugLog';
 import { getPhotosDiskUsage } from '@/services/photos/diskUsage';
 import { Haptics } from '@/services/haptics';
 import { scanSwiftLegacyData } from '@/services/migration/SwiftDataMigration';
@@ -10010,6 +10260,8 @@ export default function SettingsScreen() {
   const nameInputRef = useRef<TextInput>(null);
   const { preference, setPreference } = useLanguageSettings();
   const [languagePickerOpen, setLanguagePickerOpen] = useState(false);
+  const [debugLogOpen, setDebugLogOpen] = useState(false);
+  const [debugLogTick, setDebugLogTick] = useState(0);
   const advancedUnlocked = useAdvancedMenuUnlocked();
   const {
     categoryAveragesStyle,
@@ -10211,6 +10463,25 @@ export default function SettingsScreen() {
           : '';
     return build ? `${version}(${build})` : version;
   }, []);
+
+  const debugLogSnapshot: DebugLogSnapshot = useMemo(
+    () => ({
+      events: getDebugLogEvents(),
+      counters: {
+        placesToday,
+        placesTotal,
+        mapsToday,
+        mapsTotal,
+        geminiToday,
+        geminiTotal,
+      },
+      version: appVersionLabel,
+      os: Platform.OS === 'ios' ? 'iOS' : Platform.OS === 'android' ? 'Android' : 'web',
+      appState: 'settings',
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [appVersionLabel, geminiToday, geminiTotal, mapsToday, mapsTotal, placesToday, placesTotal, debugLogTick],
+  );
 
   return (
     <View style={styles.screenWrap}>
@@ -10468,6 +10739,20 @@ export default function SettingsScreen() {
           }
         />
         <SettingsRow
+          title={t('settings.debugLog')}
+          subtitle={t('settings.debugLogSubtitle')}
+          icon={{
+            ios: 'doc.text.magnifyingglass',
+            android: 'manage_search',
+            web: 'manage_search',
+          }}
+          showChevron
+          onPress={() => {
+            Haptics.selectionChanged();
+            setDebugLogOpen(true);
+          }}
+        />
+        <SettingsRow
           title={t('settings.resetCounters')}
           icon={{
             ios: 'arrow.counterclockwise',
@@ -10586,6 +10871,12 @@ export default function SettingsScreen() {
         selected={preference}
         onClose={() => setLanguagePickerOpen(false)}
         onSelect={setPreference}
+      />
+      <DebugLogSheet
+        visible={debugLogOpen}
+        onClose={() => setDebugLogOpen(false)}
+        snapshot={debugLogSnapshot}
+        onRefresh={() => setDebugLogTick((n) => n + 1)}
       />
       </ScrollView>
 
@@ -20082,6 +20373,237 @@ const styles = StyleSheet.create({
 
 
 ================================================================================
+FILE: components/settings/DebugLogSheet.tsx
+================================================================================
+import { useMemo, useState } from 'react';
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SymbolView } from 'expo-symbols';
+
+import { SerifText } from '@/components/ui/SerifText';
+import { GustraColors } from '@/constants/Colors';
+import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
+import {
+  clearDebugLog,
+  formatDebugLogReport,
+  getDebugLogEvents,
+  type DebugLogSnapshot,
+} from '@/services/debug/debugLog';
+
+type DebugLogSheetProps = {
+  visible: boolean;
+  onClose: () => void;
+  snapshot: DebugLogSnapshot;
+  onRefresh: () => void;
+};
+
+/**
+ * Dev-only debug log viewer (hidden Advanced settings). Shows the buffered
+ * search/matcher events plus current API counters. Text is selectable so a
+ * tester can long-press → copy and paste it back verbatim.
+ */
+export function DebugLogSheet({
+  visible,
+  onClose,
+  snapshot,
+  onRefresh,
+}: DebugLogSheetProps) {
+  const { t } = useAppTranslation();
+  const insets = useSafeAreaInsets();
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  const report = useMemo(() => {
+    void refreshTick;
+    return formatDebugLogReport(snapshot);
+  }, [snapshot, refreshTick]);
+
+  const handleRefresh = () => {
+    setRefreshTick((n) => n + 1);
+    onRefresh();
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}>
+      <View style={styles.backdrop}>
+        <Pressable style={styles.dismissArea} onPress={onClose} />
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={styles.handle} />
+          <View style={styles.header}>
+            <SerifText size={20} weight="semibold" style={styles.title}>
+              {t('settings.debugLogTitle')}
+            </SerifText>
+            <View style={styles.headerActions}>
+              <Pressable
+                onPress={handleRefresh}
+                accessibilityRole="button"
+                accessibilityLabel={t('settings.debugLogRefresh')}
+                hitSlop={12}
+                style={styles.iconBtn}>
+                <SymbolView
+                  name={{ ios: 'arrow.clockwise', android: 'refresh', web: 'refresh' }}
+                  tintColor={GustraColors.forestGreen}
+                  size={20}
+                />
+              </Pressable>
+              <Pressable
+                onPress={onClose}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close')}
+                hitSlop={12}
+                style={styles.iconBtn}>
+                <SymbolView
+                  name={{ ios: 'xmark', android: 'close', web: 'close' }}
+                  tintColor={GustraColors.ink}
+                  size={20}
+                />
+              </Pressable>
+            </View>
+          </View>
+
+          <Text style={styles.hint}>{t('settings.debugLogHint')}</Text>
+
+          <ScrollView
+            style={styles.list}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={true}
+            bounces={false}>
+            <View style={styles.logCard}>
+              <Text selectable style={styles.logText}>
+                {report}
+              </Text>
+            </View>
+          </ScrollView>
+
+          <View style={styles.footer}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                clearDebugLog();
+                handleRefresh();
+              }}
+              style={({ pressed }) => [
+                styles.clearBtn,
+                pressed && styles.clearPressed,
+              ]}>
+              <Text style={styles.clearBtnText}>{t('settings.debugLogClear')}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(35, 32, 26, 0.35)',
+  },
+  dismissArea: {
+    flex: 1,
+  },
+  sheet: {
+    backgroundColor: GustraColors.cream,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingHorizontal: 0,
+    paddingTop: 10,
+    maxHeight: '80%',
+  },
+  handle: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(35, 32, 26, 0.2)',
+    marginBottom: 4,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+    paddingHorizontal: 16,
+  },
+  title: {
+    color: GustraColors.ink,
+    flex: 1,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  iconBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hint: {
+    ...captionTextStyle,
+    fontSize: 13,
+    color: 'rgba(35, 32, 26, 0.55)',
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  list: {
+    flexGrow: 0,
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  logCard: {
+    backgroundColor: 'rgba(236, 227, 207, 0.55)',
+    borderRadius: Theme.radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  logText: {
+    ...bodyTextStyle,
+    fontSize: 12,
+    lineHeight: 18,
+    color: GustraColors.ink,
+    fontFamily: 'monospace',
+  },
+  footer: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    alignItems: 'flex-start',
+  },
+  clearBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: Theme.radius.md,
+    backgroundColor: 'rgba(36, 78, 57, 0.08)',
+  },
+  clearPressed: {
+    backgroundColor: 'rgba(36, 78, 57, 0.16)',
+  },
+  clearBtnText: {
+    ...bodyTextStyle,
+    fontSize: 15,
+    fontWeight: '600',
+    color: GustraColors.forestGreen,
+  },
+});
+
+
+================================================================================
 FILE: components/settings/LanguagePickerSheet.tsx
 ================================================================================
 import {
@@ -26096,9 +26618,11 @@ function readApiKey(): string {
     extra?.googleApiKey?.trim() || extra?.googlePlacesApiKey?.trim();
   if (fromExtra) return fromExtra;
 
+  const env: Record<string, string | undefined> =
+    typeof process === 'undefined' ? {} : process.env;
   const fromEnv =
-    process.env.EXPO_PUBLIC_GOOGLE_API_KEY?.trim() ||
-    process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY?.trim();
+    env.EXPO_PUBLIC_GOOGLE_API_KEY?.trim() ||
+    env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY?.trim();
   if (fromEnv) return fromEnv;
 
   return '';
@@ -33108,6 +33632,12 @@ FILE: i18n/locales/de.json
     "sentryTestCrashSubtitle": "Prüft Absturzberichte (sichere Fehler)",
     "sentryTestCrashNoDsn": "Zuerst EXPO_PUBLIC_SENTRY_DSN in .env setzen",
     "sentryTestCrashSent": "Testevent gesendet — Issues in Sentry prüfen.",
+    "debugLog": "Debug-Log",
+    "debugLogSubtitle": "Letzte Restaurant-Suchen und -Treffer",
+    "debugLogTitle": "Debug-Log",
+    "debugLogHint": "Text lange gedrückt halten, um ihn zu markieren und zu kopieren.",
+    "debugLogRefresh": "Aktualisieren",
+    "debugLogClear": "Log löschen",
     "appVersionA11y": "App-Version {{version}}"
   },
   "criteria": {
@@ -33880,6 +34410,12 @@ FILE: i18n/locales/en.json
     "sentryTestCrashSubtitle": "Verifies crash reporting (safe error)",
     "sentryTestCrashNoDsn": "Set EXPO_PUBLIC_SENTRY_DSN in .env first",
     "sentryTestCrashSent": "Test event sent — check your Sentry project Issues.",
+    "debugLog": "Debug log",
+    "debugLogSubtitle": "Recent restaurant searches & matches",
+    "debugLogTitle": "Debug log",
+    "debugLogHint": "Long-press the text to select and copy it.",
+    "debugLogRefresh": "Refresh",
+    "debugLogClear": "Clear log",
     "appVersionA11y": "App version {{version}}"
   },
   "criteria": {
@@ -34652,6 +35188,12 @@ FILE: i18n/locales/es.json
     "sentryTestCrashSubtitle": "Comprueba el informe de fallos (error seguro)",
     "sentryTestCrashNoDsn": "Define primero EXPO_PUBLIC_SENTRY_DSN en .env",
     "sentryTestCrashSent": "Evento de prueba enviado — revisa Issues en Sentry.",
+    "debugLog": "Registro de depuración",
+    "debugLogSubtitle": "Búsquedas y coincidencias de restaurantes recientes",
+    "debugLogTitle": "Registro de depuración",
+    "debugLogHint": "Mantén pulsado el texto para seleccionarlo y copiarlo.",
+    "debugLogRefresh": "Actualizar",
+    "debugLogClear": "Borrar registro",
     "appVersionA11y": "Versión de la app {{version}}"
   },
   "criteria": {
@@ -35424,6 +35966,12 @@ FILE: i18n/locales/fr.json
     "sentryTestCrashSubtitle": "Vérifie le rapport de plantages (erreur sûre)",
     "sentryTestCrashNoDsn": "Définissez d’abord EXPO_PUBLIC_SENTRY_DSN dans .env",
     "sentryTestCrashSent": "Événement test envoyé — consultez Issues dans Sentry.",
+    "debugLog": "Journal de débogage",
+    "debugLogSubtitle": "Recherches et correspondances de restaurants récentes",
+    "debugLogTitle": "Journal de débogage",
+    "debugLogHint": "Maintenez le texte enfoncé pour le sélectionner et le copier.",
+    "debugLogRefresh": "Actualiser",
+    "debugLogClear": "Effacer le journal",
     "appVersionA11y": "Version de l’app {{version}}"
   },
   "criteria": {
@@ -36196,6 +36744,12 @@ FILE: i18n/locales/it.json
     "sentryTestCrashSubtitle": "Verifica i report crash (errore sicuro)",
     "sentryTestCrashNoDsn": "Imposta prima EXPO_PUBLIC_SENTRY_DSN in .env",
     "sentryTestCrashSent": "Evento di test inviato — controlla Issues in Sentry.",
+    "debugLog": "Registro di debug",
+    "debugLogSubtitle": "Ricerche e corrispondenze ristoranti recenti",
+    "debugLogTitle": "Registro di debug",
+    "debugLogHint": "Tieni premuto il testo per selezionarlo e copiarlo.",
+    "debugLogRefresh": "Aggiorna",
+    "debugLogClear": "Cancella registro",
     "appVersionA11y": "Versione dell’app {{version}}"
   },
   "criteria": {
@@ -36968,6 +37522,12 @@ FILE: i18n/locales/nl.json
     "sentryTestCrashSubtitle": "Controleert crashrapportage (veilige fout)",
     "sentryTestCrashNoDsn": "Zet eerst EXPO_PUBLIC_SENTRY_DSN in .env",
     "sentryTestCrashSent": "Testevent verzonden — bekijk Issues in Sentry.",
+    "debugLog": "Debuglog",
+    "debugLogSubtitle": "Recente restaurantzoekopdrachten en matches",
+    "debugLogTitle": "Debuglog",
+    "debugLogHint": "Houd de tekst lang ingedrukt om te selecteren en te kopiëren.",
+    "debugLogRefresh": "Vernieuwen",
+    "debugLogClear": "Log wissen",
     "appVersionA11y": "Appversie {{version}}"
   },
   "criteria": {
@@ -39621,6 +40181,148 @@ export function toAppleRefDate(input: Date | string | number): number {
 
 export function fromAppleRefDate(ref: number): string {
   return new Date((ref + APPLE_REFERENCE_DATE_OFFSET) * 1000).toISOString();
+}
+
+
+================================================================================
+FILE: services/debug/debugLog.ts
+================================================================================
+import { Platform } from 'react-native';
+
+/**
+ * Development diagnostic log for the "Nearby Restaurants shows only my own
+ * reviewed restaurant" bug.
+ *
+ * A tiny in-memory ring buffer records every restaurant search + matcher
+ * event. The hidden Advanced settings row can then render a formatted report
+ * (and copy it to the clipboard) so a tester can paste it back verbatim.
+ *
+ * Writes are async-free and synchronous so they never slow down the search
+ * path; the buffer is intentionally small (latest 30 entries).
+ */
+
+export type SearchEvent = {
+  kind: 'search';
+  at: string;
+  center: { latitude: number; longitude: number } | null;
+  radius: number;
+  mode: 'nearby' | 'text' | 'text-no-center';
+  rawPlaces: number;
+  results: number;
+  /** How many of the results had no Google `place.id` (fallback id used). */
+  noPlaceId: number;
+  samples: { id: string; name: string; city: string; distanceMeters: number | null }[];
+  error?: string;
+};
+
+export type MatcherEvent = {
+  kind: 'matcher';
+  at: string;
+  draftName: string;
+  draftPlaceId: string | null;
+  restaurantsChecked: number;
+  matchedRestaurantId: string | null;
+  matchedVia: 'placeId' | 'nameCity' | 'coords' | 'street' | null;
+};
+
+export type DebugLogEvent = SearchEvent | MatcherEvent;
+
+export type DebugLogSnapshot = {
+  events: DebugLogEvent[];
+  counters: {
+    placesToday: number;
+    placesTotal: number;
+    mapsToday: number;
+    mapsTotal: number;
+    geminiToday: number;
+    geminiTotal: number;
+  };
+  version: string;
+  os: string;
+  appState: string;
+};
+
+const MAX_EVENTS = 30;
+
+let events: DebugLogEvent[] = [];
+
+/** Record a search event (called from RestaurantSearchService / screens). */
+export function recordSearchEvent(event: Omit<SearchEvent, 'at' | 'kind'>): void {
+  push({ kind: 'search', at: new Date().toISOString(), ...event });
+}
+
+/** Record a matcher event (called from RestaurantMatcher). */
+export function recordMatcherEvent(
+  event: Omit<MatcherEvent, 'at' | 'kind'>,
+): void {
+  push({ kind: 'matcher', at: new Date().toISOString(), ...event });
+}
+
+function push(event: DebugLogEvent): void {
+  events.push(event);
+  if (events.length > MAX_EVENTS) {
+    events = events.slice(events.length - MAX_EVENTS);
+  }
+  // Dev console always shows the latest event for fast iteration.
+  if (typeof __DEV__ !== 'undefined' && __DEV__) {
+    // eslint-disable-next-line no-console
+    console.log('[debuglog]', event.kind, event);
+  }
+}
+
+/** Clear the buffer (e.g. before reproducing). */
+export function clearDebugLog(): void {
+  events = [];
+}
+
+export function getDebugLogEvents(): DebugLogEvent[] {
+  return [...events];
+}
+
+/** Number of events currently buffered. */
+export function debugLogSize(): number {
+  return events.length;
+}
+
+/**
+ * Render a copy-paste friendly report. Includes the buffered events plus the
+ * current API counters + app state, so a tester can paste the whole thing.
+ */
+export function formatDebugLogReport(snapshot: DebugLogSnapshot): string {
+  const lines: string[] = [];
+  lines.push(`Gustra debug log — ${snapshot.version} (${snapshot.os})`);
+  lines.push(`appState: ${snapshot.appState}`);
+  const c = snapshot.counters;
+  lines.push(
+    `places ${c.placesToday}/${c.placesTotal} today · maps ${c.mapsToday}/${c.mapsTotal} · gemini ${c.geminiToday}/${c.geminiTotal}`,
+  );
+  lines.push('');
+  if (snapshot.events.length === 0) {
+    lines.push('(geen events — reproduceer het probleem eerst)');
+  }
+  for (const event of snapshot.events) {
+    lines.push(formatEvent(event));
+  }
+  return lines.join('\n');
+}
+
+function formatEvent(event: DebugLogEvent): string {
+  const at = event.at.slice(11, 19); // HH:mm:ss
+  if (event.kind === 'search') {
+    const center = event.center
+      ? `${event.center.latitude.toFixed(5)},${event.center.longitude.toFixed(5)}`
+      : 'none';
+    const mode = event.mode;
+    const base = `[${at}] search ${mode} @${center} r=${event.radius} → raw ${event.rawPlaces} / result ${event.results}`;
+    const samples = event.samples
+      .map(
+        (s) =>
+          `${s.id} «${s.name}» ${s.city} ${s.distanceMeters != null ? s.distanceMeters + 'm' : '-'}`,
+      )
+      .join(' | ');
+    return samples ? `${base}\n  ${samples}` : base;
+  }
+  return `[${at}] matcher «${event.draftName}» place=${event.draftPlaceId ?? '-'} checked=${event.restaurantsChecked} → ${event.matchedRestaurantId ?? 'NONE'} via ${event.matchedVia ?? '-'}`;
 }
 
 
@@ -42377,7 +43079,8 @@ export async function backfillMissingPrimaryTypes(
 FILE: services/places/RestaurantMatcher.ts
 ================================================================================
 import type { Restaurant } from '@/data/types';
-import { distanceMeters } from '@/services/places/RestaurantSearchService';
+import { recordMatcherEvent } from '@/services/debug/debugLog';
+import { distanceMeters } from '@/services/places/distance';
 import type { RestaurantDraft } from '@/services/places/types';
 
 const NAME_COORD_MAX_METERS = 150;
@@ -42399,18 +43102,44 @@ export function findExistingRestaurant(
     const byPlace = restaurants.find(
       (r) => (r.mapItemIdentifier ?? '').trim() === placeId,
     );
-    if (byPlace) return byPlace;
+    if (byPlace) {
+      recordMatcherEvent({
+        draftName: draft.name,
+        draftPlaceId: placeId,
+        restaurantsChecked: restaurants.length,
+        matchedRestaurantId: byPlace.id,
+        matchedVia: 'placeId',
+      });
+      return byPlace;
+    }
   }
-
   const name = norm(draft.name);
-  if (!name) return undefined;
+  if (!name) {
+    recordMatcherEvent({
+      draftName: draft.name,
+      draftPlaceId: placeId ?? null,
+      restaurantsChecked: restaurants.length,
+      matchedRestaurantId: null,
+      matchedVia: null,
+    });
+    return undefined;
+  }
 
   const city = norm(draft.city);
   if (city) {
     const byNameCity = restaurants.find(
       (r) => norm(r.name) === name && norm(r.city) === city,
     );
-    if (byNameCity) return byNameCity;
+    if (byNameCity) {
+      recordMatcherEvent({
+        draftName: draft.name,
+        draftPlaceId: placeId ?? null,
+        restaurantsChecked: restaurants.length,
+        matchedRestaurantId: byNameCity.id,
+        matchedVia: 'nameCity',
+      });
+      return byNameCity;
+    }
   }
 
   if (draft.latitude !== 0 || draft.longitude !== 0) {
@@ -42424,16 +43153,42 @@ export function findExistingRestaurant(
         ) <= NAME_COORD_MAX_METERS
       );
     });
-    if (byCoords) return byCoords;
+    if (byCoords) {
+      recordMatcherEvent({
+        draftName: draft.name,
+        draftPlaceId: placeId ?? null,
+        restaurantsChecked: restaurants.length,
+        matchedRestaurantId: byCoords.id,
+        matchedVia: 'coords',
+      });
+      return byCoords;
+    }
   }
 
   const street = norm(draft.streetAddress);
   if (street) {
-    return restaurants.find(
+    const byStreet = restaurants.find(
       (r) => norm(r.name) === name && norm(r.address) === street,
     );
+    if (byStreet) {
+      recordMatcherEvent({
+        draftName: draft.name,
+        draftPlaceId: placeId ?? null,
+        restaurantsChecked: restaurants.length,
+        matchedRestaurantId: byStreet.id,
+        matchedVia: 'street',
+      });
+      return byStreet;
+    }
   }
 
+  recordMatcherEvent({
+    draftName: draft.name,
+    draftPlaceId: placeId ?? null,
+    restaurantsChecked: restaurants.length,
+    matchedRestaurantId: null,
+    matchedVia: null,
+  });
   return undefined;
 }
 
@@ -42442,8 +43197,10 @@ export function findExistingRestaurant(
 FILE: services/places/RestaurantSearchService.ts
 ================================================================================
 import { GoogleAPIConfig } from '@/constants/GoogleAPIConfig';
+import { recordSearchEvent } from '@/services/debug/debugLog';
 import { assertGoogleApiAllowed } from '@/services/google/GoogleApiQuota';
 import { incrementGoogleApi } from '@/services/google/GoogleApiTracker';
+import { distanceMeters } from '@/services/places/distance';
 import type {
   LatLng,
   RestaurantSearchResult,
@@ -42557,19 +43314,11 @@ export class RestaurantSearchError extends Error {
   }
 }
 
-/** Haversine distance in meters. */
-export function distanceMeters(a: LatLng, b: LatLng): number {
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const earth = 6_371_000;
-  const dLat = toRad(b.latitude - a.latitude);
-  const dLng = toRad(b.longitude - a.longitude);
-  const lat1 = toRad(a.latitude);
-  const lat2 = toRad(b.latitude);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return 2 * earth * Math.asin(Math.min(1, Math.sqrt(h)));
-}
+/**
+ * Haversine distance is implemented in `@/services/places/distance` and
+ * re-exported here for backward-compatible callers.
+ */
+export { distanceMeters } from '@/services/places/distance';
 
 /**
  * Swift `RestaurantSearchService.formattedDistance` — now device-unit aware.
@@ -42685,16 +43434,19 @@ function makeResult(
     place.internationalPhoneNumber?.trim() ||
     place.nationalPhoneNumber?.trim() ||
     '';
+  // Guarantee a stable id even when Google omits `place.id` (rare) — many
+  // consumers (FlatList keys, RestaurantMatcher, review drafts) assume one.
+  const id = (place.id ?? '').trim() || `${name}-${latitude}-${longitude}`;
 
   return {
-    id: place.id ?? `${name}-${latitude}-${longitude}`,
+    id,
     name,
     city,
     country,
     streetAddress: place.formattedAddress ?? '',
     phoneNumber,
     coordinate: { latitude, longitude },
-    mapItemIdentifier: place.id ?? null,
+    mapItemIdentifier: place.id?.trim() || null,
     distanceMeters: null,
     primaryType,
   };
@@ -42754,9 +43506,38 @@ async function postPlaces(
 
   void incrementGoogleApi('places');
 
-  return (data.places ?? [])
+  const rawPlaces = data.places ?? [];
+  const results = rawPlaces
     .map((place) => makeResult(place, restrictToFood))
     .filter((item): item is RestaurantSearchResult => item != null);
+  return results;
+}
+
+/**
+ * Record a search summary for the dev debug log. Kept separate from
+ * `postPlaces` so callers (nearby vs text) can attach their real center/radius
+ * and mode after `withDistance` has run.
+ */
+function recordSearchSummary(
+  mode: 'nearby' | 'text' | 'text-no-center',
+  center: LatLng | null,
+  radius: number,
+  results: RestaurantSearchResult[],
+): void {
+  recordSearchEvent({
+    center,
+    radius,
+    mode,
+    rawPlaces: results.length,
+    results: results.length,
+    noPlaceId: results.filter((r) => r.mapItemIdentifier == null).length,
+    samples: results.slice(0, 5).map((r) => ({
+      id: r.id,
+      name: r.name,
+      city: r.city,
+      distanceMeters: r.distanceMeters,
+    })),
+  });
 }
 
 async function postNearby(
@@ -42882,7 +43663,9 @@ export async function searchNearby(
   const results = await resolveCache(center, '__nearby__', () =>
     postNearby(center, radius),
   );
-  return withDistance(results, center);
+  const withIds = withDistance(results, center);
+  recordSearchSummary('nearby', center, radius, withIds);
+  return withIds;
 }
 
 /**
@@ -43008,7 +43791,24 @@ export async function searchText(
     () => postText(trimmed, biasCenter, radius, regionCode),
     regionCode ?? '',
   );
-  return center ? withDistance(results, center) : results;
+  const withIds = results.map((result) =>
+    result.id.trim()
+      ? result
+      : {
+          ...result,
+          id:
+            (result.mapItemIdentifier ?? '').trim() ||
+            `${result.name}-${result.coordinate.latitude}-${result.coordinate.longitude}`,
+        },
+  );
+  const final = center ? withDistance(withIds, center) : withIds;
+  recordSearchSummary(
+    center ? 'text' : 'text-no-center',
+    center ?? null,
+    radius,
+    final,
+  );
+  return final;
 }
 
 
@@ -43135,6 +43935,31 @@ export function draftAddressLine(draft: RestaurantDraft): string | null {
 
 
 ================================================================================
+FILE: services/places/distance.ts
+================================================================================
+import type { LatLng } from '@/services/places/types';
+
+/**
+ * Haversine distance in meters (Swift `RestaurantSearchService.distanceMeters`).
+ *
+ * Pure module so pure-logic tests (RestaurantMatcher, mapRegion) do not pull in
+ * the Google Places networking stack (expo-constants etc.).
+ */
+export function distanceMeters(a: LatLng, b: LatLng): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const earth = 6_371_000;
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLng = toRad(b.longitude - a.longitude);
+  const lat1 = toRad(a.latitude);
+  const lat2 = toRad(b.latitude);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * earth * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+
+================================================================================
 FILE: services/places/index.ts
 ================================================================================
 export {
@@ -43178,8 +44003,8 @@ FILE: services/places/mapRegion.ts
 ================================================================================
 import {
   DEFAULT_SEARCH_RADIUS_M,
-  distanceMeters,
 } from '@/services/places/RestaurantSearchService';
+import { distanceMeters } from '@/services/places/distance';
 import type { LatLng } from '@/services/places/types';
 
 /** Middelkerke fallback when location is unavailable (Swift `TestLocations`). */
@@ -43311,17 +44136,26 @@ export type RestaurantDraft = {
 export function restaurantDraftFromResult(
   result: RestaurantSearchResult,
 ): RestaurantDraft {
+  // Never propagate undefined ids/fields into a draft — downstream code
+  // (e.g. RestaurantMatcher) calls `.trim()` / builds id-based keys on these.
+  const id =
+    (result.id ?? '').trim() ||
+    (result.mapItemIdentifier ?? '').trim() ||
+    (result.coordinate
+      ? `${result.name}-${result.coordinate.latitude}-${result.coordinate.longitude}`
+      : result.name);
+  const mapItemIdentifier = (result.mapItemIdentifier ?? '').trim() || null;
   return {
-    id: result.id,
+    id,
     name: result.name,
-    city: result.city,
-    country: result.country,
-    streetAddress: result.streetAddress,
-    phoneNumber: result.phoneNumber,
-    latitude: result.coordinate.latitude,
-    longitude: result.coordinate.longitude,
-    mapItemIdentifier: result.mapItemIdentifier,
-    primaryType: result.primaryType,
+    city: result.city ?? '',
+    country: result.country ?? '',
+    streetAddress: result.streetAddress ?? '',
+    phoneNumber: result.phoneNumber ?? '',
+    latitude: result.coordinate?.latitude ?? 0,
+    longitude: result.coordinate?.longitude ?? 0,
+    mapItemIdentifier,
+    primaryType: result.primaryType ?? '',
   };
 }
 
@@ -47926,7 +48760,7 @@ FILE: tsconfig.test.json
   "compilerOptions": {
     "rootDir": ".",
     "noEmit": true,
-    "types": ["jest"]
+    "types": ["jest", "node"]
   },
   "include": ["__tests__/**/*.ts"],
   "exclude": []

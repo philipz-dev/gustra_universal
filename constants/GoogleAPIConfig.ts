@@ -12,9 +12,11 @@ function readApiKey(): string {
     extra?.googleApiKey?.trim() || extra?.googlePlacesApiKey?.trim();
   if (fromExtra) return fromExtra;
 
+  const env: Record<string, string | undefined> =
+    typeof process === 'undefined' ? {} : process.env;
   const fromEnv =
-    process.env.EXPO_PUBLIC_GOOGLE_API_KEY?.trim() ||
-    process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY?.trim();
+    env.EXPO_PUBLIC_GOOGLE_API_KEY?.trim() ||
+    env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY?.trim();
   if (fromEnv) return fromEnv;
 
   return '';

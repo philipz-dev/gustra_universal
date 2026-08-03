@@ -275,6 +275,12 @@
     "sentryTestCrashSubtitle": "Vérifie le rapport de plantages (erreur sûre)",
     "sentryTestCrashNoDsn": "Définissez d’abord EXPO_PUBLIC_SENTRY_DSN dans .env",
     "sentryTestCrashSent": "Événement test envoyé — consultez Issues dans Sentry.",
+    "debugLog": "Journal de débogage",
+    "debugLogSubtitle": "Recherches et correspondances de restaurants récentes",
+    "debugLogTitle": "Journal de débogage",
+    "debugLogHint": "Maintenez le texte enfoncé pour le sélectionner et le copier.",
+    "debugLogRefresh": "Actualiser",
+    "debugLogClear": "Effacer le journal",
     "appVersionA11y": "Version de l’app {{version}}"
   },
   "criteria": {

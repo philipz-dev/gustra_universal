@@ -1,7 +1,7 @@
 import {
   DEFAULT_SEARCH_RADIUS_M,
-  distanceMeters,
 } from '@/services/places/RestaurantSearchService';
+import { distanceMeters } from '@/services/places/distance';
 import type { LatLng } from '@/services/places/types';
 
 /** Middelkerke fallback when location is unavailable (Swift `TestLocations`). */

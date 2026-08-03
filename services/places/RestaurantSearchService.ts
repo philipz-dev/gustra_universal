@@ -1,6 +1,8 @@
 import { GoogleAPIConfig } from '@/constants/GoogleAPIConfig';
+import { recordSearchEvent } from '@/services/debug/debugLog';
 import { assertGoogleApiAllowed } from '@/services/google/GoogleApiQuota';
 import { incrementGoogleApi } from '@/services/google/GoogleApiTracker';
+import { distanceMeters } from '@/services/places/distance';
 import type {
   LatLng,
   RestaurantSearchResult,
@@ -114,19 +116,11 @@ export class RestaurantSearchError extends Error {
   }
 }
 
-/** Haversine distance in meters. */
-export function distanceMeters(a: LatLng, b: LatLng): number {
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const earth = 6_371_000;
-  const dLat = toRad(b.latitude - a.latitude);
-  const dLng = toRad(b.longitude - a.longitude);
-  const lat1 = toRad(a.latitude);
-  const lat2 = toRad(b.latitude);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return 2 * earth * Math.asin(Math.min(1, Math.sqrt(h)));
-}
+/**
+ * Haversine distance is implemented in `@/services/places/distance` and
+ * re-exported here for backward-compatible callers.
+ */
+export { distanceMeters } from '@/services/places/distance';
 
 /**
  * Swift `RestaurantSearchService.formattedDistance` — now device-unit aware.
@@ -242,16 +236,19 @@ function makeResult(
     place.internationalPhoneNumber?.trim() ||
     place.nationalPhoneNumber?.trim() ||
     '';
+  // Guarantee a stable id even when Google omits `place.id` (rare) — many
+  // consumers (FlatList keys, RestaurantMatcher, review drafts) assume one.
+  const id = (place.id ?? '').trim() || `${name}-${latitude}-${longitude}`;
 
   return {
-    id: place.id ?? `${name}-${latitude}-${longitude}`,
+    id,
     name,
     city,
     country,
     streetAddress: place.formattedAddress ?? '',
     phoneNumber,
     coordinate: { latitude, longitude },
-    mapItemIdentifier: place.id ?? null,
+    mapItemIdentifier: place.id?.trim() || null,
     distanceMeters: null,
     primaryType,
   };
@@ -311,9 +308,38 @@ async function postPlaces(
 
   void incrementGoogleApi('places');
 
-  return (data.places ?? [])
+  const rawPlaces = data.places ?? [];
+  const results = rawPlaces
     .map((place) => makeResult(place, restrictToFood))
     .filter((item): item is RestaurantSearchResult => item != null);
+  return results;
+}
+
+/**
+ * Record a search summary for the dev debug log. Kept separate from
+ * `postPlaces` so callers (nearby vs text) can attach their real center/radius
+ * and mode after `withDistance` has run.
+ */
+function recordSearchSummary(
+  mode: 'nearby' | 'text' | 'text-no-center',
+  center: LatLng | null,
+  radius: number,
+  results: RestaurantSearchResult[],
+): void {
+  recordSearchEvent({
+    center,
+    radius,
+    mode,
+    rawPlaces: results.length,
+    results: results.length,
+    noPlaceId: results.filter((r) => r.mapItemIdentifier == null).length,
+    samples: results.slice(0, 5).map((r) => ({
+      id: r.id,
+      name: r.name,
+      city: r.city,
+      distanceMeters: r.distanceMeters,
+    })),
+  });
 }
 
 async function postNearby(
@@ -439,7 +465,9 @@ export async function searchNearby(
   const results = await resolveCache(center, '__nearby__', () =>
     postNearby(center, radius),
   );
-  return withDistance(results, center);
+  const withIds = withDistance(results, center);
+  recordSearchSummary('nearby', center, radius, withIds);
+  return withIds;
 }
 
 /**
@@ -565,5 +593,22 @@ export async function searchText(
     () => postText(trimmed, biasCenter, radius, regionCode),
     regionCode ?? '',
   );
-  return center ? withDistance(results, center) : results;
+  const withIds = results.map((result) =>
+    result.id.trim()
+      ? result
+      : {
+          ...result,
+          id:
+            (result.mapItemIdentifier ?? '').trim() ||
+            `${result.name}-${result.coordinate.latitude}-${result.coordinate.longitude}`,
+        },
+  );
+  const final = center ? withDistance(withIds, center) : withIds;
+  recordSearchSummary(
+    center ? 'text' : 'text-no-center',
+    center ?? null,
+    radius,
+    final,
+  );
+  return final;
 }

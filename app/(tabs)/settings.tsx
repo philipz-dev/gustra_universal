@@ -16,6 +16,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { LanguagePickerSheet } from '@/components/settings/LanguagePickerSheet';
+import { DebugLogSheet } from '@/components/settings/DebugLogSheet';
 import { SettingsRow } from '@/components/settings/SettingsRow';
 import { SettingsSection } from '@/components/settings/SettingsSection';
 import { houseAlert } from '@/components/ui/HouseAlert';
@@ -41,6 +42,11 @@ import { useReviewsStore } from '@/context/ReviewsStore';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import type { LanguagePreference } from '@/i18n/resolveLanguage';
 import { useAdvancedMenuUnlocked } from '@/context/AdvancedMenu';
+import {
+  formatDebugLogReport,
+  getDebugLogEvents,
+  type DebugLogSnapshot,
+} from '@/services/debug/debugLog';
 import { getPhotosDiskUsage } from '@/services/photos/diskUsage';
 import { Haptics } from '@/services/haptics';
 import { scanSwiftLegacyData } from '@/services/migration/SwiftDataMigration';
@@ -75,6 +81,8 @@ export default function SettingsScreen() {
   const nameInputRef = useRef<TextInput>(null);
   const { preference, setPreference } = useLanguageSettings();
   const [languagePickerOpen, setLanguagePickerOpen] = useState(false);
+  const [debugLogOpen, setDebugLogOpen] = useState(false);
+  const [debugLogTick, setDebugLogTick] = useState(0);
   const advancedUnlocked = useAdvancedMenuUnlocked();
   const {
     categoryAveragesStyle,
@@ -276,6 +284,25 @@ export default function SettingsScreen() {
           : '';
     return build ? `${version}(${build})` : version;
   }, []);
+
+  const debugLogSnapshot: DebugLogSnapshot = useMemo(
+    () => ({
+      events: getDebugLogEvents(),
+      counters: {
+        placesToday,
+        placesTotal,
+        mapsToday,
+        mapsTotal,
+        geminiToday,
+        geminiTotal,
+      },
+      version: appVersionLabel,
+      os: Platform.OS === 'ios' ? 'iOS' : Platform.OS === 'android' ? 'Android' : 'web',
+      appState: 'settings',
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [appVersionLabel, geminiToday, geminiTotal, mapsToday, mapsTotal, placesToday, placesTotal, debugLogTick],
+  );
 
   return (
     <View style={styles.screenWrap}>
@@ -533,6 +560,20 @@ export default function SettingsScreen() {
           }
         />
         <SettingsRow
+          title={t('settings.debugLog')}
+          subtitle={t('settings.debugLogSubtitle')}
+          icon={{
+            ios: 'doc.text.magnifyingglass',
+            android: 'manage_search',
+            web: 'manage_search',
+          }}
+          showChevron
+          onPress={() => {
+            Haptics.selectionChanged();
+            setDebugLogOpen(true);
+          }}
+        />
+        <SettingsRow
           title={t('settings.resetCounters')}
           icon={{
             ios: 'arrow.counterclockwise',
@@ -651,6 +692,12 @@ export default function SettingsScreen() {
         selected={preference}
         onClose={() => setLanguagePickerOpen(false)}
         onSelect={setPreference}
+      />
+      <DebugLogSheet
+        visible={debugLogOpen}
+        onClose={() => setDebugLogOpen(false)}
+        snapshot={debugLogSnapshot}
+        onRefresh={() => setDebugLogTick((n) => n + 1)}
       />
       </ScrollView>
 

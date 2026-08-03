@@ -1,5 +1,6 @@
 import type { Restaurant } from '@/data/types';
-import { distanceMeters } from '@/services/places/RestaurantSearchService';
+import { recordMatcherEvent } from '@/services/debug/debugLog';
+import { distanceMeters } from '@/services/places/distance';
 import type { RestaurantDraft } from '@/services/places/types';
 
 const NAME_COORD_MAX_METERS = 150;
@@ -21,18 +22,44 @@ export function findExistingRestaurant(
     const byPlace = restaurants.find(
       (r) => (r.mapItemIdentifier ?? '').trim() === placeId,
     );
-    if (byPlace) return byPlace;
+    if (byPlace) {
+      recordMatcherEvent({
+        draftName: draft.name,
+        draftPlaceId: placeId,
+        restaurantsChecked: restaurants.length,
+        matchedRestaurantId: byPlace.id,
+        matchedVia: 'placeId',
+      });
+      return byPlace;
+    }
   }
-
   const name = norm(draft.name);
-  if (!name) return undefined;
+  if (!name) {
+    recordMatcherEvent({
+      draftName: draft.name,
+      draftPlaceId: placeId ?? null,
+      restaurantsChecked: restaurants.length,
+      matchedRestaurantId: null,
+      matchedVia: null,
+    });
+    return undefined;
+  }
 
   const city = norm(draft.city);
   if (city) {
     const byNameCity = restaurants.find(
       (r) => norm(r.name) === name && norm(r.city) === city,
     );
-    if (byNameCity) return byNameCity;
+    if (byNameCity) {
+      recordMatcherEvent({
+        draftName: draft.name,
+        draftPlaceId: placeId ?? null,
+        restaurantsChecked: restaurants.length,
+        matchedRestaurantId: byNameCity.id,
+        matchedVia: 'nameCity',
+      });
+      return byNameCity;
+    }
   }
 
   if (draft.latitude !== 0 || draft.longitude !== 0) {
@@ -46,15 +73,41 @@ export function findExistingRestaurant(
         ) <= NAME_COORD_MAX_METERS
       );
     });
-    if (byCoords) return byCoords;
+    if (byCoords) {
+      recordMatcherEvent({
+        draftName: draft.name,
+        draftPlaceId: placeId ?? null,
+        restaurantsChecked: restaurants.length,
+        matchedRestaurantId: byCoords.id,
+        matchedVia: 'coords',
+      });
+      return byCoords;
+    }
   }
 
   const street = norm(draft.streetAddress);
   if (street) {
-    return restaurants.find(
+    const byStreet = restaurants.find(
       (r) => norm(r.name) === name && norm(r.address) === street,
     );
+    if (byStreet) {
+      recordMatcherEvent({
+        draftName: draft.name,
+        draftPlaceId: placeId ?? null,
+        restaurantsChecked: restaurants.length,
+        matchedRestaurantId: byStreet.id,
+        matchedVia: 'street',
+      });
+      return byStreet;
+    }
   }
 
+  recordMatcherEvent({
+    draftName: draft.name,
+    draftPlaceId: placeId ?? null,
+    restaurantsChecked: restaurants.length,
+    matchedRestaurantId: null,
+    matchedVia: null,
+  });
   return undefined;
 }
