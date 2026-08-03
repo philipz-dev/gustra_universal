@@ -740,11 +740,11 @@
       "recommended": "Recommended",
       "quick": {
         "title": "Quick",
-        "subtitle": "Food, drinks & service — less than 30 seconds to fill in"
+        "subtitle": "Food, drinks & service"
       },
       "essentials": {
         "title": "Essentials",
-        "subtitle": "The 5 core criteria — less than a minute to fill in"
+        "subtitle": "The 5 core criteria — a great place to start"
       },
       "full": {
         "title": "Full control",

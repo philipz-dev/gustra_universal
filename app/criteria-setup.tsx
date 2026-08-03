@@ -235,20 +235,18 @@ function ChooseStep({
                 )}
               </View>
               <View style={styles.chooseButtonText}>
-                <View style={styles.chooseButtonTitleRow}>
-                  <Text style={styles.chooseButtonTitle}>{option.title}</Text>
-                  {option.recommended ? (
-                    <View style={styles.chooseRecommendedBadge}>
-                      <Text style={styles.chooseRecommendedLabel}>
-                        {t('setup.choose.recommended')}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
+                <Text style={styles.chooseButtonTitle}>{option.title}</Text>
                 <Text style={styles.chooseButtonSubtitle}>
                   {option.subtitle}
                 </Text>
               </View>
+              {option.recommended ? (
+                <View style={styles.chooseRecommendedBadge}>
+                  <Text style={styles.chooseRecommendedLabel}>
+                    {t('setup.choose.recommended')}
+                  </Text>
+                </View>
+              ) : null}
             </Pressable>
           ))}
         </View>
@@ -568,13 +566,14 @@ const styles = StyleSheet.create({
   },
   chooseContent: {
     flexGrow: 1,
+    justifyContent: 'center',
     paddingHorizontal: 24,
+    paddingVertical: 32,
     gap: 24,
   },
   chooseLogoWrap: {
     alignItems: 'center',
-    marginTop: 'auto',
-    paddingTop: 28,
+    paddingTop: 12,
   },
   chooseLogoCircle: {
     width: 76,
@@ -629,11 +628,6 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 3,
   },
-  chooseButtonTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   chooseButtonTitle: {
     ...bodyTextStyle,
     fontSize: 17,
@@ -645,6 +639,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 2,
+    marginLeft: 'auto',
   },
   chooseRecommendedLabel: {
     ...captionTextStyle,
@@ -661,7 +656,7 @@ const styles = StyleSheet.create({
   },
   chooseHeadlineWrap: {
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   chooseHeadline: {
     color: GustraColors.forestGreen,
@@ -669,9 +664,10 @@ const styles = StyleSheet.create({
   },
   chooseBody: {
     ...bodyTextStyle,
-    fontSize: 16,
-    lineHeight: 23,
-    color: 'rgba(35, 32, 26, 0.72)',
+    fontSize: 15,
+    lineHeight: 21,
+    color: 'rgba(35, 32, 26, 0.65)',
     textAlign: 'center',
+    maxWidth: 320,
   },
 });

@@ -740,11 +740,11 @@
       "recommended": "Consigliato",
       "quick": {
         "title": "Veloce",
-        "subtitle": "Cibo, bevande e servizio — meno di 30 secondi per compilarlo"
+        "subtitle": "Cibo, bevande e servizio"
       },
       "essentials": {
         "title": "Essenziali",
-        "subtitle": "I 5 criteri principali — meno di un minuto per compilarli"
+        "subtitle": "I 5 criteri principali — un buon punto di partenza"
       },
       "full": {
         "title": "Controllo totale",

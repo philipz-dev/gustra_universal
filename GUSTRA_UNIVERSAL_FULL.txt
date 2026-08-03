@@ -1,6 +1,6 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-08-03T11:43:08Z
+Generated: 2026-08-03T11:53:34Z
 Root: /Users/philipzvar/Desktop/gustra_universal
 Files: 244
 ================================================================================
@@ -11216,20 +11216,18 @@ function ChooseStep({
                 )}
               </View>
               <View style={styles.chooseButtonText}>
-                <View style={styles.chooseButtonTitleRow}>
-                  <Text style={styles.chooseButtonTitle}>{option.title}</Text>
-                  {option.recommended ? (
-                    <View style={styles.chooseRecommendedBadge}>
-                      <Text style={styles.chooseRecommendedLabel}>
-                        {t('setup.choose.recommended')}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
+                <Text style={styles.chooseButtonTitle}>{option.title}</Text>
                 <Text style={styles.chooseButtonSubtitle}>
                   {option.subtitle}
                 </Text>
               </View>
+              {option.recommended ? (
+                <View style={styles.chooseRecommendedBadge}>
+                  <Text style={styles.chooseRecommendedLabel}>
+                    {t('setup.choose.recommended')}
+                  </Text>
+                </View>
+              ) : null}
             </Pressable>
           ))}
         </View>
@@ -11549,13 +11547,14 @@ const styles = StyleSheet.create({
   },
   chooseContent: {
     flexGrow: 1,
+    justifyContent: 'center',
     paddingHorizontal: 24,
+    paddingVertical: 32,
     gap: 24,
   },
   chooseLogoWrap: {
     alignItems: 'center',
-    marginTop: 'auto',
-    paddingTop: 28,
+    paddingTop: 12,
   },
   chooseLogoCircle: {
     width: 76,
@@ -11610,11 +11609,6 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 3,
   },
-  chooseButtonTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   chooseButtonTitle: {
     ...bodyTextStyle,
     fontSize: 17,
@@ -11626,6 +11620,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 2,
+    marginLeft: 'auto',
   },
   chooseRecommendedLabel: {
     ...captionTextStyle,
@@ -11642,7 +11637,7 @@ const styles = StyleSheet.create({
   },
   chooseHeadlineWrap: {
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   chooseHeadline: {
     color: GustraColors.forestGreen,
@@ -11650,10 +11645,11 @@ const styles = StyleSheet.create({
   },
   chooseBody: {
     ...bodyTextStyle,
-    fontSize: 16,
-    lineHeight: 23,
-    color: 'rgba(35, 32, 26, 0.72)',
+    fontSize: 15,
+    lineHeight: 21,
+    color: 'rgba(35, 32, 26, 0.65)',
     textAlign: 'center',
+    maxWidth: 320,
   },
 });
 
@@ -33438,11 +33434,11 @@ FILE: i18n/locales/de.json
       "recommended": "Empfohlen",
       "quick": {
         "title": "Schnell",
-        "subtitle": "Essen, Getränke & Service — in unter 30 Sekunden ausgefüllt"
+        "subtitle": "Essen, Getränke & Service"
       },
       "essentials": {
         "title": "Essentiell",
-        "subtitle": "Die 5 Kernkriterien — in unter einer Minute ausgefüllt"
+        "subtitle": "Die 5 Kernkriterien — ein guter Startpunkt"
       },
       "full": {
         "title": "Volle Kontrolle",
@@ -34207,11 +34203,11 @@ FILE: i18n/locales/en.json
       "recommended": "Recommended",
       "quick": {
         "title": "Quick",
-        "subtitle": "Food, drinks & service — less than 30 seconds to fill in"
+        "subtitle": "Food, drinks & service"
       },
       "essentials": {
         "title": "Essentials",
-        "subtitle": "The 5 core criteria — less than a minute to fill in"
+        "subtitle": "The 5 core criteria — a great place to start"
       },
       "full": {
         "title": "Full control",
@@ -34976,11 +34972,11 @@ FILE: i18n/locales/es.json
       "recommended": "Recomendado",
       "quick": {
         "title": "Rápido",
-        "subtitle": "Comida, bebidas y servicio — menos de 30 segundos para completarlo"
+        "subtitle": "Comida, bebidas y servicio"
       },
       "essentials": {
         "title": "Esenciales",
-        "subtitle": "Los 5 criterios principales — menos de un minuto para completarlos"
+        "subtitle": "Los 5 criterios principales — un buen punto de partida"
       },
       "full": {
         "title": "Control total",
@@ -35745,11 +35741,11 @@ FILE: i18n/locales/fr.json
       "recommended": "Recommandé",
       "quick": {
         "title": "Rapide",
-        "subtitle": "Cuisine, boissons et service — moins de 30 secondes à remplir"
+        "subtitle": "Cuisine, boissons et service"
       },
       "essentials": {
         "title": "Essentiels",
-        "subtitle": "Les 5 critères essentiels — moins d'une minute à remplir"
+        "subtitle": "Les 5 critères essentiels — un bon point de départ"
       },
       "full": {
         "title": "Contrôle total",
@@ -36514,11 +36510,11 @@ FILE: i18n/locales/it.json
       "recommended": "Consigliato",
       "quick": {
         "title": "Veloce",
-        "subtitle": "Cibo, bevande e servizio — meno di 30 secondi per compilarlo"
+        "subtitle": "Cibo, bevande e servizio"
       },
       "essentials": {
         "title": "Essenziali",
-        "subtitle": "I 5 criteri principali — meno di un minuto per compilarli"
+        "subtitle": "I 5 criteri principali — un buon punto di partenza"
       },
       "full": {
         "title": "Controllo totale",
@@ -37283,11 +37279,11 @@ FILE: i18n/locales/nl.json
       "recommended": "Aangeraden",
       "quick": {
         "title": "Snel",
-        "subtitle": "Eten, dranken & bediening — in minder dan 30 seconden ingevuld"
+        "subtitle": "Eten, dranken & bediening"
       },
       "essentials": {
         "title": "Basis",
-        "subtitle": "De 5 kerncriteria — in minder dan een minuut ingevuld"
+        "subtitle": "De 5 kerncriteria — ideaal om te starten"
       },
       "full": {
         "title": "Volledige controle",

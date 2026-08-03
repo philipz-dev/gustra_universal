@@ -740,11 +740,11 @@
       "recommended": "Empfohlen",
       "quick": {
         "title": "Schnell",
-        "subtitle": "Essen, Getränke & Service — in unter 30 Sekunden ausgefüllt"
+        "subtitle": "Essen, Getränke & Service"
       },
       "essentials": {
         "title": "Essentiell",
-        "subtitle": "Die 5 Kernkriterien — in unter einer Minute ausgefüllt"
+        "subtitle": "Die 5 Kernkriterien — ein guter Startpunkt"
       },
       "full": {
         "title": "Volle Kontrolle",
