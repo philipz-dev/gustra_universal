@@ -734,6 +734,22 @@
       "title": "Welcome to Gustra",
       "tapToContinue": "Tap to continue"
     },
+    "choose": {
+      "headline": "How do you want to review?",
+      "body": "Pick a starting point. You can change your criteria later in Settings.",
+      "quick": {
+        "title": "Quick",
+        "subtitle": "Food, drinks & service — less than 30 seconds to fill in"
+      },
+      "essentials": {
+        "title": "Essentials",
+        "subtitle": "The 5 core criteria — less than a minute to fill in"
+      },
+      "full": {
+        "title": "Full control",
+        "subtitle": "Choose from all 20 criteria yourself"
+      }
+    },
     "criteria": {
       "title": "Initial setup",
       "headline": "Personalize your experience",

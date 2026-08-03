@@ -12,6 +12,7 @@ import {
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
+import type { SFSymbol } from 'expo-symbols';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
@@ -31,6 +32,9 @@ import {
   isMandatoryStandardCriterion,
   standardCriterionDisplayTitle,
   useCriteriaSettings,
+  QUICK_SETUP_CHOICE,
+  ESSENTIALS_SETUP_CHOICE,
+  FULL_CONTROL_SETUP_CHOICE,
 } from '@/context/CriteriaSettings';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
@@ -119,6 +123,128 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
 }
 
 /**
+ * Choose-step: pick a starting preset. Quick/Essentials apply fixed criteria
+ * and go straight to the app; Full control opens the full criteria screen.
+ */
+function ChooseStep({
+  onChooseQuick,
+  onChooseEssentials,
+  onChooseFullControl,
+}: {
+  onChooseQuick: () => void;
+  onChooseEssentials: () => void;
+  onChooseFullControl: () => void;
+}) {
+  const { t } = useAppTranslation();
+  const insets = useSafeAreaInsets();
+
+  const options: {
+    id: string;
+    title: string;
+    subtitle: string;
+    icon: { ios: SFSymbol; android: keyof typeof MaterialIcons.glyphMap };
+    onPress: () => void;
+  }[] = [
+    {
+      id: 'quick',
+      title: t('setup.choose.quick.title'),
+      subtitle: t('setup.choose.quick.subtitle'),
+      icon: { ios: 'bolt.fill', android: 'bolt' },
+      onPress: onChooseQuick,
+    },
+    {
+      id: 'essentials',
+      title: t('setup.choose.essentials.title'),
+      subtitle: t('setup.choose.essentials.subtitle'),
+      icon: { ios: 'star.fill', android: 'star' },
+      onPress: onChooseEssentials,
+    },
+    {
+      id: 'full',
+      title: t('setup.choose.full.title'),
+      subtitle: t('setup.choose.full.subtitle'),
+      icon: { ios: 'slider.horizontal.3', android: 'tune' },
+      onPress: onChooseFullControl,
+    },
+  ];
+
+  return (
+    <View style={styles.screen}>
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingBottom: Math.max(insets.bottom, 12) + 24,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+        overScrollMode="never">
+        <View style={styles.hero}>
+          <SerifText size={26} weight="bold" style={styles.heroTitle}>
+            {t('setup.choose.headline')}
+          </SerifText>
+          <Text style={styles.heroBody}>{t('setup.choose.body')}</Text>
+        </View>
+
+        <View style={styles.card}>
+          {options.map((option, index) => (
+            <Pressable
+              key={option.id}
+              accessibilityRole="button"
+              accessibilityLabel={option.title}
+              onPress={() => {
+                Haptics.selectionChanged();
+                option.onPress();
+              }}
+              style={({ pressed }) => [
+                styles.choiceRow,
+                index < options.length - 1 ? styles.rowBorder : null,
+                pressed && styles.choicePressed,
+              ]}>
+              <View style={styles.iconWrapOn}>
+                {Platform.OS === 'ios' ? (
+                  <SymbolView
+                    name={option.icon.ios}
+                    size={18}
+                    tintColor={GustraColors.forestGreen}
+                    weight="semibold"
+                  />
+                ) : (
+                  <MaterialIcons
+                    name={option.icon.android}
+                    size={20}
+                    color={GustraColors.forestGreen}
+                  />
+                )}
+              </View>
+              <View style={styles.choiceTextWrap}>
+                <Text style={styles.choiceTitle}>{option.title}</Text>
+                <Text style={styles.choiceSubtitle}>{option.subtitle}</Text>
+              </View>
+              {Platform.OS === 'ios' ? (
+                <SymbolView
+                  name="chevron.right"
+                  size={14}
+                  tintColor="rgba(35, 32, 26, 0.35)"
+                  weight="semibold"
+                />
+              ) : (
+                <MaterialIcons
+                  name="chevron-right"
+                  size={20}
+                  color="rgba(35, 32, 26, 0.35)"
+                />
+              )}
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+/**
  * First-start (and dev replay): brand welcome, then personalize which
  * review criteria matter — including custom criteria.
  */
@@ -132,8 +258,11 @@ export default function CriteriaSetupScreen() {
     setStandardEnabled,
     hasMinEnabledCriteria,
     completeCriteriaSetup,
+    applySetupChoice,
   } = useCriteriaSettings();
-  const [step, setStep] = useState<'welcome' | 'criteria'>('welcome');
+  const [step, setStep] = useState<'welcome' | 'choose' | 'criteria'>(
+    'welcome',
+  );
 
   const onFinish = async () => {
     if (!hasMinEnabledCriteria) return;
@@ -142,8 +271,30 @@ export default function CriteriaSetupScreen() {
     router.replace('/(tabs)/(main)');
   };
 
+  const onChoose = async (
+    choice: typeof QUICK_SETUP_CHOICE,
+  ) => {
+    Haptics.medium();
+    await applySetupChoice(choice);
+    if (choice.completeSetup) {
+      router.replace('/(tabs)/(main)');
+    } else {
+      setStep('criteria');
+    }
+  };
+
   if (step === 'welcome') {
-    return <WelcomeStep onContinue={() => setStep('criteria')} />;
+    return <WelcomeStep onContinue={() => setStep('choose')} />;
+  }
+
+  if (step === 'choose') {
+    return (
+      <ChooseStep
+        onChooseQuick={() => void onChoose(QUICK_SETUP_CHOICE)}
+        onChooseEssentials={() => void onChoose(ESSENTIALS_SETUP_CHOICE)}
+        onChooseFullControl={() => void onChoose(FULL_CONTROL_SETUP_CHOICE)}
+      />
+    );
   }
 
   return (
@@ -359,5 +510,33 @@ const styles = StyleSheet.create({
   },
   hintTip: {
     textDecorationLine: 'underline',
+  },
+  choiceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    minHeight: 66,
+  },
+  choicePressed: {
+    opacity: 0.7,
+    backgroundColor: 'rgba(36, 78, 57, 0.04)',
+  },
+  choiceTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  choiceTitle: {
+    ...bodyTextStyle,
+    fontSize: 17,
+    color: GustraColors.ink,
+    fontWeight: '600',
+  },
+  choiceSubtitle: {
+    ...captionTextStyle,
+    fontSize: 13,
+    lineHeight: 18,
+    color: 'rgba(35, 32, 26, 0.55)',
   },
 });

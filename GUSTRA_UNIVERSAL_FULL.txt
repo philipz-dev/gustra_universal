@@ -1,8 +1,8 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-08-03T10:50:47Z
+Generated: 2026-08-03T11:16:10Z
 Root: /Users/philipzvar/Desktop/gustra_universal
-Files: 243
+Files: 244
 ================================================================================
 
 ================================================================================
@@ -321,6 +321,75 @@ describe('backup crypto', () => {
   it('round-trips base64 conversions', () => {
     const bytes = new Uint8Array([0, 1, 2, 127, 128, 255, 42]);
     expect(base64ToBytes(bytesToBase64(bytes))).toEqual(bytes);
+  });
+});
+
+
+================================================================================
+FILE: __tests__/criteriaPresets.test.ts
+================================================================================
+import {
+  STANDARD_CRITERIA,
+  FIRST_START_ENABLED_STANDARD_IDS,
+  QUICK_PRESET_STANDARD_IDS,
+  ESSENTIALS_PRESET_STANDARD_IDS,
+  MANDATORY_STANDARD_CRITERION_IDS,
+  QUICK_SETUP_CHOICE,
+  ESSENTIALS_SETUP_CHOICE,
+  FULL_CONTROL_SETUP_CHOICE,
+  firstStartDisabledStandardIds,
+  type StandardCriterionId,
+} from '@/context/CriteriaSettings';
+
+const allIds = new Set<string>(STANDARD_CRITERIA.map((c) => c.id));
+
+function expectValidPreset(ids: readonly StandardCriterionId[]) {
+  for (const id of ids) {
+    expect(allIds.has(id)).toBe(true);
+  }
+}
+
+describe('criteria presets', () => {
+  it('Quick enables exactly food, drinks and service (all valid)', () => {
+    expect(QUICK_PRESET_STANDARD_IDS).toEqual(['food', 'drinks', 'service']);
+    expectValidPreset(QUICK_PRESET_STANDARD_IDS);
+  });
+
+  it('Essentials equals the first-start core five', () => {
+    expect(ESSENTIALS_PRESET_STANDARD_IDS).toEqual(
+      FIRST_START_ENABLED_STANDARD_IDS,
+    );
+    expect(ESSENTIALS_PRESET_STANDARD_IDS).toHaveLength(5);
+    expectValidPreset(ESSENTIALS_PRESET_STANDARD_IDS);
+  });
+
+  it('every preset keeps the mandatory criterion (food)', () => {
+    for (const ids of [QUICK_PRESET_STANDARD_IDS, ESSENTIALS_PRESET_STANDARD_IDS]) {
+      for (const mandatory of MANDATORY_STANDARD_CRITERION_IDS) {
+        expect(ids).toContain(mandatory);
+      }
+    }
+  });
+
+  it('Quick/Essentials complete setup; Full control opens the screen', () => {
+    expect(QUICK_SETUP_CHOICE.completeSetup).toBe(true);
+    expect(QUICK_SETUP_CHOICE.ids).toEqual(['food', 'drinks', 'service']);
+    expect(ESSENTIALS_SETUP_CHOICE.completeSetup).toBe(true);
+    expect(ESSENTIALS_SETUP_CHOICE.ids).toEqual(
+      FIRST_START_ENABLED_STANDARD_IDS,
+    );
+    expect(FULL_CONTROL_SETUP_CHOICE.ids).toBeNull();
+    expect(FULL_CONTROL_SETUP_CHOICE.completeSetup).toBe(false);
+  });
+
+  it('first-start defaults only disable non-mandatory criteria', () => {
+    const disabled = firstStartDisabledStandardIds();
+    expect(disabled.has('food')).toBe(false);
+    expect(disabled.has('drinks')).toBe(false);
+    expect(disabled.has('service')).toBe(false);
+    expect(disabled.has('setting')).toBe(false);
+    expect(disabled.has('valueForMoney')).toBe(false);
+    expect(disabled.has('acoustics')).toBe(true);
   });
 });
 
@@ -10920,6 +10989,7 @@ import {
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
+import type { SFSymbol } from 'expo-symbols';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
@@ -10939,6 +11009,9 @@ import {
   isMandatoryStandardCriterion,
   standardCriterionDisplayTitle,
   useCriteriaSettings,
+  QUICK_SETUP_CHOICE,
+  ESSENTIALS_SETUP_CHOICE,
+  FULL_CONTROL_SETUP_CHOICE,
 } from '@/context/CriteriaSettings';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
@@ -11027,6 +11100,128 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
 }
 
 /**
+ * Choose-step: pick a starting preset. Quick/Essentials apply fixed criteria
+ * and go straight to the app; Full control opens the full criteria screen.
+ */
+function ChooseStep({
+  onChooseQuick,
+  onChooseEssentials,
+  onChooseFullControl,
+}: {
+  onChooseQuick: () => void;
+  onChooseEssentials: () => void;
+  onChooseFullControl: () => void;
+}) {
+  const { t } = useAppTranslation();
+  const insets = useSafeAreaInsets();
+
+  const options: {
+    id: string;
+    title: string;
+    subtitle: string;
+    icon: { ios: SFSymbol; android: keyof typeof MaterialIcons.glyphMap };
+    onPress: () => void;
+  }[] = [
+    {
+      id: 'quick',
+      title: t('setup.choose.quick.title'),
+      subtitle: t('setup.choose.quick.subtitle'),
+      icon: { ios: 'bolt.fill', android: 'bolt' },
+      onPress: onChooseQuick,
+    },
+    {
+      id: 'essentials',
+      title: t('setup.choose.essentials.title'),
+      subtitle: t('setup.choose.essentials.subtitle'),
+      icon: { ios: 'star.fill', android: 'star' },
+      onPress: onChooseEssentials,
+    },
+    {
+      id: 'full',
+      title: t('setup.choose.full.title'),
+      subtitle: t('setup.choose.full.subtitle'),
+      icon: { ios: 'slider.horizontal.3', android: 'tune' },
+      onPress: onChooseFullControl,
+    },
+  ];
+
+  return (
+    <View style={styles.screen}>
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingBottom: Math.max(insets.bottom, 12) + 24,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+        overScrollMode="never">
+        <View style={styles.hero}>
+          <SerifText size={26} weight="bold" style={styles.heroTitle}>
+            {t('setup.choose.headline')}
+          </SerifText>
+          <Text style={styles.heroBody}>{t('setup.choose.body')}</Text>
+        </View>
+
+        <View style={styles.card}>
+          {options.map((option, index) => (
+            <Pressable
+              key={option.id}
+              accessibilityRole="button"
+              accessibilityLabel={option.title}
+              onPress={() => {
+                Haptics.selectionChanged();
+                option.onPress();
+              }}
+              style={({ pressed }) => [
+                styles.choiceRow,
+                index < options.length - 1 ? styles.rowBorder : null,
+                pressed && styles.choicePressed,
+              ]}>
+              <View style={styles.iconWrapOn}>
+                {Platform.OS === 'ios' ? (
+                  <SymbolView
+                    name={option.icon.ios}
+                    size={18}
+                    tintColor={GustraColors.forestGreen}
+                    weight="semibold"
+                  />
+                ) : (
+                  <MaterialIcons
+                    name={option.icon.android}
+                    size={20}
+                    color={GustraColors.forestGreen}
+                  />
+                )}
+              </View>
+              <View style={styles.choiceTextWrap}>
+                <Text style={styles.choiceTitle}>{option.title}</Text>
+                <Text style={styles.choiceSubtitle}>{option.subtitle}</Text>
+              </View>
+              {Platform.OS === 'ios' ? (
+                <SymbolView
+                  name="chevron.right"
+                  size={14}
+                  tintColor="rgba(35, 32, 26, 0.35)"
+                  weight="semibold"
+                />
+              ) : (
+                <MaterialIcons
+                  name="chevron-right"
+                  size={20}
+                  color="rgba(35, 32, 26, 0.35)"
+                />
+              )}
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+/**
  * First-start (and dev replay): brand welcome, then personalize which
  * review criteria matter — including custom criteria.
  */
@@ -11040,8 +11235,11 @@ export default function CriteriaSetupScreen() {
     setStandardEnabled,
     hasMinEnabledCriteria,
     completeCriteriaSetup,
+    applySetupChoice,
   } = useCriteriaSettings();
-  const [step, setStep] = useState<'welcome' | 'criteria'>('welcome');
+  const [step, setStep] = useState<'welcome' | 'choose' | 'criteria'>(
+    'welcome',
+  );
 
   const onFinish = async () => {
     if (!hasMinEnabledCriteria) return;
@@ -11050,8 +11248,30 @@ export default function CriteriaSetupScreen() {
     router.replace('/(tabs)/(main)');
   };
 
+  const onChoose = async (
+    choice: typeof QUICK_SETUP_CHOICE,
+  ) => {
+    Haptics.medium();
+    await applySetupChoice(choice);
+    if (choice.completeSetup) {
+      router.replace('/(tabs)/(main)');
+    } else {
+      setStep('criteria');
+    }
+  };
+
   if (step === 'welcome') {
-    return <WelcomeStep onContinue={() => setStep('criteria')} />;
+    return <WelcomeStep onContinue={() => setStep('choose')} />;
+  }
+
+  if (step === 'choose') {
+    return (
+      <ChooseStep
+        onChooseQuick={() => void onChoose(QUICK_SETUP_CHOICE)}
+        onChooseEssentials={() => void onChoose(ESSENTIALS_SETUP_CHOICE)}
+        onChooseFullControl={() => void onChoose(FULL_CONTROL_SETUP_CHOICE)}
+      />
+    );
   }
 
   return (
@@ -11267,6 +11487,34 @@ const styles = StyleSheet.create({
   },
   hintTip: {
     textDecorationLine: 'underline',
+  },
+  choiceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    minHeight: 66,
+  },
+  choicePressed: {
+    opacity: 0.7,
+    backgroundColor: 'rgba(36, 78, 57, 0.04)',
+  },
+  choiceTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  choiceTitle: {
+    ...bodyTextStyle,
+    fontSize: 17,
+    color: GustraColors.ink,
+    fontWeight: '600',
+  },
+  choiceSubtitle: {
+    ...captionTextStyle,
+    fontSize: 13,
+    lineHeight: 18,
+    color: 'rgba(35, 32, 26, 0.55)',
   },
 });
 
@@ -26261,6 +26509,17 @@ export const FIRST_START_ENABLED_STANDARD_IDS: readonly StandardCriterionId[] = 
   'valueForMoney',
 ] as const;
 
+/** "Quick" preset: three core criteria, fastest to fill in. */
+export const QUICK_PRESET_STANDARD_IDS: readonly StandardCriterionId[] = [
+  'food',
+  'drinks',
+  'service',
+] as const;
+
+/** "Essentials" preset: the five core criteria (≈ first-start defaults). */
+export const ESSENTIALS_PRESET_STANDARD_IDS: readonly StandardCriterionId[] =
+  FIRST_START_ENABLED_STANDARD_IDS;
+
 /** Required to complete every review; users cannot disable it. */
 export const MANDATORY_STANDARD_CRITERION_IDS: readonly StandardCriterionId[] = [
   'food',
@@ -26406,6 +26665,32 @@ export type CriteriaSettingsSnapshot = {
   customCriteria: CustomCriterionDefinition[];
 };
 
+/**
+ * A first-start setup choice. `ids` is the fixed criterion set to enable;
+ * `null` means "Full control" — the user picks on the criteria screen.
+ */
+export type CriteriaSetupChoice = {
+  /** Criterion ids to enable; `null` opens the full criteria screen. */
+  ids: readonly StandardCriterionId[] | null;
+  /** Whether the setup is finished immediately (Quick/Essentials). */
+  completeSetup: boolean;
+};
+
+export const QUICK_SETUP_CHOICE: CriteriaSetupChoice = {
+  ids: QUICK_PRESET_STANDARD_IDS,
+  completeSetup: true,
+};
+
+export const ESSENTIALS_SETUP_CHOICE: CriteriaSetupChoice = {
+  ids: ESSENTIALS_PRESET_STANDARD_IDS,
+  completeSetup: true,
+};
+
+export const FULL_CONTROL_SETUP_CHOICE: CriteriaSetupChoice = {
+  ids: null,
+  completeSetup: false,
+};
+
 type CriteriaSettingsValue = {
   ready: boolean;
   /** False until the first-start criteria setup is finished (or migrated). */
@@ -26422,6 +26707,8 @@ type CriteriaSettingsValue = {
   addCustomCriterion: (name: string) => string | null;
   deleteCustomCriterion: (id: string) => void;
   completeCriteriaSetup: () => Promise<void>;
+  /** Apply a first-start setup choice (preset or full-control reset). */
+  applySetupChoice: (choice: CriteriaSetupChoice) => Promise<void>;
   /** Dev-only: reset to first-start defaults and show setup again. */
   reopenCriteriaSetupForDev: () => Promise<void>;
   getBackupSnapshot: () => CriteriaSettingsSnapshot;
@@ -26592,6 +26879,34 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
     setSetupCompleted(true);
   }, []);
 
+  const applySetupChoice = useCallback(
+    async (choice: CriteriaSetupChoice) => {
+      if (choice.ids) {
+        const nextDisabled = new Set(
+          STANDARD_CRITERIA.map((c) => c.id).filter(
+            (id) => !choice.ids!.includes(id as StandardCriterionId),
+          ),
+        );
+        setDisabledStandardIds(nextDisabled);
+        persistDisabled(nextDisabled);
+      } else {
+        // Full control: only the mandatory criterion (food) stays on.
+        const nextDisabled = new Set(
+          STANDARD_CRITERIA.map((c) => c.id).filter(
+            (id) => !isMandatoryStandardCriterion(id),
+          ),
+        );
+        setDisabledStandardIds(nextDisabled);
+        persistDisabled(nextDisabled);
+      }
+      if (choice.completeSetup) {
+        await AsyncStorage.setItem(SETUP_KEY, '1');
+        setSetupCompleted(true);
+      }
+    },
+    [persistDisabled],
+  );
+
   const reopenCriteriaSetupForDev = useCallback(async () => {
     const nextDisabled = firstStartDisabledStandardIds();
     setDisabledStandardIds(nextDisabled);
@@ -26659,6 +26974,7 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
       addCustomCriterion,
       deleteCustomCriterion,
       completeCriteriaSetup,
+      applySetupChoice,
       reopenCriteriaSetupForDev,
       getBackupSnapshot,
       applyBackupSnapshot,
@@ -26676,6 +26992,7 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
       addCustomCriterion,
       deleteCustomCriterion,
       completeCriteriaSetup,
+      applySetupChoice,
       reopenCriteriaSetupForDev,
       getBackupSnapshot,
       applyBackupSnapshot,
@@ -32976,6 +33293,22 @@ FILE: i18n/locales/de.json
       "title": "Willkommen bei Gustra",
       "tapToContinue": "Tippen, um fortzufahren"
     },
+    "choose": {
+      "headline": "Wie möchten Sie bewerten?",
+      "body": "Wählen Sie einen Ausgangspunkt. Ihre Kriterien können Sie später in den Einstellungen ändern.",
+      "quick": {
+        "title": "Schnell",
+        "subtitle": "Essen, Getränke & Service — in unter 30 Sekunden ausgefüllt"
+      },
+      "essentials": {
+        "title": "Essentiell",
+        "subtitle": "Die 5 Kernkriterien — in unter einer Minute ausgefüllt"
+      },
+      "full": {
+        "title": "Volle Kontrolle",
+        "subtitle": "Wählen Sie selbst aus allen 20 Kriterien"
+      }
+    },
     "criteria": {
       "title": "Ersteinrichtung",
       "headline": "Personalisieren Sie Ihre Erfahrung",
@@ -33727,6 +34060,22 @@ FILE: i18n/locales/en.json
     "welcome": {
       "title": "Welcome to Gustra",
       "tapToContinue": "Tap to continue"
+    },
+    "choose": {
+      "headline": "How do you want to review?",
+      "body": "Pick a starting point. You can change your criteria later in Settings.",
+      "quick": {
+        "title": "Quick",
+        "subtitle": "Food, drinks & service — less than 30 seconds to fill in"
+      },
+      "essentials": {
+        "title": "Essentials",
+        "subtitle": "The 5 core criteria — less than a minute to fill in"
+      },
+      "full": {
+        "title": "Full control",
+        "subtitle": "Choose from all 20 criteria yourself"
+      }
     },
     "criteria": {
       "title": "Initial setup",
@@ -34480,6 +34829,22 @@ FILE: i18n/locales/es.json
       "title": "Bienvenido a Gustra",
       "tapToContinue": "Toca para continuar"
     },
+    "choose": {
+      "headline": "¿Cómo quieres reseñar?",
+      "body": "Elige un punto de partida. Puedes cambiar los criterios más tarde en Ajustes.",
+      "quick": {
+        "title": "Rápido",
+        "subtitle": "Comida, bebidas y servicio — menos de 30 segundos para completarlo"
+      },
+      "essentials": {
+        "title": "Esenciales",
+        "subtitle": "Los 5 criterios principales — menos de un minuto para completarlos"
+      },
+      "full": {
+        "title": "Control total",
+        "subtitle": "Elige tú mismo entre los 20 criterios"
+      }
+    },
     "criteria": {
       "title": "Configuración inicial",
       "headline": "Personaliza tu experiencia",
@@ -35231,6 +35596,22 @@ FILE: i18n/locales/fr.json
     "welcome": {
       "title": "Bienvenue chez Gustra",
       "tapToContinue": "Touchez pour continuer"
+    },
+    "choose": {
+      "headline": "Comment voulez-vous noter ?",
+      "body": "Choisissez un point de départ. Vous pourrez modifier vos critères plus tard dans Réglages.",
+      "quick": {
+        "title": "Rapide",
+        "subtitle": "Cuisine, boissons et service — moins de 30 secondes à remplir"
+      },
+      "essentials": {
+        "title": "Essentiels",
+        "subtitle": "Les 5 critères essentiels — moins d'une minute à remplir"
+      },
+      "full": {
+        "title": "Contrôle total",
+        "subtitle": "Choisissez vous-même parmi les 20 critères"
+      }
     },
     "criteria": {
       "title": "Configuration initiale",
@@ -35984,6 +36365,22 @@ FILE: i18n/locales/it.json
       "title": "Benvenuto in Gustra",
       "tapToContinue": "Tocca per continuare"
     },
+    "choose": {
+      "headline": "Come vuoi recensire?",
+      "body": "Scegli un punto di partenza. Puoi modificare i criteri in seguito nelle Impostazioni.",
+      "quick": {
+        "title": "Veloce",
+        "subtitle": "Cibo, bevande e servizio — meno di 30 secondi per compilarlo"
+      },
+      "essentials": {
+        "title": "Essenziali",
+        "subtitle": "I 5 criteri principali — meno di un minuto per compilarli"
+      },
+      "full": {
+        "title": "Controllo totale",
+        "subtitle": "Scegli tu tra tutti i 20 criteri"
+      }
+    },
     "criteria": {
       "title": "Configurazione iniziale",
       "headline": "Personalizza la tua esperienza",
@@ -36735,6 +37132,22 @@ FILE: i18n/locales/nl.json
     "welcome": {
       "title": "Welkom bij Gustra",
       "tapToContinue": "Tik om verder te gaan"
+    },
+    "choose": {
+      "headline": "Hoe wil je beoordelen?",
+      "body": "Kies een startpunt. Je kunt je criteria later altijd wijzigen in Instellingen.",
+      "quick": {
+        "title": "Snel",
+        "subtitle": "Eten, dranken & bediening — in minder dan 30 seconden ingevuld"
+      },
+      "essentials": {
+        "title": "Basis",
+        "subtitle": "De 5 kerncriteria — in minder dan een minuut ingevuld"
+      },
+      "full": {
+        "title": "Volledige controle",
+        "subtitle": "Kies zelf uit alle 20 criteria"
+      }
     },
     "criteria": {
       "title": "Eerste configuratie",

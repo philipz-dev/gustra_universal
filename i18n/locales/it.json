@@ -734,6 +734,22 @@
       "title": "Benvenuto in Gustra",
       "tapToContinue": "Tocca per continuare"
     },
+    "choose": {
+      "headline": "Come vuoi recensire?",
+      "body": "Scegli un punto di partenza. Puoi modificare i criteri in seguito nelle Impostazioni.",
+      "quick": {
+        "title": "Veloce",
+        "subtitle": "Cibo, bevande e servizio — meno di 30 secondi per compilarlo"
+      },
+      "essentials": {
+        "title": "Essenziali",
+        "subtitle": "I 5 criteri principali — meno di un minuto per compilarli"
+      },
+      "full": {
+        "title": "Controllo totale",
+        "subtitle": "Scegli tu tra tutti i 20 criteri"
+      }
+    },
     "criteria": {
       "title": "Configurazione iniziale",
       "headline": "Personalizza la tua esperienza",

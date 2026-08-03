@@ -734,6 +734,22 @@
       "title": "Welkom bij Gustra",
       "tapToContinue": "Tik om verder te gaan"
     },
+    "choose": {
+      "headline": "Hoe wil je beoordelen?",
+      "body": "Kies een startpunt. Je kunt je criteria later altijd wijzigen in Instellingen.",
+      "quick": {
+        "title": "Snel",
+        "subtitle": "Eten, dranken & bediening — in minder dan 30 seconden ingevuld"
+      },
+      "essentials": {
+        "title": "Basis",
+        "subtitle": "De 5 kerncriteria — in minder dan een minuut ingevuld"
+      },
+      "full": {
+        "title": "Volledige controle",
+        "subtitle": "Kies zelf uit alle 20 criteria"
+      }
+    },
     "criteria": {
       "title": "Eerste configuratie",
       "headline": "Personaliseer je ervaring",

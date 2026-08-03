@@ -734,6 +734,22 @@
       "title": "Willkommen bei Gustra",
       "tapToContinue": "Tippen, um fortzufahren"
     },
+    "choose": {
+      "headline": "Wie möchten Sie bewerten?",
+      "body": "Wählen Sie einen Ausgangspunkt. Ihre Kriterien können Sie später in den Einstellungen ändern.",
+      "quick": {
+        "title": "Schnell",
+        "subtitle": "Essen, Getränke & Service — in unter 30 Sekunden ausgefüllt"
+      },
+      "essentials": {
+        "title": "Essentiell",
+        "subtitle": "Die 5 Kernkriterien — in unter einer Minute ausgefüllt"
+      },
+      "full": {
+        "title": "Volle Kontrolle",
+        "subtitle": "Wählen Sie selbst aus allen 20 Kriterien"
+      }
+    },
     "criteria": {
       "title": "Ersteinrichtung",
       "headline": "Personalisieren Sie Ihre Erfahrung",

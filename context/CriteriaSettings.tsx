@@ -136,6 +136,17 @@ export const FIRST_START_ENABLED_STANDARD_IDS: readonly StandardCriterionId[] = 
   'valueForMoney',
 ] as const;
 
+/** "Quick" preset: three core criteria, fastest to fill in. */
+export const QUICK_PRESET_STANDARD_IDS: readonly StandardCriterionId[] = [
+  'food',
+  'drinks',
+  'service',
+] as const;
+
+/** "Essentials" preset: the five core criteria (≈ first-start defaults). */
+export const ESSENTIALS_PRESET_STANDARD_IDS: readonly StandardCriterionId[] =
+  FIRST_START_ENABLED_STANDARD_IDS;
+
 /** Required to complete every review; users cannot disable it. */
 export const MANDATORY_STANDARD_CRITERION_IDS: readonly StandardCriterionId[] = [
   'food',
@@ -281,6 +292,32 @@ export type CriteriaSettingsSnapshot = {
   customCriteria: CustomCriterionDefinition[];
 };
 
+/**
+ * A first-start setup choice. `ids` is the fixed criterion set to enable;
+ * `null` means "Full control" — the user picks on the criteria screen.
+ */
+export type CriteriaSetupChoice = {
+  /** Criterion ids to enable; `null` opens the full criteria screen. */
+  ids: readonly StandardCriterionId[] | null;
+  /** Whether the setup is finished immediately (Quick/Essentials). */
+  completeSetup: boolean;
+};
+
+export const QUICK_SETUP_CHOICE: CriteriaSetupChoice = {
+  ids: QUICK_PRESET_STANDARD_IDS,
+  completeSetup: true,
+};
+
+export const ESSENTIALS_SETUP_CHOICE: CriteriaSetupChoice = {
+  ids: ESSENTIALS_PRESET_STANDARD_IDS,
+  completeSetup: true,
+};
+
+export const FULL_CONTROL_SETUP_CHOICE: CriteriaSetupChoice = {
+  ids: null,
+  completeSetup: false,
+};
+
 type CriteriaSettingsValue = {
   ready: boolean;
   /** False until the first-start criteria setup is finished (or migrated). */
@@ -297,6 +334,8 @@ type CriteriaSettingsValue = {
   addCustomCriterion: (name: string) => string | null;
   deleteCustomCriterion: (id: string) => void;
   completeCriteriaSetup: () => Promise<void>;
+  /** Apply a first-start setup choice (preset or full-control reset). */
+  applySetupChoice: (choice: CriteriaSetupChoice) => Promise<void>;
   /** Dev-only: reset to first-start defaults and show setup again. */
   reopenCriteriaSetupForDev: () => Promise<void>;
   getBackupSnapshot: () => CriteriaSettingsSnapshot;
@@ -467,6 +506,34 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
     setSetupCompleted(true);
   }, []);
 
+  const applySetupChoice = useCallback(
+    async (choice: CriteriaSetupChoice) => {
+      if (choice.ids) {
+        const nextDisabled = new Set(
+          STANDARD_CRITERIA.map((c) => c.id).filter(
+            (id) => !choice.ids!.includes(id as StandardCriterionId),
+          ),
+        );
+        setDisabledStandardIds(nextDisabled);
+        persistDisabled(nextDisabled);
+      } else {
+        // Full control: only the mandatory criterion (food) stays on.
+        const nextDisabled = new Set(
+          STANDARD_CRITERIA.map((c) => c.id).filter(
+            (id) => !isMandatoryStandardCriterion(id),
+          ),
+        );
+        setDisabledStandardIds(nextDisabled);
+        persistDisabled(nextDisabled);
+      }
+      if (choice.completeSetup) {
+        await AsyncStorage.setItem(SETUP_KEY, '1');
+        setSetupCompleted(true);
+      }
+    },
+    [persistDisabled],
+  );
+
   const reopenCriteriaSetupForDev = useCallback(async () => {
     const nextDisabled = firstStartDisabledStandardIds();
     setDisabledStandardIds(nextDisabled);
@@ -534,6 +601,7 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
       addCustomCriterion,
       deleteCustomCriterion,
       completeCriteriaSetup,
+      applySetupChoice,
       reopenCriteriaSetupForDev,
       getBackupSnapshot,
       applyBackupSnapshot,
@@ -551,6 +619,7 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
       addCustomCriterion,
       deleteCustomCriterion,
       completeCriteriaSetup,
+      applySetupChoice,
       reopenCriteriaSetupForDev,
       getBackupSnapshot,
       applyBackupSnapshot,

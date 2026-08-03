@@ -734,6 +734,22 @@
       "title": "Bienvenue chez Gustra",
       "tapToContinue": "Touchez pour continuer"
     },
+    "choose": {
+      "headline": "Comment voulez-vous noter ?",
+      "body": "Choisissez un point de départ. Vous pourrez modifier vos critères plus tard dans Réglages.",
+      "quick": {
+        "title": "Rapide",
+        "subtitle": "Cuisine, boissons et service — moins de 30 secondes à remplir"
+      },
+      "essentials": {
+        "title": "Essentiels",
+        "subtitle": "Les 5 critères essentiels — moins d'une minute à remplir"
+      },
+      "full": {
+        "title": "Contrôle total",
+        "subtitle": "Choisissez vous-même parmi les 20 critères"
+      }
+    },
     "criteria": {
       "title": "Configuration initiale",
       "headline": "Personnalisez votre expérience",
