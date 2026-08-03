@@ -126,8 +126,10 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
  * Choose-step: pick a starting preset. Quick/Essentials apply fixed criteria
  * and go straight to the app; Full control opens the full criteria screen.
  *
- * HIG-style: the three options are real buttons (round icon chips, no
- * chevrons) with the headline below them.
+ * Layout (HIG + house style): headline on top (clearing the notch via
+ * insets.top), the three options as real house-style buttons (bubble cards,
+ * round forest-green icon chips, no chevrons), the recommended preset gets a
+ * gold badge + gold border, and the Gustra logo sits at the very bottom.
  */
 function ChooseStep({
   onChooseQuick,
@@ -145,6 +147,7 @@ function ChooseStep({
     id: string;
     title: string;
     subtitle: string;
+    recommended?: boolean;
     icon: { ios: SFSymbol; android: keyof typeof MaterialIcons.glyphMap };
     onPress: () => void;
   }[] = [
@@ -159,6 +162,7 @@ function ChooseStep({
       id: 'essentials',
       title: t('setup.choose.essentials.title'),
       subtitle: t('setup.choose.essentials.subtitle'),
+      recommended: true,
       icon: { ios: 'star.fill', android: 'star' },
       onPress: onChooseEssentials,
     },
@@ -178,38 +182,43 @@ function ChooseStep({
         contentContainerStyle={[
           styles.chooseContent,
           {
-            paddingBottom: Math.max(insets.bottom, 12) + 24,
+            paddingTop: Math.max(insets.top, 16) + 28,
+            paddingBottom: Math.max(insets.bottom, 12) + 16,
           },
         ]}
         showsVerticalScrollIndicator={false}
         overScrollMode="never">
-        <View style={styles.chooseLogoWrap}>
-          <View style={styles.chooseLogoCircle}>
-            <Image
-              source={require('@/assets/images/splash-icon.png')}
-              style={styles.chooseLogo}
-              resizeMode="contain"
-            />
-          </View>
+        <View style={styles.chooseHeadlineWrap}>
+          <SerifText size={28} weight="bold" style={styles.chooseHeadline}>
+            {t('setup.choose.headline')}
+          </SerifText>
+          <Text style={styles.chooseBody}>{t('setup.choose.body')}</Text>
         </View>
 
-        {/* Buttons first, headline below — per HIG the primary action is the
-            tappable control; the label explains after. */}
         <View style={styles.chooseButtons}>
           {options.map((option) => (
             <Pressable
               key={option.id}
               accessibilityRole="button"
-              accessibilityLabel={option.title}
+              accessibilityLabel={
+                option.recommended
+                  ? `${option.title}, ${t('setup.choose.recommended')}`
+                  : option.title
+              }
               onPress={() => {
                 Haptics.selectionChanged();
                 option.onPress();
               }}
               style={({ pressed }) => [
                 styles.chooseButton,
+                option.recommended && styles.chooseButtonRecommended,
                 pressed && styles.chooseButtonPressed,
               ]}>
-              <View style={styles.chooseButtonIcon}>
+              <View
+                style={[
+                  styles.chooseButtonIcon,
+                  option.recommended && styles.chooseButtonIconRecommended,
+                ]}>
                 {Platform.OS === 'ios' ? (
                   <SymbolView
                     name={option.icon.ios}
@@ -226,7 +235,16 @@ function ChooseStep({
                 )}
               </View>
               <View style={styles.chooseButtonText}>
-                <Text style={styles.chooseButtonTitle}>{option.title}</Text>
+                <View style={styles.chooseButtonTitleRow}>
+                  <Text style={styles.chooseButtonTitle}>{option.title}</Text>
+                  {option.recommended ? (
+                    <View style={styles.chooseRecommendedBadge}>
+                      <Text style={styles.chooseRecommendedLabel}>
+                        {t('setup.choose.recommended')}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
                 <Text style={styles.chooseButtonSubtitle}>
                   {option.subtitle}
                 </Text>
@@ -235,11 +253,14 @@ function ChooseStep({
           ))}
         </View>
 
-        <View style={styles.chooseHeadlineWrap}>
-          <SerifText size={26} weight="bold" style={styles.chooseHeadline}>
-            {t('setup.choose.headline')}
-          </SerifText>
-          <Text style={styles.chooseBody}>{t('setup.choose.body')}</Text>
+        <View style={styles.chooseLogoWrap}>
+          <View style={styles.chooseLogoCircle}>
+            <Image
+              source={require('@/assets/images/splash-icon.png')}
+              style={styles.chooseLogo}
+              resizeMode="contain"
+            />
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -548,30 +569,27 @@ const styles = StyleSheet.create({
   chooseContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 40,
-    gap: 22,
+    gap: 24,
   },
   chooseLogoWrap: {
     alignItems: 'center',
+    marginTop: 'auto',
+    paddingTop: 28,
   },
   chooseLogoCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: GustraColors.cream,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(35, 32, 26, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 4,
-  },
-  chooseLogo: {
     width: 76,
     height: 76,
+    borderRadius: 38,
+    // Match splash-icon.png fill so the logo doesn't sit on a different cream.
+    backgroundColor: '#F6ECE2',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(35, 32, 26, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chooseLogo: {
+    width: 60,
+    height: 60,
   },
   chooseButtons: {
     gap: 12,
@@ -580,23 +598,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: GustraColors.bubble,
     borderRadius: Theme.radius.xl,
     paddingVertical: 16,
     paddingHorizontal: 16,
     minHeight: 72,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(35, 32, 26, 0.08)',
-    shadowColor: '#000000',
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    borderColor: 'rgba(35, 32, 26, 0.1)',
+  },
+  chooseButtonRecommended: {
+    borderWidth: 1.5,
+    borderColor: GustraColors.gold,
+    backgroundColor: 'rgba(217, 162, 39, 0.06)',
   },
   chooseButtonPressed: {
-    transform: [{ scale: 0.985 }],
-    shadowOpacity: 0.04,
-    backgroundColor: '#FBF8F0',
+    opacity: 0.82,
   },
   chooseButtonIcon: {
     width: 46,
@@ -606,14 +622,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  chooseButtonIconRecommended: {
+    backgroundColor: GustraColors.gold,
+  },
   chooseButtonText: {
     flex: 1,
-    gap: 2,
+    gap: 3,
+  },
+  chooseButtonTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   chooseButtonTitle: {
     ...bodyTextStyle,
     fontSize: 17,
     color: GustraColors.ink,
+    fontWeight: '600',
+  },
+  chooseRecommendedBadge: {
+    backgroundColor: 'rgba(217, 162, 39, 0.16)',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  chooseRecommendedLabel: {
+    ...captionTextStyle,
+    fontSize: 11,
+    letterSpacing: 0.2,
+    color: '#8A4B12',
     fontWeight: '600',
   },
   chooseButtonSubtitle: {
@@ -624,8 +661,7 @@ const styles = StyleSheet.create({
   },
   chooseHeadlineWrap: {
     alignItems: 'center',
-    gap: 8,
-    marginTop: 8,
+    gap: 10,
   },
   chooseHeadline: {
     color: GustraColors.forestGreen,

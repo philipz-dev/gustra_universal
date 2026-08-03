@@ -737,6 +737,7 @@
     "choose": {
       "headline": "Hoe wil je beoordelen?",
       "body": "Kies een startpunt. Je kunt je criteria later altijd wijzigen in Instellingen.",
+      "recommended": "Aangeraden",
       "quick": {
         "title": "Snel",
         "subtitle": "Eten, dranken & bediening — in minder dan 30 seconden ingevuld"

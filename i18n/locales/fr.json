@@ -737,6 +737,7 @@
     "choose": {
       "headline": "Comment voulez-vous noter ?",
       "body": "Choisissez un point de départ. Vous pourrez modifier vos critères plus tard dans Réglages.",
+      "recommended": "Recommandé",
       "quick": {
         "title": "Rapide",
         "subtitle": "Cuisine, boissons et service — moins de 30 secondes à remplir"

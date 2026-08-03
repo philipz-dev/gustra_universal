@@ -737,6 +737,7 @@
     "choose": {
       "headline": "Come vuoi recensire?",
       "body": "Scegli un punto di partenza. Puoi modificare i criteri in seguito nelle Impostazioni.",
+      "recommended": "Consigliato",
       "quick": {
         "title": "Veloce",
         "subtitle": "Cibo, bevande e servizio — meno di 30 secondi per compilarlo"

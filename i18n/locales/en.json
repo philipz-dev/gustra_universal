@@ -737,6 +737,7 @@
     "choose": {
       "headline": "How do you want to review?",
       "body": "Pick a starting point. You can change your criteria later in Settings.",
+      "recommended": "Recommended",
       "quick": {
         "title": "Quick",
         "subtitle": "Food, drinks & service — less than 30 seconds to fill in"
