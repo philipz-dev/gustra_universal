@@ -1,6 +1,6 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-08-03T11:28:08Z
+Generated: 2026-08-03T11:36:34Z
 Root: /Users/philipzvar/Desktop/gustra_universal
 Files: 244
 ================================================================================
@@ -11106,6 +11106,9 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
 /**
  * Choose-step: pick a starting preset. Quick/Essentials apply fixed criteria
  * and go straight to the app; Full control opens the full criteria screen.
+ *
+ * HIG-style: the three options are real buttons (round icon chips, no
+ * chevrons) with the headline below them.
  */
 function ChooseStep({
   onChooseQuick,
@@ -11150,26 +11153,31 @@ function ChooseStep({
   ];
 
   return (
-    <View style={styles.screen}>
+    <View style={styles.chooseScreen}>
       <ScrollView
         style={styles.flex}
         contentContainerStyle={[
-          styles.content,
+          styles.chooseContent,
           {
             paddingBottom: Math.max(insets.bottom, 12) + 24,
           },
         ]}
         showsVerticalScrollIndicator={false}
         overScrollMode="never">
-        <View style={styles.hero}>
-          <SerifText size={26} weight="bold" style={styles.heroTitle}>
-            {t('setup.choose.headline')}
-          </SerifText>
-          <Text style={styles.heroBody}>{t('setup.choose.body')}</Text>
+        <View style={styles.chooseLogoWrap}>
+          <View style={styles.chooseLogoCircle}>
+            <Image
+              source={require('@/assets/images/splash-icon.png')}
+              style={styles.chooseLogo}
+              resizeMode="contain"
+            />
+          </View>
         </View>
 
-        <View style={styles.card}>
-          {options.map((option, index) => (
+        {/* Buttons first, headline below — per HIG the primary action is the
+            tappable control; the label explains after. */}
+        <View style={styles.chooseButtons}>
+          {options.map((option) => (
             <Pressable
               key={option.id}
               accessibilityRole="button"
@@ -11179,46 +11187,40 @@ function ChooseStep({
                 option.onPress();
               }}
               style={({ pressed }) => [
-                styles.choiceRow,
-                index < options.length - 1 ? styles.rowBorder : null,
-                pressed && styles.choicePressed,
+                styles.chooseButton,
+                pressed && styles.chooseButtonPressed,
               ]}>
-              <View style={styles.iconWrapOn}>
+              <View style={styles.chooseButtonIcon}>
                 {Platform.OS === 'ios' ? (
                   <SymbolView
                     name={option.icon.ios}
-                    size={18}
-                    tintColor={GustraColors.forestGreen}
+                    size={22}
+                    tintColor="#FFFFFF"
                     weight="semibold"
                   />
                 ) : (
                   <MaterialIcons
                     name={option.icon.android}
-                    size={20}
-                    color={GustraColors.forestGreen}
+                    size={24}
+                    color="#FFFFFF"
                   />
                 )}
               </View>
-              <View style={styles.choiceTextWrap}>
-                <Text style={styles.choiceTitle}>{option.title}</Text>
-                <Text style={styles.choiceSubtitle}>{option.subtitle}</Text>
+              <View style={styles.chooseButtonText}>
+                <Text style={styles.chooseButtonTitle}>{option.title}</Text>
+                <Text style={styles.chooseButtonSubtitle}>
+                  {option.subtitle}
+                </Text>
               </View>
-              {Platform.OS === 'ios' ? (
-                <SymbolView
-                  name="chevron.right"
-                  size={14}
-                  tintColor="rgba(35, 32, 26, 0.35)"
-                  weight="semibold"
-                />
-              ) : (
-                <MaterialIcons
-                  name="chevron-right"
-                  size={20}
-                  color="rgba(35, 32, 26, 0.35)"
-                />
-              )}
             </Pressable>
           ))}
+        </View>
+
+        <View style={styles.chooseHeadlineWrap}>
+          <SerifText size={26} weight="bold" style={styles.chooseHeadline}>
+            {t('setup.choose.headline')}
+          </SerifText>
+          <Text style={styles.chooseBody}>{t('setup.choose.body')}</Text>
         </View>
       </ScrollView>
     </View>
@@ -11519,6 +11521,103 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     color: 'rgba(35, 32, 26, 0.55)',
+  },
+  chooseScreen: {
+    flex: 1,
+    backgroundColor: GustraColors.cream,
+  },
+  chooseContent: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    gap: 22,
+  },
+  chooseLogoWrap: {
+    alignItems: 'center',
+  },
+  chooseLogoCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: GustraColors.cream,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(35, 32, 26, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 4,
+  },
+  chooseLogo: {
+    width: 76,
+    height: 76,
+  },
+  chooseButtons: {
+    gap: 12,
+  },
+  chooseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: Theme.radius.xl,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    minHeight: 72,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(35, 32, 26, 0.08)',
+    shadowColor: '#000000',
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  chooseButtonPressed: {
+    transform: [{ scale: 0.985 }],
+    shadowOpacity: 0.04,
+    backgroundColor: '#FBF8F0',
+  },
+  chooseButtonIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: GustraColors.forestGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chooseButtonText: {
+    flex: 1,
+    gap: 2,
+  },
+  chooseButtonTitle: {
+    ...bodyTextStyle,
+    fontSize: 17,
+    color: GustraColors.ink,
+    fontWeight: '600',
+  },
+  chooseButtonSubtitle: {
+    ...captionTextStyle,
+    fontSize: 13,
+    lineHeight: 18,
+    color: 'rgba(35, 32, 26, 0.55)',
+  },
+  chooseHeadlineWrap: {
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  chooseHeadline: {
+    color: GustraColors.forestGreen,
+    textAlign: 'center',
+  },
+  chooseBody: {
+    ...bodyTextStyle,
+    fontSize: 16,
+    lineHeight: 23,
+    color: 'rgba(35, 32, 26, 0.72)',
+    textAlign: 'center',
   },
 });
 
