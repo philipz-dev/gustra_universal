@@ -129,7 +129,8 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
  * Layout (HIG + house style): headline on top (clearing the notch via
  * insets.top), the three options as real house-style buttons (bubble cards,
  * round forest-green icon chips, no chevrons), the recommended preset gets a
- * gold badge + gold border, and the Gustra logo sits at the very bottom.
+ * subtle 'Recommended' label on the title line, and the Gustra logo sits at
+ * the very bottom on the same background color as the splash icon.
  */
 function ChooseStep({
   onChooseQuick,
@@ -211,14 +212,9 @@ function ChooseStep({
               }}
               style={({ pressed }) => [
                 styles.chooseButton,
-                option.recommended && styles.chooseButtonRecommended,
                 pressed && styles.chooseButtonPressed,
               ]}>
-              <View
-                style={[
-                  styles.chooseButtonIcon,
-                  option.recommended && styles.chooseButtonIconRecommended,
-                ]}>
+              <View style={styles.chooseButtonIcon}>
                 {Platform.OS === 'ios' ? (
                   <SymbolView
                     name={option.icon.ios}
@@ -235,18 +231,20 @@ function ChooseStep({
                 )}
               </View>
               <View style={styles.chooseButtonText}>
-                <Text style={styles.chooseButtonTitle}>{option.title}</Text>
+                <View style={styles.chooseButtonTitleRow}>
+                  <Text style={styles.chooseButtonTitle}>{option.title}</Text>
+                  {option.recommended ? (
+                    <View style={styles.chooseRecommendedBadge}>
+                      <Text style={styles.chooseRecommendedLabel}>
+                        {t('setup.choose.recommended')}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
                 <Text style={styles.chooseButtonSubtitle}>
                   {option.subtitle}
                 </Text>
               </View>
-              {option.recommended ? (
-                <View style={styles.chooseRecommendedBadge}>
-                  <Text style={styles.chooseRecommendedLabel}>
-                    {t('setup.choose.recommended')}
-                  </Text>
-                </View>
-              ) : null}
             </Pressable>
           ))}
         </View>
@@ -562,7 +560,8 @@ const styles = StyleSheet.create({
   },
   chooseScreen: {
     flex: 1,
-    backgroundColor: GustraColors.cream,
+    // Match splash-icon.png fill so the screen sits on the logo background color.
+    backgroundColor: '#F6ECE2',
   },
   chooseContent: {
     flexGrow: 1,
@@ -605,11 +604,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(35, 32, 26, 0.1)',
   },
-  chooseButtonRecommended: {
-    borderWidth: 1.5,
-    borderColor: GustraColors.gold,
-    backgroundColor: 'rgba(217, 162, 39, 0.06)',
-  },
   chooseButtonPressed: {
     opacity: 0.82,
   },
@@ -621,12 +615,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chooseButtonIconRecommended: {
-    backgroundColor: GustraColors.gold,
-  },
   chooseButtonText: {
     flex: 1,
     gap: 3,
+  },
+  chooseButtonTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   chooseButtonTitle: {
     ...bodyTextStyle,
@@ -639,7 +635,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 2,
-    marginLeft: 'auto',
+    alignSelf: 'flex-start',
   },
   chooseRecommendedLabel: {
     ...captionTextStyle,
