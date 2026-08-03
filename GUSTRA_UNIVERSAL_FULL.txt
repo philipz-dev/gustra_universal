@@ -1,8 +1,8 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-08-03T13:58:26Z
+Generated: 2026-08-03T17:45:39Z
 Root: /Users/philipzvar/Desktop/gustra_universal
-Files: 246
+Files: 249
 ================================================================================
 
 ================================================================================
@@ -128,10 +128,10 @@ FILE: __mocks__/expo-localization.ts
 ================================================================================
 /**
  * Jest stub for `expo-localization` — unit tests run in node without the
- * native module. `getLocales` returns a single English locale.
+ * native module. `getLocales` returns a single English (metric) locale.
  */
 export function getLocales() {
-  return [{ languageCode: 'en', languageTag: 'en-US' }];
+  return [{ languageCode: 'en', languageTag: 'en-US', measurementSystem: 'metric' }];
 }
 
 
@@ -390,6 +390,47 @@ describe('criteria presets', () => {
     expect(disabled.has('setting')).toBe(false);
     expect(disabled.has('valueForMoney')).toBe(false);
     expect(disabled.has('acoustics')).toBe(true);
+  });
+});
+
+
+================================================================================
+FILE: __tests__/distanceUnits.test.ts
+================================================================================
+import { formattedDistance } from '@/services/units/distance';
+import { resolveDistanceUnit } from '@/services/units/units';
+
+describe('formattedDistance (device-unit aware)', () => {
+  it('metric: m below 1 km, km with one decimal above', () => {
+    expect(formattedDistance(800, 'metric')).toBe('800 m');
+    expect(formattedDistance(3200, 'metric')).toBe('3.2 km');
+    expect(formattedDistance(250_000, 'metric')).toBe('250 km');
+  });
+
+  it('us: feet below ~0.25 mi, miles above', () => {
+    // 100 m ≈ 328 ft → 330 ft (rounded to nearest 10 ft)
+    expect(formattedDistance(100, 'us')).toBe('330 ft');
+    // 400 m crosses the ~0.25 mi threshold (402 m) → miles
+    expect(formattedDistance(3200, 'us')).toBe('2.0 mi');
+    // 20 km → whole miles
+    expect(formattedDistance(20_000, 'us')).toBe('12 mi');
+  });
+
+  it('uk: metres below 1 km, miles above (British convention)', () => {
+    expect(formattedDistance(800, 'uk')).toBe('800 m');
+    expect(formattedDistance(3200, 'uk')).toBe('2.0 mi');
+    expect(formattedDistance(20_000, 'uk')).toBe('12 mi');
+  });
+
+  it('defaults to metric when no unit is passed (system metric in tests)', () => {
+    expect(formattedDistance(800)).toBe('800 m');
+    expect(formattedDistance(3200)).toBe('3.2 km');
+  });
+});
+
+describe('resolveDistanceUnit', () => {
+  it('returns a valid DistanceUnit', () => {
+    expect(['metric', 'us', 'uk']).toContain(resolveDistanceUnit());
   });
 });
 
@@ -12121,7 +12162,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       supportsTablet: true,
       // Must match the existing App Store Connect / Swift app.
       bundleIdentifier: 'com.philip.gustra',
-      buildNumber: '54',
+      buildNumber: '55',
       // Keep in sync with android.versionCode — deploy-store.sh bumps both together.
       entitlements: {
         'com.apple.security.application-groups': ['group.com.philip.gustra'],
@@ -12180,7 +12221,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
       package: 'net.gustra.app',
       // Keep in sync with ios.buildNumber — deploy-store.sh bumps both together.
-      versionCode: 54,
+      versionCode: 55,
       // Material / gesture navigation — cream surfaces bleed under system bars.
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: true,
@@ -40161,6 +40202,8 @@ export {
   restaurantDraftFromResult,
   searchNearby,
   searchText,
+  resolveDistanceUnit,
+  type DistanceUnit,
 } from './places';
 
 
@@ -42528,16 +42571,12 @@ export function distanceMeters(a: LatLng, b: LatLng): number {
   return 2 * earth * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-/** Swift `RestaurantSearchService.formattedDistance`. */
-export function formattedDistance(meters: number): string {
-  const rounded = Math.round(meters / 10) * 10;
-  if (rounded >= 1000) {
-    const km = rounded / 1000;
-    const digits = rounded >= 1000 ? 1 : 0;
-    return `${km.toFixed(digits)} km`;
-  }
-  return `${rounded} m`;
-}
+/**
+ * Swift `RestaurantSearchService.formattedDistance` — now device-unit aware.
+ * Implementation lives in `@/services/units/distance` so pure-logic tests do
+ * not have to pull in the Google Places networking stack.
+ */
+export { formattedDistance } from '@/services/units/distance';
 
 type CacheEntry = {
   center: LatLng;
@@ -43103,12 +43142,13 @@ export {
   formatAddressLine,
 } from '@/services/places/addressFormatting';
 export { backfillMissingPrimaryTypes } from '@/services/places/PlaceTypeBackfillService';
+export { resolveDistanceUnit, type DistanceUnit } from '@/services/units/units';
+export { formattedDistance } from '@/services/units/distance';
 export {
   DEFAULT_SEARCH_RADIUS_M,
   RestaurantSearchError,
   distanceMeters,
   fetchPrimaryType,
-  formattedDistance,
   regionCodeForCountry,
   resultMatchesCountry,
   searchNearby,
@@ -45531,6 +45571,69 @@ export function resolveTitleFit(
     fontSize: Math.round(titleSize * TITLE_WRAP_FONT_SCALE),
     wrapsToTwoLines: true,
   };
+}
+
+
+================================================================================
+FILE: services/units/distance.ts
+================================================================================
+import { resolveDistanceUnit, type DistanceUnit } from '@/services/units/units';
+
+/**
+ * Swift `RestaurantSearchService.formattedDistance`, now device-unit aware.
+ *
+ * `unit` defaults to the system measurement system (metric / us / uk).
+ * US: feet below ~0.25 mi, miles above. UK: metres below 1 km (British
+ * convention), miles above. Metric: m below 1 km, km above.
+ */
+export function formattedDistance(
+  meters: number,
+  unit: DistanceUnit = resolveDistanceUnit(),
+): string {
+  const rounded = Math.round(meters / 10) * 10;
+  const miles = meters / 1609.344;
+
+  switch (unit) {
+    case 'us': {
+      if (rounded < 402.336) {
+        // < ~0.25 mi → whole feet (10 m = 32.8 ft, so round to the nearest 10).
+        const feet = Math.round((rounded / 0.3048) / 10) * 10;
+        return `${feet} ft`;
+      }
+      return `${miles.toFixed(miles >= 10 ? 0 : 1)} mi`;
+    }
+    case 'uk': {
+      if (rounded < 1000) return `${rounded} m`;
+      return `${miles.toFixed(miles >= 10 ? 0 : 1)} mi`;
+    }
+    case 'metric':
+    default: {
+      if (rounded >= 1000) {
+        const km = rounded / 1000;
+        const digits = km >= 100 ? 0 : 1;
+        return `${km.toFixed(digits)} km`;
+      }
+      return `${rounded} m`;
+    }
+  }
+}
+
+
+================================================================================
+FILE: services/units/units.ts
+================================================================================
+import { getLocales } from 'expo-localization';
+
+export type DistanceUnit = 'metric' | 'us' | 'uk';
+
+/**
+ * The device's measurement system (expo-localization SDK 57).
+ * iOS/Android already decide this from the user's region/format settings;
+ * default to metric when the field is absent.
+ */
+export function resolveDistanceUnit(): DistanceUnit {
+  const system = getLocales()[0]?.measurementSystem;
+  return system === 'us' || system === 'uk' ? system : 'metric';
 }
 
 

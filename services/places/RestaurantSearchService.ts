@@ -128,16 +128,12 @@ export function distanceMeters(a: LatLng, b: LatLng): number {
   return 2 * earth * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-/** Swift `RestaurantSearchService.formattedDistance`. */
-export function formattedDistance(meters: number): string {
-  const rounded = Math.round(meters / 10) * 10;
-  if (rounded >= 1000) {
-    const km = rounded / 1000;
-    const digits = rounded >= 1000 ? 1 : 0;
-    return `${km.toFixed(digits)} km`;
-  }
-  return `${rounded} m`;
-}
+/**
+ * Swift `RestaurantSearchService.formattedDistance` — now device-unit aware.
+ * Implementation lives in `@/services/units/distance` so pure-logic tests do
+ * not have to pull in the Google Places networking stack.
+ */
+export { formattedDistance } from '@/services/units/distance';
 
 type CacheEntry = {
   center: LatLng;

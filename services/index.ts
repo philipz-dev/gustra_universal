@@ -22,5 +22,7 @@ export {
   restaurantDraftFromResult,
   searchNearby,
   searchText,
+  resolveDistanceUnit,
+  type DistanceUnit,
 } from './places';
 

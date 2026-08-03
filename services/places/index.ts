@@ -3,12 +3,13 @@ export {
   formatAddressLine,
 } from '@/services/places/addressFormatting';
 export { backfillMissingPrimaryTypes } from '@/services/places/PlaceTypeBackfillService';
+export { resolveDistanceUnit, type DistanceUnit } from '@/services/units/units';
+export { formattedDistance } from '@/services/units/distance';
 export {
   DEFAULT_SEARCH_RADIUS_M,
   RestaurantSearchError,
   distanceMeters,
   fetchPrimaryType,
-  formattedDistance,
   regionCodeForCountry,
   resultMatchesCountry,
   searchNearby,
