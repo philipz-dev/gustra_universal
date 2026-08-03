@@ -591,8 +591,12 @@ export default function SettingsScreen() {
               onPress={() => {
                 Haptics.selectionChanged();
                 void (async () => {
+                  // Reset setup state; the CriteriaSetupGate detects the
+                  // incomplete setup and routes to /criteria-setup (which
+                  // starts with the tap-to-continue welcome, then the
+                  // 3-choice menu). No manual push here — avoids a duplicate
+                  // stack entry racing the gate's replace().
                   await reopenCriteriaSetupForDev();
-                  router.push('/criteria-setup');
                 })();
               }}
             />
