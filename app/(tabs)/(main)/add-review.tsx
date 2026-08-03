@@ -53,6 +53,7 @@ export default function AddReviewScreen() {
       <HouseNavHeader
         title={t('forms.addReview.title')}
         titleSize={Theme.navigation.secondaryTitleSize}
+        titlePaddingHorizontal={56}
         showBack
         onBack={() => router.back()}
       />

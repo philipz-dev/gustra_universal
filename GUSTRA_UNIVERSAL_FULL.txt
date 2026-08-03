@@ -1,6 +1,6 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-08-03T12:28:38Z
+Generated: 2026-08-03T13:14:10Z
 Root: /Users/philipzvar/Desktop/gustra_universal
 Files: 244
 ================================================================================
@@ -1309,6 +1309,7 @@ export default function AddReviewScreen() {
       <HouseNavHeader
         title={t('forms.addReview.title')}
         titleSize={Theme.navigation.secondaryTitleSize}
+        titlePaddingHorizontal={56}
         showBack
         onBack={() => router.back()}
       />
@@ -4678,11 +4679,15 @@ export default function ReviewFormScreen() {
       : Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
   const addressLine = draft ? draftAddressLine(draft) : null;
 
+  const bannerTitle = isEdit
+    ? t('forms.review.editTitle')
+    : t('forms.addReview.title');
+
   if (!ready || !draft) {
     return (
       <View style={styles.screen}>
         <HouseNavHeader
-          title={isEdit ? t('forms.review.editTitle') : t('forms.review.title')}
+          title={bannerTitle}
           titleSize={Theme.navigation.secondaryTitleSize}
           showBack
           onBack={() => router.back()}
@@ -4697,7 +4702,7 @@ export default function ReviewFormScreen() {
   return (
     <View style={styles.screen}>
       <HouseNavHeader
-        title={isEdit ? t('forms.review.editTitle') : t('forms.review.title')}
+        title={bannerTitle}
         titleSize={Theme.navigation.secondaryTitleSize}
         showBack
         onBack={() => void onBack()}
@@ -7606,7 +7611,7 @@ export default function EditCriteriaScreen() {
         showBack
         onBack={() => {
           if (isDirty) {
-            leaveToSettings();
+            promptDiscard(leaveToSettings);
             return;
           }
           allowLeaveRef.current = true;
@@ -23364,6 +23369,13 @@ const TITLE_PADDING_NO_BUTTON = 24;
 const TITLE_MIN_FONT_SCALE = 0.5;
 
 /**
+ * When a title can't fit on one line even at the minimum scale, wrap it over
+ * a second line at this slightly-smaller-than-full size instead of showing an
+ * ellipsis — banner text must never be truncated.
+ */
+const TITLE_WRAP_FONT_SCALE = 0.85;
+
+/**
  * Fixed-height forest-green nav bar (safe area + 44 + barExtraHeight).
  * Shared by tabs and stack so the banner never jumps; line box fits serif descenders.
  */
@@ -23381,14 +23393,21 @@ export function HouseNavHeader({
   const { width: windowWidth } = useWindowDimensions();
   // Serif descenders (y, g, j) need a taller line box than size+2.
   const lineHeight = Math.round(titleSize * 1.28);
+  const [titleLineCount, setTitleLineCount] = useState(1);
+  const [wrapToSecondLine, setWrapToSecondLine] = useState(false);
   // Reserve the requested line count (e.g. 2) so a wrapped title never spills
   // out of a single-line bar — even before onTextLayout fires (font swap /
   // fast nav). Never shrink below what the screen asked for.
-  const requestedLineCount =
-    numberOfLines && numberOfLines > 0 ? numberOfLines : 1;
-  const [titleLineCount, setTitleLineCount] = useState(requestedLineCount);
+  const requestedLineCount = Math.max(
+    wrapToSecondLine ? 2 : 1,
+    numberOfLines && numberOfLines > 0 ? numberOfLines : 1,
+  );
   const resolvedNumberOfLines =
-    numberOfLines && numberOfLines > 0 ? numberOfLines : undefined;
+    wrapToSecondLine
+      ? 2
+      : numberOfLines && numberOfLines > 0
+        ? numberOfLines
+        : undefined;
   const contentHeight = Math.max(
     HOUSE_NAV_CONTENT_HEIGHT,
     titleLineCount * lineHeight + 20,
@@ -23429,6 +23448,7 @@ export function HouseNavHeader({
   useLayoutEffect(() => {
     setTitleFontScale(1);
     setUnscaledTitleWidth(0);
+    setWrapToSecondLine(false);
   }, [title]);
 
   useLayoutEffect(() => {
@@ -23439,14 +23459,20 @@ export function HouseNavHeader({
       if (titleFontScale !== 1) setTitleFontScale(1);
       return; // already fits at full size
     }
-    // Scale down so the whole title fits; never grow, and never exceed the
-    // minimum scale (a title that can't fit even then gets the ellipsis).
-    const scale = Math.max(
-      safeAvailable / unscaledTitleWidth,
-      TITLE_MIN_FONT_SCALE,
-    );
-    if (scale !== titleFontScale) setTitleFontScale(scale);
-  }, [availableTitleWidth, titleFontScale, unscaledTitleWidth]);
+    // Scale down so the whole title fits; never grow. If the title can't fit
+    // on one line even at the minimum scale, wrap it over a second line at a
+    // slightly smaller size instead of truncating with an ellipsis.
+    const oneLineScale = safeAvailable / unscaledTitleWidth;
+    if (oneLineScale >= TITLE_MIN_FONT_SCALE) {
+      const scale = Math.max(oneLineScale, TITLE_MIN_FONT_SCALE);
+      if (scale !== titleFontScale) setTitleFontScale(scale);
+      if (wrapToSecondLine) setWrapToSecondLine(false);
+      return;
+    }
+    // Doesn't fit on one line even at minimum scale -> two-line word wrap.
+    setWrapToSecondLine(true);
+    setTitleFontScale(TITLE_WRAP_FONT_SCALE);
+  }, [availableTitleWidth, titleFontScale, unscaledTitleWidth, wrapToSecondLine]);
 
   const scaledTitleSize = Math.round(titleSize * titleFontScale);
   const scaledLineHeight = Math.round(scaledTitleSize * 1.28);
@@ -31490,6 +31516,15 @@ export function useReviewFormState() {
   const schedulePersistRef = useRef<() => void>(() => undefined);
   const persistChainRef = useRef(Promise.resolve());
   const editBaselineRef = useRef<EditBaseline | null>(null);
+  /** Prefilled state of a brand-new form (restaurant favorite etc.). */
+  const newFormBaselineRef = useRef<{
+    isFavorite: boolean;
+    generalComment: string;
+    photoUrls: string[];
+    wineLabels: WineLabelFiche[];
+    criteria: Record<string, { rating: number; comment: string }>;
+    visitDateIso: string;
+  } | null>(null);
   const isEditRef = useRef(isEdit);
   isEditRef.current = isEdit;
   const isEditDirtyRef = useRef(false);
@@ -31558,9 +31593,19 @@ export function useReviewFormState() {
       };
     } else {
       const match = findExistingRestaurant(initialDraft, restaurants);
-      setIsFavorite(Boolean(match?.isFavorite));
-      setVisitDate(new Date());
+      const prefilledFavorite = Boolean(match?.isFavorite);
+      const visitDateValue = new Date();
+      setIsFavorite(prefilledFavorite);
+      setVisitDate(visitDateValue);
       editBaselineRef.current = null;
+      newFormBaselineRef.current = {
+        isFavorite: prefilledFavorite,
+        generalComment: '',
+        photoUrls: [],
+        wineLabels: [],
+        criteria: {},
+        visitDateIso: visitDateValue.toISOString(),
+      };
     }
 
     requestAnimationFrame(() => {
@@ -31667,17 +31712,30 @@ export function useReviewFormState() {
 
   /**
    * True when the user actually entered something (rating, comment, photo,
-   * favorite, wine label). A brand-new form that only pre-filled the
-   * restaurant (the draft exists) is NOT "content" — backing out of it must
-   * not trigger the "save changes?" dialog.
+   * favorite, wine label) beyond what the form pre-filled. A brand-new form
+   * that only pre-filled the restaurant (name, address, favorite from the
+   * restaurant record) is NOT "content" — backing out of it must not trigger
+   * the "save changes?" dialog.
    */
   const hasEnteredContent = useCallback(() => {
-    if (isFavorite) return true;
-    if (generalComment.trim()) return true;
-    if (photoUrls.length > 0) return true;
-    if (wineLabels.length > 0) return true;
-    return criteriaList.some((c) => RatingValue.isStarRating(c.rating) || c.comment.trim().length > 0);
-  }, [criteriaList, generalComment, isFavorite, photoUrls.length, wineLabels.length]);
+    const baseline = newFormBaselineRef.current;
+    if (isFavorite !== baseline?.isFavorite) return true;
+    if (generalComment !== baseline?.generalComment) return true;
+    if (photoUrls.length !== (baseline?.photoUrls.length ?? 0)) return true;
+    if (wineLabels.length !== (baseline?.wineLabels.length ?? 0)) return true;
+    if (visitDate.toISOString() !== baseline?.visitDateIso) return true;
+    if (baseline) {
+      for (const [id, current] of Object.entries(criteriaState)) {
+        const base = baseline.criteria[id] ?? { rating: 0, comment: '' };
+        if (current.rating !== base.rating || current.comment !== base.comment) {
+          return true;
+        }
+      }
+    }
+    return criteriaList.some(
+      (c) => RatingValue.isStarRating(c.rating) || c.comment.trim().length > 0,
+    );
+  }, [criteriaList, criteriaState, generalComment, isFavorite, photoUrls.length, visitDate, wineLabels.length]);
 
   const hasPersistableContent = useCallback(() => {
     if (draft) return true;
@@ -32998,7 +33056,7 @@ FILE: i18n/locales/de.json
       "manual": "Manuelle Eingabe"
     },
     "nearby": {
-      "startReview": "Erinnerung starten",
+      "startReview": "Erinnerung hinzufügen",
       "loadFailed": "Restaurants in der Nähe konnten nicht geladen werden.",
       "noNearby": "Keine Restaurants in der Nähe gefunden.",
       "searchNearby": "In der Nähe suchen",
@@ -33014,7 +33072,7 @@ FILE: i18n/locales/de.json
     "mapSearch": {
       "title": "Auf der Karte suchen",
       "searchArea": "Diesen Bereich durchsuchen",
-      "startReview": "Erinnerung starten",
+      "startReview": "Erinnerung hinzufügen",
       "hint": "Verschiebe die Karte und tippe dann auf Diesen Bereich durchsuchen.",
       "emptyTitle": "Keine Restaurants gefunden",
       "searchAreaHint": "Im sichtbaren Kartenbereich nach Restaurants suchen"
@@ -33767,7 +33825,7 @@ FILE: i18n/locales/en.json
       "manual": "Manual entry"
     },
     "nearby": {
-      "startReview": "Start Memory",
+      "startReview": "Add Memory",
       "loadFailed": "Couldn't load nearby restaurants.",
       "noNearby": "No nearby restaurants found.",
       "searchNearby": "Search Nearby",
@@ -33783,7 +33841,7 @@ FILE: i18n/locales/en.json
     "mapSearch": {
       "title": "Search on map",
       "searchArea": "Search this area",
-      "startReview": "Start Memory",
+      "startReview": "Add Memory",
       "hint": "Move the map, then tap Search this area.",
       "emptyTitle": "No restaurants found",
       "searchAreaHint": "Search restaurants in the visible map area"
@@ -34536,7 +34594,7 @@ FILE: i18n/locales/es.json
       "manual": "Entrada manual"
     },
     "nearby": {
-      "startReview": "Empezar recuerdo",
+      "startReview": "Añadir recuerdo",
       "loadFailed": "No se pudieron cargar los restaurantes cercanos.",
       "noNearby": "No se encontraron restaurantes cercanos.",
       "searchNearby": "Buscar cerca",
@@ -34552,7 +34610,7 @@ FILE: i18n/locales/es.json
     "mapSearch": {
       "title": "Buscar en el mapa",
       "searchArea": "Buscar en esta zona",
-      "startReview": "Empezar recuerdo",
+      "startReview": "Añadir recuerdo",
       "hint": "Mueve el mapa y pulsa Buscar en esta zona.",
       "emptyTitle": "No se encontraron restaurantes",
       "searchAreaHint": "Buscar restaurantes en la zona visible del mapa"
@@ -35305,7 +35363,7 @@ FILE: i18n/locales/fr.json
       "manual": "Saisie manuelle"
     },
     "nearby": {
-      "startReview": "Commencer un souvenir",
+      "startReview": "Ajouter un souvenir",
       "loadFailed": "Impossible de charger les restaurants à proximité.",
       "noNearby": "Aucun restaurant à proximité.",
       "searchNearby": "Rechercher à proximité",
@@ -35321,7 +35379,7 @@ FILE: i18n/locales/fr.json
     "mapSearch": {
       "title": "Rechercher sur la carte",
       "searchArea": "Rechercher dans cette zone",
-      "startReview": "Commencer un souvenir",
+      "startReview": "Ajouter un souvenir",
       "hint": "Déplacez la carte, puis touchez Rechercher dans cette zone.",
       "emptyTitle": "Aucun restaurant trouvé",
       "searchAreaHint": "Rechercher des restaurants dans la zone visible"
@@ -36074,7 +36132,7 @@ FILE: i18n/locales/it.json
       "manual": "Inserimento manuale"
     },
     "nearby": {
-      "startReview": "Inizia ricordo",
+      "startReview": "Aggiungi ricordo",
       "loadFailed": "Impossibile caricare i ristoranti vicini.",
       "noNearby": "Nessun ristorante vicino trovato.",
       "searchNearby": "Cerca nelle vicinanze",
@@ -36090,7 +36148,7 @@ FILE: i18n/locales/it.json
     "mapSearch": {
       "title": "Cerca sulla mappa",
       "searchArea": "Cerca in quest’area",
-      "startReview": "Inizia ricordo",
+      "startReview": "Aggiungi ricordo",
       "hint": "Sposta la mappa, poi tocca Cerca in quest’area.",
       "emptyTitle": "Nessun ristorante trovato",
       "searchAreaHint": "Cerca ristoranti nell’area visibile della mappa"
@@ -36843,7 +36901,7 @@ FILE: i18n/locales/nl.json
       "manual": "Handmatig invoeren"
     },
     "nearby": {
-      "startReview": "Herinnering starten",
+      "startReview": "Herinnering toevoegen",
       "loadFailed": "Kon restaurants in de buurt niet laden.",
       "noNearby": "Geen restaurants in de buurt gevonden.",
       "searchNearby": "Zoek in de buurt",
@@ -36859,7 +36917,7 @@ FILE: i18n/locales/nl.json
     "mapSearch": {
       "title": "Zoeken op kaart",
       "searchArea": "Zoek in dit gebied",
-      "startReview": "Herinnering starten",
+      "startReview": "Herinnering toevoegen",
       "hint": "Verplaats de kaart en tik op Zoek in dit gebied.",
       "emptyTitle": "Geen restaurants gevonden",
       "searchAreaHint": "Zoek restaurants in het zichtbare kaartgebied"

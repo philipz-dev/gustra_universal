@@ -308,7 +308,7 @@
       "manual": "Manual entry"
     },
     "nearby": {
-      "startReview": "Start Memory",
+      "startReview": "Add Memory",
       "loadFailed": "Couldn't load nearby restaurants.",
       "noNearby": "No nearby restaurants found.",
       "searchNearby": "Search Nearby",
@@ -324,7 +324,7 @@
     "mapSearch": {
       "title": "Search on map",
       "searchArea": "Search this area",
-      "startReview": "Start Memory",
+      "startReview": "Add Memory",
       "hint": "Move the map, then tap Search this area.",
       "emptyTitle": "No restaurants found",
       "searchAreaHint": "Search restaurants in the visible map area"

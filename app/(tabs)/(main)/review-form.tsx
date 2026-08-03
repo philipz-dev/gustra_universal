@@ -165,11 +165,15 @@ export default function ReviewFormScreen() {
       : Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
   const addressLine = draft ? draftAddressLine(draft) : null;
 
+  const bannerTitle = isEdit
+    ? t('forms.review.editTitle')
+    : t('forms.addReview.title');
+
   if (!ready || !draft) {
     return (
       <View style={styles.screen}>
         <HouseNavHeader
-          title={isEdit ? t('forms.review.editTitle') : t('forms.review.title')}
+          title={bannerTitle}
           titleSize={Theme.navigation.secondaryTitleSize}
           showBack
           onBack={() => router.back()}
@@ -184,7 +188,7 @@ export default function ReviewFormScreen() {
   return (
     <View style={styles.screen}>
       <HouseNavHeader
-        title={isEdit ? t('forms.review.editTitle') : t('forms.review.title')}
+        title={bannerTitle}
         titleSize={Theme.navigation.secondaryTitleSize}
         showBack
         onBack={() => void onBack()}

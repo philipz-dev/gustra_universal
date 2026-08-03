@@ -308,7 +308,7 @@
       "manual": "Manuelle Eingabe"
     },
     "nearby": {
-      "startReview": "Erinnerung starten",
+      "startReview": "Erinnerung hinzufügen",
       "loadFailed": "Restaurants in der Nähe konnten nicht geladen werden.",
       "noNearby": "Keine Restaurants in der Nähe gefunden.",
       "searchNearby": "In der Nähe suchen",
@@ -324,7 +324,7 @@
     "mapSearch": {
       "title": "Auf der Karte suchen",
       "searchArea": "Diesen Bereich durchsuchen",
-      "startReview": "Erinnerung starten",
+      "startReview": "Erinnerung hinzufügen",
       "hint": "Verschiebe die Karte und tippe dann auf Diesen Bereich durchsuchen.",
       "emptyTitle": "Keine Restaurants gefunden",
       "searchAreaHint": "Im sichtbaren Kartenbereich nach Restaurants suchen"

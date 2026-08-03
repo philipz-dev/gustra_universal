@@ -157,7 +157,7 @@ export default function EditCriteriaScreen() {
         showBack
         onBack={() => {
           if (isDirty) {
-            leaveToSettings();
+            promptDiscard(leaveToSettings);
             return;
           }
           allowLeaveRef.current = true;

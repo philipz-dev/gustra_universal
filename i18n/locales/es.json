@@ -308,7 +308,7 @@
       "manual": "Entrada manual"
     },
     "nearby": {
-      "startReview": "Empezar recuerdo",
+      "startReview": "Añadir recuerdo",
       "loadFailed": "No se pudieron cargar los restaurantes cercanos.",
       "noNearby": "No se encontraron restaurantes cercanos.",
       "searchNearby": "Buscar cerca",
@@ -324,7 +324,7 @@
     "mapSearch": {
       "title": "Buscar en el mapa",
       "searchArea": "Buscar en esta zona",
-      "startReview": "Empezar recuerdo",
+      "startReview": "Añadir recuerdo",
       "hint": "Mueve el mapa y pulsa Buscar en esta zona.",
       "emptyTitle": "No se encontraron restaurantes",
       "searchAreaHint": "Buscar restaurantes en la zona visible del mapa"

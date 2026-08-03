@@ -308,7 +308,7 @@
       "manual": "Handmatig invoeren"
     },
     "nearby": {
-      "startReview": "Herinnering starten",
+      "startReview": "Herinnering toevoegen",
       "loadFailed": "Kon restaurants in de buurt niet laden.",
       "noNearby": "Geen restaurants in de buurt gevonden.",
       "searchNearby": "Zoek in de buurt",
@@ -324,7 +324,7 @@
     "mapSearch": {
       "title": "Zoeken op kaart",
       "searchArea": "Zoek in dit gebied",
-      "startReview": "Herinnering starten",
+      "startReview": "Herinnering toevoegen",
       "hint": "Verplaats de kaart en tik op Zoek in dit gebied.",
       "emptyTitle": "Geen restaurants gevonden",
       "searchAreaHint": "Zoek restaurants in het zichtbare kaartgebied"

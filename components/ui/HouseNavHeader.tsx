@@ -43,6 +43,13 @@ const TITLE_PADDING_NO_BUTTON = 24;
 const TITLE_MIN_FONT_SCALE = 0.5;
 
 /**
+ * When a title can't fit on one line even at the minimum scale, wrap it over
+ * a second line at this slightly-smaller-than-full size instead of showing an
+ * ellipsis — banner text must never be truncated.
+ */
+const TITLE_WRAP_FONT_SCALE = 0.85;
+
+/**
  * Fixed-height forest-green nav bar (safe area + 44 + barExtraHeight).
  * Shared by tabs and stack so the banner never jumps; line box fits serif descenders.
  */
@@ -60,14 +67,21 @@ export function HouseNavHeader({
   const { width: windowWidth } = useWindowDimensions();
   // Serif descenders (y, g, j) need a taller line box than size+2.
   const lineHeight = Math.round(titleSize * 1.28);
+  const [titleLineCount, setTitleLineCount] = useState(1);
+  const [wrapToSecondLine, setWrapToSecondLine] = useState(false);
   // Reserve the requested line count (e.g. 2) so a wrapped title never spills
   // out of a single-line bar — even before onTextLayout fires (font swap /
   // fast nav). Never shrink below what the screen asked for.
-  const requestedLineCount =
-    numberOfLines && numberOfLines > 0 ? numberOfLines : 1;
-  const [titleLineCount, setTitleLineCount] = useState(requestedLineCount);
+  const requestedLineCount = Math.max(
+    wrapToSecondLine ? 2 : 1,
+    numberOfLines && numberOfLines > 0 ? numberOfLines : 1,
+  );
   const resolvedNumberOfLines =
-    numberOfLines && numberOfLines > 0 ? numberOfLines : undefined;
+    wrapToSecondLine
+      ? 2
+      : numberOfLines && numberOfLines > 0
+        ? numberOfLines
+        : undefined;
   const contentHeight = Math.max(
     HOUSE_NAV_CONTENT_HEIGHT,
     titleLineCount * lineHeight + 20,
@@ -108,6 +122,7 @@ export function HouseNavHeader({
   useLayoutEffect(() => {
     setTitleFontScale(1);
     setUnscaledTitleWidth(0);
+    setWrapToSecondLine(false);
   }, [title]);
 
   useLayoutEffect(() => {
@@ -118,14 +133,20 @@ export function HouseNavHeader({
       if (titleFontScale !== 1) setTitleFontScale(1);
       return; // already fits at full size
     }
-    // Scale down so the whole title fits; never grow, and never exceed the
-    // minimum scale (a title that can't fit even then gets the ellipsis).
-    const scale = Math.max(
-      safeAvailable / unscaledTitleWidth,
-      TITLE_MIN_FONT_SCALE,
-    );
-    if (scale !== titleFontScale) setTitleFontScale(scale);
-  }, [availableTitleWidth, titleFontScale, unscaledTitleWidth]);
+    // Scale down so the whole title fits; never grow. If the title can't fit
+    // on one line even at the minimum scale, wrap it over a second line at a
+    // slightly smaller size instead of truncating with an ellipsis.
+    const oneLineScale = safeAvailable / unscaledTitleWidth;
+    if (oneLineScale >= TITLE_MIN_FONT_SCALE) {
+      const scale = Math.max(oneLineScale, TITLE_MIN_FONT_SCALE);
+      if (scale !== titleFontScale) setTitleFontScale(scale);
+      if (wrapToSecondLine) setWrapToSecondLine(false);
+      return;
+    }
+    // Doesn't fit on one line even at minimum scale -> two-line word wrap.
+    setWrapToSecondLine(true);
+    setTitleFontScale(TITLE_WRAP_FONT_SCALE);
+  }, [availableTitleWidth, titleFontScale, unscaledTitleWidth, wrapToSecondLine]);
 
   const scaledTitleSize = Math.round(titleSize * titleFontScale);
   const scaledLineHeight = Math.round(scaledTitleSize * 1.28);

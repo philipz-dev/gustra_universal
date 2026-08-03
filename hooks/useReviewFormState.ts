@@ -142,6 +142,15 @@ export function useReviewFormState() {
   const schedulePersistRef = useRef<() => void>(() => undefined);
   const persistChainRef = useRef(Promise.resolve());
   const editBaselineRef = useRef<EditBaseline | null>(null);
+  /** Prefilled state of a brand-new form (restaurant favorite etc.). */
+  const newFormBaselineRef = useRef<{
+    isFavorite: boolean;
+    generalComment: string;
+    photoUrls: string[];
+    wineLabels: WineLabelFiche[];
+    criteria: Record<string, { rating: number; comment: string }>;
+    visitDateIso: string;
+  } | null>(null);
   const isEditRef = useRef(isEdit);
   isEditRef.current = isEdit;
   const isEditDirtyRef = useRef(false);
@@ -210,9 +219,19 @@ export function useReviewFormState() {
       };
     } else {
       const match = findExistingRestaurant(initialDraft, restaurants);
-      setIsFavorite(Boolean(match?.isFavorite));
-      setVisitDate(new Date());
+      const prefilledFavorite = Boolean(match?.isFavorite);
+      const visitDateValue = new Date();
+      setIsFavorite(prefilledFavorite);
+      setVisitDate(visitDateValue);
       editBaselineRef.current = null;
+      newFormBaselineRef.current = {
+        isFavorite: prefilledFavorite,
+        generalComment: '',
+        photoUrls: [],
+        wineLabels: [],
+        criteria: {},
+        visitDateIso: visitDateValue.toISOString(),
+      };
     }
 
     requestAnimationFrame(() => {
@@ -319,17 +338,30 @@ export function useReviewFormState() {
 
   /**
    * True when the user actually entered something (rating, comment, photo,
-   * favorite, wine label). A brand-new form that only pre-filled the
-   * restaurant (the draft exists) is NOT "content" — backing out of it must
-   * not trigger the "save changes?" dialog.
+   * favorite, wine label) beyond what the form pre-filled. A brand-new form
+   * that only pre-filled the restaurant (name, address, favorite from the
+   * restaurant record) is NOT "content" — backing out of it must not trigger
+   * the "save changes?" dialog.
    */
   const hasEnteredContent = useCallback(() => {
-    if (isFavorite) return true;
-    if (generalComment.trim()) return true;
-    if (photoUrls.length > 0) return true;
-    if (wineLabels.length > 0) return true;
-    return criteriaList.some((c) => RatingValue.isStarRating(c.rating) || c.comment.trim().length > 0);
-  }, [criteriaList, generalComment, isFavorite, photoUrls.length, wineLabels.length]);
+    const baseline = newFormBaselineRef.current;
+    if (isFavorite !== baseline?.isFavorite) return true;
+    if (generalComment !== baseline?.generalComment) return true;
+    if (photoUrls.length !== (baseline?.photoUrls.length ?? 0)) return true;
+    if (wineLabels.length !== (baseline?.wineLabels.length ?? 0)) return true;
+    if (visitDate.toISOString() !== baseline?.visitDateIso) return true;
+    if (baseline) {
+      for (const [id, current] of Object.entries(criteriaState)) {
+        const base = baseline.criteria[id] ?? { rating: 0, comment: '' };
+        if (current.rating !== base.rating || current.comment !== base.comment) {
+          return true;
+        }
+      }
+    }
+    return criteriaList.some(
+      (c) => RatingValue.isStarRating(c.rating) || c.comment.trim().length > 0,
+    );
+  }, [criteriaList, criteriaState, generalComment, isFavorite, photoUrls.length, visitDate, wineLabels.length]);
 
   const hasPersistableContent = useCallback(() => {
     if (draft) return true;
