@@ -307,6 +307,9 @@
       "mapSearch": "Zoeken op kaart",
       "manual": "Handmatig invoeren"
     },
+    "addVisit": {
+      "title": "Bezoek toevoegen"
+    },
     "nearby": {
       "startReview": "Herinnering toevoegen",
       "loadFailed": "Kon restaurants in de buurt niet laden.",

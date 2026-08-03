@@ -307,6 +307,9 @@
       "mapSearch": "Rechercher sur la carte",
       "manual": "Saisie manuelle"
     },
+    "addVisit": {
+      "title": "Ajouter une visite"
+    },
     "nearby": {
       "startReview": "Ajouter un souvenir",
       "loadFailed": "Impossible de charger les restaurants à proximité.",

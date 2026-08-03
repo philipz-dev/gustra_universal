@@ -167,7 +167,9 @@ export default function ReviewFormScreen() {
 
   const bannerTitle = isEdit
     ? t('forms.review.editTitle')
-    : t('forms.addReview.title');
+    : revisitCount > 0
+      ? t('forms.addVisit.title')
+      : t('forms.addReview.title');
 
   if (!ready || !draft) {
     return (

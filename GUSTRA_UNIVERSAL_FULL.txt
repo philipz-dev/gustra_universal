@@ -1,6 +1,6 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-08-03T13:50:54Z
+Generated: 2026-08-03T13:58:26Z
 Root: /Users/philipzvar/Desktop/gustra_universal
 Files: 246
 ================================================================================
@@ -4739,7 +4739,9 @@ export default function ReviewFormScreen() {
 
   const bannerTitle = isEdit
     ? t('forms.review.editTitle')
-    : t('forms.addReview.title');
+    : revisitCount > 0
+      ? t('forms.addVisit.title')
+      : t('forms.addReview.title');
 
   if (!ready || !draft) {
     return (
@@ -33097,6 +33099,9 @@ FILE: i18n/locales/de.json
       "mapSearch": "Auf der Karte suchen",
       "manual": "Manuelle Eingabe"
     },
+    "addVisit": {
+      "title": "Besuch hinzufügen"
+    },
     "nearby": {
       "startReview": "Erinnerung hinzufügen",
       "loadFailed": "Restaurants in der Nähe konnten nicht geladen werden.",
@@ -33865,6 +33870,9 @@ FILE: i18n/locales/en.json
       "nearby": "Show nearby restaurants",
       "mapSearch": "Search on map",
       "manual": "Manual entry"
+    },
+    "addVisit": {
+      "title": "Add visit"
     },
     "nearby": {
       "startReview": "Add Memory",
@@ -34635,6 +34643,9 @@ FILE: i18n/locales/es.json
       "mapSearch": "Buscar en el mapa",
       "manual": "Entrada manual"
     },
+    "addVisit": {
+      "title": "Añadir visita"
+    },
     "nearby": {
       "startReview": "Añadir recuerdo",
       "loadFailed": "No se pudieron cargar los restaurantes cercanos.",
@@ -35403,6 +35414,9 @@ FILE: i18n/locales/fr.json
       "nearby": "Afficher les restaurants à proximité",
       "mapSearch": "Rechercher sur la carte",
       "manual": "Saisie manuelle"
+    },
+    "addVisit": {
+      "title": "Ajouter une visite"
     },
     "nearby": {
       "startReview": "Ajouter un souvenir",
@@ -36173,6 +36187,9 @@ FILE: i18n/locales/it.json
       "mapSearch": "Cerca sulla mappa",
       "manual": "Inserimento manuale"
     },
+    "addVisit": {
+      "title": "Aggiungi visita"
+    },
     "nearby": {
       "startReview": "Aggiungi ricordo",
       "loadFailed": "Impossibile caricare i ristoranti vicini.",
@@ -36941,6 +36958,9 @@ FILE: i18n/locales/nl.json
       "nearby": "Toon restaurants in de buurt",
       "mapSearch": "Zoeken op kaart",
       "manual": "Handmatig invoeren"
+    },
+    "addVisit": {
+      "title": "Bezoek toevoegen"
     },
     "nearby": {
       "startReview": "Herinnering toevoegen",

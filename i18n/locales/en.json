@@ -307,6 +307,9 @@
       "mapSearch": "Search on map",
       "manual": "Manual entry"
     },
+    "addVisit": {
+      "title": "Add visit"
+    },
     "nearby": {
       "startReview": "Add Memory",
       "loadFailed": "Couldn't load nearby restaurants.",
