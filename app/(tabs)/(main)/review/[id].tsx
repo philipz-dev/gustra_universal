@@ -30,7 +30,6 @@ import { FractionalStarRating } from '@/components/ui/StarRating';
 import { GustraColors } from '@/constants/Colors';
 import { ReviewDetailPresentation } from '@/constants/ReviewDetailPresentation';
 import { SERIF_FONT, Theme } from '@/constants/Theme';
-import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useReviewerProfile } from '@/context/ReviewerProfile';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import { formatReviewDate, isDemoReviewId } from '@/data/mockReviews';
@@ -85,8 +84,6 @@ export default function ReviewDetailScreen() {
     ? getReviewsForRestaurant(restaurant.id, 'own').length
     : 0;
 
-  const { enabledCriteria } = useCriteriaSettings();
-  const enabledIds = new Set(enabledCriteria.map((c) => c.id));
   const [photoIndex, setPhotoIndex] = useState(0);
   const [showPhotoViewer, setShowPhotoViewer] = useState(false);
   const [showReviewerPhoto, setShowReviewerPhoto] = useState(false);
@@ -339,8 +336,11 @@ export default function ReviewDetailScreen() {
 
           {(() => {
             const scoredCriteria = review.criteria.filter((c) => {
-              if (!enabledIds.has(c.id)) return false;
+              // Show everything that was actually filled in — a criterion with
+              // a score or a comment stays visible even when it is currently
+              // disabled in Settings (reviews must never hide their data).
               if (c.rating >= 1 && c.rating <= 10) return true;
+              if ((c.comment ?? '').trim().length > 0) return true;
               return c.id === 'drinks' && reviewWines.length > 0;
             });
             return scoredCriteria.map((criterion) => (
