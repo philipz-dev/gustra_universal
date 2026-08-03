@@ -190,6 +190,7 @@ export default function ReviewFormScreen() {
       <HouseNavHeader
         title={bannerTitle}
         titleSize={Theme.navigation.secondaryTitleSize}
+        titlePaddingHorizontal={56}
         showBack
         onBack={() => void onBack()}
         right={

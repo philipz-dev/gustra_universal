@@ -10,6 +10,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { GustraColors } from '@/constants/Colors';
 import { SERIF_FONT, systemSerifFamily, Theme } from '@/constants/Theme';
+import {
+  TITLE_WRAP_FONT_SCALE,
+  resolveTitleFit,
+} from '@/services/ui/titleFit';
 
 export const HOUSE_NAV_CONTENT_HEIGHT = 44 + Theme.navigation.barExtraHeight;
 
@@ -34,20 +38,6 @@ type HouseNavHeaderProps = {
 
 /** Side inset when no toolbar button occupies that edge. */
 const TITLE_PADDING_NO_BUTTON = 24;
-
-/**
- * Never shrink below 50% of the requested size. Lower than the old 60% so
- * longer titles in selection mode ("Selecteer recensies" with two toolbar
- * buttons) still fit on one line even on narrow screens instead of "…".
- */
-const TITLE_MIN_FONT_SCALE = 0.5;
-
-/**
- * When a title can't fit on one line even at the minimum scale, wrap it over
- * a second line at this slightly-smaller-than-full size instead of showing an
- * ellipsis — banner text must never be truncated.
- */
-const TITLE_WRAP_FONT_SCALE = 0.85;
 
 /**
  * Fixed-height forest-green nav bar (safe area + 44 + barExtraHeight).
@@ -127,26 +117,19 @@ export function HouseNavHeader({
 
   useLayoutEffect(() => {
     if (unscaledTitleWidth <= 0 || availableTitleWidth <= 0) return;
-    // Small safety margin so rounding never leaves the text touching the edge.
-    const safeAvailable = availableTitleWidth - 2;
-    if (unscaledTitleWidth <= safeAvailable) {
-      if (titleFontScale !== 1) setTitleFontScale(1);
-      return; // already fits at full size
+    const fit = resolveTitleFit(
+      unscaledTitleWidth,
+      titleSize,
+      availableTitleWidth,
+    );
+    const scale = fit.fontSize / titleSize;
+    if (fit.wrapsToTwoLines) {
+      setWrapToSecondLine(true);
+    } else if (wrapToSecondLine) {
+      setWrapToSecondLine(false);
     }
-    // Scale down so the whole title fits; never grow. If the title can't fit
-    // on one line even at the minimum scale, wrap it over a second line at a
-    // slightly smaller size instead of truncating with an ellipsis.
-    const oneLineScale = safeAvailable / unscaledTitleWidth;
-    if (oneLineScale >= TITLE_MIN_FONT_SCALE) {
-      const scale = Math.max(oneLineScale, TITLE_MIN_FONT_SCALE);
-      if (scale !== titleFontScale) setTitleFontScale(scale);
-      if (wrapToSecondLine) setWrapToSecondLine(false);
-      return;
-    }
-    // Doesn't fit on one line even at minimum scale -> two-line word wrap.
-    setWrapToSecondLine(true);
-    setTitleFontScale(TITLE_WRAP_FONT_SCALE);
-  }, [availableTitleWidth, titleFontScale, unscaledTitleWidth, wrapToSecondLine]);
+    if (scale !== titleFontScale) setTitleFontScale(scale);
+  }, [availableTitleWidth, titleFontScale, unscaledTitleWidth, wrapToSecondLine, titleSize]);
 
   const scaledTitleSize = Math.round(titleSize * titleFontScale);
   const scaledLineHeight = Math.round(scaledTitleSize * 1.28);
