@@ -5,6 +5,7 @@ import {
   overallScoreFromCriteria,
   migrateLegacyCriterionRating,
   migrateLegacyCriteria,
+  mapCriteriaToFixed,
   hasStarRating,
 } from '@/services/reviews/ratings';
 import type { CriterionRating } from '@/data/types';
@@ -133,5 +134,53 @@ describe('hasStarRating', () => {
     expect(hasStarRating([{ id: 'food', title: 'Eten', rating: 4, comment: '' }])).toBe(true);
     expect(hasStarRating([{ id: 'food', title: 'Eten', rating: 0, comment: '' }])).toBe(false);
     expect(hasStarRating([])).toBe(false);
+  });
+});
+
+describe('mapCriteriaToFixed', () => {
+  it('maps legacy `wines` into `drinks` (wijn onder dranken)', () => {
+    const mapped = mapCriteriaToFixed([
+      { id: 'drinks', title: 'Drinks', rating: 8, comment: '' },
+      { id: 'wines', title: 'Wines', rating: 9, comment: 'Clos des Lucioles' },
+    ]);
+    expect(mapped).toHaveLength(1);
+    expect(mapped[0]!.id).toBe('drinks');
+    // Higher of the two ratings wins; comments are joined.
+    expect(mapped[0]!.rating).toBe(9);
+    expect(mapped[0]!.comment).toContain('Clos des Lucioles');
+  });
+
+  it('keeps the 20 fixed ids untouched', () => {
+    const mapped = mapCriteriaToFixed([
+      { id: 'food', title: 'Food', rating: 8, comment: '' },
+      { id: 'quality', title: 'Quality', rating: 6, comment: '' },
+    ]);
+    expect(mapped.map((c) => c.id)).toEqual(['food', 'quality']);
+  });
+
+  it('maps old custom ids onto the 20 via name/id heuristics', () => {
+    const mapped = mapCriteriaToFixed([
+      { id: 'c_x', title: 'Smaak', rating: 8, comment: '' },
+      { id: 'c_y', title: 'Kindvriendelijk', rating: 7, comment: '' },
+    ]);
+    expect(mapped[0]!.id).toBe('quality');
+    expect(mapped[1]!.id).toBe('familyFriendly');
+  });
+
+  it('folds unknown customs into the accessibility catch-all', () => {
+    const mapped = mapCriteriaToFixed([
+      { id: 'c_zz', title: 'Mystery Thing', rating: 5, comment: '' },
+    ]);
+    expect(mapped[0]!.id).toBe('accessibility');
+    expect(mapped[0]!.rating).toBe(5);
+  });
+
+  it('is idempotent', () => {
+    const once = mapCriteriaToFixed([
+      { id: 'wines', title: 'Wines', rating: 9, comment: '' },
+      { id: 'drinks', title: 'Drinks', rating: 8, comment: '' },
+    ]);
+    const twice = mapCriteriaToFixed(once);
+    expect(once).toEqual(twice);
   });
 });

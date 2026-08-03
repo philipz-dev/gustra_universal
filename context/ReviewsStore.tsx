@@ -57,6 +57,7 @@ import { isReviewDraft } from '@/services/reviews/draftReview';
 import { planImportedReviewCollapse } from '@/services/share/ShareImportService';
 import {
   RatingValue,
+  mapCriteriaToFixed,
   migrateLegacyCriteria,
   overallScoreFromCriteria,
 } from '@/services/reviews/ratings';
@@ -227,14 +228,14 @@ function formatAbbreviated(iso: string): string {
 function normalizeReview(review: Review, migrateLegacy = false): Review {
   const criteria = migrateLegacy
     ? migrateLegacyCriteria(review.criteria ?? [])
-    : (review.criteria ?? []).map((c) => ({
+    : mapCriteriaToFixed((review.criteria ?? []).map((c) => ({
         ...c,
         rating: RatingValue.isNotApplicable(c.rating)
           ? RatingValue.notApplicable
           : RatingValue.isStarRating(c.rating)
             ? Math.round(c.rating)
             : RatingValue.unrated,
-      }));
+      })));
   const overallScore =
     overallScoreFromCriteria(criteria) || review.overallScore || 0;
   const ocrText = (review.ocrText ?? '').trim();
@@ -1035,10 +1036,12 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       const nextWines = wines.filter((_, i) => i !== wineIndex);
       const wineFields = syncWineLabelFields(nextWines);
       const avg = averageWineUserRating(nextWines);
-      const criteria = target.criteria.map((c) => {
-        if (c.id !== 'wines' || avg == null) return c;
+      // Wines fold into `drinks` (legacy `wines` id is migrated away at load).
+      const criteria = mapCriteriaToFixed(target.criteria.map((c) => {
+        if (c.id !== 'drinks' && c.id !== 'wines') return c;
+        if (avg == null) return c;
         return { ...c, rating: avg };
-      });
+      }));
       const overallScore = overallScoreFromCriteria(criteria);
       const restaurant = restaurantsRef.current.find(
         (r) => r.id === target.restaurantId,

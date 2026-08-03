@@ -28,6 +28,9 @@ import {
 } from '@/services/backup/types';
 import { rebuildSearchableText } from '@/services/reviews/searchableText';
 import {
+  mapCriteriaToFixed,
+} from '@/services/reviews/ratings';
+import {
   syncWineLabelFields,
   wineLabelsForReview,
 } from '@/services/wine/wineLabelTypes';
@@ -374,7 +377,10 @@ export function backupReviewToApp(
     }
   }
 
-  const rated = criteria
+  // Fold legacy ids (`wines`, old custom ids) onto the 20 fixed criteria.
+  const fixedCriteria = mapCriteriaToFixed(criteria);
+
+  const rated = fixedCriteria
     .map((c) => c.rating)
     .filter((r) => r >= 1 && r <= 10)
     .map((r) => r / 2);
@@ -418,7 +424,7 @@ export function backupReviewToApp(
     searchableFromBackup ||
     rebuildSearchableText({
       generalComment,
-      criteria,
+      criteria: fixedCriteria,
       ocrText,
     });
 
@@ -459,7 +465,7 @@ export function backupReviewToApp(
     restaurantId: item.restaurantID ?? previous?.restaurantId ?? '',
     date: fromAppleRefDate(item.date),
     generalComment,
-    criteria,
+    criteria: fixedCriteria,
     photoUrls: galleryPhotoUrls,
     reviewedBy: item.reviewedBy ?? previous?.reviewedBy ?? '',
     reviewedById:

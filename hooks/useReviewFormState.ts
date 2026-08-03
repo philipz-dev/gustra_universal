@@ -175,14 +175,14 @@ export function useReviewFormState() {
       }
       const wineAvg = averageWineUserRating(winesCopy);
       if (wineAvg != null) {
-        if (!map.wines) {
-          const drinks = map.drinks;
-          if (drinks && drinks.rating === wineAvg) {
-            map.wines = { rating: wineAvg, comment: '' };
-            map.drinks = { rating: RatingValue.unrated, comment: drinks.comment };
-          } else {
-            map.wines = { rating: wineAvg, comment: '' };
-          }
+        // Wines fold into `drinks`: the average bottle rating becomes the
+        // drinks rating unless the user gave an explicit drinks rating.
+        const drinks = map.drinks;
+        if (!drinks || !RatingValue.isStarRating(drinks.rating)) {
+          map.drinks = {
+            rating: wineAvg,
+            comment: drinks?.comment ?? '',
+          };
         }
       }
       const restaurant = getRestaurant(existingReview.restaurantId);
@@ -717,7 +717,7 @@ export function useReviewFormState() {
       schedulePersist();
     };
 
-    if (id === 'wines' && !RatingValue.isStarRating(rating) && wineLabelsRef.current.length > 0) {
+    if (id === 'drinks' && !RatingValue.isStarRating(rating) && wineLabelsRef.current.length > 0) {
       houseAlert(t('wineScan.clearWinesWithRatingsTitle'), t('wineScan.clearWinesWithRatingsBody'), [
         { text: t('common.cancel'), style: 'cancel' },
         {
@@ -749,13 +749,13 @@ export function useReviewFormState() {
   const syncWinesRatingFromWines = useCallback((wines: WineLabelFiche[]) => {
     const avg = averageWineUserRating(wines);
     setCriteriaState((prev) => {
-      const current = prev.wines ?? { rating: RatingValue.unrated, comment: '' };
+      const current = prev.drinks ?? { rating: RatingValue.unrated, comment: '' };
       if (avg == null) {
         if (!RatingValue.isStarRating(current.rating)) return prev;
-        return { ...prev, wines: { ...current, rating: RatingValue.unrated } };
+        return { ...prev, drinks: { ...current, rating: RatingValue.unrated } };
       }
       if (current.rating === avg) return prev;
-      return { ...prev, wines: { rating: avg, comment: current.comment } };
+      return { ...prev, drinks: { rating: avg, comment: current.comment } };
     });
   }, []);
 
@@ -816,7 +816,7 @@ export function useReviewFormState() {
           photoUrls: photoUrlsRef.current,
           ...syncWineLabelFields(nextWines),
           criteria: input.criteria.map((c) =>
-            c.id === 'wines' && avg != null ? { ...c, rating: avg } : c,
+            c.id === 'drinks' && avg != null ? { ...c, rating: avg } : c,
           ),
         }).then(
           (result) => goToReview(result?.reviewId),

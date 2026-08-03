@@ -18,7 +18,7 @@ import {
   type ShareReviewBackup,
 } from '@/services/share/ReviewShareService';
 import { SHARE_FILE_EXTENSION } from '@/services/share/types';
-import { overallScoreFromCriteria } from '@/services/reviews/ratings';
+import { overallScoreFromCriteria, mapCriteriaToFixed } from '@/services/reviews/ratings';
 import { rebuildSearchableText } from '@/services/reviews/searchableText';
 
 /** Matches Swift `ReviewerProfile.maxNameLength`. */
@@ -114,7 +114,7 @@ function criteriaFromShareReview(item: ShareReviewBackup): Review['criteria'] {
       // ignore malformed custom scores
     }
   }
-  return criteria;
+  return mapCriteriaToFixed(criteria);
 }
 
 /** Swift `ReviewBackup.overallScore(using:)`. */

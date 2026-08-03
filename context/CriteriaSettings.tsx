@@ -12,19 +12,41 @@ import { useTranslation } from 'react-i18next';
 
 import { i18n } from '@/i18n';
 
-/** Matches Swift `RatingCategory.standardCases` + Expo `wines`. English = storage fallbacks. */
+/**
+ * The fixed 20 criteria (Gustra 2.0). Every review criterion maps onto one of
+ * these; there are no user-created custom criteria anymore. English titles are
+ * the storage fallbacks (backup/share round-trip).
+ *
+ * The first five keep their original ids so the Swift backup columns
+ * (`FIXED_BACKUP_CRITERION_IDS`) and all historical reviews stay readable.
+ * The legacy `wines` id is folded into `drinks` at load (see ratings.ts).
+ */
 export const STANDARD_CRITERIA = [
   { id: 'food', title: 'Food' },
   { id: 'drinks', title: 'Drinks' },
-  { id: 'wines', title: 'Wines' },
   { id: 'service', title: 'Service' },
   { id: 'setting', title: 'Atmosphere' },
   { id: 'valueForMoney', title: 'Value for Money' },
+  { id: 'quality', title: 'Quality' },
+  { id: 'freshness', title: 'Freshness' },
+  { id: 'variety', title: 'Variety' },
+  { id: 'portions', title: 'Portions' },
+  { id: 'presentation', title: 'Presentation' },
+  { id: 'comfort', title: 'Comfort' },
+  { id: 'speed', title: 'Speed' },
+  { id: 'expertise', title: 'Expertise' },
+  { id: 'timing', title: 'Timing' },
+  { id: 'hygiene', title: 'Hygiene' },
+  { id: 'reception', title: 'Reception' },
+  { id: 'familyFriendly', title: 'Family-friendly' },
+  { id: 'dietary', title: 'Dietary' },
+  { id: 'acoustics', title: 'Acoustics' },
+  { id: 'accessibility', title: 'Accessibility' },
 ] as const;
 
 /**
  * Criterion ids with dedicated backup/share columns (Swift schema).
- * `wines` is additive and round-trips via `customCriterionScoresJSON`.
+ * Every other criterion round-trips via `customCriterionScoresJSON`.
  */
 export const FIXED_BACKUP_CRITERION_IDS = [
   'food',
@@ -34,6 +56,12 @@ export const FIXED_BACKUP_CRITERION_IDS = [
   'valueForMoney',
 ] as const;
 
+/** Legacy criterion ids that must map onto the 20 (never orphaned). */
+export const LEGACY_CRITERION_IDS = ['wines'] as const;
+
+/** Legacy wine id folded into `drinks` (see ratings.ts migrateLegacyCriteria). */
+export const LEGACY_WINES_CRITERION_ID = 'wines' as const;
+
 /** Localized display title for a standard criterion id. */
 export function standardCriterionDisplayTitle(id: string): string {
   switch (id) {
@@ -41,14 +69,42 @@ export function standardCriterionDisplayTitle(id: string): string {
       return i18n.t('criteria.food');
     case 'drinks':
       return i18n.t('criteria.drinks');
-    case 'wines':
-      return i18n.t('criteria.wines');
     case 'service':
       return i18n.t('criteria.service');
     case 'setting':
       return i18n.t('criteria.atmosphere');
     case 'valueForMoney':
       return i18n.t('criteria.valueForMoney');
+    case 'quality':
+      return i18n.t('criteria.quality');
+    case 'freshness':
+      return i18n.t('criteria.freshness');
+    case 'variety':
+      return i18n.t('criteria.variety');
+    case 'portions':
+      return i18n.t('criteria.portions');
+    case 'presentation':
+      return i18n.t('criteria.presentation');
+    case 'comfort':
+      return i18n.t('criteria.comfort');
+    case 'speed':
+      return i18n.t('criteria.speed');
+    case 'expertise':
+      return i18n.t('criteria.expertise');
+    case 'timing':
+      return i18n.t('criteria.timing');
+    case 'hygiene':
+      return i18n.t('criteria.hygiene');
+    case 'reception':
+      return i18n.t('criteria.reception');
+    case 'familyFriendly':
+      return i18n.t('criteria.familyFriendly');
+    case 'dietary':
+      return i18n.t('criteria.dietary');
+    case 'acoustics':
+      return i18n.t('criteria.acoustics');
+    case 'accessibility':
+      return i18n.t('criteria.accessibility');
     default:
       return (
         STANDARD_CRITERIA.find((c) => c.id === id)?.title ?? id
@@ -71,10 +127,13 @@ export type CustomCriterionDefinition = {
 
 export const CUSTOM_CRITERION_MAX_NAME_LENGTH = 20;
 
-/** First-start defaults: Food + Wines on, other standards off. */
+/** First-start defaults: the five core criteria, rest off (users opt in). */
 export const FIRST_START_ENABLED_STANDARD_IDS: readonly StandardCriterionId[] = [
   'food',
-  'wines',
+  'drinks',
+  'service',
+  'setting',
+  'valueForMoney',
 ] as const;
 
 /** Required to complete every review; users cannot disable it. */
@@ -84,6 +143,90 @@ export const MANDATORY_STANDARD_CRITERION_IDS: readonly StandardCriterionId[] = 
 
 export function isMandatoryStandardCriterion(id: string): boolean {
   return MANDATORY_STANDARD_CRITERION_IDS.some((mandatoryId) => mandatoryId === id);
+}
+
+/**
+ * Map a legacy / custom criterion id (and its display name) onto one of the
+ * 20 fixed criteria. Unknown ids fall back to `accessibility` (the designated
+ * catch-all) so no historical rating is ever dropped.
+ */
+export function mapLegacyCriterionId(
+  id: string,
+  title?: string | null,
+): StandardCriterionId {
+  const key = id.trim().toLowerCase();
+  if (STANDARD_CRITERIA.some((c) => c.id === key)) {
+    return key as StandardCriterionId;
+  }
+  const name = (title ?? '').trim().toLowerCase();
+  const matches = (values: string[]) =>
+    values.some((v) => key === v || name.includes(v) || key.includes(v));
+  if (key === LEGACY_WINES_CRITERION_ID || matches(['wijn', 'wine', 'vin'])) {
+    return 'drinks';
+  }
+  if (
+    matches([
+      'smaak', 'taste', 'sabor', 'goût', 'gusto', 'geschmack', 'sapori',
+      'kwaliteit', 'quality', 'calidad', 'qualité', 'qualità',
+    ])
+  ) {
+    return 'quality';
+  }
+  if (matches(['vers', 'fresh', 'fresc', 'fraîch', 'frisch', 'fresco'])) {
+    return 'freshness';
+  }
+  if (
+    matches([
+      'keuze', 'assortiment', 'variety', 'selectie', 'choix', 'variedad',
+      'auswahl', 'scelta',
+    ])
+  ) {
+    return 'variety';
+  }
+  if (matches(['portie', 'portion', 'porcion', 'ration'])) {
+    return 'portions';
+  }
+  if (matches(['presentatie', 'presentation', 'presentaci', 'présentat'])) {
+    return 'presentation';
+  }
+  if (matches(['comfort', 'confort', 'gemak'])) {
+    return 'comfort';
+  }
+  if (matches(['snel', 'speed', 'vitesse', 'velocidad', 'geschwindigkeit', 'velocit'])) {
+    return 'speed';
+  }
+  if (matches(['vakkennis', 'kennis', 'expertise', 'conocimiento', 'compétence', 'fachwissen', 'competenza'])) {
+    return 'expertise';
+  }
+  if (matches(['timing', 'tempo', 'timing'])) {
+    return 'timing';
+  }
+  if (matches(['hygi', 'hygiene', 'higiene', 'hygiène', 'sauberkeit', 'igiene'])) {
+    return 'hygiene';
+  }
+  if (matches(['ontvangst', 'reception', 'recepción', 'accueil', 'empfang', 'accoglienza'])) {
+    return 'reception';
+  }
+  if (
+    matches([
+      'kindvriendelijk', 'family', 'familie', 'niños', 'enfants', 'kinder',
+      'famiglia', 'kinderfreundlich',
+    ])
+  ) {
+    return 'familyFriendly';
+  }
+  if (
+    matches([
+      'dieet', 'allerg', 'veggie', 'vegan', 'vegetar', 'dietary', 'dieta',
+      'régime', 'diète', 'veganismo', 'vegetari',
+    ])
+  ) {
+    return 'dietary';
+  }
+  if (matches(['akoestiek', 'acoustic', 'acústica', 'acoustique', 'akustik', 'geluid', 'noise'])) {
+    return 'acoustics';
+  }
+  return 'accessibility';
 }
 
 const DISABLED_KEY = 'disabledRatingCategories';
@@ -244,12 +387,8 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
   }, []);
 
   const totalEnabledCount = useCallback(
-    (disabled: Set<string>, customs: CustomCriterionDefinition[]) => {
-      const standardEnabled = STANDARD_CRITERIA.filter(
-        (c) => !disabled.has(c.id),
-      ).length;
-      const customEnabled = customs.filter((c) => c.isEnabled).length;
-      return standardEnabled + customEnabled;
+    (disabled: Set<string>) => {
+      return STANDARD_CRITERIA.filter((c) => !disabled.has(c.id)).length;
     },
     [],
   );
@@ -267,14 +406,14 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
         if (enabled) {
           next.delete(id);
         } else {
-          if (totalEnabledCount(prev, customCriteria) <= 1) return prev;
+          if (totalEnabledCount(prev) <= 1) return prev;
           next.add(id);
         }
         persistDisabled(next);
         return next;
       });
     },
-    [customCriteria, persistDisabled, totalEnabledCount],
+    [persistDisabled, totalEnabledCount],
   );
 
   const setCustomEnabled = useCallback(
@@ -282,7 +421,7 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
       setCustomCriteria((prev) => {
         const index = prev.findIndex((c) => c.id === id);
         if (index < 0) return prev;
-        if (!enabled && totalEnabledCount(disabledStandardIds, prev) <= 1) {
+        if (!enabled && totalEnabledCount(disabledStandardIds) <= 1) {
           return prev;
         }
         const next = [...prev];
@@ -337,21 +476,20 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
   }, [persistDisabled]);
 
   const enabledCriteria = useMemo(() => {
-    const standard = STANDARD_CRITERIA.filter(
+    // Only the 20 fixed criteria are selectable. Custom criteria from old
+    // backups/shares are preserved in the snapshot for round-trip but are no
+    // longer offered in the UI (their historical ratings map onto the 20).
+    return STANDARD_CRITERIA.filter(
       (c) => !disabledStandardIds.has(c.id),
     ).map((c) => ({
       id: c.id,
       title: standardCriterionDisplayTitle(c.id),
     }));
-    const custom = customCriteria
-      .filter((c) => c.isEnabled)
-      .map((c) => ({ id: c.id, title: c.name }));
-    return [...standard, ...custom];
-  }, [customCriteria, disabledStandardIds, i18nInstance.language]);
+  }, [disabledStandardIds, i18nInstance.language]);
 
   const hasMinEnabledCriteria = useMemo(
-    () => totalEnabledCount(disabledStandardIds, customCriteria) >= 1,
-    [customCriteria, disabledStandardIds, totalEnabledCount],
+    () => totalEnabledCount(disabledStandardIds) >= 1,
+    [disabledStandardIds, totalEnabledCount],
   );
 
   const getBackupSnapshot = useCallback(

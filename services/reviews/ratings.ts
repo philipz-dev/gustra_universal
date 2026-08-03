@@ -1,5 +1,6 @@
 import type { CriterionRating } from '@/data/types';
 import { i18n } from '@/i18n';
+import { mapLegacyCriterionId } from '@/context/CriteriaSettings';
 
 /**
  * Rating storage in half-star steps (Swift `RatingValue`):
@@ -95,11 +96,45 @@ export function migrateLegacyCriterionRating(rating: number): number {
   return RatingValue.unrated;
 }
 
+/**
+ * Map criterion ids onto the 20 fixed criteria without touching the rating
+ * scale (v3 stores are already half-star steps). `wines` folds into `drinks`;
+ * unknown custom ids map via `mapLegacyCriterionId`. Idempotent.
+ */
+export function mapCriteriaToFixed(criteria: CriterionRating[]): CriterionRating[] {
+  const mapped: CriterionRating[] = [];
+  for (const c of criteria) {
+    const targetId = mapLegacyCriterionId(c.id, c.title);
+    const comment = (c.comment ?? '').trim();
+    const existing = mapped.find((n) => n.id === targetId);
+    if (existing) {
+      if (RatingValue.isStarRating(c.rating)) {
+        if (
+          !RatingValue.isStarRating(existing.rating) ||
+          c.rating > existing.rating
+        ) {
+          existing.rating = c.rating;
+        }
+      }
+      if (comment && !existing.comment.includes(comment)) {
+        existing.comment = [existing.comment, comment]
+          .filter(Boolean)
+          .join(' · ');
+      }
+      continue;
+    }
+    mapped.push({ ...c, id: targetId, comment });
+  }
+  return mapped;
+}
+
 export function migrateLegacyCriteria(
   criteria: CriterionRating[],
 ): CriterionRating[] {
-  return criteria.map((c) => ({
+  // Normalize legacy integer 1–5 ratings to half-star steps, then map ids.
+  const normalized = criteria.map((c) => ({
     ...c,
     rating: migrateLegacyCriterionRating(c.rating),
   }));
+  return mapCriteriaToFixed(normalized);
 }

@@ -59,6 +59,13 @@ ALLOW_IDENTICAL_VALUES = {
     "OK",
     "Rosé",
     "Draft",
+    # Criteria loanwords that are identical across locales
+    "Comfort",
+    "Timing",
+    "Hygiene",
+    "Portions",
+    "Atmosphere",
+    "Ambiance",
 }
 
 # Keys that may keep the English value even when not in ALLOW_IDENTICAL_VALUES.

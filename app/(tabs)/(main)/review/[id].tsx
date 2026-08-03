@@ -341,7 +341,7 @@ export default function ReviewDetailScreen() {
             const scoredCriteria = review.criteria.filter((c) => {
               if (!enabledIds.has(c.id)) return false;
               if (c.rating >= 1 && c.rating <= 10) return true;
-              return c.id === 'wines' && reviewWines.length > 0;
+              return c.id === 'drinks' && reviewWines.length > 0;
             });
             return scoredCriteria.map((criterion) => (
               <CriterionSection
@@ -350,14 +350,14 @@ export default function ReviewDetailScreen() {
                 wineLabels={visibleWines}
                 onOpenWineFiche={
                   !streamlined &&
-                  criterion.id === 'wines' &&
+                  criterion.id === 'drinks' &&
                   visibleWines.length > 0
                     ? openWineFiche
                     : undefined
                 }
                 onDeleteWine={
                   !streamlined &&
-                  criterion.id === 'wines' &&
+                  criterion.id === 'drinks' &&
                   visibleWines.length > 0 &&
                   !isFriendReview
                     ? deleteWine

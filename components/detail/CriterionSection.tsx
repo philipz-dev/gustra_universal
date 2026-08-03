@@ -42,7 +42,7 @@ export function CriterionSection({
   const { t } = useAppTranslation();
   const polished = ReviewDetailPresentation.isPolishedEnabled;
   const streamlined = ReviewDetailPresentation.isStreamlinedEnabled;
-  const isWines = criterion.id === 'wines';
+  const isWines = criterion.id === 'drinks';
   const isDrinks = criterion.id === 'drinks';
   const wines = isWines ? wineLabels.filter(hasWineLabelMatch) : [];
   const comment = isDrinks

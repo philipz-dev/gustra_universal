@@ -280,10 +280,25 @@
   "criteria": {
     "food": "Eten",
     "drinks": "Drank",
-    "wines": "Wijnen",
-    "service": "Bediening",
+    "service": "Service",
     "atmosphere": "Sfeer",
-    "valueForMoney": "Prijs-kwaliteit"
+    "valueForMoney": "Prijs",
+    "quality": "Kwaliteit",
+    "freshness": "Versheid",
+    "variety": "Keuze",
+    "portions": "Porties",
+    "presentation": "Presentatie",
+    "comfort": "Comfort",
+    "speed": "Snelheid",
+    "expertise": "Vakkennis",
+    "timing": "Timing",
+    "hygiene": "Hygiëne",
+    "reception": "Ontvangst",
+    "familyFriendly": "Kindvriendelijkheid",
+    "dietary": "Dieetwensen",
+    "acoustics": "Akoestiek",
+    "accessibility": "Toegankelijkheid",
+    "wines": "Wijnen"
   },
   "forms": {
     "addReview": {
@@ -333,7 +348,7 @@
       "title": "Recensie",
       "done": "Klaar",
       "visitDate": "Bezoekdatum",
-      "ratings": "Scores",
+      "ratings": "Beoordelingen",
       "generalComments": "Algemene opmerkingen",
       "photos": "Foto’s",
       "optionalComment": "Optionele opmerking",
@@ -356,7 +371,9 @@
       },
       "draftBannerCriteria": "Beoordeel minstens 1 criterium om deze recensie af te ronden.",
       "draftBannerFood": "Beoordeel Eten om deze recensie af te ronden.",
-      "draftBannerWine": "Een wijn heeft nog sterren nodig."
+      "draftBannerWine": "Een wijn heeft nog sterren nodig.",
+      "showMoreCriteria": "Toon {{count}} meer",
+      "hideMoreCriteria": "Minder tonen"
     },
     "photos": {
       "takePhoto": "Foto maken",

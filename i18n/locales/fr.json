@@ -279,11 +279,26 @@
   },
   "criteria": {
     "food": "Cuisine",
-    "drinks": "Boisson",
-    "wines": "Vins",
+    "drinks": "Boissons",
     "service": "Service",
     "atmosphere": "Ambiance",
-    "valueForMoney": "Rapport qualité-prix"
+    "valueForMoney": "Rapport qualité-prix",
+    "quality": "Qualité",
+    "freshness": "Fraîcheur",
+    "variety": "Choix",
+    "portions": "Portions",
+    "presentation": "Présentation",
+    "comfort": "Confort",
+    "speed": "Rapidité",
+    "expertise": "Compétence",
+    "timing": "Timing",
+    "hygiene": "Hygiène",
+    "reception": "Accueil",
+    "familyFriendly": "Adapté aux enfants",
+    "dietary": "Régimes",
+    "acoustics": "Acoustique",
+    "accessibility": "Accessibilité",
+    "wines": "Vins"
   },
   "forms": {
     "addReview": {
@@ -356,7 +371,9 @@
       },
       "draftBannerCriteria": "Notez au moins un critère pour terminer cet avis.",
       "draftBannerFood": "Notez la cuisine pour terminer cet avis.",
-      "draftBannerWine": "Un vin doit encore être noté."
+      "draftBannerWine": "Un vin doit encore être noté.",
+      "showMoreCriteria": "Afficher {{count}} de plus",
+      "hideMoreCriteria": "Afficher moins"
     },
     "photos": {
       "takePhoto": "Prendre une photo",

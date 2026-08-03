@@ -1,6 +1,6 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-08-02T10:08:40Z
+Generated: 2026-08-03T10:50:47Z
 Root: /Users/philipzvar/Desktop/gustra_universal
 Files: 243
 ================================================================================
@@ -888,6 +888,7 @@ import {
   overallScoreFromCriteria,
   migrateLegacyCriterionRating,
   migrateLegacyCriteria,
+  mapCriteriaToFixed,
   hasStarRating,
 } from '@/services/reviews/ratings';
 import type { CriterionRating } from '@/data/types';
@@ -1016,6 +1017,54 @@ describe('hasStarRating', () => {
     expect(hasStarRating([{ id: 'food', title: 'Eten', rating: 4, comment: '' }])).toBe(true);
     expect(hasStarRating([{ id: 'food', title: 'Eten', rating: 0, comment: '' }])).toBe(false);
     expect(hasStarRating([])).toBe(false);
+  });
+});
+
+describe('mapCriteriaToFixed', () => {
+  it('maps legacy `wines` into `drinks` (wijn onder dranken)', () => {
+    const mapped = mapCriteriaToFixed([
+      { id: 'drinks', title: 'Drinks', rating: 8, comment: '' },
+      { id: 'wines', title: 'Wines', rating: 9, comment: 'Clos des Lucioles' },
+    ]);
+    expect(mapped).toHaveLength(1);
+    expect(mapped[0]!.id).toBe('drinks');
+    // Higher of the two ratings wins; comments are joined.
+    expect(mapped[0]!.rating).toBe(9);
+    expect(mapped[0]!.comment).toContain('Clos des Lucioles');
+  });
+
+  it('keeps the 20 fixed ids untouched', () => {
+    const mapped = mapCriteriaToFixed([
+      { id: 'food', title: 'Food', rating: 8, comment: '' },
+      { id: 'quality', title: 'Quality', rating: 6, comment: '' },
+    ]);
+    expect(mapped.map((c) => c.id)).toEqual(['food', 'quality']);
+  });
+
+  it('maps old custom ids onto the 20 via name/id heuristics', () => {
+    const mapped = mapCriteriaToFixed([
+      { id: 'c_x', title: 'Smaak', rating: 8, comment: '' },
+      { id: 'c_y', title: 'Kindvriendelijk', rating: 7, comment: '' },
+    ]);
+    expect(mapped[0]!.id).toBe('quality');
+    expect(mapped[1]!.id).toBe('familyFriendly');
+  });
+
+  it('folds unknown customs into the accessibility catch-all', () => {
+    const mapped = mapCriteriaToFixed([
+      { id: 'c_zz', title: 'Mystery Thing', rating: 5, comment: '' },
+    ]);
+    expect(mapped[0]!.id).toBe('accessibility');
+    expect(mapped[0]!.rating).toBe(5);
+  });
+
+  it('is idempotent', () => {
+    const once = mapCriteriaToFixed([
+      { id: 'wines', title: 'Wines', rating: 9, comment: '' },
+      { id: 'drinks', title: 'Drinks', rating: 8, comment: '' },
+    ]);
+    const twice = mapCriteriaToFixed(once);
+    expect(once).toEqual(twice);
   });
 });
 
@@ -4155,7 +4204,7 @@ export default function ReviewDetailScreen() {
             const scoredCriteria = review.criteria.filter((c) => {
               if (!enabledIds.has(c.id)) return false;
               if (c.rating >= 1 && c.rating <= 10) return true;
-              return c.id === 'wines' && reviewWines.length > 0;
+              return c.id === 'drinks' && reviewWines.length > 0;
             });
             return scoredCriteria.map((criterion) => (
               <CriterionSection
@@ -4164,14 +4213,14 @@ export default function ReviewDetailScreen() {
                 wineLabels={visibleWines}
                 onOpenWineFiche={
                   !streamlined &&
-                  criterion.id === 'wines' &&
+                  criterion.id === 'drinks' &&
                   visibleWines.length > 0
                     ? openWineFiche
                     : undefined
                 }
                 onDeleteWine={
                   !streamlined &&
-                  criterion.id === 'wines' &&
+                  criterion.id === 'drinks' &&
                   visibleWines.length > 0 &&
                   !isFriendReview
                     ? deleteWine
@@ -4393,7 +4442,7 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: app/(tabs)/(main)/review-form.tsx
 ================================================================================
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -4472,6 +4521,28 @@ export default function ReviewFormScreen() {
   const generalCommentRef = useRef<TextInput | null>(null);
   const focusedCommentKeyRef = useRef<string | null>(null);
   const { enabledCriteria } = useCriteriaSettings();
+
+  // The five core criteria always stay visible; the rest collapse behind a
+  // "More criteria" toggle so a long criteria list never overwhelms the form.
+  const CORE_CRITERION_IDS = useRef([
+    'food',
+    'drinks',
+    'service',
+    'setting',
+    'valueForMoney',
+  ]).current;
+  const coreCriteria = enabledCriteria.filter((c) =>
+    CORE_CRITERION_IDS.includes(c.id),
+  );
+  const extraCriteria = enabledCriteria.filter(
+    (c) => !CORE_CRITERION_IDS.includes(c.id),
+  );
+  const [extendedOpen, setExtendedOpen] = useState(
+    () => extraCriteria.some((c) => (criteriaState[c.id]?.rating ?? 0) > 0),
+  );
+  const visibleCriteria = extendedOpen
+    ? enabledCriteria
+    : coreCriteria;
 
   const state = useReviewFormState();
   const {
@@ -4657,13 +4728,13 @@ export default function ReviewFormScreen() {
 
         <View style={styles.card}>
           <FormSectionTitle title={t('forms.review.ratings')} />
-          {enabledCriteria.map((criterion, offset) => {
+          {visibleCriteria.map((criterion, offset) => {
             const icons = criterionIcon(criterion.id);
             const stateVal = criteriaState[criterion.id] ?? {
               rating: RatingValue.unrated,
               comment: '',
             };
-            const isWines = criterion.id === 'wines';
+            const isWines = criterion.id === 'drinks';
             const isDrinks = criterion.id === 'drinks';
             const notes = isDrinks
               ? drinksCommentForDisplay(stateVal.comment, wineLabels)
@@ -4762,8 +4833,7 @@ export default function ReviewFormScreen() {
                           isWines
                             ? t('wineScan.drinksCommentPlaceholder')
                             : t('forms.review.optionalComment')
-                        }
-                        placeholderTextColor="rgba(35, 32, 26, 0.4)"
+                        }                        placeholderTextColor="rgba(35, 32, 26, 0.4)"
                         multiline
                         keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
                         style={styles.commentField}
@@ -4879,6 +4949,50 @@ export default function ReviewFormScreen() {
               </View>
             );
           })}
+
+          {extraCriteria.length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                extendedOpen
+                  ? t('forms.review.hideMoreCriteria')
+                  : t('forms.review.showMoreCriteria', {
+                      count: extraCriteria.length,
+                    })
+              }
+              onPress={() => {
+                Haptics.selectionChanged();
+                setExtendedOpen((prev) => !prev);
+              }}
+              style={({ pressed }) => [
+                styles.moreToggle,
+                pressed && styles.moreTogglePressed,
+              ]}>
+              <View style={styles.moreToggleRow}>
+                <Text style={styles.moreToggleLabel}>
+                  {extendedOpen
+                    ? t('forms.review.hideMoreCriteria')
+                    : t('forms.review.showMoreCriteria', {
+                        count: extraCriteria.length,
+                      })}
+                </Text>
+                {Platform.OS === 'ios' ? (
+                  <SymbolView
+                    name={extendedOpen ? 'chevron.up' : 'chevron.down'}
+                    size={14}
+                    tintColor={GustraColors.forestGreen}
+                    weight="semibold"
+                  />
+                ) : (
+                  <MaterialIcons
+                    name={extendedOpen ? 'expand-less' : 'expand-more'}
+                    size={20}
+                    color={GustraColors.forestGreen}
+                  />
+                )}
+              </View>
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={styles.card}>
@@ -5105,6 +5219,27 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     backgroundColor: 'rgba(35, 32, 26, 0.12)',
     marginVertical: 14,
+  },
+  moreToggle: {
+    marginTop: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(35, 32, 26, 0.12)',
+  },
+  moreTogglePressed: {
+    opacity: 0.7,
+  },
+  moreToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+  },
+  moreToggleLabel: {
+    ...bodyTextStyle,
+    fontSize: 15,
+    fontWeight: '600',
+    color: GustraColors.forestGreen,
   },
   criterionRow: {
     flexDirection: 'row',
@@ -7245,15 +7380,12 @@ FILE: app/(tabs)/edit-criteria.tsx
 ================================================================================
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useNavigation, useRouter } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { houseAlert, houseSaveChangesAlert } from '@/components/ui/HouseAlert';
@@ -7261,16 +7393,13 @@ import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { GustraSwitch } from '@/components/ui/GustraSwitch';
 import { GustraColors } from '@/constants/Colors';
-import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import {
-  CUSTOM_CRITERION_MAX_NAME_LENGTH,
   STANDARD_CRITERIA,
   isMandatoryStandardCriterion,
   standardCriterionDisplayTitle,
   useCriteriaSettings,
-  type CustomCriterionDefinition,
   type CriteriaSettingsSnapshot,
 } from '@/context/CriteriaSettings';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
@@ -7279,16 +7408,7 @@ import { Haptics } from '@/services/haptics';
 function snapshotKey(snap: CriteriaSettingsSnapshot): string {
   return JSON.stringify({
     d: [...snap.disabledStandardIds].sort(),
-    c: snap.customCriteria.map((x) => ({
-      id: x.id,
-      name: x.name,
-      on: x.isEnabled,
-    })),
   });
-}
-
-function newCustomId(): string {
-  return `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export default function EditCriteriaScreen() {
@@ -7303,10 +7423,6 @@ export default function EditCriteriaScreen() {
   const [draftDisabled, setDraftDisabled] = useState<Set<string>>(
     () => new Set(),
   );
-  const [draftCustom, setDraftCustom] = useState<CustomCriterionDefinition[]>(
-    [],
-  );
-  const [newCustomName, setNewCustomName] = useState('');
   const [hydrated, setHydrated] = useState(false);
   const baselineKeyRef = useRef('');
   const allowLeaveRef = useRef(false);
@@ -7316,16 +7432,15 @@ export default function EditCriteriaScreen() {
     const snap = getBackupSnapshot();
     baselineKeyRef.current = snapshotKey(snap);
     setDraftDisabled(new Set(snap.disabledStandardIds));
-    setDraftCustom(snap.customCriteria.map((c) => ({ ...c })));
     setHydrated(true);
   }, [getBackupSnapshot, hydrated, ready]);
 
   const draftSnapshot = useMemo(
     (): CriteriaSettingsSnapshot => ({
       disabledStandardIds: [...draftDisabled],
-      customCriteria: draftCustom.map((c) => ({ ...c })),
+      customCriteria: [],
     }),
-    [draftCustom, draftDisabled],
+    [draftDisabled],
   );
 
   const isDirty = useMemo(() => {
@@ -7333,13 +7448,11 @@ export default function EditCriteriaScreen() {
     return snapshotKey(draftSnapshot) !== baselineKeyRef.current;
   }, [draftSnapshot, hydrated]);
 
-  const enabledCount = useMemo(() => {
-    const standardOn = STANDARD_CRITERIA.filter(
-      (c) => !draftDisabled.has(c.id),
-    ).length;
-    const customOn = draftCustom.filter((c) => c.isEnabled).length;
-    return standardOn + customOn;
-  }, [draftCustom, draftDisabled]);
+  const enabledCount = useMemo(
+    () =>
+      STANDARD_CRITERIA.filter((c) => !draftDisabled.has(c.id)).length,
+    [draftDisabled],
+  );
 
   const isStandardOn = useCallback(
     (id: string) => !draftDisabled.has(id),
@@ -7362,64 +7475,6 @@ export default function EditCriteriaScreen() {
       });
     },
     [enabledCount, isStandardOn, t],
-  );
-
-  const toggleCustom = useCallback(
-    (id: string, enabled: boolean) => {
-      const row = draftCustom.find((c) => c.id === id);
-      if (!enabled && enabledCount <= 1 && row?.isEnabled) {
-        Haptics.warning();
-        houseAlert(t('tabs.editCriteria'), t('setup.criteria.minOne'));
-        return;
-      }
-      setDraftCustom((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, isEnabled: enabled } : c)),
-      );
-    },
-    [draftCustom, enabledCount, t],
-  );
-
-  const addNew = useCallback(() => {
-    let trimmed = newCustomName.trim();
-    if (!trimmed) return;
-    if (trimmed.length > CUSTOM_CRITERION_MAX_NAME_LENGTH) {
-      trimmed = trimmed.slice(0, CUSTOM_CRITERION_MAX_NAME_LENGTH);
-    }
-    setDraftCustom((prev) => [
-      ...prev,
-      { id: newCustomId(), name: trimmed, isEnabled: true },
-    ]);
-    setNewCustomName('');
-  }, [newCustomName]);
-
-  const confirmDelete = useCallback(
-    (id: string, name: string) => {
-      houseAlert(
-        t('settings.criteria.deleteTitle'),
-        t('settings.criteria.deleteBody', { name }),
-        [
-          { text: t('common.cancel'), style: 'cancel' },
-          {
-            text: t('common.delete'),
-            style: 'destructive',
-            onPress: () => {
-              const target = draftCustom.find((c) => c.id === id);
-              const nextCustom = draftCustom.filter((c) => c.id !== id);
-              const nextEnabled =
-                STANDARD_CRITERIA.filter((c) => !draftDisabled.has(c.id))
-                  .length + nextCustom.filter((c) => c.isEnabled).length;
-              if (target?.isEnabled && nextEnabled < 1) {
-                Haptics.warning();
-                houseAlert(t('tabs.editCriteria'), t('setup.criteria.minOne'));
-                return;
-              }
-              setDraftCustom(nextCustom);
-            },
-          },
-        ],
-      );
-    },
-    [draftCustom, draftDisabled, t],
   );
 
   const commitAndLeave = useCallback(
@@ -7523,7 +7578,7 @@ export default function EditCriteriaScreen() {
                 key={criterion.id}
                 style={[
                   styles.row,
-                  index < STANDARD_CRITERIA.length - 1 || draftCustom.length > 0
+                  index < STANDARD_CRITERIA.length - 1
                     ? styles.rowBorder
                     : null,
                 ]}>
@@ -7546,59 +7601,6 @@ export default function EditCriteriaScreen() {
               </View>
             );
           })}
-
-          {draftCustom.map((criterion) => (
-            <View key={criterion.id} style={[styles.row, styles.rowBorder]}>
-              <Text
-                style={[styles.rowTitle, styles.customName]}
-                numberOfLines={1}>
-                {criterion.name}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${t('common.delete')} ${criterion.name}`}
-                hitSlop={8}
-                onPress={() => confirmDelete(criterion.id, criterion.name)}
-                style={({ pressed }) => pressed && styles.pressed}>
-                <SymbolView
-                  name={{ ios: 'trash', android: 'delete', web: 'delete' }}
-                  tintColor={GustraColors.ratingAvoid}
-                  size={20}
-                />
-              </Pressable>
-              <GustraSwitch
-                value={criterion.isEnabled}
-                onValueChange={(value) => toggleCustom(criterion.id, value)}
-              />
-            </View>
-          ))}
-
-          <View style={styles.addRow}>
-            <TextInput
-              value={newCustomName}
-              onChangeText={(text) =>
-                setNewCustomName(text.slice(0, CUSTOM_CRITERION_MAX_NAME_LENGTH))
-              }
-              placeholder={t('settings.criteria.custom')}
-              placeholderTextColor="rgba(35, 32, 26, 0.4)"
-              style={styles.input}
-              returnKeyType="done"
-              onSubmitEditing={addNew}
-              maxLength={CUSTOM_CRITERION_MAX_NAME_LENGTH}
-              keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
-            />
-            {newCustomName.trim().length > 0 ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={addNew}
-                style={({ pressed }) => [
-                  styles.addButton,
-                  pressed && styles.pressed,
-                ]}>
-                <Text style={styles.addLabel}>{t('common.add')}</Text>
-              </Pressable>
-            ) : null}
-          </View>
         </View>
 
         <Text style={styles.footer}>{t('settings.criteria.footer')}</Text>
@@ -7643,32 +7645,6 @@ const styles = StyleSheet.create({
   requiredLabel: {
     ...captionTextStyle,
     color: GustraColors.ratingAvoid,
-  },
-  customName: {
-    flexShrink: 1,
-  },
-  addRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    minHeight: 52,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: GustraColors.ink,
-    paddingVertical: 8,
-  },
-  addButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  addLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: GustraColors.forestGreen,
   },
   footer: {
     ...captionTextStyle,
@@ -10939,7 +10915,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -10947,13 +10922,11 @@ import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { houseAlert } from '@/components/ui/HouseAlert';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { GustraSwitch } from '@/components/ui/GustraSwitch';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
-import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import {
   SERIF_FONT_REGULAR_ITALIC,
   Theme,
@@ -10962,7 +10935,6 @@ import {
   systemSerifFamily,
 } from '@/constants/Theme';
 import {
-  CUSTOM_CRITERION_MAX_NAME_LENGTH,
   STANDARD_CRITERIA,
   isMandatoryStandardCriterion,
   standardCriterionDisplayTitle,
@@ -11064,44 +11036,18 @@ export default function CriteriaSetupScreen() {
   const insets = useSafeAreaInsets();
   const keyboardHeight = useKeyboardBottomInset();
   const {
-    customCriteria,
     isStandardEnabled,
     setStandardEnabled,
-    setCustomEnabled,
-    addCustomCriterion,
-    deleteCustomCriterion,
     hasMinEnabledCriteria,
     completeCriteriaSetup,
   } = useCriteriaSettings();
   const [step, setStep] = useState<'welcome' | 'criteria'>('welcome');
-  const [newCustomName, setNewCustomName] = useState('');
 
   const onFinish = async () => {
     if (!hasMinEnabledCriteria) return;
     Haptics.medium();
     await completeCriteriaSetup();
     router.replace('/(tabs)/(main)');
-  };
-
-  const addNew = () => {
-    if (!addCustomCriterion(newCustomName)) return;
-    Haptics.selectionChanged();
-    setNewCustomName('');
-  };
-
-  const confirmDelete = (id: string, name: string) => {
-    houseAlert(
-      t('settings.criteria.deleteTitle'),
-      t('settings.criteria.deleteBody', { name }),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.delete'),
-          style: 'destructive',
-          onPress: () => deleteCustomCriterion(id),
-        },
-      ],
-    );
   };
 
   if (step === 'welcome') {
@@ -11187,93 +11133,6 @@ export default function CriteriaSetupScreen() {
               </Pressable>
             );
           })}
-
-          {customCriteria.map((criterion) => (
-            <Pressable
-              key={criterion.id}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: criterion.isEnabled }}
-              onPress={() => {
-                Haptics.selectionChanged();
-                setCustomEnabled(criterion.id, !criterion.isEnabled);
-              }}
-              style={[
-                styles.row,
-                styles.rowBorder,
-                criterion.isEnabled && styles.rowOn,
-              ]}>
-              <CriterionRowIcon id={criterion.id} enabled={criterion.isEnabled} />
-              <Text
-                style={[
-                  styles.rowTitle,
-                  criterion.isEnabled && styles.rowTitleOn,
-                ]}
-                numberOfLines={1}>
-                {criterion.name}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${t('common.delete')} ${criterion.name}`}
-                hitSlop={8}
-                onPress={() => confirmDelete(criterion.id, criterion.name)}
-                style={({ pressed }) => pressed && styles.pressed}>
-                <SymbolView
-                  name={{ ios: 'trash', android: 'delete', web: 'delete' }}
-                  tintColor={GustraColors.ratingAvoid}
-                  size={20}
-                />
-              </Pressable>
-              <GustraSwitch
-                value={criterion.isEnabled}
-                onValueChange={(value) =>
-                  setCustomEnabled(criterion.id, value)
-                }
-              />
-            </Pressable>
-          ))}
-
-          <View style={styles.addRow}>
-            <View style={styles.iconWrap}>
-              {Platform.OS === 'ios' ? (
-                <SymbolView
-                  name="plus"
-                  size={16}
-                  tintColor="rgba(35, 32, 26, 0.45)"
-                  weight="semibold"
-                />
-              ) : (
-                <MaterialIcons
-                  name="add"
-                  size={20}
-                  color="rgba(35, 32, 26, 0.45)"
-                />
-              )}
-            </View>
-            <TextInput
-              value={newCustomName}
-              onChangeText={(text) =>
-                setNewCustomName(text.slice(0, CUSTOM_CRITERION_MAX_NAME_LENGTH))
-              }
-              placeholder={t('settings.criteria.custom')}
-              placeholderTextColor="rgba(35, 32, 26, 0.4)"
-              style={styles.input}
-              returnKeyType="done"
-              onSubmitEditing={addNew}
-              maxLength={CUSTOM_CRITERION_MAX_NAME_LENGTH}
-              keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
-            />
-            {newCustomName.trim().length > 0 ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={addNew}
-                style={({ pressed }) => [
-                  styles.addButton,
-                  pressed && styles.pressed,
-                ]}>
-                <Text style={styles.addLabel}>{t('common.add')}</Text>
-              </Pressable>
-            ) : null}
-          </View>
         </View>
 
         <View style={styles.hints}>
@@ -11396,29 +11255,6 @@ const styles = StyleSheet.create({
     ...captionTextStyle,
     color: GustraColors.ratingAvoid,
   },
-  addRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    minHeight: 58,
-  },
-  input: {
-    flex: 1,
-    fontSize: 17,
-    color: GustraColors.ink,
-    paddingVertical: 8,
-  },
-  addButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  addLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: GustraColors.forestGreen,
-  },
   hints: {
     gap: 4,
   },
@@ -11431,9 +11267,6 @@ const styles = StyleSheet.create({
   },
   hintTip: {
     textDecorationLine: 'underline',
-  },
-  pressed: {
-    opacity: 0.7,
   },
 });
 
@@ -11843,7 +11676,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       supportsTablet: true,
       // Must match the existing App Store Connect / Swift app.
       bundleIdentifier: 'com.philip.gustra',
-      buildNumber: '52',
+      buildNumber: '54',
       // Keep in sync with android.versionCode — deploy-store.sh bumps both together.
       entitlements: {
         'com.apple.security.application-groups': ['group.com.philip.gustra'],
@@ -11902,7 +11735,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
       package: 'net.gustra.app',
       // Keep in sync with ios.buildNumber — deploy-store.sh bumps both together.
-      versionCode: 52,
+      versionCode: 54,
       // Material / gesture navigation — cream surfaces bleed under system bars.
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: true,
@@ -12296,7 +12129,7 @@ export function CriterionSection({
   const { t } = useAppTranslation();
   const polished = ReviewDetailPresentation.isPolishedEnabled;
   const streamlined = ReviewDetailPresentation.isStreamlinedEnabled;
-  const isWines = criterion.id === 'wines';
+  const isWines = criterion.id === 'drinks';
   const isDrinks = criterion.id === 'drinks';
   const wines = isWines ? wineLabels.filter(hasWineLabelMatch) : [];
   const comment = isDrinks
@@ -26304,19 +26137,41 @@ import { useTranslation } from 'react-i18next';
 
 import { i18n } from '@/i18n';
 
-/** Matches Swift `RatingCategory.standardCases` + Expo `wines`. English = storage fallbacks. */
+/**
+ * The fixed 20 criteria (Gustra 2.0). Every review criterion maps onto one of
+ * these; there are no user-created custom criteria anymore. English titles are
+ * the storage fallbacks (backup/share round-trip).
+ *
+ * The first five keep their original ids so the Swift backup columns
+ * (`FIXED_BACKUP_CRITERION_IDS`) and all historical reviews stay readable.
+ * The legacy `wines` id is folded into `drinks` at load (see ratings.ts).
+ */
 export const STANDARD_CRITERIA = [
   { id: 'food', title: 'Food' },
   { id: 'drinks', title: 'Drinks' },
-  { id: 'wines', title: 'Wines' },
   { id: 'service', title: 'Service' },
   { id: 'setting', title: 'Atmosphere' },
   { id: 'valueForMoney', title: 'Value for Money' },
+  { id: 'quality', title: 'Quality' },
+  { id: 'freshness', title: 'Freshness' },
+  { id: 'variety', title: 'Variety' },
+  { id: 'portions', title: 'Portions' },
+  { id: 'presentation', title: 'Presentation' },
+  { id: 'comfort', title: 'Comfort' },
+  { id: 'speed', title: 'Speed' },
+  { id: 'expertise', title: 'Expertise' },
+  { id: 'timing', title: 'Timing' },
+  { id: 'hygiene', title: 'Hygiene' },
+  { id: 'reception', title: 'Reception' },
+  { id: 'familyFriendly', title: 'Family-friendly' },
+  { id: 'dietary', title: 'Dietary' },
+  { id: 'acoustics', title: 'Acoustics' },
+  { id: 'accessibility', title: 'Accessibility' },
 ] as const;
 
 /**
  * Criterion ids with dedicated backup/share columns (Swift schema).
- * `wines` is additive and round-trips via `customCriterionScoresJSON`.
+ * Every other criterion round-trips via `customCriterionScoresJSON`.
  */
 export const FIXED_BACKUP_CRITERION_IDS = [
   'food',
@@ -26326,6 +26181,12 @@ export const FIXED_BACKUP_CRITERION_IDS = [
   'valueForMoney',
 ] as const;
 
+/** Legacy criterion ids that must map onto the 20 (never orphaned). */
+export const LEGACY_CRITERION_IDS = ['wines'] as const;
+
+/** Legacy wine id folded into `drinks` (see ratings.ts migrateLegacyCriteria). */
+export const LEGACY_WINES_CRITERION_ID = 'wines' as const;
+
 /** Localized display title for a standard criterion id. */
 export function standardCriterionDisplayTitle(id: string): string {
   switch (id) {
@@ -26333,14 +26194,42 @@ export function standardCriterionDisplayTitle(id: string): string {
       return i18n.t('criteria.food');
     case 'drinks':
       return i18n.t('criteria.drinks');
-    case 'wines':
-      return i18n.t('criteria.wines');
     case 'service':
       return i18n.t('criteria.service');
     case 'setting':
       return i18n.t('criteria.atmosphere');
     case 'valueForMoney':
       return i18n.t('criteria.valueForMoney');
+    case 'quality':
+      return i18n.t('criteria.quality');
+    case 'freshness':
+      return i18n.t('criteria.freshness');
+    case 'variety':
+      return i18n.t('criteria.variety');
+    case 'portions':
+      return i18n.t('criteria.portions');
+    case 'presentation':
+      return i18n.t('criteria.presentation');
+    case 'comfort':
+      return i18n.t('criteria.comfort');
+    case 'speed':
+      return i18n.t('criteria.speed');
+    case 'expertise':
+      return i18n.t('criteria.expertise');
+    case 'timing':
+      return i18n.t('criteria.timing');
+    case 'hygiene':
+      return i18n.t('criteria.hygiene');
+    case 'reception':
+      return i18n.t('criteria.reception');
+    case 'familyFriendly':
+      return i18n.t('criteria.familyFriendly');
+    case 'dietary':
+      return i18n.t('criteria.dietary');
+    case 'acoustics':
+      return i18n.t('criteria.acoustics');
+    case 'accessibility':
+      return i18n.t('criteria.accessibility');
     default:
       return (
         STANDARD_CRITERIA.find((c) => c.id === id)?.title ?? id
@@ -26363,10 +26252,13 @@ export type CustomCriterionDefinition = {
 
 export const CUSTOM_CRITERION_MAX_NAME_LENGTH = 20;
 
-/** First-start defaults: Food + Wines on, other standards off. */
+/** First-start defaults: the five core criteria, rest off (users opt in). */
 export const FIRST_START_ENABLED_STANDARD_IDS: readonly StandardCriterionId[] = [
   'food',
-  'wines',
+  'drinks',
+  'service',
+  'setting',
+  'valueForMoney',
 ] as const;
 
 /** Required to complete every review; users cannot disable it. */
@@ -26376,6 +26268,90 @@ export const MANDATORY_STANDARD_CRITERION_IDS: readonly StandardCriterionId[] = 
 
 export function isMandatoryStandardCriterion(id: string): boolean {
   return MANDATORY_STANDARD_CRITERION_IDS.some((mandatoryId) => mandatoryId === id);
+}
+
+/**
+ * Map a legacy / custom criterion id (and its display name) onto one of the
+ * 20 fixed criteria. Unknown ids fall back to `accessibility` (the designated
+ * catch-all) so no historical rating is ever dropped.
+ */
+export function mapLegacyCriterionId(
+  id: string,
+  title?: string | null,
+): StandardCriterionId {
+  const key = id.trim().toLowerCase();
+  if (STANDARD_CRITERIA.some((c) => c.id === key)) {
+    return key as StandardCriterionId;
+  }
+  const name = (title ?? '').trim().toLowerCase();
+  const matches = (values: string[]) =>
+    values.some((v) => key === v || name.includes(v) || key.includes(v));
+  if (key === LEGACY_WINES_CRITERION_ID || matches(['wijn', 'wine', 'vin'])) {
+    return 'drinks';
+  }
+  if (
+    matches([
+      'smaak', 'taste', 'sabor', 'goût', 'gusto', 'geschmack', 'sapori',
+      'kwaliteit', 'quality', 'calidad', 'qualité', 'qualità',
+    ])
+  ) {
+    return 'quality';
+  }
+  if (matches(['vers', 'fresh', 'fresc', 'fraîch', 'frisch', 'fresco'])) {
+    return 'freshness';
+  }
+  if (
+    matches([
+      'keuze', 'assortiment', 'variety', 'selectie', 'choix', 'variedad',
+      'auswahl', 'scelta',
+    ])
+  ) {
+    return 'variety';
+  }
+  if (matches(['portie', 'portion', 'porcion', 'ration'])) {
+    return 'portions';
+  }
+  if (matches(['presentatie', 'presentation', 'presentaci', 'présentat'])) {
+    return 'presentation';
+  }
+  if (matches(['comfort', 'confort', 'gemak'])) {
+    return 'comfort';
+  }
+  if (matches(['snel', 'speed', 'vitesse', 'velocidad', 'geschwindigkeit', 'velocit'])) {
+    return 'speed';
+  }
+  if (matches(['vakkennis', 'kennis', 'expertise', 'conocimiento', 'compétence', 'fachwissen', 'competenza'])) {
+    return 'expertise';
+  }
+  if (matches(['timing', 'tempo', 'timing'])) {
+    return 'timing';
+  }
+  if (matches(['hygi', 'hygiene', 'higiene', 'hygiène', 'sauberkeit', 'igiene'])) {
+    return 'hygiene';
+  }
+  if (matches(['ontvangst', 'reception', 'recepción', 'accueil', 'empfang', 'accoglienza'])) {
+    return 'reception';
+  }
+  if (
+    matches([
+      'kindvriendelijk', 'family', 'familie', 'niños', 'enfants', 'kinder',
+      'famiglia', 'kinderfreundlich',
+    ])
+  ) {
+    return 'familyFriendly';
+  }
+  if (
+    matches([
+      'dieet', 'allerg', 'veggie', 'vegan', 'vegetar', 'dietary', 'dieta',
+      'régime', 'diète', 'veganismo', 'vegetari',
+    ])
+  ) {
+    return 'dietary';
+  }
+  if (matches(['akoestiek', 'acoustic', 'acústica', 'acoustique', 'akustik', 'geluid', 'noise'])) {
+    return 'acoustics';
+  }
+  return 'accessibility';
 }
 
 const DISABLED_KEY = 'disabledRatingCategories';
@@ -26536,12 +26512,8 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
   }, []);
 
   const totalEnabledCount = useCallback(
-    (disabled: Set<string>, customs: CustomCriterionDefinition[]) => {
-      const standardEnabled = STANDARD_CRITERIA.filter(
-        (c) => !disabled.has(c.id),
-      ).length;
-      const customEnabled = customs.filter((c) => c.isEnabled).length;
-      return standardEnabled + customEnabled;
+    (disabled: Set<string>) => {
+      return STANDARD_CRITERIA.filter((c) => !disabled.has(c.id)).length;
     },
     [],
   );
@@ -26559,14 +26531,14 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
         if (enabled) {
           next.delete(id);
         } else {
-          if (totalEnabledCount(prev, customCriteria) <= 1) return prev;
+          if (totalEnabledCount(prev) <= 1) return prev;
           next.add(id);
         }
         persistDisabled(next);
         return next;
       });
     },
-    [customCriteria, persistDisabled, totalEnabledCount],
+    [persistDisabled, totalEnabledCount],
   );
 
   const setCustomEnabled = useCallback(
@@ -26574,7 +26546,7 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
       setCustomCriteria((prev) => {
         const index = prev.findIndex((c) => c.id === id);
         if (index < 0) return prev;
-        if (!enabled && totalEnabledCount(disabledStandardIds, prev) <= 1) {
+        if (!enabled && totalEnabledCount(disabledStandardIds) <= 1) {
           return prev;
         }
         const next = [...prev];
@@ -26629,21 +26601,20 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
   }, [persistDisabled]);
 
   const enabledCriteria = useMemo(() => {
-    const standard = STANDARD_CRITERIA.filter(
+    // Only the 20 fixed criteria are selectable. Custom criteria from old
+    // backups/shares are preserved in the snapshot for round-trip but are no
+    // longer offered in the UI (their historical ratings map onto the 20).
+    return STANDARD_CRITERIA.filter(
       (c) => !disabledStandardIds.has(c.id),
     ).map((c) => ({
       id: c.id,
       title: standardCriterionDisplayTitle(c.id),
     }));
-    const custom = customCriteria
-      .filter((c) => c.isEnabled)
-      .map((c) => ({ id: c.id, title: c.name }));
-    return [...standard, ...custom];
-  }, [customCriteria, disabledStandardIds, i18nInstance.language]);
+  }, [disabledStandardIds, i18nInstance.language]);
 
   const hasMinEnabledCriteria = useMemo(
-    () => totalEnabledCount(disabledStandardIds, customCriteria) >= 1,
-    [customCriteria, disabledStandardIds, totalEnabledCount],
+    () => totalEnabledCount(disabledStandardIds) >= 1,
+    [disabledStandardIds, totalEnabledCount],
   );
 
   const getBackupSnapshot = useCallback(
@@ -27699,6 +27670,7 @@ import { isReviewDraft } from '@/services/reviews/draftReview';
 import { planImportedReviewCollapse } from '@/services/share/ShareImportService';
 import {
   RatingValue,
+  mapCriteriaToFixed,
   migrateLegacyCriteria,
   overallScoreFromCriteria,
 } from '@/services/reviews/ratings';
@@ -27869,14 +27841,14 @@ function formatAbbreviated(iso: string): string {
 function normalizeReview(review: Review, migrateLegacy = false): Review {
   const criteria = migrateLegacy
     ? migrateLegacyCriteria(review.criteria ?? [])
-    : (review.criteria ?? []).map((c) => ({
+    : mapCriteriaToFixed((review.criteria ?? []).map((c) => ({
         ...c,
         rating: RatingValue.isNotApplicable(c.rating)
           ? RatingValue.notApplicable
           : RatingValue.isStarRating(c.rating)
             ? Math.round(c.rating)
             : RatingValue.unrated,
-      }));
+      })));
   const overallScore =
     overallScoreFromCriteria(criteria) || review.overallScore || 0;
   const ocrText = (review.ocrText ?? '').trim();
@@ -28677,10 +28649,12 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       const nextWines = wines.filter((_, i) => i !== wineIndex);
       const wineFields = syncWineLabelFields(nextWines);
       const avg = averageWineUserRating(nextWines);
-      const criteria = target.criteria.map((c) => {
-        if (c.id !== 'wines' || avg == null) return c;
+      // Wines fold into `drinks` (legacy `wines` id is migrated away at load).
+      const criteria = mapCriteriaToFixed(target.criteria.map((c) => {
+        if (c.id !== 'drinks' && c.id !== 'wines') return c;
+        if (avg == null) return c;
         return { ...c, rating: avg };
-      });
+      }));
       const overallScore = overallScoreFromCriteria(criteria);
       const restaurant = restaurantsRef.current.find(
         (r) => r.id === target.restaurantId,
@@ -31101,14 +31075,14 @@ export function useReviewFormState() {
       }
       const wineAvg = averageWineUserRating(winesCopy);
       if (wineAvg != null) {
-        if (!map.wines) {
-          const drinks = map.drinks;
-          if (drinks && drinks.rating === wineAvg) {
-            map.wines = { rating: wineAvg, comment: '' };
-            map.drinks = { rating: RatingValue.unrated, comment: drinks.comment };
-          } else {
-            map.wines = { rating: wineAvg, comment: '' };
-          }
+        // Wines fold into `drinks`: the average bottle rating becomes the
+        // drinks rating unless the user gave an explicit drinks rating.
+        const drinks = map.drinks;
+        if (!drinks || !RatingValue.isStarRating(drinks.rating)) {
+          map.drinks = {
+            rating: wineAvg,
+            comment: drinks?.comment ?? '',
+          };
         }
       }
       const restaurant = getRestaurant(existingReview.restaurantId);
@@ -31643,7 +31617,7 @@ export function useReviewFormState() {
       schedulePersist();
     };
 
-    if (id === 'wines' && !RatingValue.isStarRating(rating) && wineLabelsRef.current.length > 0) {
+    if (id === 'drinks' && !RatingValue.isStarRating(rating) && wineLabelsRef.current.length > 0) {
       houseAlert(t('wineScan.clearWinesWithRatingsTitle'), t('wineScan.clearWinesWithRatingsBody'), [
         { text: t('common.cancel'), style: 'cancel' },
         {
@@ -31675,13 +31649,13 @@ export function useReviewFormState() {
   const syncWinesRatingFromWines = useCallback((wines: WineLabelFiche[]) => {
     const avg = averageWineUserRating(wines);
     setCriteriaState((prev) => {
-      const current = prev.wines ?? { rating: RatingValue.unrated, comment: '' };
+      const current = prev.drinks ?? { rating: RatingValue.unrated, comment: '' };
       if (avg == null) {
         if (!RatingValue.isStarRating(current.rating)) return prev;
-        return { ...prev, wines: { ...current, rating: RatingValue.unrated } };
+        return { ...prev, drinks: { ...current, rating: RatingValue.unrated } };
       }
       if (current.rating === avg) return prev;
-      return { ...prev, wines: { rating: avg, comment: current.comment } };
+      return { ...prev, drinks: { rating: avg, comment: current.comment } };
     });
   }, []);
 
@@ -31742,7 +31716,7 @@ export function useReviewFormState() {
           photoUrls: photoUrlsRef.current,
           ...syncWineLabelFields(nextWines),
           criteria: input.criteria.map((c) =>
-            c.id === 'wines' && avg != null ? { ...c, rating: avg } : c,
+            c.id === 'drinks' && avg != null ? { ...c, rating: avg } : c,
           ),
         }).then(
           (result) => goToReview(result?.reviewId),
@@ -32547,11 +32521,26 @@ FILE: i18n/locales/de.json
   },
   "criteria": {
     "food": "Essen",
-    "drinks": "Getränk",
-    "wines": "Weine",
+    "drinks": "Getränke",
     "service": "Service",
     "atmosphere": "Atmosphäre",
-    "valueForMoney": "Preis-Leistung"
+    "valueForMoney": "Preis-Leistung",
+    "quality": "Qualität",
+    "freshness": "Frische",
+    "variety": "Auswahl",
+    "portions": "Portionen",
+    "presentation": "Präsentation",
+    "comfort": "Komfort",
+    "speed": "Schnelligkeit",
+    "expertise": "Fachwissen",
+    "timing": "Timing",
+    "hygiene": "Hygiene",
+    "reception": "Empfang",
+    "familyFriendly": "Kinderfreundlich",
+    "dietary": "Ernährungswünsche",
+    "acoustics": "Akustik",
+    "accessibility": "Barrierefreiheit",
+    "wines": "Weine"
   },
   "forms": {
     "addReview": {
@@ -32624,7 +32613,9 @@ FILE: i18n/locales/de.json
       },
       "draftBannerCriteria": "Bewerte mindestens ein Kriterium, um diese Bewertung abzuschließen.",
       "draftBannerFood": "Bewerte das Essen, um diese Bewertung abzuschließen.",
-      "draftBannerWine": "Ein Wein braucht noch eine Sternebewertung."
+      "draftBannerWine": "Ein Wein braucht noch eine Sternebewertung.",
+      "showMoreCriteria": "{{count}} weitere anzeigen",
+      "hideMoreCriteria": "Weniger anzeigen"
     },
     "photos": {
       "takePhoto": "Foto aufnehmen",
@@ -33282,11 +33273,26 @@ FILE: i18n/locales/en.json
   },
   "criteria": {
     "food": "Food",
-    "drinks": "Drink",
-    "wines": "Wines",
+    "drinks": "Drinks",
     "service": "Service",
-    "atmosphere": "Atmosphere",
-    "valueForMoney": "Value for Money"
+    "atmosphere": "Ambiance",
+    "valueForMoney": "Value for Money",
+    "quality": "Quality",
+    "freshness": "Freshness",
+    "variety": "Variety",
+    "portions": "Portions",
+    "presentation": "Presentation",
+    "comfort": "Comfort",
+    "speed": "Speed",
+    "expertise": "Expertise",
+    "timing": "Timing",
+    "hygiene": "Hygiene",
+    "reception": "Reception",
+    "familyFriendly": "Family-friendly",
+    "dietary": "Dietary",
+    "acoustics": "Acoustics",
+    "accessibility": "Accessibility",
+    "wines": "Wines"
   },
   "forms": {
     "addReview": {
@@ -33337,6 +33343,8 @@ FILE: i18n/locales/en.json
       "done": "Done",
       "visitDate": "Visit date",
       "ratings": "Ratings",
+      "showMoreCriteria": "Show {{count}} more",
+      "hideMoreCriteria": "Show fewer",
       "generalComments": "General comments",
       "photos": "Photos",
       "optionalComment": "Optional comment",
@@ -34017,11 +34025,26 @@ FILE: i18n/locales/es.json
   },
   "criteria": {
     "food": "Comida",
-    "drinks": "Bebida",
-    "wines": "Vinos",
+    "drinks": "Bebidas",
     "service": "Servicio",
     "atmosphere": "Ambiente",
-    "valueForMoney": "Relación calidad-precio"
+    "valueForMoney": "Relación calidad-precio",
+    "quality": "Calidad",
+    "freshness": "Frescura",
+    "variety": "Variedad",
+    "portions": "Raciones",
+    "presentation": "Presentación",
+    "comfort": "Confort",
+    "speed": "Rapidez",
+    "expertise": "Conocimiento",
+    "timing": "Tiempo",
+    "hygiene": "Higiene",
+    "reception": "Recepción",
+    "familyFriendly": "Apto para niños",
+    "dietary": "Dietas",
+    "acoustics": "Acústica",
+    "accessibility": "Accesibilidad",
+    "wines": "Vinos"
   },
   "forms": {
     "addReview": {
@@ -34094,7 +34117,9 @@ FILE: i18n/locales/es.json
       },
       "draftBannerCriteria": "Valora al menos un criterio para terminar esta reseña.",
       "draftBannerFood": "Valora la comida para completar esta reseña.",
-      "draftBannerWine": "Un vino aún necesita valoración."
+      "draftBannerWine": "Un vino aún necesita valoración.",
+      "showMoreCriteria": "Mostrar {{count}} más",
+      "hideMoreCriteria": "Mostrar menos"
     },
     "photos": {
       "takePhoto": "Hacer foto",
@@ -34752,11 +34777,26 @@ FILE: i18n/locales/fr.json
   },
   "criteria": {
     "food": "Cuisine",
-    "drinks": "Boisson",
-    "wines": "Vins",
+    "drinks": "Boissons",
     "service": "Service",
     "atmosphere": "Ambiance",
-    "valueForMoney": "Rapport qualité-prix"
+    "valueForMoney": "Rapport qualité-prix",
+    "quality": "Qualité",
+    "freshness": "Fraîcheur",
+    "variety": "Choix",
+    "portions": "Portions",
+    "presentation": "Présentation",
+    "comfort": "Confort",
+    "speed": "Rapidité",
+    "expertise": "Compétence",
+    "timing": "Timing",
+    "hygiene": "Hygiène",
+    "reception": "Accueil",
+    "familyFriendly": "Adapté aux enfants",
+    "dietary": "Régimes",
+    "acoustics": "Acoustique",
+    "accessibility": "Accessibilité",
+    "wines": "Vins"
   },
   "forms": {
     "addReview": {
@@ -34829,7 +34869,9 @@ FILE: i18n/locales/fr.json
       },
       "draftBannerCriteria": "Notez au moins un critère pour terminer cet avis.",
       "draftBannerFood": "Notez la cuisine pour terminer cet avis.",
-      "draftBannerWine": "Un vin doit encore être noté."
+      "draftBannerWine": "Un vin doit encore être noté.",
+      "showMoreCriteria": "Afficher {{count}} de plus",
+      "hideMoreCriteria": "Afficher moins"
     },
     "photos": {
       "takePhoto": "Prendre une photo",
@@ -35487,11 +35529,26 @@ FILE: i18n/locales/it.json
   },
   "criteria": {
     "food": "Cibo",
-    "drinks": "Bevanda",
-    "wines": "Vini",
+    "drinks": "Bevande",
     "service": "Servizio",
     "atmosphere": "Atmosfera",
-    "valueForMoney": "Rapporto qualità-prezzo"
+    "valueForMoney": "Rapporto qualità-prezzo",
+    "quality": "Qualità",
+    "freshness": "Freschezza",
+    "variety": "Scelta",
+    "portions": "Porzioni",
+    "presentation": "Presentazione",
+    "comfort": "Comfort",
+    "speed": "Rapidità",
+    "expertise": "Competenza",
+    "timing": "Tempi",
+    "hygiene": "Igiene",
+    "reception": "Accoglienza",
+    "familyFriendly": "Adatto ai bambini",
+    "dietary": "Esigenze alimentari",
+    "acoustics": "Acustica",
+    "accessibility": "Accessibilità",
+    "wines": "Vini"
   },
   "forms": {
     "addReview": {
@@ -35564,7 +35621,9 @@ FILE: i18n/locales/it.json
       },
       "draftBannerCriteria": "Valuta almeno un criterio per completare questa recensione.",
       "draftBannerFood": "Valuta il cibo per completare questa recensione.",
-      "draftBannerWine": "Un vino ha ancora bisogno di una valutazione."
+      "draftBannerWine": "Un vino ha ancora bisogno di una valutazione.",
+      "showMoreCriteria": "Mostra altri {{count}}",
+      "hideMoreCriteria": "Mostra meno"
     },
     "photos": {
       "takePhoto": "Scatta foto",
@@ -36223,10 +36282,25 @@ FILE: i18n/locales/nl.json
   "criteria": {
     "food": "Eten",
     "drinks": "Drank",
-    "wines": "Wijnen",
-    "service": "Bediening",
+    "service": "Service",
     "atmosphere": "Sfeer",
-    "valueForMoney": "Prijs-kwaliteit"
+    "valueForMoney": "Prijs",
+    "quality": "Kwaliteit",
+    "freshness": "Versheid",
+    "variety": "Keuze",
+    "portions": "Porties",
+    "presentation": "Presentatie",
+    "comfort": "Comfort",
+    "speed": "Snelheid",
+    "expertise": "Vakkennis",
+    "timing": "Timing",
+    "hygiene": "Hygiëne",
+    "reception": "Ontvangst",
+    "familyFriendly": "Kindvriendelijkheid",
+    "dietary": "Dieetwensen",
+    "acoustics": "Akoestiek",
+    "accessibility": "Toegankelijkheid",
+    "wines": "Wijnen"
   },
   "forms": {
     "addReview": {
@@ -36276,7 +36350,7 @@ FILE: i18n/locales/nl.json
       "title": "Recensie",
       "done": "Klaar",
       "visitDate": "Bezoekdatum",
-      "ratings": "Scores",
+      "ratings": "Beoordelingen",
       "generalComments": "Algemene opmerkingen",
       "photos": "Foto’s",
       "optionalComment": "Optionele opmerking",
@@ -36299,7 +36373,9 @@ FILE: i18n/locales/nl.json
       },
       "draftBannerCriteria": "Beoordeel minstens 1 criterium om deze recensie af te ronden.",
       "draftBannerFood": "Beoordeel Eten om deze recensie af te ronden.",
-      "draftBannerWine": "Een wijn heeft nog sterren nodig."
+      "draftBannerWine": "Een wijn heeft nog sterren nodig.",
+      "showMoreCriteria": "Toon {{count}} meer",
+      "hideMoreCriteria": "Minder tonen"
     },
     "photos": {
       "takePhoto": "Foto maken",
@@ -37839,6 +37915,9 @@ import {
 } from '@/services/backup/types';
 import { rebuildSearchableText } from '@/services/reviews/searchableText';
 import {
+  mapCriteriaToFixed,
+} from '@/services/reviews/ratings';
+import {
   syncWineLabelFields,
   wineLabelsForReview,
 } from '@/services/wine/wineLabelTypes';
@@ -38185,7 +38264,10 @@ export function backupReviewToApp(
     }
   }
 
-  const rated = criteria
+  // Fold legacy ids (`wines`, old custom ids) onto the 20 fixed criteria.
+  const fixedCriteria = mapCriteriaToFixed(criteria);
+
+  const rated = fixedCriteria
     .map((c) => c.rating)
     .filter((r) => r >= 1 && r <= 10)
     .map((r) => r / 2);
@@ -38229,7 +38311,7 @@ export function backupReviewToApp(
     searchableFromBackup ||
     rebuildSearchableText({
       generalComment,
-      criteria,
+      criteria: fixedCriteria,
       ocrText,
     });
 
@@ -38270,7 +38352,7 @@ export function backupReviewToApp(
     restaurantId: item.restaurantID ?? previous?.restaurantId ?? '',
     date: fromAppleRefDate(item.date),
     generalComment,
-    criteria,
+    criteria: fixedCriteria,
     photoUrls: galleryPhotoUrls,
     reviewedBy: item.reviewedBy ?? previous?.reviewedBy ?? '',
     reviewedById:
@@ -42602,6 +42684,36 @@ export function criterionIcon(id: string): {
       return { ios: 'sofa.fill', android: 'chair' };
     case 'valueForMoney':
       return { ios: 'tag.fill', android: 'sell' };
+    case 'quality':
+      return { ios: 'star.circle.fill', android: 'workspace-premium' };
+    case 'freshness':
+      return { ios: 'leaf.fill', android: 'eco' };
+    case 'variety':
+      return { ios: 'square.grid.2x2.fill', android: 'grid-view' };
+    case 'portions':
+      return { ios: 'scalemass.fill', android: 'scale' };
+    case 'presentation':
+      return { ios: 'rectangle.3.group.fill', android: 'breakfast-dining' };
+    case 'comfort':
+      return { ios: 'chair.fill', android: 'weekend' };
+    case 'speed':
+      return { ios: 'timer', android: 'timer' };
+    case 'expertise':
+      return { ios: 'graduationcap.fill', android: 'school' };
+    case 'timing':
+      return { ios: 'clock.fill', android: 'schedule' };
+    case 'hygiene':
+      return { ios: 'hands.and.sparkles.fill', android: 'clean-hands' };
+    case 'reception':
+      return { ios: 'figure.wave', android: 'waving-hand' };
+    case 'familyFriendly':
+      return { ios: 'figure.2.and.child.holdinghands', android: 'family-restroom' };
+    case 'dietary':
+      return { ios: 'leaf.circle.fill', android: 'spa' };
+    case 'acoustics':
+      return { ios: 'speaker.wave.2.fill', android: 'volume-up' };
+    case 'accessibility':
+      return { ios: 'figure.roll', android: 'accessible' };
     default:
       return { ios: 'star.circle.fill', android: 'star' };
   }
@@ -42801,6 +42913,7 @@ FILE: services/reviews/ratings.ts
 ================================================================================
 import type { CriterionRating } from '@/data/types';
 import { i18n } from '@/i18n';
+import { mapLegacyCriterionId } from '@/context/CriteriaSettings';
 
 /**
  * Rating storage in half-star steps (Swift `RatingValue`):
@@ -42896,13 +43009,47 @@ export function migrateLegacyCriterionRating(rating: number): number {
   return RatingValue.unrated;
 }
 
+/**
+ * Map criterion ids onto the 20 fixed criteria without touching the rating
+ * scale (v3 stores are already half-star steps). `wines` folds into `drinks`;
+ * unknown custom ids map via `mapLegacyCriterionId`. Idempotent.
+ */
+export function mapCriteriaToFixed(criteria: CriterionRating[]): CriterionRating[] {
+  const mapped: CriterionRating[] = [];
+  for (const c of criteria) {
+    const targetId = mapLegacyCriterionId(c.id, c.title);
+    const comment = (c.comment ?? '').trim();
+    const existing = mapped.find((n) => n.id === targetId);
+    if (existing) {
+      if (RatingValue.isStarRating(c.rating)) {
+        if (
+          !RatingValue.isStarRating(existing.rating) ||
+          c.rating > existing.rating
+        ) {
+          existing.rating = c.rating;
+        }
+      }
+      if (comment && !existing.comment.includes(comment)) {
+        existing.comment = [existing.comment, comment]
+          .filter(Boolean)
+          .join(' · ');
+      }
+      continue;
+    }
+    mapped.push({ ...c, id: targetId, comment });
+  }
+  return mapped;
+}
+
 export function migrateLegacyCriteria(
   criteria: CriterionRating[],
 ): CriterionRating[] {
-  return criteria.map((c) => ({
+  // Normalize legacy integer 1–5 ratings to half-star steps, then map ids.
+  const normalized = criteria.map((c) => ({
     ...c,
     rating: migrateLegacyCriterionRating(c.rating),
   }));
+  return mapCriteriaToFixed(normalized);
 }
 
 
@@ -43633,7 +43780,7 @@ import {
   type ShareReviewBackup,
 } from '@/services/share/ReviewShareService';
 import { SHARE_FILE_EXTENSION } from '@/services/share/types';
-import { overallScoreFromCriteria } from '@/services/reviews/ratings';
+import { overallScoreFromCriteria, mapCriteriaToFixed } from '@/services/reviews/ratings';
 import { rebuildSearchableText } from '@/services/reviews/searchableText';
 
 /** Matches Swift `ReviewerProfile.maxNameLength`. */
@@ -43729,7 +43876,7 @@ function criteriaFromShareReview(item: ShareReviewBackup): Review['criteria'] {
       // ignore malformed custom scores
     }
   }
-  return criteria;
+  return mapCriteriaToFixed(criteria);
 }
 
 /** Swift `ReviewBackup.overallScore(using:)`. */

@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -77,6 +77,28 @@ export default function ReviewFormScreen() {
   const generalCommentRef = useRef<TextInput | null>(null);
   const focusedCommentKeyRef = useRef<string | null>(null);
   const { enabledCriteria } = useCriteriaSettings();
+
+  // The five core criteria always stay visible; the rest collapse behind a
+  // "More criteria" toggle so a long criteria list never overwhelms the form.
+  const CORE_CRITERION_IDS = useRef([
+    'food',
+    'drinks',
+    'service',
+    'setting',
+    'valueForMoney',
+  ]).current;
+  const coreCriteria = enabledCriteria.filter((c) =>
+    CORE_CRITERION_IDS.includes(c.id),
+  );
+  const extraCriteria = enabledCriteria.filter(
+    (c) => !CORE_CRITERION_IDS.includes(c.id),
+  );
+  const [extendedOpen, setExtendedOpen] = useState(
+    () => extraCriteria.some((c) => (criteriaState[c.id]?.rating ?? 0) > 0),
+  );
+  const visibleCriteria = extendedOpen
+    ? enabledCriteria
+    : coreCriteria;
 
   const state = useReviewFormState();
   const {
@@ -262,13 +284,13 @@ export default function ReviewFormScreen() {
 
         <View style={styles.card}>
           <FormSectionTitle title={t('forms.review.ratings')} />
-          {enabledCriteria.map((criterion, offset) => {
+          {visibleCriteria.map((criterion, offset) => {
             const icons = criterionIcon(criterion.id);
             const stateVal = criteriaState[criterion.id] ?? {
               rating: RatingValue.unrated,
               comment: '',
             };
-            const isWines = criterion.id === 'wines';
+            const isWines = criterion.id === 'drinks';
             const isDrinks = criterion.id === 'drinks';
             const notes = isDrinks
               ? drinksCommentForDisplay(stateVal.comment, wineLabels)
@@ -367,8 +389,7 @@ export default function ReviewFormScreen() {
                           isWines
                             ? t('wineScan.drinksCommentPlaceholder')
                             : t('forms.review.optionalComment')
-                        }
-                        placeholderTextColor="rgba(35, 32, 26, 0.4)"
+                        }                        placeholderTextColor="rgba(35, 32, 26, 0.4)"
                         multiline
                         keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
                         style={styles.commentField}
@@ -484,6 +505,50 @@ export default function ReviewFormScreen() {
               </View>
             );
           })}
+
+          {extraCriteria.length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                extendedOpen
+                  ? t('forms.review.hideMoreCriteria')
+                  : t('forms.review.showMoreCriteria', {
+                      count: extraCriteria.length,
+                    })
+              }
+              onPress={() => {
+                Haptics.selectionChanged();
+                setExtendedOpen((prev) => !prev);
+              }}
+              style={({ pressed }) => [
+                styles.moreToggle,
+                pressed && styles.moreTogglePressed,
+              ]}>
+              <View style={styles.moreToggleRow}>
+                <Text style={styles.moreToggleLabel}>
+                  {extendedOpen
+                    ? t('forms.review.hideMoreCriteria')
+                    : t('forms.review.showMoreCriteria', {
+                        count: extraCriteria.length,
+                      })}
+                </Text>
+                {Platform.OS === 'ios' ? (
+                  <SymbolView
+                    name={extendedOpen ? 'chevron.up' : 'chevron.down'}
+                    size={14}
+                    tintColor={GustraColors.forestGreen}
+                    weight="semibold"
+                  />
+                ) : (
+                  <MaterialIcons
+                    name={extendedOpen ? 'expand-less' : 'expand-more'}
+                    size={20}
+                    color={GustraColors.forestGreen}
+                  />
+                )}
+              </View>
+            </Pressable>
+          ) : null}
         </View>
 
         <View style={styles.card}>
@@ -710,6 +775,27 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     backgroundColor: 'rgba(35, 32, 26, 0.12)',
     marginVertical: 14,
+  },
+  moreToggle: {
+    marginTop: 6,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(35, 32, 26, 0.12)',
+  },
+  moreTogglePressed: {
+    opacity: 0.7,
+  },
+  moreToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+  },
+  moreToggleLabel: {
+    ...bodyTextStyle,
+    fontSize: 15,
+    fontWeight: '600',
+    color: GustraColors.forestGreen,
   },
   criterionRow: {
     flexDirection: 'row',

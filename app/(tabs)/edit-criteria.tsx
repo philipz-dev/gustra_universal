@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useNavigation, useRouter } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { houseAlert, houseSaveChangesAlert } from '@/components/ui/HouseAlert';
@@ -16,16 +13,13 @@ import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { GustraSwitch } from '@/components/ui/GustraSwitch';
 import { GustraColors } from '@/constants/Colors';
-import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import {
-  CUSTOM_CRITERION_MAX_NAME_LENGTH,
   STANDARD_CRITERIA,
   isMandatoryStandardCriterion,
   standardCriterionDisplayTitle,
   useCriteriaSettings,
-  type CustomCriterionDefinition,
   type CriteriaSettingsSnapshot,
 } from '@/context/CriteriaSettings';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
@@ -34,16 +28,7 @@ import { Haptics } from '@/services/haptics';
 function snapshotKey(snap: CriteriaSettingsSnapshot): string {
   return JSON.stringify({
     d: [...snap.disabledStandardIds].sort(),
-    c: snap.customCriteria.map((x) => ({
-      id: x.id,
-      name: x.name,
-      on: x.isEnabled,
-    })),
   });
-}
-
-function newCustomId(): string {
-  return `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export default function EditCriteriaScreen() {
@@ -58,10 +43,6 @@ export default function EditCriteriaScreen() {
   const [draftDisabled, setDraftDisabled] = useState<Set<string>>(
     () => new Set(),
   );
-  const [draftCustom, setDraftCustom] = useState<CustomCriterionDefinition[]>(
-    [],
-  );
-  const [newCustomName, setNewCustomName] = useState('');
   const [hydrated, setHydrated] = useState(false);
   const baselineKeyRef = useRef('');
   const allowLeaveRef = useRef(false);
@@ -71,16 +52,15 @@ export default function EditCriteriaScreen() {
     const snap = getBackupSnapshot();
     baselineKeyRef.current = snapshotKey(snap);
     setDraftDisabled(new Set(snap.disabledStandardIds));
-    setDraftCustom(snap.customCriteria.map((c) => ({ ...c })));
     setHydrated(true);
   }, [getBackupSnapshot, hydrated, ready]);
 
   const draftSnapshot = useMemo(
     (): CriteriaSettingsSnapshot => ({
       disabledStandardIds: [...draftDisabled],
-      customCriteria: draftCustom.map((c) => ({ ...c })),
+      customCriteria: [],
     }),
-    [draftCustom, draftDisabled],
+    [draftDisabled],
   );
 
   const isDirty = useMemo(() => {
@@ -88,13 +68,11 @@ export default function EditCriteriaScreen() {
     return snapshotKey(draftSnapshot) !== baselineKeyRef.current;
   }, [draftSnapshot, hydrated]);
 
-  const enabledCount = useMemo(() => {
-    const standardOn = STANDARD_CRITERIA.filter(
-      (c) => !draftDisabled.has(c.id),
-    ).length;
-    const customOn = draftCustom.filter((c) => c.isEnabled).length;
-    return standardOn + customOn;
-  }, [draftCustom, draftDisabled]);
+  const enabledCount = useMemo(
+    () =>
+      STANDARD_CRITERIA.filter((c) => !draftDisabled.has(c.id)).length,
+    [draftDisabled],
+  );
 
   const isStandardOn = useCallback(
     (id: string) => !draftDisabled.has(id),
@@ -117,64 +95,6 @@ export default function EditCriteriaScreen() {
       });
     },
     [enabledCount, isStandardOn, t],
-  );
-
-  const toggleCustom = useCallback(
-    (id: string, enabled: boolean) => {
-      const row = draftCustom.find((c) => c.id === id);
-      if (!enabled && enabledCount <= 1 && row?.isEnabled) {
-        Haptics.warning();
-        houseAlert(t('tabs.editCriteria'), t('setup.criteria.minOne'));
-        return;
-      }
-      setDraftCustom((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, isEnabled: enabled } : c)),
-      );
-    },
-    [draftCustom, enabledCount, t],
-  );
-
-  const addNew = useCallback(() => {
-    let trimmed = newCustomName.trim();
-    if (!trimmed) return;
-    if (trimmed.length > CUSTOM_CRITERION_MAX_NAME_LENGTH) {
-      trimmed = trimmed.slice(0, CUSTOM_CRITERION_MAX_NAME_LENGTH);
-    }
-    setDraftCustom((prev) => [
-      ...prev,
-      { id: newCustomId(), name: trimmed, isEnabled: true },
-    ]);
-    setNewCustomName('');
-  }, [newCustomName]);
-
-  const confirmDelete = useCallback(
-    (id: string, name: string) => {
-      houseAlert(
-        t('settings.criteria.deleteTitle'),
-        t('settings.criteria.deleteBody', { name }),
-        [
-          { text: t('common.cancel'), style: 'cancel' },
-          {
-            text: t('common.delete'),
-            style: 'destructive',
-            onPress: () => {
-              const target = draftCustom.find((c) => c.id === id);
-              const nextCustom = draftCustom.filter((c) => c.id !== id);
-              const nextEnabled =
-                STANDARD_CRITERIA.filter((c) => !draftDisabled.has(c.id))
-                  .length + nextCustom.filter((c) => c.isEnabled).length;
-              if (target?.isEnabled && nextEnabled < 1) {
-                Haptics.warning();
-                houseAlert(t('tabs.editCriteria'), t('setup.criteria.minOne'));
-                return;
-              }
-              setDraftCustom(nextCustom);
-            },
-          },
-        ],
-      );
-    },
-    [draftCustom, draftDisabled, t],
   );
 
   const commitAndLeave = useCallback(
@@ -278,7 +198,7 @@ export default function EditCriteriaScreen() {
                 key={criterion.id}
                 style={[
                   styles.row,
-                  index < STANDARD_CRITERIA.length - 1 || draftCustom.length > 0
+                  index < STANDARD_CRITERIA.length - 1
                     ? styles.rowBorder
                     : null,
                 ]}>
@@ -301,59 +221,6 @@ export default function EditCriteriaScreen() {
               </View>
             );
           })}
-
-          {draftCustom.map((criterion) => (
-            <View key={criterion.id} style={[styles.row, styles.rowBorder]}>
-              <Text
-                style={[styles.rowTitle, styles.customName]}
-                numberOfLines={1}>
-                {criterion.name}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${t('common.delete')} ${criterion.name}`}
-                hitSlop={8}
-                onPress={() => confirmDelete(criterion.id, criterion.name)}
-                style={({ pressed }) => pressed && styles.pressed}>
-                <SymbolView
-                  name={{ ios: 'trash', android: 'delete', web: 'delete' }}
-                  tintColor={GustraColors.ratingAvoid}
-                  size={20}
-                />
-              </Pressable>
-              <GustraSwitch
-                value={criterion.isEnabled}
-                onValueChange={(value) => toggleCustom(criterion.id, value)}
-              />
-            </View>
-          ))}
-
-          <View style={styles.addRow}>
-            <TextInput
-              value={newCustomName}
-              onChangeText={(text) =>
-                setNewCustomName(text.slice(0, CUSTOM_CRITERION_MAX_NAME_LENGTH))
-              }
-              placeholder={t('settings.criteria.custom')}
-              placeholderTextColor="rgba(35, 32, 26, 0.4)"
-              style={styles.input}
-              returnKeyType="done"
-              onSubmitEditing={addNew}
-              maxLength={CUSTOM_CRITERION_MAX_NAME_LENGTH}
-              keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
-            />
-            {newCustomName.trim().length > 0 ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={addNew}
-                style={({ pressed }) => [
-                  styles.addButton,
-                  pressed && styles.pressed,
-                ]}>
-                <Text style={styles.addLabel}>{t('common.add')}</Text>
-              </Pressable>
-            ) : null}
-          </View>
         </View>
 
         <Text style={styles.footer}>{t('settings.criteria.footer')}</Text>
@@ -398,32 +265,6 @@ const styles = StyleSheet.create({
   requiredLabel: {
     ...captionTextStyle,
     color: GustraColors.ratingAvoid,
-  },
-  customName: {
-    flexShrink: 1,
-  },
-  addRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    minHeight: 52,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: GustraColors.ink,
-    paddingVertical: 8,
-  },
-  addButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  addLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: GustraColors.forestGreen,
   },
   footer: {
     ...captionTextStyle,

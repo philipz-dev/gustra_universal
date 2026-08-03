@@ -7,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -15,13 +14,11 @@ import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { houseAlert } from '@/components/ui/HouseAlert';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { GustraSwitch } from '@/components/ui/GustraSwitch';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
-import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import {
   SERIF_FONT_REGULAR_ITALIC,
   Theme,
@@ -30,7 +27,6 @@ import {
   systemSerifFamily,
 } from '@/constants/Theme';
 import {
-  CUSTOM_CRITERION_MAX_NAME_LENGTH,
   STANDARD_CRITERIA,
   isMandatoryStandardCriterion,
   standardCriterionDisplayTitle,
@@ -132,44 +128,18 @@ export default function CriteriaSetupScreen() {
   const insets = useSafeAreaInsets();
   const keyboardHeight = useKeyboardBottomInset();
   const {
-    customCriteria,
     isStandardEnabled,
     setStandardEnabled,
-    setCustomEnabled,
-    addCustomCriterion,
-    deleteCustomCriterion,
     hasMinEnabledCriteria,
     completeCriteriaSetup,
   } = useCriteriaSettings();
   const [step, setStep] = useState<'welcome' | 'criteria'>('welcome');
-  const [newCustomName, setNewCustomName] = useState('');
 
   const onFinish = async () => {
     if (!hasMinEnabledCriteria) return;
     Haptics.medium();
     await completeCriteriaSetup();
     router.replace('/(tabs)/(main)');
-  };
-
-  const addNew = () => {
-    if (!addCustomCriterion(newCustomName)) return;
-    Haptics.selectionChanged();
-    setNewCustomName('');
-  };
-
-  const confirmDelete = (id: string, name: string) => {
-    houseAlert(
-      t('settings.criteria.deleteTitle'),
-      t('settings.criteria.deleteBody', { name }),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.delete'),
-          style: 'destructive',
-          onPress: () => deleteCustomCriterion(id),
-        },
-      ],
-    );
   };
 
   if (step === 'welcome') {
@@ -255,93 +225,6 @@ export default function CriteriaSetupScreen() {
               </Pressable>
             );
           })}
-
-          {customCriteria.map((criterion) => (
-            <Pressable
-              key={criterion.id}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: criterion.isEnabled }}
-              onPress={() => {
-                Haptics.selectionChanged();
-                setCustomEnabled(criterion.id, !criterion.isEnabled);
-              }}
-              style={[
-                styles.row,
-                styles.rowBorder,
-                criterion.isEnabled && styles.rowOn,
-              ]}>
-              <CriterionRowIcon id={criterion.id} enabled={criterion.isEnabled} />
-              <Text
-                style={[
-                  styles.rowTitle,
-                  criterion.isEnabled && styles.rowTitleOn,
-                ]}
-                numberOfLines={1}>
-                {criterion.name}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${t('common.delete')} ${criterion.name}`}
-                hitSlop={8}
-                onPress={() => confirmDelete(criterion.id, criterion.name)}
-                style={({ pressed }) => pressed && styles.pressed}>
-                <SymbolView
-                  name={{ ios: 'trash', android: 'delete', web: 'delete' }}
-                  tintColor={GustraColors.ratingAvoid}
-                  size={20}
-                />
-              </Pressable>
-              <GustraSwitch
-                value={criterion.isEnabled}
-                onValueChange={(value) =>
-                  setCustomEnabled(criterion.id, value)
-                }
-              />
-            </Pressable>
-          ))}
-
-          <View style={styles.addRow}>
-            <View style={styles.iconWrap}>
-              {Platform.OS === 'ios' ? (
-                <SymbolView
-                  name="plus"
-                  size={16}
-                  tintColor="rgba(35, 32, 26, 0.45)"
-                  weight="semibold"
-                />
-              ) : (
-                <MaterialIcons
-                  name="add"
-                  size={20}
-                  color="rgba(35, 32, 26, 0.45)"
-                />
-              )}
-            </View>
-            <TextInput
-              value={newCustomName}
-              onChangeText={(text) =>
-                setNewCustomName(text.slice(0, CUSTOM_CRITERION_MAX_NAME_LENGTH))
-              }
-              placeholder={t('settings.criteria.custom')}
-              placeholderTextColor="rgba(35, 32, 26, 0.4)"
-              style={styles.input}
-              returnKeyType="done"
-              onSubmitEditing={addNew}
-              maxLength={CUSTOM_CRITERION_MAX_NAME_LENGTH}
-              keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
-            />
-            {newCustomName.trim().length > 0 ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={addNew}
-                style={({ pressed }) => [
-                  styles.addButton,
-                  pressed && styles.pressed,
-                ]}>
-                <Text style={styles.addLabel}>{t('common.add')}</Text>
-              </Pressable>
-            ) : null}
-          </View>
         </View>
 
         <View style={styles.hints}>
@@ -464,29 +347,6 @@ const styles = StyleSheet.create({
     ...captionTextStyle,
     color: GustraColors.ratingAvoid,
   },
-  addRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    minHeight: 58,
-  },
-  input: {
-    flex: 1,
-    fontSize: 17,
-    color: GustraColors.ink,
-    paddingVertical: 8,
-  },
-  addButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  addLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: GustraColors.forestGreen,
-  },
   hints: {
     gap: 4,
   },
@@ -499,8 +359,5 @@ const styles = StyleSheet.create({
   },
   hintTip: {
     textDecorationLine: 'underline',
-  },
-  pressed: {
-    opacity: 0.7,
   },
 });

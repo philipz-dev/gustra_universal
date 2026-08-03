@@ -279,11 +279,26 @@
   },
   "criteria": {
     "food": "Comida",
-    "drinks": "Bebida",
-    "wines": "Vinos",
+    "drinks": "Bebidas",
     "service": "Servicio",
     "atmosphere": "Ambiente",
-    "valueForMoney": "Relación calidad-precio"
+    "valueForMoney": "Relación calidad-precio",
+    "quality": "Calidad",
+    "freshness": "Frescura",
+    "variety": "Variedad",
+    "portions": "Raciones",
+    "presentation": "Presentación",
+    "comfort": "Confort",
+    "speed": "Rapidez",
+    "expertise": "Conocimiento",
+    "timing": "Tiempo",
+    "hygiene": "Higiene",
+    "reception": "Recepción",
+    "familyFriendly": "Apto para niños",
+    "dietary": "Dietas",
+    "acoustics": "Acústica",
+    "accessibility": "Accesibilidad",
+    "wines": "Vinos"
   },
   "forms": {
     "addReview": {
@@ -356,7 +371,9 @@
       },
       "draftBannerCriteria": "Valora al menos un criterio para terminar esta reseña.",
       "draftBannerFood": "Valora la comida para completar esta reseña.",
-      "draftBannerWine": "Un vino aún necesita valoración."
+      "draftBannerWine": "Un vino aún necesita valoración.",
+      "showMoreCriteria": "Mostrar {{count}} más",
+      "hideMoreCriteria": "Mostrar menos"
     },
     "photos": {
       "takePhoto": "Hacer foto",
