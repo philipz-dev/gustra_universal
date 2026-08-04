@@ -36,16 +36,32 @@ const DESYNCED = `export default () => ({
   android: { versionCode: 60 },
 });`;
 
+// Pull the numbers out of the fixture bodies so the assertion matches whatever
+// value the guard echoes back (independent of the real repo build number).
+function syncNumbers(configBody: string): { ios: string; android: string } {
+  const ios = /buildNumber: '(\d+)'/.exec(configBody)?.[1] ?? '';
+  const android = /versionCode: (\d+)/.exec(configBody)?.[1] ?? '';
+  return { ios, android };
+}
+
 describe('check-build-sync guard', () => {
   it('passes when buildNumber === versionCode', () => {
     const { output, exit } = runWithConfig(SYNCED);
+    const { ios } = syncNumbers(SYNCED);
     expect(exit).toBe(0);
-    expect(output).toMatch(/Config in sync: ios\.buildNumber = android\.versionCode = 60/);
+    expect(output).toMatch(
+      new RegExp(`Config in sync: ios\\.buildNumber = android\\.versionCode = ${ios}`),
+    );
   });
 
   it('fails with a clear message when buildNumber !== versionCode', () => {
     const { output, exit } = runWithConfig(DESYNCED);
+    const { ios, android } = syncNumbers(DESYNCED);
     expect(exit).not.toBe(0);
-    expect(output).toMatch(/Config niet gesynchroniseerd: ios\.buildNumber=61 maar android\.versionCode=60/);
+    expect(output).toMatch(
+      new RegExp(
+        `Config niet gesynchroniseerd: ios\\.buildNumber=${ios} maar android\\.versionCode=${android}`,
+      ),
+    );
   });
 });
