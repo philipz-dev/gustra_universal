@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GustraColors } from '@/constants/Colors';
 import { captionTextStyle, Surface, Theme } from '@/constants/Theme';
-import { unlockAdvancedMenu } from '@/context/AdvancedMenu';
+import { toggleAdvancedMenu } from '@/context/AdvancedMenu';
 import { Haptics } from '@/services/haptics';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -149,9 +149,9 @@ export function GustraTabBar(props: Record<string, unknown>) {
                   type: 'tabLongPress',
                   target: route.key,
                 });
-                // Secret advanced-settings gate: long-press the Settings tab
-                // to reveal the hidden "Advanced" section in Settings.
-                if (route.name === 'settings' && unlockAdvancedMenu()) {
+                // Secret developer-settings gate: long-press the Settings tab
+                // to toggle the hidden "Developer" section in Settings.
+                if (route.name === 'settings' && toggleAdvancedMenu()) {
                   // Distinct confirmation so the gesture feels intentional.
                   Haptics.success();
                 }

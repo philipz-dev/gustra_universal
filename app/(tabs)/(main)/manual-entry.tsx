@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
@@ -16,13 +16,16 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolView } from 'expo-symbols';
 
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
+import { SelectedRestaurantBanner } from '@/components/review/SelectedRestaurantBanner';
 import { GustraColors } from '@/constants/Colors';
 import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
+import { useReviewsStore } from '@/context/ReviewsStore';
 import { Haptics } from '@/services/haptics';
 import { resolveCurrentLocation } from '@/services/location/resolveCurrentLocation';
 import {
+  findExistingRestaurant,
   formatAddressLine,
   formattedDistance,
   makeManualRestaurantDraft,
@@ -61,14 +64,29 @@ export default function ManualEntryScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [searchHighlighted, setSearchHighlighted] = useState(false);
+  const [selectedDraft, setSelectedDraft] = useState<RestaurantDraft | null>(null);
+  const { restaurants, addDraftToBucketList, setRestaurantBucket } =
+    useReviewsStore();
+
+  const selectedInBucketList = useMemo(() => {
+    if (!selectedDraft) return false;
+    return (
+      findExistingRestaurant(selectedDraft, restaurants)?.isInBucketList ?? false
+    );
+  }, [restaurants, selectedDraft]);
+
+  const handleToggleBucketList = useCallback(async () => {
+    if (!selectedDraft) return;
+    const existing = findExistingRestaurant(selectedDraft, restaurants);
+    if (existing?.isInBucketList) {
+      await setRestaurantBucket(existing.id, false);
+      return;
+    }
+    await addDraftToBucketList(selectedDraft);
+  }, [addDraftToBucketList, restaurants, selectedDraft, setRestaurantBucket]);
 
   const trimmedName = name.trim();
   const canProceed = trimmedName.length > 0;
-  /** Swift: only after Find on Google returns zero matches. */
-  const showContinueManually =
-    hasSearched && !isSearching && matches.length === 0 && !searchError;
-
   const resetSearch = () => {
     searchGenRef.current += 1;
     setHasSearched(false);
@@ -91,11 +109,6 @@ export default function ManualEntryScreen() {
     return () => clearTimeout(timer);
   }, []);
 
-  const flashSearchButton = () => {
-    setSearchHighlighted(true);
-    setTimeout(() => setSearchHighlighted(false), 250);
-  };
-
   const startReview = (draft: RestaurantDraft) => {
     Haptics.selectionChanged();
     router.push({
@@ -113,7 +126,6 @@ export default function ManualEntryScreen() {
     const query = [trimmedName, cityTrim, countryTrim].filter(Boolean).join(' ');
     if (!query) return;
 
-    flashSearchButton();
     const gen = ++searchGenRef.current;
     setIsSearching(true);
     setSearchError(null);
@@ -160,7 +172,19 @@ export default function ManualEntryScreen() {
   const continueManually = () => {
     const draft = makeManualRestaurantDraft({ name, city, country });
     if (!draft) return;
-    startReview(draft);
+    Keyboard.dismiss();
+    Haptics.selectionChanged();
+    setSelectedDraft(draft);
+  };
+
+  const selectGoogleMatch = (match: RestaurantSearchResult) => {
+    Keyboard.dismiss();
+    Haptics.selectionChanged();
+    setSelectedDraft(restaurantDraftFromResult(match));
+  };
+
+  const clearSelectedDraft = () => {
+    setSelectedDraft(null);
   };
 
   const scrollBottomPad =
@@ -221,6 +245,19 @@ export default function ManualEntryScreen() {
             />
           </View>
 
+          {selectedDraft ? (
+            <View style={styles.bannerPad}>
+              <SelectedRestaurantBanner
+                draft={selectedDraft}
+                actionTitle={t("forms.manual.startReview")}
+                onToggleBucketList={handleToggleBucketList}
+                inBucketList={selectedInBucketList}
+                onClear={clearSelectedDraft}
+                onAction={() => startReview(selectedDraft)}
+              />
+            </View>
+          ) : (
+          <>
           <View style={styles.group}>
             <Pressable
               accessibilityRole="button"
@@ -230,56 +267,43 @@ export default function ManualEntryScreen() {
                 void searchMatches();
               }}
               style={({ pressed }) => [
-                styles.findRow,
-                searchHighlighted && styles.findRowHighlighted,
-                pressed && canProceed && !isSearching && styles.findRowPressed,
-                (!canProceed || isSearching) && styles.findRowDisabled,
+                styles.findButton,
+                pressed && canProceed && !isSearching && styles.findButtonPressed,
+                (!canProceed || isSearching) && styles.findButtonDisabled,
               ]}>
               {Platform.OS === 'ios' ? (
                 <SymbolView
                   name="magnifyingglass"
                   size={20}
                   tintColor={
-                    searchHighlighted
-                      ? '#FFFFFF'
-                      : canProceed
-                        ? GustraColors.forestGreen
-                        : 'rgba(35, 32, 26, 0.35)'
+                    canProceed ? '#FFFFFF' : 'rgba(255, 255, 255, 0.55)'
                   }
+                  weight="semibold"
                 />
               ) : (
                 <MaterialIcons
                   name="search"
                   size={22}
-                  color={
-                    searchHighlighted
-                      ? '#FFFFFF'
-                      : canProceed
-                        ? GustraColors.forestGreen
-                        : 'rgba(35, 32, 26, 0.35)'
-                  }
+                  color={canProceed ? '#FFFFFF' : 'rgba(255, 255, 255, 0.55)'}
                 />
               )}
               <Text
                 style={[
                   styles.findLabel,
-                  searchHighlighted && styles.findLabelHighlighted,
                   !canProceed && styles.findLabelDisabled,
                 ]}>
                 {t('forms.manual.findOnGoogle')}
               </Text>
               {isSearching ? (
-                <ActivityIndicator
-                  color={
-                    searchHighlighted ? '#FFFFFF' : GustraColors.forestGreen
-                  }
-                />
+                <ActivityIndicator color="#FFFFFF" />
               ) : null}
             </Pressable>
           </View>
           <Text style={styles.footerHint}>
             {t('forms.manual.searchHint')}
           </Text>
+          </>
+          )}
 
           {isSearching ? (
             <View style={styles.matchesBlock}>
@@ -289,9 +313,7 @@ export default function ManualEntryScreen() {
                 <Text style={styles.loadingText}>{t('forms.manual.loading')}</Text>
               </View>
             </View>
-          ) : null}
-
-          {!isSearching && hasSearched ? (
+          ) : hasSearched ? (
             <View style={styles.matchesBlock}>
               <Text style={styles.sectionTitle}>{t('forms.manual.googleMatches')}</Text>
               {searchError ? (
@@ -326,9 +348,7 @@ export default function ManualEntryScreen() {
                         {index > 0 ? <View style={styles.fieldSep} /> : null}
                         <Pressable
                           accessibilityRole="button"
-                          onPress={() =>
-                            startReview(restaurantDraftFromResult(match))
-                          }
+                          onPress={() => selectGoogleMatch(match)}
                           style={({ pressed }) => [
                             styles.matchRow,
                             pressed && styles.pressed,
@@ -356,52 +376,49 @@ export default function ManualEntryScreen() {
           ) : null}
         </ScrollView>
 
-        {showContinueManually ? (
-          <View style={[styles.manualFooter, { paddingBottom: footerPad }]}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("forms.manual.continueManually")}
-              disabled={!canProceed}
-              onPress={continueManually}
-              style={({ pressed }) => [
-                styles.continueButton,
-                !canProceed && styles.continueDisabled,
-                pressed && canProceed && styles.pressed,
+        {selectedDraft ? null : (
+        <View style={[styles.manualFooter, { paddingBottom: footerPad }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("forms.manual.continueManually")}
+            disabled={!canProceed}
+            onPress={continueManually}
+            style={({ pressed }) => [
+              styles.continueButton,
+              !canProceed && styles.continueDisabled,
+              pressed && canProceed && styles.pressed,
+            ]}>
+            {Platform.OS === 'ios' ? (
+              <SymbolView
+                name="square.and.pencil"
+                size={18}
+                tintColor={
+                  canProceed
+                    ? GustraColors.forestGreen
+                    : 'rgba(35, 32, 26, 0.35)'
+                }
+              />
+            ) : (
+              <MaterialIcons
+                name="edit"
+                size={20}
+                color={
+                  canProceed
+                    ? GustraColors.forestGreen
+                    : 'rgba(35, 32, 26, 0.35)'
+                }
+              />
+            )}
+            <Text
+              style={[
+                styles.continueLabel,
+                !canProceed && styles.continueLabelDisabled,
               ]}>
-              {Platform.OS === 'ios' ? (
-                <SymbolView
-                  name="square.and.pencil"
-                  size={18}
-                  tintColor={
-                    canProceed
-                      ? GustraColors.forestGreen
-                      : 'rgba(35, 32, 26, 0.35)'
-                  }
-                />
-              ) : (
-                <MaterialIcons
-                  name="edit"
-                  size={20}
-                  color={
-                    canProceed
-                      ? GustraColors.forestGreen
-                      : 'rgba(35, 32, 26, 0.35)'
-                  }
-                />
-              )}
-              <Text
-                style={[
-                  styles.continueLabel,
-                  !canProceed && styles.continueLabelDisabled,
-                ]}>
-                {t('forms.manual.continueManually')}
-              </Text>
-            </Pressable>
-            <Text style={styles.manualHint}>
-              {t('forms.manual.manualMapHint')}
+              {t('forms.manual.continueManually')}
             </Text>
-          </View>
-        ) : null}
+          </Pressable>
+        </View>
+        )}
     </View>
   );
 }
@@ -500,36 +517,36 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(35, 32, 26, 0.12)',
     marginLeft: 16,
   },
-  findRow: {
+  bannerPad: {
+    paddingTop: 20,
+  },
+  findButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 10,
     minHeight: 52,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 10,
-  },
-  findRowHighlighted: {
+    borderRadius: Theme.radius.lg,
     backgroundColor: GustraColors.forestGreen,
   },
-  findRowPressed: {
+  findButtonPressed: {
     opacity: 0.85,
   },
-  findRowDisabled: {
-    opacity: 1,
+  findButtonDisabled: {
+    backgroundColor: 'rgba(36, 78, 57, 0.4)',
   },
   findLabel: {
     ...bodyTextStyle,
     flex: 1,
+    textAlign: 'center',
     fontSize: 17,
-    fontWeight: '500',
-    color: GustraColors.forestGreen,
-  },
-  findLabelHighlighted: {
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   findLabelDisabled: {
-    color: 'rgba(35, 32, 26, 0.35)',
+    color: 'rgba(255, 255, 255, 0.6)',
   },
   footerHint: {
     ...captionTextStyle,
@@ -631,7 +648,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: GustraColors.bubble,
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    borderWidth: 1,
+    borderColor: 'rgba(36, 78, 57, 0.35)',
     borderRadius: Theme.radius.md,
     paddingVertical: 14,
   },
@@ -646,12 +665,6 @@ const styles = StyleSheet.create({
   },
   continueLabelDisabled: {
     color: 'rgba(35, 32, 26, 0.35)',
-  },
-  manualHint: {
-    ...captionTextStyle,
-    fontSize: 13,
-    color: 'rgba(35, 32, 26, 0.55)',
-    textAlign: 'center',
   },
   pressed: {
     opacity: 0.75,

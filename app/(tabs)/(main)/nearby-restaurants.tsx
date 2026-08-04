@@ -33,6 +33,7 @@ import {
   findExistingRestaurant,
   formattedDistance,
   isSameRestaurantDraft,
+  MAX_NEARBY_SEARCH_RADIUS_M,
   restaurantDraftFromResult,
   searchNearby,
   type RestaurantDraft,
@@ -102,7 +103,8 @@ export default function NearbyRestaurantsScreen() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { reviews, restaurants } = useReviewsStore();
+  const { reviews, restaurants, addDraftToBucketList, setRestaurantBucket } =
+    useReviewsStore();
   const listRef = useRef<FlatListType<RestaurantSearchResult>>(null);
   const [selected, setSelected] = useState<RestaurantDraft | null>(null);
   const [results, setResults] = useState<RestaurantSearchResult[]>([]);
@@ -123,7 +125,10 @@ export default function NearbyRestaurantsScreen() {
 
     if (location.coords) {
       try {
-        const found = await searchNearby(location.coords);
+        // Wide circle (API max 50 km): Google still returns only the 20
+        // closest places, so urban users see truly-nearby results while
+        // remote users are not left with an empty list.
+        const found = await searchNearby(location.coords, MAX_NEARBY_SEARCH_RADIUS_M);
         setResults(found);
         setIsLoading(false);
       } catch (error) {
@@ -143,7 +148,7 @@ export default function NearbyRestaurantsScreen() {
     if (fallback) {
       setFallbackLabel(fallback.label);
       try {
-        const found = await searchNearby(fallback.center);
+        const found = await searchNearby(fallback.center, MAX_NEARBY_SEARCH_RADIUS_M);
         setResults(found);
         setIsLoading(false);
       } catch (error) {
@@ -192,6 +197,23 @@ export default function NearbyRestaurantsScreen() {
     ).length;
   }, [reviews, restaurants, selected]);
 
+  const selectedInBucketList = useMemo(() => {
+    if (!selected) return false;
+    return (
+      findExistingRestaurant(selected, restaurants)?.isInBucketList ?? false
+    );
+  }, [restaurants, selected]);
+
+  const handleToggleBucketList = useCallback(async () => {
+    if (!selected) return;
+    const existing = findExistingRestaurant(selected, restaurants);
+    if (existing?.isInBucketList) {
+      await setRestaurantBucket(existing.id, false);
+      return;
+    }
+    await addDraftToBucketList(selected);
+  }, [addDraftToBucketList, restaurants, selected, setRestaurantBucket]);
+
   const bottomPad =
     Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
 
@@ -210,6 +232,12 @@ export default function NearbyRestaurantsScreen() {
             draft={selected}
             actionTitle={t("forms.nearby.startReview")}
             visitedCount={selectedVisitedCount}
+            onToggleBucketList={handleToggleBucketList}
+            inBucketList={selectedInBucketList}
+            onClear={() => {
+              setSelected(null);
+              router.back();
+            }}
             onAction={() =>
               router.push({
                 pathname: '/review-form',

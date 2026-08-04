@@ -1,5 +1,7 @@
 import {
   isAdvancedMenuUnlocked,
+  lockAdvancedMenu,
+  toggleAdvancedMenu,
   unlockAdvancedMenu,
   resetAdvancedMenuUnlocked,
 } from '@/context/AdvancedMenu';
@@ -31,5 +33,19 @@ describe('AdvancedMenu gate', () => {
     resetAdvancedMenuUnlocked();
     expect(isAdvancedMenuUnlocked()).toBe(false);
     expect(unlockAdvancedMenu()).toBe(true);
+  });
+
+  it('toggles on and off with the long-press gesture', () => {
+    expect(toggleAdvancedMenu()).toBe(true);
+    expect(isAdvancedMenuUnlocked()).toBe(true);
+    expect(toggleAdvancedMenu()).toBe(false);
+    expect(isAdvancedMenuUnlocked()).toBe(false);
+  });
+
+  it('lockAdvancedMenu hides the section again', () => {
+    unlockAdvancedMenu();
+    expect(lockAdvancedMenu()).toBe(true);
+    expect(isAdvancedMenuUnlocked()).toBe(false);
+    expect(lockAdvancedMenu()).toBe(false);
   });
 });

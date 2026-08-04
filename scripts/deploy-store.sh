@@ -24,6 +24,13 @@
 # Each upload bumps max(ios, android) + 1 and writes both fields (even if only
 # one platform is built), so TestFlight and Play show the same 1.0 (N).
 #
+# Desync guard (mandatory): scripts/check-build-sync.sh runs before anything is
+# bumped or uploaded. It fails the deploy if app.config.ts has buildNumber !=
+# versionCode, and — when local artifacts exist — refuses to upload an IPA/AAB
+# whose embedded build number differs from the newest artifact of the other
+# platform. This keeps the stores in sync even if someone uploads manually
+# outside this script. Run it anytime with: npm run build:sync:check
+#
 # Env (optional):
 #   DEPLOY_PLATFORM      ios | android | both
 #   DEPLOY_IOS_GROUP     Internal | Developer  (default Developer when unset + no TTY)
@@ -196,6 +203,19 @@ if [[ ! -t 0 ]]; then
   if [[ -z "$PLATFORM_ARG" ]]; then
     echo "Geen TTY: geef --platform (of DEPLOY_PLATFORM)." >&2
     echo "Voor upload zonder TTY: DEPLOY_CONFIRM1=Y DEPLOY_CONFIRM2=Y … --go" >&2
+    exit 1
+  fi
+fi
+
+# Pre-flight: the whole point of the shared build number is that ios.buildNumber
+# and android.versionCode stay equal. If a previous manual `eas build` / config
+# edit left them desynced, stop before bumping or uploading anything.
+CHECK_SYNC="$ROOT/scripts/check-build-sync.sh"
+if [[ -x "$CHECK_SYNC" ]]; then
+  if ! "$CHECK_SYNC"; then
+    echo "" >&2
+    echo "Deploy gestopt: buildnummers zijn niet gesynchroniseerd (zie hierboven)." >&2
+    echo "Zet ios.buildNumber en android.versionCode eerst op dezelfde waarde." >&2
     exit 1
   fi
 fi
@@ -478,6 +498,17 @@ deploy_ios() {
       --non-interactive
     restore_eas_sentry_env
     echo "Submit lokale IPA: $ipa_out (niet --latest / cloud)."
+    # Guard: never submit an IPA whose embedded build number is not ${next}
+    # (protects against stale/mislabeled artifacts silently uploading).
+    if [[ -f "$ipa_out" ]]; then
+      EMBEDDED="$(unzip -p "$ipa_out" "Payload/*.app/Info.plist" 2>/dev/null | plutil -extract CFBundleVersion raw - 2>/dev/null || true)"
+      if [[ "$EMBEDDED" != "$next" ]]; then
+        echo "Fout: $ipa_out bevat CFBundleVersion '$EMBEDDED', verwacht $next — submit gestopt." >&2
+        restore_eas_sentry_env
+        exit 1
+      fi
+      echo "  ✓ IPA build-nummer geverifieerd: $EMBEDDED"
+    fi
     npx eas-cli submit \
       --platform ios \
       --profile "$profile" \
@@ -528,6 +559,27 @@ deploy_android() {
       --non-interactive
     restore_eas_sentry_env
     echo "Submit lokale AAB: $aab_out (niet --latest / cloud)."
+    # Guard: never submit an AAB whose embedded versionCode is not ${next}
+    # (protects against stale/mislabeled artifacts silently uploading).
+    if [[ -f "$aab_out" ]]; then
+      EMBEDDED="$(python3 - "$aab_out" <<'PY'
+import re, sys, zipfile
+try:
+    with zipfile.ZipFile(sys.argv[1]) as z:
+        man = z.read("base/manifest/AndroidManifest.xml")
+        m = re.search(rb"versionCode\x1a\x02([0-9]+)", man)
+        print(m.group(1).decode() if m else "?")
+except Exception:
+    print("?")
+PY
+)"
+      if [[ "$EMBEDDED" != "$next" ]]; then
+        echo "Fout: $aab_out bevat versionCode '$EMBEDDED', verwacht $next — submit gestopt." >&2
+        restore_eas_sentry_env
+        exit 1
+      fi
+      echo "  ✓ AAB versionCode geverifieerd: $EMBEDDED"
+    fi
     npx eas-cli submit \
       --platform android \
       --profile production \

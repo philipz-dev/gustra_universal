@@ -84,6 +84,7 @@
     "deploy:localization": "python3 scripts/deploy-localization.py",
     "deploy:github": "python3 scripts/deploy-github.py",
     "i18n:check": "python3 scripts/check-i18n.py",
+    "build:sync:check": "bash scripts/check-build-sync.sh",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:unit": "jest",

@@ -2,15 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Keyboard,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
   type FlatList as FlatListType,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { SymbolView } from 'expo-symbols';
 
 import {
   GoogleMapsView,
@@ -22,6 +26,7 @@ import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
 import { GustraColors } from '@/constants/Colors';
+import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import { resolveReviewOrigin } from '@/data/types';
@@ -34,8 +39,10 @@ import {
   formattedDistance,
   isSameRestaurantDraft,
   isSignificantRegionChange,
+  regionCodeForCountry,
   restaurantDraftFromResult,
   searchNearby,
+  searchText,
   type LatLng,
   type RestaurantDraft,
   type RestaurantSearchResult,
@@ -53,13 +60,14 @@ export default function MapSearchScreen() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { reviews, restaurants } = useReviewsStore();
+  const { reviews, restaurants, addDraftToBucketList, setRestaurantBucket } =
+    useReviewsStore();
   const mapRef = useRef<GoogleMapsViewHandle>(null);
   const listRef = useRef<FlatListType<RestaurantSearchResult>>(null);
   const searchTaskRef = useRef(0);
   const suppressIdleRef = useRef(0);
   const ignoreNextMapPressRef = useRef(false);
-  const hasLoadedInitialRef = useRef(false);
+  const initialSearchStartedRef = useRef(false);
   const searchCenterRef = useRef<LatLng>(FALLBACK_MAP_CENTER);
   const searchRadiusRef = useRef(DEFAULT_SEARCH_RADIUS_M);
   const lastSearchedCenterRef = useRef<LatLng | null>(null);
@@ -67,10 +75,15 @@ export default function MapSearchScreen() {
 
   const [selected, setSelected] = useState<RestaurantDraft | null>(null);
   const [results, setResults] = useState<RestaurantSearchResult[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [showSearchThisArea, setShowSearchThisArea] = useState(false);
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [query, setQuery] = useState('');
+  const [isTextSearching, setIsTextSearching] = useState(false);
+  const [textSearchError, setTextSearchError] = useState<string | null>(null);
+  /** Non-null while a text search result is on screen. */
+  const textSearchActiveRef = useRef<LatLng | null>(null);
 
   const performSearch = useCallback(async (center: LatLng, radius: number) => {
     const taskId = ++searchTaskRef.current;
@@ -104,29 +117,41 @@ export default function MapSearchScreen() {
     [],
   );
 
-  const loadInitial = useCallback(async () => {
-    if (hasLoadedInitialRef.current || !mapReady) return;
-    hasLoadedInitialRef.current = true;
+  // Location resolution runs once at mount so the blue dot is available before
+  // the WebView reports ready (the map only injects it if userLocation is set).
+  const [locationResolved, setLocationResolved] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const location = await resolveCurrentLocation();
+      if (cancelled) return;
+      if (location.coords) setUserLocation(location.coords);
+      setLocationResolved(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-    const location = await resolveCurrentLocation();
-    if (location.coords) {
-      const coords = location.coords;
-      setUserLocation(coords);
-      searchCenterRef.current = coords;
+  // Once the map is ready and the initial location pass finished, point the
+  // camera at the user (or the wide fallback) and run the first nearby search.
+  useEffect(() => {
+    if (!mapReady || !locationResolved) return;
+    initialSearchStartedRef.current = true;
+    if (userLocation) {
+      searchCenterRef.current = userLocation;
       searchRadiusRef.current = DEFAULT_SEARCH_RADIUS_M;
-      moveCameraProgrammatically(coords, 14, 2);
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      await performSearch(coords, DEFAULT_SEARCH_RADIUS_M);
-      return;
+      moveCameraProgrammatically(userLocation, 14, 2);
+      const timer = setTimeout(() => {
+        void performSearch(userLocation, DEFAULT_SEARCH_RADIUS_M);
+      }, 300);
+      return () => clearTimeout(timer);
     }
-
     // Permission denied / no fix: wide fallback, no silent Middelkerke search.
     moveCameraProgrammatically(FALLBACK_MAP_CENTER, 6, 2);
-  }, [mapReady, moveCameraProgrammatically, performSearch]);
-
-  useEffect(() => {
-    void loadInitial();
-  }, [loadInitial]);
+    setIsLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady, locationResolved, userLocation]);
 
   const handleMapIdle = useCallback((center: LatLng, radius: number) => {
     searchCenterRef.current = center;
@@ -137,7 +162,20 @@ export default function MapSearchScreen() {
       return;
     }
 
-    if (!hasLoadedInitialRef.current || !lastSearchedCenterRef.current) {
+    // A text search result moved the camera — only panning away from it
+    // returns to the normal "search this area" flow.
+    if (textSearchActiveRef.current) {
+      const left = isSignificantRegionChange(
+        center,
+        radius,
+        textSearchActiveRef.current,
+        Math.max(radius, DEFAULT_SEARCH_RADIUS_M),
+      );
+      if (!left) return;
+      textSearchActiveRef.current = null;
+    }
+
+    if (!initialSearchStartedRef.current || !lastSearchedCenterRef.current) {
       return;
     }
 
@@ -156,6 +194,63 @@ export default function MapSearchScreen() {
     void performSearch(searchCenterRef.current, searchRadiusRef.current);
   };
 
+  const clearTextSearch = useCallback(() => {
+    textSearchActiveRef.current = null;
+    setQuery('');
+    setTextSearchError(null);
+  }, []);
+
+  const runTextSearch = useCallback(async () => {
+    const trimmed = query.trim();
+    if (!trimmed || isTextSearching) return;
+    Keyboard.dismiss();
+    const gen = ++searchTaskRef.current;
+    setTextSearchError(null);
+    setIsTextSearching(true);
+    try {
+      // No GPS bias: an explicit place in the query (e.g. "Frankfurt") wins
+      // over the device circle, so a text search can jump anywhere. Region
+      // code keeps Places results inside the matching country (a bare city
+      // name like "Brussel" otherwise returns city-level POIs that our
+      // food allowlist then filters out).
+      const countryCode = regionCodeForCountry(trimmed);
+      let found = await searchText(trimmed, null, {
+        locationBias: false,
+        regionCode: countryCode,
+      });
+      if (gen !== searchTaskRef.current) return;
+      // A bare city name ("Brussel") often returns no dining venues from the
+      // strict allowlist. Retry once with a dining qualifier so the user still
+      // gets restaurants for that city.
+      if (found.length === 0 && !countryCode) {
+        found = await searchText(`${trimmed} restaurant`, null, {
+          locationBias: false,
+        });
+        if (gen !== searchTaskRef.current) return;
+      }
+      setResults(found);
+      lastSearchedCenterRef.current = null;
+      lastSearchedRadiusRef.current = 0;
+      if (found.length > 0) {
+        const target = found[0]!.coordinate;
+        textSearchActiveRef.current = target;
+        setShowSearchThisArea(false);
+        moveCameraProgrammatically(target, 14, 1);
+      } else {
+        textSearchActiveRef.current = null;
+      }
+    } catch (error) {
+      if (gen !== searchTaskRef.current) return;
+      setTextSearchError(
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      if (gen === searchTaskRef.current) {
+        setIsTextSearching(false);
+      }
+    }
+  }, [isTextSearching, moveCameraProgrammatically, query, regionCodeForCountry, searchText]);
+
   const clearSelection = () => setSelected(null);
 
   const selectedVisitedCount = useMemo(() => {
@@ -167,6 +262,23 @@ export default function MapSearchScreen() {
         r.restaurantId === existing.id && resolveReviewOrigin(r) === 'own',
     ).length;
   }, [reviews, restaurants, selected]);
+
+  const selectedInBucketList = useMemo(() => {
+    if (!selected) return false;
+    return (
+      findExistingRestaurant(selected, restaurants)?.isInBucketList ?? false
+    );
+  }, [restaurants, selected]);
+
+  const handleToggleBucketList = useCallback(async () => {
+    if (!selected) return;
+    const existing = findExistingRestaurant(selected, restaurants);
+    if (existing?.isInBucketList) {
+      await setRestaurantBucket(existing.id, false);
+      return;
+    }
+    await addDraftToBucketList(selected);
+  }, [addDraftToBucketList, restaurants, selected, setRestaurantBucket]);
 
   const selectDraft = (draft: RestaurantDraft) => {
     ignoreNextMapPressRef.current = true;
@@ -275,12 +387,73 @@ export default function MapSearchScreen() {
         ) : null}
       </View>
 
+      <View style={styles.searchBarPad}>
+        <View style={styles.searchBarRow}>
+          {Platform.OS === 'ios' ? (
+            <SymbolView
+              name="magnifyingglass"
+              size={18}
+              tintColor="rgba(35, 32, 26, 0.4)"
+              weight="semibold"
+            />
+          ) : (
+            <MaterialIcons
+              name="search"
+              size={20}
+              color="rgba(35, 32, 26, 0.4)"
+            />
+          )}
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder={t('forms.mapSearch.searchPlaceholder')}
+            placeholderTextColor="rgba(35, 32, 26, 0.4)"
+            style={styles.searchInput}
+            keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+            onSubmitEditing={() => void runTextSearch()}
+            accessibilityLabel={t('forms.mapSearch.searchPlaceholder')}
+          />
+          {query.length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('common.clear')}
+              hitSlop={8}
+              onPress={clearTextSearch}
+              style={({ pressed }) => pressed && styles.searchClearPressed}>
+              {Platform.OS === 'ios' ? (
+                <SymbolView
+                  name="xmark.circle.fill"
+                  size={18}
+                  tintColor="rgba(35, 32, 26, 0.35)"
+                />
+              ) : (
+                <MaterialIcons
+                  name="cancel"
+                  size={20}
+                  color="rgba(35, 32, 26, 0.35)"
+                />
+              )}
+            </Pressable>
+          ) : null}
+        </View>
+        {isTextSearching ? (
+          <ActivityIndicator color={GustraColors.forestGreen} size="small" />
+        ) : textSearchError ? (
+          <Text style={styles.searchError}>{textSearchError}</Text>
+        ) : null}
+      </View>
+
       {selected ? (
         <View style={styles.bannerPad}>
           <SelectedRestaurantBanner
             draft={selected}
             actionTitle={t("forms.mapSearch.startReview")}
             visitedCount={selectedVisitedCount}
+            onToggleBucketList={handleToggleBucketList}
+            inBucketList={selectedInBucketList}
             onClear={clearSelection}
             onAction={() =>
               router.push({
@@ -299,6 +472,7 @@ export default function MapSearchScreen() {
         keyExtractor={(item) => item.id}
         overScrollMode="never"
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         contentContainerStyle={[styles.list, { paddingBottom: bottomPad }]}
         getItemLayout={(_, index) => ({
           length: ROW_HEIGHT,
@@ -318,6 +492,17 @@ export default function MapSearchScreen() {
               <Text style={styles.loadingText}>
                 {t("forms.nearby.finding")}
               </Text>
+            </View>
+          ) : textSearchActiveRef.current || query.trim() ? (
+            <View style={styles.flexFill}>
+              <HouseEmptyState
+                title={t('forms.mapSearch.emptyTitle')}
+                description={t('forms.mapSearch.searchEmpty', {
+                  query: query.trim(),
+                })}
+                systemImage="magnifyingglass"
+                androidImage="search_off"
+              />
             </View>
           ) : (
             <View style={styles.flexFill}>
@@ -414,6 +599,39 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  searchBarPad: {
+    paddingHorizontal: Theme.spacing.listRowHorizontal,
+    paddingTop: 12,
+    gap: 8,
+    backgroundColor: GustraColors.cream,
+  },
+  searchBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    borderRadius: Theme.radius.lg,
+    backgroundColor: 'rgba(236, 227, 207, 0.55)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(35, 32, 26, 0.12)',
+  },
+  searchInput: {
+    ...bodyTextStyle,
+    flex: 1,
+    fontSize: 16,
+    color: GustraColors.ink,
+    paddingVertical: Platform.OS === 'android' ? 10 : 0,
+    minHeight: 46,
+  },
+  searchClearPressed: {
+    opacity: 0.6,
+  },
+  searchError: {
+    ...captionTextStyle,
+    fontSize: 13,
+    color: 'rgba(166, 62, 36, 0.95)',
+    paddingHorizontal: 4,
   },
   bannerPad: {
     paddingHorizontal: Theme.spacing.listRowHorizontal,

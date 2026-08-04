@@ -128,6 +128,16 @@ type ReviewsStoreValue = {
     restaurantId: string,
     isFavorite: boolean,
   ) => Promise<void>;
+  /** Toggle a restaurant on the user's bucket list (no review yet). */
+  setRestaurantBucket: (
+    restaurantId: string,
+    isInBucketList: boolean,
+  ) => Promise<void>;
+  /**
+   * Add a draft restaurant to the bucket list: finds an existing restaurant
+   * by draft or creates one, then flags it. Returns the restaurant id.
+   */
+  addDraftToBucketList: (draft: RestaurantDraft) => Promise<string | null>;
   /** Create or update a review from the review form (Swift `persistReview`). */
   upsertReviewFromForm: (
     input: ReviewFormUpsertInput,
@@ -192,6 +202,7 @@ function restaurantFromDraft(
     mapItemIdentifier: draft.mapItemIdentifier,
     primaryType: draft.primaryType.trim(),
     isFavorite,
+    isInBucketList: false,
     thumbnailColor: THUMB_COLORS[Math.floor(Math.random() * THUMB_COLORS.length)],
     photoUrl: '',
   });
@@ -767,6 +778,55 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
     [restaurants, reviews],
   );
 
+  const setRestaurantBucket = useCallback(
+    async (restaurantId: string, isInBucketList: boolean) => {
+      const nextRestaurants = restaurants.map((restaurant) =>
+        restaurant.id === restaurantId
+          ? { ...restaurant, isInBucketList }
+          : restaurant,
+      );
+      setRestaurants(nextRestaurants);
+      await persist({ restaurants: nextRestaurants, reviews });
+    },
+    [restaurants, reviews],
+  );
+
+  const addDraftToBucketList = useCallback(
+    async (draft: RestaurantDraft): Promise<string | null> => {
+      const draftName = draft.name.trim();
+      if (!draftName) return null;
+
+      let nextRestaurants = [...restaurantsRef.current];
+      const existing = findExistingRestaurant(draft, nextRestaurants);
+      if (existing) {
+        // A restaurant you already visited belongs in Memories, not on the
+        // bucket list — keep it off (the review flow auto-removes it too).
+        const hasOwnReview = reviewsRef.current.some(
+          (r) =>
+            r.restaurantId === existing.id && resolveReviewOrigin(r) === 'own',
+        );
+        if (!hasOwnReview && !existing.isInBucketList) {
+          nextRestaurants = nextRestaurants.map((r) =>
+            r.id === existing.id ? { ...r, isInBucketList: true } : r,
+          );
+          restaurantsRef.current = nextRestaurants;
+          setRestaurants(nextRestaurants);
+          await persist({ restaurants: nextRestaurants, reviews: reviewsRef.current });
+        }
+        return existing.id;
+      }
+
+      const created = restaurantFromDraft(draft, false);
+      const withBucket = { ...created, isInBucketList: true };
+      nextRestaurants = [...nextRestaurants, withBucket];
+      restaurantsRef.current = nextRestaurants;
+      setRestaurants(nextRestaurants);
+      await persist({ restaurants: nextRestaurants, reviews: reviewsRef.current });
+      return withBucket.id;
+    },
+    [],
+  );
+
   // Swift `PlaceTypeBackfillService.backfillMissingTypesIfNeeded` at launch.
   useEffect(() => {
     if (!ready) return;
@@ -959,6 +1019,12 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
           restaurant.id,
           nextReviews,
         );
+        // A restaurant with a review no longer belongs on the bucket list.
+        if (restaurant.isInBucketList) {
+          nextRestaurants = nextRestaurants.map((r) =>
+            r.id === restaurant!.id ? { ...r, isInBucketList: false } : r,
+          );
+        }
         restaurant =
           nextRestaurants.find((r) => r.id === restaurant!.id) ?? restaurant;
 
@@ -1378,6 +1444,8 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       resyncRestaurantCovers,
       deleteRestaurantFromFeed,
       setRestaurantFavorite,
+      setRestaurantBucket,
+      addDraftToBucketList,
       upsertReviewFromForm,
       deleteReview,
       removeWineFromReview,
@@ -1402,6 +1470,8 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       resyncRestaurantCovers,
       deleteRestaurantFromFeed,
       setRestaurantFavorite,
+      setRestaurantBucket,
+      addDraftToBucketList,
       upsertReviewFromForm,
       deleteReview,
       removeWineFromReview,

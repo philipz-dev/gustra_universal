@@ -105,6 +105,12 @@ export type Restaurant = {
    */
   primaryType: string;
   isFavorite: boolean;
+  /**
+   * User's bucket list (places to visit). Restaurants on the list have no
+   * review yet — adding a review auto-removes them from the list. Additive:
+   * older persisted records simply lack this flag (defaults to false).
+   */
+  isInBucketList: boolean;
   thumbnailColor: string;
   /** Dish or interior photo for feed cards. */
   photoUrl: string;
@@ -129,6 +135,7 @@ export function normalizeRestaurant(restaurant: Restaurant): Restaurant {
     primaryType: restaurant.primaryType ?? '',
     phone: restaurant.phone,
     isFavorite: Boolean(restaurant.isFavorite),
+    isInBucketList: Boolean(restaurant.isInBucketList),
     thumbnailColor: restaurant.thumbnailColor || '#3D6B52',
     photoUrl: restaurant.photoUrl ?? '',
   };

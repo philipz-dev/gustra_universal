@@ -136,7 +136,7 @@
     "title": "Ma carte",
     "friendSuffix": "(ami)",
     "legend": {
-      "title": "Épingles",
+      "title": "Légende",
       "own": "Mes souvenirs",
       "friends": "Partagés avec vous"
     },
@@ -163,18 +163,32 @@
     "topCities": "Meilleures villes",
     "cityAverages": "Meilleures villes",
     "noCityData": "Pas encore de données de ville.",
-    "timeTravel": "Voyage dans le temps",
-    "timeTravelSubtitle": "Remontez le temps à travers toutes vos visites.",
+    "timeTravel": "Retour en arrière",
+    "timeTravelSubtitle": "Retrouvez tous vos souvenirs.",
     "timeTravelYears": "Années",
     "timeTravelReviews_one": "{{count}} visite",
     "timeTravelReviews_other": "{{count}} visites",
     "timeTravelAverage": "Moyenne",
     "timeTravelTotal": "Visites au total",
-    "timeTravelEmptyTitle": "Rien à parcourir pour l’instant",
+    "timeTravelEmptyTitle": "Rien à revoir pour l’instant",
     "timeTravelEmptyBody": "Ajoutez des souvenirs de restaurant et votre frise apparaîtra ici.",
     "timeTravelMonthHeader": "{{month}} {{year}}",
     "timeTravelMonthCount_one": "{{count}} visite",
     "timeTravelMonthCount_other": "{{count}} visites"
+  },
+  "bucketList": {
+    "title": "Liste de souhaits",
+    "emptyTitle": "Pas encore de liste de souhaits",
+    "emptyBody": "Touchez le signet d’un restaurant que vous voulez visiter pour l’enregistrer ici.",
+    "addTitle": "Ajouter à la liste de souhaits",
+    "addBody": "Voulez-vous ajouter {{name}} à votre liste de souhaits ?",
+    "addConfirm": "Ajouter",
+    "added": "Ajouté à votre liste de souhaits",
+    "removeTitle": "Retirer de la liste de souhaits",
+    "removeBody": "Voulez-vous retirer {{name}} de votre liste de souhaits ?",
+    "removeConfirm": "Retirer",
+    "deleteConfirm": "Retirer {{name}} de votre liste de souhaits ?",
+    "deleteRemoved": "Retiré de la liste de souhaits"
   },
   "settings": {
     "language": "Langue",
@@ -198,7 +212,7 @@
     "sectionStorage": "Stockage",
     "sectionData": "Données et sauvegarde",
     "sectionGoogle": "Utilisation de l’API Google",
-    "sectionAdvanced": "Avancé",
+    "sectionDeveloper": "Développeur",
     "sectionLanguage": "Langue",
     "editPhotoHint": "Touchez la photo pour la modifier",
     "editCriteria": "Modifier les critères",
@@ -269,8 +283,8 @@
     "languageValueFrench": "Français",
     "geminiApi": "Gemini Vision (vin)",
     "sectionDeveloper": "Développeur",
-    "showCriteriaSetup": "Afficher la config. des critères",
-    "showCriteriaSetupSubtitle": "Rouvrir l’écran de première ouverture",
+    "fakeFirstRun": "Simuler un premier lancement",
+    "fakeFirstRunSubtitle": "Afficher le logo Gustra, appuyer pour continuer et le menu à 3 choix",
     "sentryTestCrash": "Envoyer un événement test Sentry",
     "sentryTestCrashSubtitle": "Vérifie le rapport de plantages (erreur sûre)",
     "sentryTestCrashNoDsn": "Définissez d’abord EXPO_PUBLIC_SENTRY_DSN dans .env",
@@ -308,10 +322,13 @@
   },
   "forms": {
     "addReview": {
-      "title": "Ajouter un souvenir",
-      "nearby": "Afficher les restaurants à proximité",
-      "mapSearch": "Rechercher sur la carte",
-      "manual": "Saisie manuelle"
+      "title": "Nouveau souvenir",
+      "nearby": "À proximité",
+      "nearbySubtitle": "Découvrez des restaurants autour de vous",
+      "mapSearch": "Sur la carte",
+      "mapSearchSubtitle": "Explorez des lieux sur la carte",
+      "manual": "Manuel",
+      "manualSubtitle": "Saisissez vous-même le nom et les détails"
     },
     "addVisit": {
       "title": "Ajouter une visite"
@@ -336,7 +353,9 @@
       "startReview": "Ajouter un souvenir",
       "hint": "Déplacez la carte, puis touchez Rechercher dans cette zone.",
       "emptyTitle": "Aucun restaurant trouvé",
-      "searchAreaHint": "Rechercher des restaurants dans la zone visible"
+      "searchAreaHint": "Rechercher des restaurants dans la zone visible",
+      "searchPlaceholder": "Rechercher partout (ex. Francfort)",
+      "searchEmpty": "Aucun restaurant trouvé pour « {{query}} »."
     },
     "manual": {
       "title": "Saisie manuelle",
@@ -344,13 +363,13 @@
       "city": "Ville (facultatif)",
       "country": "Pays (facultatif)",
       "findOnGoogle": "Trouver sur Google",
-      "searchHint": "Recherchez sur Google pour ajouter des détails, ou continuez manuellement.",
+      "searchHint": "Recherchez sur Google pour remplir automatiquement l’adresse et la position sur la carte.",
       "googleMatches": "Résultats Google",
       "loading": "Chargement des restaurants…",
       "continueManually": "Continuer manuellement",
+      "startReview": "Ajouter un souvenir",
       "searchFailed": "Impossible d’atteindre le service de recherche.",
-      "noMatch": "Aucune correspondance sur Google.",
-      "manualMapHint": "Sans correspondance Google, ce restaurant n’apparaîtra pas sur votre carte."
+      "noMatch": "Aucune correspondance sur Google."
     },
     "review": {
       "editTitle": "Modifier",
@@ -371,6 +390,7 @@
       "avg": "{{score}} moy.",
       "time": "Heure",
       "setTime": "Choisir l’heure · {{time}}",
+      "noMapPinHint": "Ce restaurant n’a pas de position sur la carte et n’apparaîtra donc pas sur votre carte.",
       "photoStrip": {
         "hintReorder": "Touchez pour sélectionner · appui long pour réordonner",
         "hintSelect": "Touchez pour sélectionner et supprimer",
@@ -455,7 +475,7 @@
       "cancel": "Annuler",
       "continue": "Continuer"
     },
-    "selectReviews": "Sélectionner les souvenirs",
+    "selectReviews": "Partager des souvenirs",
     "selectRestaurants": "Choisir les restaurants",
     "selectOneRestaurant": "Choisir 1 restaurant"
   },
@@ -744,8 +764,8 @@
       "tapToContinue": "Touchez pour continuer"
     },
     "choose": {
-      "headline": "Comment voulez-vous vous souvenir ?",
-      "body": "Choisissez un point de départ. Vous pourrez modifier vos critères plus tard dans Réglages.",
+      "headline": "Comment souhaitez-vous consigner vos souvenirs ?",
+      "body": "Vous pourrez toujours ajuster vos critères plus tard dans Réglages.",
       "recommended": "Recommandé",
       "quick": {
         "title": "Rapide",
@@ -753,7 +773,7 @@
       },
       "essentials": {
         "title": "Essentiels",
-        "subtitle": "Les 5 critères essentiels — un bon point de départ"
+        "subtitle": "Cuisine, boissons, service, ambiance et rapport qualité-prix"
       },
       "full": {
         "title": "Contrôle total",

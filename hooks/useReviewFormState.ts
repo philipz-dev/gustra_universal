@@ -36,6 +36,7 @@ import {
   restaurantDraftFromRestaurant,
   type RestaurantDraft,
 } from '@/services/places';
+import { floorToHalfHour } from '@/i18n/formatDates';
 
 type EditBaseline = {
   visitDateIso: string;
@@ -64,9 +65,13 @@ export function useReviewFormState() {
     draft?: string;
     reviewId?: string;
     restaurantId?: string;
+    /** 'bucket' when opened from the My Gustra bucket list (back → passport). */
+    from?: string;
   }>();
   const router = useRouter();
   const navigation = useNavigation();
+
+  const fromBucket = params.from === 'bucket';
 
   const { enabledCriteria, customCriteria } = useCriteriaSettings();
   const {
@@ -97,7 +102,7 @@ export function useReviewFormState() {
   }, [existingReview, getRestaurant, params.draft, params.restaurantId]);
 
   const [draft, setDraft] = useState<RestaurantDraft | null>(null);
-  const [visitDate, setVisitDate] = useState(() => new Date());
+  const [visitDate, setVisitDate] = useState(() => floorToHalfHour(new Date()));
   const [isFavorite, setIsFavorite] = useState(false);
   const [generalComment, setGeneralComment] = useState('');
   const [criteriaState, setCriteriaState] = useState<
@@ -155,6 +160,8 @@ export function useReviewFormState() {
   isEditRef.current = isEdit;
   const isEditDirtyRef = useRef(false);
   const allowLeaveRef = useRef(false);
+  const fromBucketRef = useRef(fromBucket);
+  fromBucketRef.current = fromBucket;
   didDeleteRef.current = didDelete;
 
   // Hydrate once store + route params are ready.
@@ -167,7 +174,7 @@ export function useReviewFormState() {
     activeReviewIdRef.current = existingReview?.id;
 
     if (existingReview) {
-      const visitDateValue = new Date(existingReview.date);
+      const visitDateValue = floorToHalfHour(new Date(existingReview.date));
       const winesCopy = wineLabelsForReview(existingReview);
       const photoUrlsCopy = stripWineLabelUrisFromPhotoUrls(
         [...existingReview.photoUrls],
@@ -220,7 +227,7 @@ export function useReviewFormState() {
     } else {
       const match = findExistingRestaurant(initialDraft, restaurants);
       const prefilledFavorite = Boolean(match?.isFavorite);
-      const visitDateValue = new Date();
+      const visitDateValue = floorToHalfHour(new Date());
       setIsFavorite(prefilledFavorite);
       setVisitDate(visitDateValue);
       editBaselineRef.current = null;
@@ -528,12 +535,18 @@ export function useReviewFormState() {
 
   const leaveToReviews = useCallback(() => {
     allowLeaveRef.current = true;
+    // Bucket drafts opened from My Gustra: simply pop back — the review form
+    // was pushed directly on top of the passport tab, so back restores My
+    // Gustra with its scroll offset untouched.
+    if (fromBucketRef.current) {
+      router.back();
+      return;
+    }
     if (router.canDismiss()) {
       router.dismissAll();
     }
     router.navigate('/(tabs)/(main)');
   }, [router]);
-
   const discardEditPhotos = useCallback(() => {
     const baseline = editBaselineRef.current;
     if (!baseline) return;
@@ -662,6 +675,21 @@ export function useReviewFormState() {
 
   const onBack = useCallback(() => {
     if (persistTimer.current) clearTimeout(persistTimer.current);
+    // Bucket-list drafts are pushed directly on top of My Gustra; backing out
+    // pops the form so the passport screen restores at its previous scroll
+    // offset, exactly where the user tapped.
+    if (fromBucketRef.current) {
+      if (isFormDirty) {
+        promptDiscardEdits(() => {
+          allowLeaveRef.current = true;
+          leaveToReviews();
+        });
+        return;
+      }
+      allowLeaveRef.current = true;
+      leaveToReviews();
+      return;
+    }
     // New reviews are pushed from a picker stack (nearby / map-search /
     // manual entry). Backing out of a brand-new draft should land on the
     // feed — not step back through the picker — so the user never clicks

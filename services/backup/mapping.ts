@@ -188,6 +188,7 @@ export function restaurantToBackup(restaurant: Restaurant): RestaurantBackup {
     longitude: Number.isFinite(restaurant.longitude) ? restaurant.longitude : 0,
     mapItemIdentifier: mapId,
     isFavorite: restaurant.isFavorite,
+    isInBucketList: restaurant.isInBucketList,
     // Absent/empty in older backups — omit empty so Swift stays compatible.
     primaryType: primaryType.length > 0 ? primaryType : null,
   };
@@ -306,6 +307,7 @@ export function backupRestaurantToApp(
     primaryType:
       (item.primaryType ?? previous?.primaryType ?? '').trim(),
     isFavorite: item.isFavorite ?? previous?.isFavorite ?? false,
+    isInBucketList: item.isInBucketList ?? previous?.isInBucketList ?? false,
     thumbnailColor: previous?.thumbnailColor ?? '#3D6B52',
     photoUrl: previous?.photoUrl ?? '',
   };

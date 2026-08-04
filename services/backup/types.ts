@@ -17,6 +17,8 @@ export type RestaurantBackup = {
   longitude: number;
   mapItemIdentifier?: string | null;
   isFavorite?: boolean | null;
+  /** User's bucket list flag. Additive — older backups omit it. */
+  isInBucketList?: boolean | null;
   primaryType?: string | null;
 };
 

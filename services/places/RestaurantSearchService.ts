@@ -3,12 +3,23 @@ import { recordSearchEvent } from '@/services/debug/debugLog';
 import { assertGoogleApiAllowed } from '@/services/google/GoogleApiQuota';
 import { incrementGoogleApi } from '@/services/google/GoogleApiTracker';
 import { distanceMeters } from '@/services/places/distance';
+import { resolveCache } from '@/services/places/searchCache';
+import {
+  DEFAULT_SEARCH_RADIUS_M,
+  MAX_NEARBY_SEARCH_RADIUS_M,
+} from '@/services/places/searchRadii';
 import type {
   LatLng,
   RestaurantSearchResult,
 } from '@/services/places/types';
 
-export const DEFAULT_SEARCH_RADIUS_M = 2_000;
+/**
+ * Default radius for nearby/list searches and text-search bias.
+ * @deprecated Use `DEFAULT_SEARCH_RADIUS_M` from `@/services/places/searchRadii`
+ *   (kept re-exported here for backward-compatible callers).
+ */
+export { DEFAULT_SEARCH_RADIUS_M } from '@/services/places/searchRadii';
+export { MAX_NEARBY_SEARCH_RADIUS_M } from '@/services/places/searchRadii';
 
 /** Nearby Search `includedTypes` — dining venues only (no bakery/retail food). */
 const FOOD_INCLUDED_TYPES = [
@@ -128,79 +139,6 @@ export { distanceMeters } from '@/services/places/distance';
  * not have to pull in the Google Places networking stack.
  */
 export { formattedDistance } from '@/services/units/distance';
-
-type CacheEntry = {
-  center: LatLng;
-  query: string;
-  timestamp: number;
-  results: RestaurantSearchResult[];
-};
-
-const cacheEntries: CacheEntry[] = [];
-const inFlight = new Map<string, Promise<RestaurantSearchResult[]>>();
-const CACHE_TTL_MS = 5 * 60 * 1000;
-const CACHE_RADIUS_M = 100;
-
-function bucketKey(
-  center: LatLng | null,
-  query: string,
-  extras: string = '',
-): string {
-  const lat = center ? Math.round(center.latitude * 1000) / 1000 : 'none';
-  const lng = center ? Math.round(center.longitude * 1000) / 1000 : 'none';
-  // v3: optional locationBias + regionCode for country-scoped manual search.
-  return `v3:${query}@${lat},${lng}${extras ? `:${extras}` : ''}`;
-}
-
-function cached(
-  center: LatLng | null,
-  query: string,
-): RestaurantSearchResult[] | null {
-  const now = Date.now();
-  for (let i = cacheEntries.length - 1; i >= 0; i -= 1) {
-    if (now - cacheEntries[i]!.timestamp > CACHE_TTL_MS) {
-      cacheEntries.splice(i, 1);
-    }
-  }
-  const hit = cacheEntries.find((entry) => {
-    if (entry.query !== query) return false;
-    if (!center) return entry.center.latitude === 0 && entry.center.longitude === 0;
-    return distanceMeters(entry.center, center) <= CACHE_RADIUS_M;
-  });
-  return hit?.results ?? null;
-}
-
-async function resolveCache(
-  center: LatLng | null,
-  query: string,
-  work: () => Promise<RestaurantSearchResult[]>,
-  extras: string = '',
-): Promise<RestaurantSearchResult[]> {
-  const hit = cached(center, query);
-  if (hit) return hit;
-
-  const key = bucketKey(center, query, extras);
-  const existing = inFlight.get(key);
-  if (existing) return existing;
-
-  const task = (async () => {
-    const results = await work();
-    cacheEntries.push({
-      center: center ?? { latitude: 0, longitude: 0 },
-      query,
-      timestamp: Date.now(),
-      results,
-    });
-    return results;
-  })();
-
-  inFlight.set(key, task);
-  try {
-    return await task;
-  } finally {
-    inFlight.delete(key);
-  }
-}
 
 function componentOf(
   components: PlacesApiPlace['addressComponents'],
@@ -462,7 +400,7 @@ export async function searchNearby(
   center: LatLng,
   radius: number = DEFAULT_SEARCH_RADIUS_M,
 ): Promise<RestaurantSearchResult[]> {
-  const results = await resolveCache(center, '__nearby__', () =>
+  const results = await resolveCache(center, '__nearby__', radius, () =>
     postNearby(center, radius),
   );
   const withIds = withDistance(results, center);
@@ -590,6 +528,7 @@ export async function searchText(
   const results = await resolveCache(
     biasCenter,
     cacheQuery,
+    radius,
     () => postText(trimmed, biasCenter, radius, regionCode),
     regionCode ?? '',
   );

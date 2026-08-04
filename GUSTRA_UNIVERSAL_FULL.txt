@@ -1,8 +1,8 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-08-03T18:31:14Z
+Generated: 2026-08-04T11:06:05Z
 Root: /Users/philipzvar/Desktop/gustra_universal
-Files: 254
+Files: 262
 ================================================================================
 
 ================================================================================
@@ -229,6 +229,8 @@ FILE: __tests__/advancedMenu.test.ts
 ================================================================================
 import {
   isAdvancedMenuUnlocked,
+  lockAdvancedMenu,
+  toggleAdvancedMenu,
   unlockAdvancedMenu,
   resetAdvancedMenuUnlocked,
 } from '@/context/AdvancedMenu';
@@ -260,6 +262,20 @@ describe('AdvancedMenu gate', () => {
     resetAdvancedMenuUnlocked();
     expect(isAdvancedMenuUnlocked()).toBe(false);
     expect(unlockAdvancedMenu()).toBe(true);
+  });
+
+  it('toggles on and off with the long-press gesture', () => {
+    expect(toggleAdvancedMenu()).toBe(true);
+    expect(isAdvancedMenuUnlocked()).toBe(true);
+    expect(toggleAdvancedMenu()).toBe(false);
+    expect(isAdvancedMenuUnlocked()).toBe(false);
+  });
+
+  it('lockAdvancedMenu hides the section again', () => {
+    unlockAdvancedMenu();
+    expect(lockAdvancedMenu()).toBe(true);
+    expect(isAdvancedMenuUnlocked()).toBe(false);
+    expect(lockAdvancedMenu()).toBe(false);
   });
 });
 
@@ -326,6 +342,134 @@ describe('backup crypto', () => {
 
 
 ================================================================================
+FILE: __tests__/bucketList.test.ts
+================================================================================
+import {
+  backupRestaurantToApp,
+  restaurantToBackup,
+} from '@/services/backup/mapping';
+import { normalizeRestaurant } from '@/data/types';
+import type { Restaurant } from '@/data/types';
+
+function restaurant(overrides: Partial<Restaurant> = {}): Restaurant {
+  return {
+    id: 'r1',
+    name: 'Het Huis',
+    city: 'Gent',
+    country: 'BE',
+    address: 'Straat 1',
+    latitude: 51.05,
+    longitude: 3.72,
+    mapItemIdentifier: 'place_1',
+    primaryType: 'restaurant',
+    isFavorite: false,
+    isInBucketList: false,
+    thumbnailColor: '#3D6B52',
+    photoUrl: '',
+    ...overrides,
+  };
+}
+
+describe('bucket list data compatibility', () => {
+  it('normalizeRestaurant defaults isInBucketList to false for older records', () => {
+    const legacy = restaurant();
+    delete (legacy as Partial<Restaurant>).isInBucketList;
+    const normalized = normalizeRestaurant(legacy);
+    expect(normalized.isInBucketList).toBe(false);
+  });
+
+  it('normalizeRestaurant keeps an existing isInBucketList flag', () => {
+    const normalized = normalizeRestaurant(restaurant({ isInBucketList: true }));
+    expect(normalized.isInBucketList).toBe(true);
+  });
+
+  it('restaurantToBackup exports isInBucketList', () => {
+    const backup = restaurantToBackup(restaurant({ isInBucketList: true }));
+    expect(backup.isInBucketList).toBe(true);
+  });
+
+  it('backupRestaurantToApp imports isInBucketList', () => {
+    const restored = backupRestaurantToApp(
+      restaurantToBackup(restaurant({ isInBucketList: true })),
+    );
+    expect(restored.isInBucketList).toBe(true);
+  });
+
+  it('backupRestaurantToApp defaults to false when the backup omits the field', () => {
+    const backup = restaurantToBackup(restaurant());
+    delete (backup as Partial<typeof backup>).isInBucketList;
+    expect(backupRestaurantToApp(backup).isInBucketList).toBe(false);
+  });
+
+  it('backupRestaurantToApp preserves previous bucket flag when backup omits it', () => {
+    const backup = restaurantToBackup(restaurant());
+    delete (backup as Partial<typeof backup>).isInBucketList;
+    const restored = backupRestaurantToApp(
+      backup,
+      restaurant({ isInBucketList: true }),
+    );
+    expect(restored.isInBucketList).toBe(true);
+  });
+});
+
+
+================================================================================
+FILE: __tests__/buildSyncGuard.test.ts
+================================================================================
+import { execFileSync } from 'child_process';
+import { mkdtempSync, writeFileSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
+// The guard script is pure bash + python3 (no project deps), so we can test it
+// end-to-end against a throwaway app.config.ts in a temp dir.
+const SCRIPT = join(__dirname, '..', 'scripts', 'check-build-sync.sh');
+
+function runWithConfig(configBody: string): { output: string; exit: number } {
+  const dir = mkdtempSync(join(tmpdir(), 'gustra-sync-'));
+  const cfg = join(dir, 'app.config.ts');
+  writeFileSync(cfg, configBody);
+  try {
+    const output = execFileSync('bash', [SCRIPT], {
+      cwd: dir,
+      env: { ...process.env, PATH: '/usr/bin:/bin:/usr/local/bin', GUSTRA_APP_CONFIG: cfg },
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return { output, exit: 0 };
+  } catch (e: any) {
+    return { output: (e.stdout ?? '') + (e.stderr ?? ''), exit: e.status ?? 1 };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const SYNCED = `export default () => ({
+  ios: { buildNumber: '60' },
+  android: { versionCode: 60 },
+});`;
+
+const DESYNCED = `export default () => ({
+  ios: { buildNumber: '61' },
+  android: { versionCode: 60 },
+});`;
+
+describe('check-build-sync guard', () => {
+  it('passes when buildNumber === versionCode', () => {
+    const { output, exit } = runWithConfig(SYNCED);
+    expect(exit).toBe(0);
+    expect(output).toMatch(/Config in sync: ios\.buildNumber = android\.versionCode = 60/);
+  });
+
+  it('fails with a clear message when buildNumber !== versionCode', () => {
+    const { output, exit } = runWithConfig(DESYNCED);
+    expect(exit).not.toBe(0);
+    expect(output).toMatch(/Config niet gesynchroniseerd: ios\.buildNumber=61 maar android\.versionCode=60/);
+  });
+});
+
+
+================================================================================
 FILE: __tests__/criteriaPresets.test.ts
 ================================================================================
 import {
@@ -334,6 +478,7 @@ import {
   QUICK_PRESET_STANDARD_IDS,
   ESSENTIALS_PRESET_STANDARD_IDS,
   MANDATORY_STANDARD_CRITERION_IDS,
+  FULL_CONTROL_INITIAL_STANDARD_IDS,
   QUICK_SETUP_CHOICE,
   ESSENTIALS_SETUP_CHOICE,
   FULL_CONTROL_SETUP_CHOICE,
@@ -380,6 +525,14 @@ describe('criteria presets', () => {
     );
     expect(FULL_CONTROL_SETUP_CHOICE.ids).toBeNull();
     expect(FULL_CONTROL_SETUP_CHOICE.completeSetup).toBe(false);
+  });
+
+  it('Full control preselects Food and Drinks when the criteria screen opens', () => {
+    expect(FULL_CONTROL_INITIAL_STANDARD_IDS).toEqual(['food', 'drinks']);
+    expectValidPreset(FULL_CONTROL_INITIAL_STANDARD_IDS);
+    for (const mandatory of MANDATORY_STANDARD_CRITERION_IDS) {
+      expect(FULL_CONTROL_INITIAL_STANDARD_IDS).toContain(mandatory);
+    }
   });
 
   it('first-start defaults only disable non-mandatory criteria', () => {
@@ -522,6 +675,89 @@ describe('debugLog', () => {
         matchedVia: null,
       });
     }).not.toThrow();
+  });
+});
+
+
+================================================================================
+FILE: __tests__/demoAdoption.test.ts
+================================================================================
+import {
+  mockRestaurants,
+  mockReviews,
+  stripShippingSeedData,
+  stripDemoShowcase,
+  mergeDemoShowcase,
+  isDemoRestaurantId,
+} from '@/data/mockReviews';
+import type { Restaurant, Review } from '@/data/types';
+
+// Real showcase rows (mirrors data/mockReviews.ts) — Atelier Bac is demo-r2.
+const atelierBac = mockRestaurants.find((r) => r.id === 'demo-r2')!;
+const atelierBacReview = mockReviews.find((r) => r.restaurantId === 'demo-r2')!;
+
+function ownReviewOnDemo(): { restaurants: Restaurant[]; reviews: Review[] } {
+  // The user created their own review pointing at the demo restaurant
+  // (exactly what happened on-device: v_msd8yicw_25s2zx → demo-r2).
+  const userReview: Review = {
+    ...atelierBacReview,
+    id: 'v_user_own_atelier',
+    date: '2026-08-03T13:08:58.617Z',
+    origin: 'own',
+    reviewedBy: '',
+  };
+  return {
+    restaurants: [atelierBac],
+    reviews: [userReview],
+  };
+}
+
+describe('demo showcase adoption (own review on demo venue)', () => {
+  it('adopts the demo restaurant into a user id and keeps the review', () => {
+    const { restaurants, reviews } = ownReviewOnDemo();
+    const cleaned = stripDemoShowcase(restaurants, reviews);
+
+    expect(cleaned.reviews).toHaveLength(1);
+    expect(cleaned.reviews[0]!.id).toBe('v_user_own_atelier');
+
+    // Restaurant is kept (user data preserved) but no longer flagged demo.
+    expect(cleaned.restaurants).toHaveLength(1);
+    expect(cleaned.restaurants[0]!.name).toBe('Atelier Bac');
+    expect(cleaned.restaurants[0]!.id).toBe('user-r2');
+    expect(isDemoRestaurantId(cleaned.restaurants[0]!.id)).toBe(false);
+
+    // Review follows the adopted restaurant id.
+    expect(cleaned.reviews[0]!.restaurantId).toBe('user-r2');
+  });
+
+  it('re-enabling the showcase does not duplicate the adopted venue', () => {
+    const { restaurants, reviews } = ownReviewOnDemo();
+    const stripped = stripDemoShowcase(restaurants, reviews);
+
+    // User re-enables demo showcase: merge onto adopted data.
+    const merged = mergeDemoShowcase(stripped.restaurants, stripped.reviews);
+
+    // Atelier Bac appears exactly once (adopted user-r2, not demo-r2 again).
+    const bacCount = merged.restaurants.filter(
+      (r) => r.name === 'Atelier Bac',
+    ).length;
+    expect(bacCount).toBe(1);
+  });
+
+  it('drops pure showcase data when disabled', () => {
+    const cleaned = stripShippingSeedData(mockRestaurants, mockReviews);
+    expect(cleaned.restaurants).toHaveLength(0);
+    expect(cleaned.reviews).toHaveLength(0);
+    expect(cleaned.stripped).toBe(true);
+  });
+
+  it('is idempotent — a second strip does not change adopted rows', () => {
+    const { restaurants, reviews } = ownReviewOnDemo();
+    const once = stripDemoShowcase(restaurants, reviews);
+    const twice = stripDemoShowcase(once.restaurants, once.reviews);
+
+    expect(twice.restaurants[0]!.id).toBe('user-r2');
+    expect(twice.reviews[0]!.restaurantId).toBe('user-r2');
   });
 });
 
@@ -719,6 +955,49 @@ declare module 'expo-file-system/legacy' {
 
 
 ================================================================================
+FILE: __tests__/floorToHalfHour.test.ts
+================================================================================
+import { floorToHalfHour } from '@/i18n/formatDates';
+
+function iso(date: Date): string {
+  return date.toISOString();
+}
+
+describe('floorToHalfHour', () => {
+  it('floors minutes down to :00', () => {
+    const d = new Date('2026-08-03T20:12:45.000Z');
+    expect(iso(floorToHalfHour(d))).toBe('2026-08-03T20:00:00.000Z');
+  });
+
+  it('floors minutes down to :30', () => {
+    const d = new Date('2026-08-03T20:42:00.000Z');
+    expect(iso(floorToHalfHour(d))).toBe('2026-08-03T20:30:00.000Z');
+  });
+
+  it('keeps an exact half hour unchanged', () => {
+    const d = new Date('2026-08-03T20:30:59.999Z');
+    expect(iso(floorToHalfHour(d))).toBe('2026-08-03T20:30:00.000Z');
+  });
+
+  it('zeroes seconds and milliseconds', () => {
+    const d = new Date('2026-08-03T09:29:59.999Z');
+    expect(iso(floorToHalfHour(d))).toBe('2026-08-03T09:00:00.000Z');
+  });
+
+  it('does not mutate the input date', () => {
+    const d = new Date('2026-08-03T20:42:00.000Z');
+    floorToHalfHour(d);
+    expect(iso(d)).toBe('2026-08-03T20:42:00.000Z');
+  });
+
+  it('floors across hour/day boundaries', () => {
+    const d = new Date('2026-08-03T23:59:00.000Z');
+    expect(iso(floorToHalfHour(d))).toBe('2026-08-03T23:30:00.000Z');
+  });
+});
+
+
+================================================================================
 FILE: __tests__/navTitleFit.test.ts
 ================================================================================
 import { resolveTitleFit } from '@/services/ui/titleFit';
@@ -809,6 +1088,7 @@ function restaurant(id: string, name: string, photoUrl: string): Restaurant {
     longitude: 4,
     primaryType: 'restaurant',
     isFavorite: false,
+    isInBucketList: false,
     thumbnailColor: '#3D6B52',
     photoUrl,
   };
@@ -901,6 +1181,7 @@ function restaurant(id: string, name: string, city: string): Restaurant {
     longitude: 4,
     primaryType: 'restaurant',
     isFavorite: false,
+    isInBucketList: false,
     thumbnailColor: '#3D6B52',
     photoUrl: '',
   };
@@ -1391,6 +1672,7 @@ function restaurant(id: string, name: string, placeId?: string): Restaurant {
     mapItemIdentifier: placeId ?? null,
     primaryType: 'restaurant',
     isFavorite: false,
+    isInBucketList: false,
     thumbnailColor: '#3D6B52',
     photoUrl: '',
   };
@@ -1477,6 +1759,118 @@ describe('findExistingRestaurant with missing place id', () => {
     );
     expect(() => findExistingRestaurant(draft, [existing])).not.toThrow();
     expect(findExistingRestaurant(draft, [existing])).toBeUndefined();
+  });
+});
+
+
+================================================================================
+FILE: __tests__/searchCache.test.ts
+================================================================================
+import { MAX_NEARBY_SEARCH_RADIUS_M } from '@/services/places/searchRadii';
+import {
+  bucketKey,
+  cached,
+  clearSearchCache,
+  resolveCache,
+} from '@/services/places/searchCache';
+import type { RestaurantSearchResult } from '@/services/places/types';
+
+const GENT = { latitude: 51.05, longitude: 3.72 };
+
+function result(name: string): RestaurantSearchResult {
+  return {
+    id: `place_${name}`,
+    name,
+    city: 'Gent',
+    country: 'BE',
+    streetAddress: 'Straat 1',
+    phoneNumber: '',
+    coordinate: GENT,
+    mapItemIdentifier: `place_${name}`,
+    distanceMeters: null,
+    primaryType: 'restaurant',
+  };
+}
+
+beforeEach(() => {
+  clearSearchCache();
+});
+
+describe('search cache radius awareness', () => {
+  it('buckets the same query at different radii separately', () => {
+    expect(bucketKey(GENT, '__nearby__', 2_000)).not.toBe(
+      bucketKey(GENT, '__nearby__', 50_000),
+    );
+  });
+
+  it('buckets the same query with and without a region code separately', () => {
+    expect(bucketKey(null, 'brussel', 2_000, 'BE')).not.toBe(
+      bucketKey(null, 'brussel', 2_000),
+    );
+    // The city-only retry with a dining qualifier must never be served from
+    // the empty region-scoped cache bucket (different query string).
+    expect(bucketKey(null, 'brussel', 2_000, 'BE')).not.toBe(
+      bucketKey(null, 'brussel restaurant', 2_000),
+    );
+  });
+
+  it('rounds the radius into stable 100 m buckets', () => {
+    expect(bucketKey(GENT, 'q', 2_010)).toBe(bucketKey(GENT, 'q', 2_040));
+    expect(bucketKey(GENT, 'q', 50_000)).toBe(bucketKey(GENT, 'q', 50_049));
+  });
+
+  it('does not serve a wider request from a narrower cached result', async () => {
+    await resolveCache(GENT, '__nearby__', 2_000, async () => [result('A')]);
+    // Same center/query but a larger radius may contain places beyond the
+    // cached 2 km circle, so the narrow entry must not satisfy it.
+    expect(cached(GENT, '__nearby__', 50_000)).toBeNull();
+  });
+
+  it('serves a narrower request from a wider cached result (superset)', async () => {
+    await resolveCache(GENT, '__nearby__', 50_000, async () => [result('A')]);
+    // Google returns the 20 closest places within the radius, so a 50 km
+    // result set already contains everything a 2 km request would return.
+    const hit = cached(GENT, '__nearby__', 2_000);
+    expect(hit).not.toBeNull();
+    expect(hit?.[0]?.name).toBe('A');
+  });
+
+  it('deduplicates concurrent identical requests (same bucket)', async () => {
+    let calls = 0;
+    const work = async () => {
+      calls += 1;
+      return [result('A')];
+    };
+    const [a, b] = await Promise.all([
+      resolveCache(GENT, 'q', 2_000, work),
+      resolveCache(GENT, 'q', 2_000, work),
+    ]);
+    expect(calls).toBe(1);
+    expect(a).toHaveLength(1);
+    expect(b).toHaveLength(1);
+  });
+
+  it('runs separate work for different radii', async () => {
+    const near = await resolveCache(GENT, '__nearby__', 2_000, async () => [
+      result('N'),
+    ]);
+    const wide = await resolveCache(GENT, '__nearby__', 50_000, async () => [
+      result('W'),
+    ]);
+    expect(near[0]?.name).toBe('N');
+    expect(wide[0]?.name).toBe('W');
+  });
+
+  it('does not serve a nearby request from a distant center', async () => {
+    await resolveCache(GENT, '__nearby__', 2_000, async () => [result('A')]);
+    const far = { latitude: 51.2, longitude: 3.8 }; // ~19 km away
+    expect(cached(far, '__nearby__', 2_000)).toBeNull();
+  });
+});
+
+describe('MAX_NEARBY_SEARCH_RADIUS_M', () => {
+  it('is the Places API hard cap (50 km)', () => {
+    expect(MAX_NEARBY_SEARCH_RADIUS_M).toBe(50_000);
   });
 });
 
@@ -1605,11 +1999,15 @@ import { SymbolView, type SFSymbol } from 'expo-symbols';
 
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { GustraColors } from '@/constants/Colors';
-import { Theme, bodyTextStyle } from '@/constants/Theme';
+import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 type AddReviewOption = {
   titleKey: 'forms.addReview.nearby' | 'forms.addReview.mapSearch' | 'forms.addReview.manual';
+  subtitleKey:
+    | 'forms.addReview.nearbySubtitle'
+    | 'forms.addReview.mapSearchSubtitle'
+    | 'forms.addReview.manualSubtitle';
   iosName: SFSymbol;
   androidName: keyof typeof MaterialIcons.glyphMap;
   /** Expo Router path when ready; omit for not-yet-wired options. */
@@ -1620,18 +2018,21 @@ type AddReviewOption = {
 const OPTIONS: AddReviewOption[] = [
   {
     titleKey: 'forms.addReview.nearby',
+    subtitleKey: 'forms.addReview.nearbySubtitle',
     iosName: 'location',
     androidName: 'location-on',
     href: '/nearby-restaurants',
   },
   {
     titleKey: 'forms.addReview.mapSearch',
+    subtitleKey: 'forms.addReview.mapSearchSubtitle',
     iosName: 'map',
     androidName: 'map',
     href: '/map-search',
   },
   {
     titleKey: 'forms.addReview.manual',
+    subtitleKey: 'forms.addReview.manualSubtitle',
     iosName: 'square.and.pencil',
     androidName: 'edit',
     href: '/manual-entry',
@@ -1639,8 +2040,8 @@ const OPTIONS: AddReviewOption[] = [
 ];
 
 /**
- * Add Review chooser (Swift `AddReviewView`).
- * Pushed from the Reviews FAB — three entry paths, no behavior yet.
+ * New Memory chooser (Swift `AddReviewView`).
+ * Pushed from the Memories FAB — three ways to start a new memory.
  */
 export default function AddReviewScreen() {
   const { t } = useAppTranslation();
@@ -1672,6 +2073,7 @@ export default function AddReviewScreen() {
               <AddReviewRow
                 key={option.titleKey}
                 title={title}
+                subtitle={t(option.subtitleKey)}
                 option={option}
                 isLast={index === OPTIONS.length - 1}
                 onPress={() => {
@@ -1690,11 +2092,13 @@ export default function AddReviewScreen() {
 
 function AddReviewRow({
   title,
+  subtitle,
   option,
   isLast,
   onPress,
 }: {
   title: string;
+  subtitle: string;
   option: AddReviewOption;
   isLast: boolean;
   onPress: () => void;
@@ -1709,22 +2113,27 @@ function AddReviewRow({
         !isLast && styles.rowBorder,
         pressed && styles.pressed,
       ]}>
-      {Platform.OS === 'ios' ? (
-        <SymbolView
-          name={option.iosName}
-          tintColor={GustraColors.forestGreen}
-          size={22}
-          style={styles.icon}
-        />
-      ) : (
-        <MaterialIcons
-          name={option.androidName}
-          color={GustraColors.forestGreen}
-          size={22}
-          style={styles.icon}
-        />
-      )}
-      <Text style={styles.rowTitle}>{title}</Text>
+      <View style={styles.iconChip}>
+        {Platform.OS === 'ios' ? (
+          <SymbolView
+            name={option.iosName}
+            tintColor={GustraColors.forestGreen}
+            size={22}
+            style={styles.icon}
+          />
+        ) : (
+          <MaterialIcons
+            name={option.androidName}
+            color={GustraColors.forestGreen}
+            size={22}
+            style={styles.icon}
+          />
+        )}
+      </View>
+      <View style={styles.copy}>
+        <Text style={styles.rowTitle}>{title}</Text>
+        <Text style={styles.rowSubtitle}>{subtitle}</Text>
+      </View>
       {Platform.OS === 'ios' ? (
         <SymbolView
           name="chevron.right"
@@ -1749,7 +2158,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: Theme.spacing.listRowHorizontal,
-    paddingTop: 20,
+    paddingTop: 12,
   },
   group: {
     backgroundColor: GustraColors.bubble,
@@ -1759,10 +2168,10 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 52,
+    minHeight: 64,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    gap: 12,
+    gap: 14,
   },
   rowBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -1771,15 +2180,32 @@ const styles = StyleSheet.create({
   pressed: {
     backgroundColor: 'rgba(35, 32, 26, 0.06)',
   },
+  iconChip: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(36, 78, 57, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   icon: {
     width: 28,
     textAlign: 'center',
   },
+  copy: {
+    flex: 1,
+    gap: 2,
+  },
   rowTitle: {
     ...bodyTextStyle,
-    flex: 1,
     fontSize: 17,
     color: GustraColors.ink,
+  },
+  rowSubtitle: {
+    ...captionTextStyle,
+    fontSize: 13,
+    lineHeight: 18,
+    color: 'rgba(35, 32, 26, 0.55)',
   },
 });
 
@@ -2345,7 +2771,7 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: app/(tabs)/(main)/manual-entry.tsx
 ================================================================================
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
@@ -2363,13 +2789,16 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolView } from 'expo-symbols';
 
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
+import { SelectedRestaurantBanner } from '@/components/review/SelectedRestaurantBanner';
 import { GustraColors } from '@/constants/Colors';
 import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useScrollInputIntoView } from '@/hooks/useScrollInputIntoView';
+import { useReviewsStore } from '@/context/ReviewsStore';
 import { Haptics } from '@/services/haptics';
 import { resolveCurrentLocation } from '@/services/location/resolveCurrentLocation';
 import {
+  findExistingRestaurant,
   formatAddressLine,
   formattedDistance,
   makeManualRestaurantDraft,
@@ -2408,14 +2837,29 @@ export default function ManualEntryScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [searchHighlighted, setSearchHighlighted] = useState(false);
+  const [selectedDraft, setSelectedDraft] = useState<RestaurantDraft | null>(null);
+  const { restaurants, addDraftToBucketList, setRestaurantBucket } =
+    useReviewsStore();
+
+  const selectedInBucketList = useMemo(() => {
+    if (!selectedDraft) return false;
+    return (
+      findExistingRestaurant(selectedDraft, restaurants)?.isInBucketList ?? false
+    );
+  }, [restaurants, selectedDraft]);
+
+  const handleToggleBucketList = useCallback(async () => {
+    if (!selectedDraft) return;
+    const existing = findExistingRestaurant(selectedDraft, restaurants);
+    if (existing?.isInBucketList) {
+      await setRestaurantBucket(existing.id, false);
+      return;
+    }
+    await addDraftToBucketList(selectedDraft);
+  }, [addDraftToBucketList, restaurants, selectedDraft, setRestaurantBucket]);
 
   const trimmedName = name.trim();
   const canProceed = trimmedName.length > 0;
-  /** Swift: only after Find on Google returns zero matches. */
-  const showContinueManually =
-    hasSearched && !isSearching && matches.length === 0 && !searchError;
-
   const resetSearch = () => {
     searchGenRef.current += 1;
     setHasSearched(false);
@@ -2438,11 +2882,6 @@ export default function ManualEntryScreen() {
     return () => clearTimeout(timer);
   }, []);
 
-  const flashSearchButton = () => {
-    setSearchHighlighted(true);
-    setTimeout(() => setSearchHighlighted(false), 250);
-  };
-
   const startReview = (draft: RestaurantDraft) => {
     Haptics.selectionChanged();
     router.push({
@@ -2460,7 +2899,6 @@ export default function ManualEntryScreen() {
     const query = [trimmedName, cityTrim, countryTrim].filter(Boolean).join(' ');
     if (!query) return;
 
-    flashSearchButton();
     const gen = ++searchGenRef.current;
     setIsSearching(true);
     setSearchError(null);
@@ -2507,7 +2945,19 @@ export default function ManualEntryScreen() {
   const continueManually = () => {
     const draft = makeManualRestaurantDraft({ name, city, country });
     if (!draft) return;
-    startReview(draft);
+    Keyboard.dismiss();
+    Haptics.selectionChanged();
+    setSelectedDraft(draft);
+  };
+
+  const selectGoogleMatch = (match: RestaurantSearchResult) => {
+    Keyboard.dismiss();
+    Haptics.selectionChanged();
+    setSelectedDraft(restaurantDraftFromResult(match));
+  };
+
+  const clearSelectedDraft = () => {
+    setSelectedDraft(null);
   };
 
   const scrollBottomPad =
@@ -2568,6 +3018,19 @@ export default function ManualEntryScreen() {
             />
           </View>
 
+          {selectedDraft ? (
+            <View style={styles.bannerPad}>
+              <SelectedRestaurantBanner
+                draft={selectedDraft}
+                actionTitle={t("forms.manual.startReview")}
+                onToggleBucketList={handleToggleBucketList}
+                inBucketList={selectedInBucketList}
+                onClear={clearSelectedDraft}
+                onAction={() => startReview(selectedDraft)}
+              />
+            </View>
+          ) : (
+          <>
           <View style={styles.group}>
             <Pressable
               accessibilityRole="button"
@@ -2577,56 +3040,43 @@ export default function ManualEntryScreen() {
                 void searchMatches();
               }}
               style={({ pressed }) => [
-                styles.findRow,
-                searchHighlighted && styles.findRowHighlighted,
-                pressed && canProceed && !isSearching && styles.findRowPressed,
-                (!canProceed || isSearching) && styles.findRowDisabled,
+                styles.findButton,
+                pressed && canProceed && !isSearching && styles.findButtonPressed,
+                (!canProceed || isSearching) && styles.findButtonDisabled,
               ]}>
               {Platform.OS === 'ios' ? (
                 <SymbolView
                   name="magnifyingglass"
                   size={20}
                   tintColor={
-                    searchHighlighted
-                      ? '#FFFFFF'
-                      : canProceed
-                        ? GustraColors.forestGreen
-                        : 'rgba(35, 32, 26, 0.35)'
+                    canProceed ? '#FFFFFF' : 'rgba(255, 255, 255, 0.55)'
                   }
+                  weight="semibold"
                 />
               ) : (
                 <MaterialIcons
                   name="search"
                   size={22}
-                  color={
-                    searchHighlighted
-                      ? '#FFFFFF'
-                      : canProceed
-                        ? GustraColors.forestGreen
-                        : 'rgba(35, 32, 26, 0.35)'
-                  }
+                  color={canProceed ? '#FFFFFF' : 'rgba(255, 255, 255, 0.55)'}
                 />
               )}
               <Text
                 style={[
                   styles.findLabel,
-                  searchHighlighted && styles.findLabelHighlighted,
                   !canProceed && styles.findLabelDisabled,
                 ]}>
                 {t('forms.manual.findOnGoogle')}
               </Text>
               {isSearching ? (
-                <ActivityIndicator
-                  color={
-                    searchHighlighted ? '#FFFFFF' : GustraColors.forestGreen
-                  }
-                />
+                <ActivityIndicator color="#FFFFFF" />
               ) : null}
             </Pressable>
           </View>
           <Text style={styles.footerHint}>
             {t('forms.manual.searchHint')}
           </Text>
+          </>
+          )}
 
           {isSearching ? (
             <View style={styles.matchesBlock}>
@@ -2636,9 +3086,7 @@ export default function ManualEntryScreen() {
                 <Text style={styles.loadingText}>{t('forms.manual.loading')}</Text>
               </View>
             </View>
-          ) : null}
-
-          {!isSearching && hasSearched ? (
+          ) : hasSearched ? (
             <View style={styles.matchesBlock}>
               <Text style={styles.sectionTitle}>{t('forms.manual.googleMatches')}</Text>
               {searchError ? (
@@ -2673,9 +3121,7 @@ export default function ManualEntryScreen() {
                         {index > 0 ? <View style={styles.fieldSep} /> : null}
                         <Pressable
                           accessibilityRole="button"
-                          onPress={() =>
-                            startReview(restaurantDraftFromResult(match))
-                          }
+                          onPress={() => selectGoogleMatch(match)}
                           style={({ pressed }) => [
                             styles.matchRow,
                             pressed && styles.pressed,
@@ -2703,52 +3149,49 @@ export default function ManualEntryScreen() {
           ) : null}
         </ScrollView>
 
-        {showContinueManually ? (
-          <View style={[styles.manualFooter, { paddingBottom: footerPad }]}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("forms.manual.continueManually")}
-              disabled={!canProceed}
-              onPress={continueManually}
-              style={({ pressed }) => [
-                styles.continueButton,
-                !canProceed && styles.continueDisabled,
-                pressed && canProceed && styles.pressed,
+        {selectedDraft ? null : (
+        <View style={[styles.manualFooter, { paddingBottom: footerPad }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("forms.manual.continueManually")}
+            disabled={!canProceed}
+            onPress={continueManually}
+            style={({ pressed }) => [
+              styles.continueButton,
+              !canProceed && styles.continueDisabled,
+              pressed && canProceed && styles.pressed,
+            ]}>
+            {Platform.OS === 'ios' ? (
+              <SymbolView
+                name="square.and.pencil"
+                size={18}
+                tintColor={
+                  canProceed
+                    ? GustraColors.forestGreen
+                    : 'rgba(35, 32, 26, 0.35)'
+                }
+              />
+            ) : (
+              <MaterialIcons
+                name="edit"
+                size={20}
+                color={
+                  canProceed
+                    ? GustraColors.forestGreen
+                    : 'rgba(35, 32, 26, 0.35)'
+                }
+              />
+            )}
+            <Text
+              style={[
+                styles.continueLabel,
+                !canProceed && styles.continueLabelDisabled,
               ]}>
-              {Platform.OS === 'ios' ? (
-                <SymbolView
-                  name="square.and.pencil"
-                  size={18}
-                  tintColor={
-                    canProceed
-                      ? GustraColors.forestGreen
-                      : 'rgba(35, 32, 26, 0.35)'
-                  }
-                />
-              ) : (
-                <MaterialIcons
-                  name="edit"
-                  size={20}
-                  color={
-                    canProceed
-                      ? GustraColors.forestGreen
-                      : 'rgba(35, 32, 26, 0.35)'
-                  }
-                />
-              )}
-              <Text
-                style={[
-                  styles.continueLabel,
-                  !canProceed && styles.continueLabelDisabled,
-                ]}>
-                {t('forms.manual.continueManually')}
-              </Text>
-            </Pressable>
-            <Text style={styles.manualHint}>
-              {t('forms.manual.manualMapHint')}
+              {t('forms.manual.continueManually')}
             </Text>
-          </View>
-        ) : null}
+          </Pressable>
+        </View>
+        )}
     </View>
   );
 }
@@ -2847,36 +3290,36 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(35, 32, 26, 0.12)',
     marginLeft: 16,
   },
-  findRow: {
+  bannerPad: {
+    paddingTop: 20,
+  },
+  findButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 10,
     minHeight: 52,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 10,
-  },
-  findRowHighlighted: {
+    borderRadius: Theme.radius.lg,
     backgroundColor: GustraColors.forestGreen,
   },
-  findRowPressed: {
+  findButtonPressed: {
     opacity: 0.85,
   },
-  findRowDisabled: {
-    opacity: 1,
+  findButtonDisabled: {
+    backgroundColor: 'rgba(36, 78, 57, 0.4)',
   },
   findLabel: {
     ...bodyTextStyle,
     flex: 1,
+    textAlign: 'center',
     fontSize: 17,
-    fontWeight: '500',
-    color: GustraColors.forestGreen,
-  },
-  findLabelHighlighted: {
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   findLabelDisabled: {
-    color: 'rgba(35, 32, 26, 0.35)',
+    color: 'rgba(255, 255, 255, 0.6)',
   },
   footerHint: {
     ...captionTextStyle,
@@ -2978,7 +3421,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: GustraColors.bubble,
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    borderWidth: 1,
+    borderColor: 'rgba(36, 78, 57, 0.35)',
     borderRadius: Theme.radius.md,
     paddingVertical: 14,
   },
@@ -2994,12 +3439,6 @@ const styles = StyleSheet.create({
   continueLabelDisabled: {
     color: 'rgba(35, 32, 26, 0.35)',
   },
-  manualHint: {
-    ...captionTextStyle,
-    fontSize: 13,
-    color: 'rgba(35, 32, 26, 0.55)',
-    textAlign: 'center',
-  },
   pressed: {
     opacity: 0.75,
   },
@@ -3013,15 +3452,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Keyboard,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
   type FlatList as FlatListType,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { SymbolView } from 'expo-symbols';
 
 import {
   GoogleMapsView,
@@ -3033,6 +3476,7 @@ import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
 import { GustraColors } from '@/constants/Colors';
+import { HOUSE_KEYBOARD_APPEARANCE } from '@/constants/Keyboard';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import { resolveReviewOrigin } from '@/data/types';
@@ -3045,8 +3489,10 @@ import {
   formattedDistance,
   isSameRestaurantDraft,
   isSignificantRegionChange,
+  regionCodeForCountry,
   restaurantDraftFromResult,
   searchNearby,
+  searchText,
   type LatLng,
   type RestaurantDraft,
   type RestaurantSearchResult,
@@ -3064,13 +3510,14 @@ export default function MapSearchScreen() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { reviews, restaurants } = useReviewsStore();
+  const { reviews, restaurants, addDraftToBucketList, setRestaurantBucket } =
+    useReviewsStore();
   const mapRef = useRef<GoogleMapsViewHandle>(null);
   const listRef = useRef<FlatListType<RestaurantSearchResult>>(null);
   const searchTaskRef = useRef(0);
   const suppressIdleRef = useRef(0);
   const ignoreNextMapPressRef = useRef(false);
-  const hasLoadedInitialRef = useRef(false);
+  const initialSearchStartedRef = useRef(false);
   const searchCenterRef = useRef<LatLng>(FALLBACK_MAP_CENTER);
   const searchRadiusRef = useRef(DEFAULT_SEARCH_RADIUS_M);
   const lastSearchedCenterRef = useRef<LatLng | null>(null);
@@ -3078,10 +3525,15 @@ export default function MapSearchScreen() {
 
   const [selected, setSelected] = useState<RestaurantDraft | null>(null);
   const [results, setResults] = useState<RestaurantSearchResult[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [showSearchThisArea, setShowSearchThisArea] = useState(false);
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [query, setQuery] = useState('');
+  const [isTextSearching, setIsTextSearching] = useState(false);
+  const [textSearchError, setTextSearchError] = useState<string | null>(null);
+  /** Non-null while a text search result is on screen. */
+  const textSearchActiveRef = useRef<LatLng | null>(null);
 
   const performSearch = useCallback(async (center: LatLng, radius: number) => {
     const taskId = ++searchTaskRef.current;
@@ -3115,29 +3567,41 @@ export default function MapSearchScreen() {
     [],
   );
 
-  const loadInitial = useCallback(async () => {
-    if (hasLoadedInitialRef.current || !mapReady) return;
-    hasLoadedInitialRef.current = true;
+  // Location resolution runs once at mount so the blue dot is available before
+  // the WebView reports ready (the map only injects it if userLocation is set).
+  const [locationResolved, setLocationResolved] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const location = await resolveCurrentLocation();
+      if (cancelled) return;
+      if (location.coords) setUserLocation(location.coords);
+      setLocationResolved(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-    const location = await resolveCurrentLocation();
-    if (location.coords) {
-      const coords = location.coords;
-      setUserLocation(coords);
-      searchCenterRef.current = coords;
+  // Once the map is ready and the initial location pass finished, point the
+  // camera at the user (or the wide fallback) and run the first nearby search.
+  useEffect(() => {
+    if (!mapReady || !locationResolved) return;
+    initialSearchStartedRef.current = true;
+    if (userLocation) {
+      searchCenterRef.current = userLocation;
       searchRadiusRef.current = DEFAULT_SEARCH_RADIUS_M;
-      moveCameraProgrammatically(coords, 14, 2);
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      await performSearch(coords, DEFAULT_SEARCH_RADIUS_M);
-      return;
+      moveCameraProgrammatically(userLocation, 14, 2);
+      const timer = setTimeout(() => {
+        void performSearch(userLocation, DEFAULT_SEARCH_RADIUS_M);
+      }, 300);
+      return () => clearTimeout(timer);
     }
-
     // Permission denied / no fix: wide fallback, no silent Middelkerke search.
     moveCameraProgrammatically(FALLBACK_MAP_CENTER, 6, 2);
-  }, [mapReady, moveCameraProgrammatically, performSearch]);
-
-  useEffect(() => {
-    void loadInitial();
-  }, [loadInitial]);
+    setIsLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady, locationResolved, userLocation]);
 
   const handleMapIdle = useCallback((center: LatLng, radius: number) => {
     searchCenterRef.current = center;
@@ -3148,7 +3612,20 @@ export default function MapSearchScreen() {
       return;
     }
 
-    if (!hasLoadedInitialRef.current || !lastSearchedCenterRef.current) {
+    // A text search result moved the camera — only panning away from it
+    // returns to the normal "search this area" flow.
+    if (textSearchActiveRef.current) {
+      const left = isSignificantRegionChange(
+        center,
+        radius,
+        textSearchActiveRef.current,
+        Math.max(radius, DEFAULT_SEARCH_RADIUS_M),
+      );
+      if (!left) return;
+      textSearchActiveRef.current = null;
+    }
+
+    if (!initialSearchStartedRef.current || !lastSearchedCenterRef.current) {
       return;
     }
 
@@ -3167,6 +3644,63 @@ export default function MapSearchScreen() {
     void performSearch(searchCenterRef.current, searchRadiusRef.current);
   };
 
+  const clearTextSearch = useCallback(() => {
+    textSearchActiveRef.current = null;
+    setQuery('');
+    setTextSearchError(null);
+  }, []);
+
+  const runTextSearch = useCallback(async () => {
+    const trimmed = query.trim();
+    if (!trimmed || isTextSearching) return;
+    Keyboard.dismiss();
+    const gen = ++searchTaskRef.current;
+    setTextSearchError(null);
+    setIsTextSearching(true);
+    try {
+      // No GPS bias: an explicit place in the query (e.g. "Frankfurt") wins
+      // over the device circle, so a text search can jump anywhere. Region
+      // code keeps Places results inside the matching country (a bare city
+      // name like "Brussel" otherwise returns city-level POIs that our
+      // food allowlist then filters out).
+      const countryCode = regionCodeForCountry(trimmed);
+      let found = await searchText(trimmed, null, {
+        locationBias: false,
+        regionCode: countryCode,
+      });
+      if (gen !== searchTaskRef.current) return;
+      // A bare city name ("Brussel") often returns no dining venues from the
+      // strict allowlist. Retry once with a dining qualifier so the user still
+      // gets restaurants for that city.
+      if (found.length === 0 && !countryCode) {
+        found = await searchText(`${trimmed} restaurant`, null, {
+          locationBias: false,
+        });
+        if (gen !== searchTaskRef.current) return;
+      }
+      setResults(found);
+      lastSearchedCenterRef.current = null;
+      lastSearchedRadiusRef.current = 0;
+      if (found.length > 0) {
+        const target = found[0]!.coordinate;
+        textSearchActiveRef.current = target;
+        setShowSearchThisArea(false);
+        moveCameraProgrammatically(target, 14, 1);
+      } else {
+        textSearchActiveRef.current = null;
+      }
+    } catch (error) {
+      if (gen !== searchTaskRef.current) return;
+      setTextSearchError(
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      if (gen === searchTaskRef.current) {
+        setIsTextSearching(false);
+      }
+    }
+  }, [isTextSearching, moveCameraProgrammatically, query, regionCodeForCountry, searchText]);
+
   const clearSelection = () => setSelected(null);
 
   const selectedVisitedCount = useMemo(() => {
@@ -3178,6 +3712,23 @@ export default function MapSearchScreen() {
         r.restaurantId === existing.id && resolveReviewOrigin(r) === 'own',
     ).length;
   }, [reviews, restaurants, selected]);
+
+  const selectedInBucketList = useMemo(() => {
+    if (!selected) return false;
+    return (
+      findExistingRestaurant(selected, restaurants)?.isInBucketList ?? false
+    );
+  }, [restaurants, selected]);
+
+  const handleToggleBucketList = useCallback(async () => {
+    if (!selected) return;
+    const existing = findExistingRestaurant(selected, restaurants);
+    if (existing?.isInBucketList) {
+      await setRestaurantBucket(existing.id, false);
+      return;
+    }
+    await addDraftToBucketList(selected);
+  }, [addDraftToBucketList, restaurants, selected, setRestaurantBucket]);
 
   const selectDraft = (draft: RestaurantDraft) => {
     ignoreNextMapPressRef.current = true;
@@ -3286,12 +3837,73 @@ export default function MapSearchScreen() {
         ) : null}
       </View>
 
+      <View style={styles.searchBarPad}>
+        <View style={styles.searchBarRow}>
+          {Platform.OS === 'ios' ? (
+            <SymbolView
+              name="magnifyingglass"
+              size={18}
+              tintColor="rgba(35, 32, 26, 0.4)"
+              weight="semibold"
+            />
+          ) : (
+            <MaterialIcons
+              name="search"
+              size={20}
+              color="rgba(35, 32, 26, 0.4)"
+            />
+          )}
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder={t('forms.mapSearch.searchPlaceholder')}
+            placeholderTextColor="rgba(35, 32, 26, 0.4)"
+            style={styles.searchInput}
+            keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+            onSubmitEditing={() => void runTextSearch()}
+            accessibilityLabel={t('forms.mapSearch.searchPlaceholder')}
+          />
+          {query.length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('common.clear')}
+              hitSlop={8}
+              onPress={clearTextSearch}
+              style={({ pressed }) => pressed && styles.searchClearPressed}>
+              {Platform.OS === 'ios' ? (
+                <SymbolView
+                  name="xmark.circle.fill"
+                  size={18}
+                  tintColor="rgba(35, 32, 26, 0.35)"
+                />
+              ) : (
+                <MaterialIcons
+                  name="cancel"
+                  size={20}
+                  color="rgba(35, 32, 26, 0.35)"
+                />
+              )}
+            </Pressable>
+          ) : null}
+        </View>
+        {isTextSearching ? (
+          <ActivityIndicator color={GustraColors.forestGreen} size="small" />
+        ) : textSearchError ? (
+          <Text style={styles.searchError}>{textSearchError}</Text>
+        ) : null}
+      </View>
+
       {selected ? (
         <View style={styles.bannerPad}>
           <SelectedRestaurantBanner
             draft={selected}
             actionTitle={t("forms.mapSearch.startReview")}
             visitedCount={selectedVisitedCount}
+            onToggleBucketList={handleToggleBucketList}
+            inBucketList={selectedInBucketList}
             onClear={clearSelection}
             onAction={() =>
               router.push({
@@ -3310,6 +3922,7 @@ export default function MapSearchScreen() {
         keyExtractor={(item) => item.id}
         overScrollMode="never"
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         contentContainerStyle={[styles.list, { paddingBottom: bottomPad }]}
         getItemLayout={(_, index) => ({
           length: ROW_HEIGHT,
@@ -3329,6 +3942,17 @@ export default function MapSearchScreen() {
               <Text style={styles.loadingText}>
                 {t("forms.nearby.finding")}
               </Text>
+            </View>
+          ) : textSearchActiveRef.current || query.trim() ? (
+            <View style={styles.flexFill}>
+              <HouseEmptyState
+                title={t('forms.mapSearch.emptyTitle')}
+                description={t('forms.mapSearch.searchEmpty', {
+                  query: query.trim(),
+                })}
+                systemImage="magnifyingglass"
+                androidImage="search_off"
+              />
             </View>
           ) : (
             <View style={styles.flexFill}>
@@ -3425,6 +4049,39 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  searchBarPad: {
+    paddingHorizontal: Theme.spacing.listRowHorizontal,
+    paddingTop: 12,
+    gap: 8,
+    backgroundColor: GustraColors.cream,
+  },
+  searchBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    borderRadius: Theme.radius.lg,
+    backgroundColor: 'rgba(236, 227, 207, 0.55)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(35, 32, 26, 0.12)',
+  },
+  searchInput: {
+    ...bodyTextStyle,
+    flex: 1,
+    fontSize: 16,
+    color: GustraColors.ink,
+    paddingVertical: Platform.OS === 'android' ? 10 : 0,
+    minHeight: 46,
+  },
+  searchClearPressed: {
+    opacity: 0.6,
+  },
+  searchError: {
+    ...captionTextStyle,
+    fontSize: 13,
+    color: 'rgba(166, 62, 36, 0.95)',
+    paddingHorizontal: 4,
   },
   bannerPad: {
     paddingHorizontal: Theme.spacing.listRowHorizontal,
@@ -3535,6 +4192,7 @@ import {
   findExistingRestaurant,
   formattedDistance,
   isSameRestaurantDraft,
+  MAX_NEARBY_SEARCH_RADIUS_M,
   restaurantDraftFromResult,
   searchNearby,
   type RestaurantDraft,
@@ -3604,7 +4262,8 @@ export default function NearbyRestaurantsScreen() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { reviews, restaurants } = useReviewsStore();
+  const { reviews, restaurants, addDraftToBucketList, setRestaurantBucket } =
+    useReviewsStore();
   const listRef = useRef<FlatListType<RestaurantSearchResult>>(null);
   const [selected, setSelected] = useState<RestaurantDraft | null>(null);
   const [results, setResults] = useState<RestaurantSearchResult[]>([]);
@@ -3625,7 +4284,10 @@ export default function NearbyRestaurantsScreen() {
 
     if (location.coords) {
       try {
-        const found = await searchNearby(location.coords);
+        // Wide circle (API max 50 km): Google still returns only the 20
+        // closest places, so urban users see truly-nearby results while
+        // remote users are not left with an empty list.
+        const found = await searchNearby(location.coords, MAX_NEARBY_SEARCH_RADIUS_M);
         setResults(found);
         setIsLoading(false);
       } catch (error) {
@@ -3645,7 +4307,7 @@ export default function NearbyRestaurantsScreen() {
     if (fallback) {
       setFallbackLabel(fallback.label);
       try {
-        const found = await searchNearby(fallback.center);
+        const found = await searchNearby(fallback.center, MAX_NEARBY_SEARCH_RADIUS_M);
         setResults(found);
         setIsLoading(false);
       } catch (error) {
@@ -3694,6 +4356,23 @@ export default function NearbyRestaurantsScreen() {
     ).length;
   }, [reviews, restaurants, selected]);
 
+  const selectedInBucketList = useMemo(() => {
+    if (!selected) return false;
+    return (
+      findExistingRestaurant(selected, restaurants)?.isInBucketList ?? false
+    );
+  }, [restaurants, selected]);
+
+  const handleToggleBucketList = useCallback(async () => {
+    if (!selected) return;
+    const existing = findExistingRestaurant(selected, restaurants);
+    if (existing?.isInBucketList) {
+      await setRestaurantBucket(existing.id, false);
+      return;
+    }
+    await addDraftToBucketList(selected);
+  }, [addDraftToBucketList, restaurants, selected, setRestaurantBucket]);
+
   const bottomPad =
     Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
 
@@ -3712,6 +4391,12 @@ export default function NearbyRestaurantsScreen() {
             draft={selected}
             actionTitle={t("forms.nearby.startReview")}
             visitedCount={selectedVisitedCount}
+            onToggleBucketList={handleToggleBucketList}
+            inBucketList={selectedInBucketList}
+            onClear={() => {
+              setSelected(null);
+              router.back();
+            }}
             onAction={() =>
               router.push({
                 pathname: '/review-form',
@@ -4855,7 +5540,7 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: app/(tabs)/(main)/review-form.tsx
 ================================================================================
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -4913,6 +5598,14 @@ function formatVisitDate(date: Date): string {
   return formatVisitDateTime(date);
 }
 
+function hasCoordinates(lat: number, lng: number): boolean {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    !(lat === 0 && lng === 0)
+  );
+}
+
 function formatShortDate(iso: string): string {
   return formatAbbreviatedDate(iso);
 }
@@ -4950,9 +5643,7 @@ export default function ReviewFormScreen() {
   const extraCriteria = enabledCriteria.filter(
     (c) => !CORE_CRITERION_IDS.includes(c.id),
   );
-  const [extendedOpen, setExtendedOpen] = useState(
-    () => extraCriteria.some((c) => (criteriaState[c.id]?.rating ?? 0) > 0),
-  );
+  const [extendedOpen, setExtendedOpen] = useState(false);
   const visibleCriteria = extendedOpen
     ? enabledCriteria
     : coreCriteria;
@@ -4977,7 +5668,6 @@ export default function ReviewFormScreen() {
     lastVisitIso,
     revisitAverage,
     showsDone,
-    draftReason,
     isDraftForm,
     wineLabels,
     pendingWineKeys,
@@ -5000,6 +5690,17 @@ export default function ReviewFormScreen() {
     setCriterionRating,
     setCriterionComment,
   } = state;
+
+  // Once the store hydrates, auto-expand the "More criteria" section when any
+  // of the extra criteria already has a rating (e.g. editing an older memory
+  // that scored a hidden criterion) — done in an effect because `criteriaState`
+  // is not available when the `extendedOpen` state initializer runs.
+  useEffect(() => {
+    if (!ready || extendedOpen) return;
+    if (extraCriteria.some((c) => (criteriaState[c.id]?.rating ?? 0) > 0)) {
+      setExtendedOpen(true);
+    }
+  }, [criteriaState, extendedOpen, extraCriteria, ready]);
 
   const {
     photoUrls,
@@ -5083,25 +5784,10 @@ export default function ReviewFormScreen() {
           draftLabel={t('reviews.draftLabel')}
         />
 
-        {isDraftForm && draftReason ? (
-          <View style={styles.draftHint} accessibilityRole="alert">
-            {Platform.OS === 'ios' ? (
-              <SymbolView
-                name="exclamationmark.circle.fill"
-                size={18}
-                tintColor={GustraColors.gold}
-              />
-            ) : (
-              <MaterialIcons
-                name="error-outline"
-                size={20}
-                color={GustraColors.gold}
-              />
-            )}
-            <Text style={styles.draftHintText}>
-              {draftReason === 'wine'
-                ? t('forms.review.draftBannerWine')
-                : t('forms.review.draftBannerFood')}
+        {!hasCoordinates(draft.latitude, draft.longitude) ? (
+          <View style={styles.noMapPinHint}>
+            <Text style={styles.noMapPinHintText}>
+              {t('forms.review.noMapPinHint')}
             </Text>
           </View>
         ) : null}
@@ -5195,11 +5881,6 @@ export default function ReviewFormScreen() {
                       <SerifText style={styles.criterionTitle}>
                         {criterion.title}
                       </SerifText>
-                      {criterion.id === 'food' ? (
-                        <Text style={styles.requiredBadge}>
-                          {t('common.required')}
-                        </Text>
-                      ) : null}
                     </View>
                     <View style={styles.criterionRating}>
                       {winesHasBottles ? (
@@ -5589,23 +6270,18 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
   },
-  draftHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  noMapPinHint: {
+    backgroundColor: 'rgba(217, 162, 39, 0.1)',
+    borderRadius: Theme.radius.md,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: Theme.radius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(217, 162, 39, 0.45)',
-    backgroundColor: 'rgba(217, 162, 39, 0.12)',
+    paddingVertical: 10,
   },
-  draftHintText: {
-    ...bodyTextStyle,
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'rgba(166, 118, 12, 1)',
+  noMapPinHintText: {
+    ...captionTextStyle,
+    fontSize: 13,
+    lineHeight: 18,
+    color: 'rgba(35, 32, 26, 0.65)',
+    textAlign: 'center',
   },
   sectionTitleWrap: {
     gap: 6,
@@ -5697,14 +6373,6 @@ const styles = StyleSheet.create({
   criterionRating: {
     minHeight: 24,
     justifyContent: 'center',
-  },
-  requiredBadge: {
-    ...captionTextStyle,
-    fontSize: 11,
-    fontWeight: '700',
-    color: GustraColors.ratingAvoid,
-    textTransform: 'uppercase',
-    marginTop: 2,
   },
   commentField: {
     ...bodyTextStyle,
@@ -8157,6 +8825,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolView } from 'expo-symbols';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 import { ActiveFilterSummary } from '@/components/feed/ActiveFilterSummary';
 import { FilterOptionsModal } from '@/components/feed/FilterOptionsModal';
@@ -8210,6 +8879,24 @@ function hasCoordinates(lat: number, lng: number): boolean {
   );
 }
 
+/**
+ * Small teardrop "flag" pin used in the map legend — mirrors the map pin shape
+ * (pointed flag with a white inner dot) so the legend matches the actual pins.
+ */
+function LegendFlag({ color }: { color: string }) {
+  return (
+    <Svg width={14} height={20} viewBox="0 0 28 40">
+      <Path
+        d="M14 1.25C7.55 1.25 2.25 6.55 2.25 13c0 8.6 10.35 21.05 11.15 21.95a1.1 1.1 0 0 0 1.6 0C15.8 34.05 25.75 21.6 25.75 13c0-6.45-5.3-11.75-11.75-11.75z"
+        fill={color}
+        stroke="#FFFFFF"
+        strokeWidth={1.75}
+      />
+      <Circle cx={14} cy={13} r={4.75} fill="#FFFFFF" />
+    </Svg>
+  );
+}
+
 export default function MemoriesMapScreen() {
   const { t } = useAppTranslation();
   return (
@@ -8252,7 +8939,8 @@ function MemoriesMapContent() {
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [locating, setLocating] = useState(false);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
-  const [legendExpanded, setLegendExpanded] = useState(false);
+  /** Open by default so the pin colors are explained on first visit. */
+  const [legendExpanded, setLegendExpanded] = useState(true);
   const mapRef = useRef<GoogleMapsViewHandle>(null);
   const pendingFitRef = useRef(false);
   /** Snapshot at mount — module cache may update while this screen is mounted. */
@@ -8505,18 +9193,11 @@ function MemoriesMapContent() {
             {legendExpanded ? (
               <View style={styles.legendRows}>
                 <View style={styles.legendRow}>
-                  <View
-                    style={[styles.legendDot, { backgroundColor: OWN_PIN_COLOR }]}
-                  />
+                  <LegendFlag color={OWN_PIN_COLOR} />
                   <Text style={styles.legendLabel}>{t('map.legend.own')}</Text>
                 </View>
                 <View style={styles.legendRow}>
-                  <View
-                    style={[
-                      styles.legendDot,
-                      { backgroundColor: FRIENDS_PIN_COLOR },
-                    ]}
-                  />
+                  <LegendFlag color={FRIENDS_PIN_COLOR} />
                   <Text style={styles.legendLabel}>
                     {t('map.legend.friends')}
                   </Text>
@@ -8679,11 +9360,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
   },
   legendLabel: {
     ...captionTextStyle,
@@ -8853,6 +9529,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { PassportSection } from '@/components/passport/PassportSection';
 import { PassportStatRow } from '@/components/passport/PassportStatRow';
+import { BucketListSection } from '@/components/passport/BucketListSection';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
@@ -8871,6 +9548,7 @@ import {
   type BestWineEntry,
 } from '@/data/passportStats';
 import { resolveReviewOrigin } from '@/data/types';
+import type { Restaurant } from '@/data/types';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import {
   RatingValue,
@@ -9101,6 +9779,21 @@ function CulinaryPassportContent() {
     [ownReviews],
   );
 
+  const bucketListRestaurants = useMemo(
+    () => restaurants.filter((restaurant) => restaurant.isInBucketList),
+    [restaurants],
+  );
+
+  const openBucketRestaurant = useCallback(
+    (restaurant: Restaurant) => {
+      router.push({
+        pathname: '/review-form',
+        params: { restaurantId: restaurant.id, from: 'bucket' },
+      });
+    },
+    [router],
+  );
+
   const bestSectionTitle =
     stats.bestRestaurants.length === 1
       ? t('passport.bestRestaurant')
@@ -9217,6 +9910,11 @@ function CulinaryPassportContent() {
               ))
             )}
           </PassportSection>
+
+          <BucketListSection
+            restaurants={bucketListRestaurants}
+            onOpenRestaurant={openBucketRestaurant}
+          />
 
           <PassportSection title="">
             <Pressable
@@ -10700,7 +11398,7 @@ export default function SettingsScreen() {
       </SettingsSection>
 
       {advancedUnlocked ? (
-        <SettingsSection title={t('settings.sectionAdvanced')}>
+        <SettingsSection title={t('settings.sectionDeveloper')}>
           <SettingsRow
             title={t('settings.mapsSdk')}
           icon={{ ios: 'map.fill', android: 'map', web: 'map' }}
@@ -10800,22 +11498,23 @@ export default function SettingsScreen() {
         {__DEV__ ? (
           <>
             <SettingsRow
-              title={t('settings.showCriteriaSetup')}
-              subtitle={t('settings.showCriteriaSetupSubtitle')}
+              title={t('settings.fakeFirstRun')}
+              subtitle={t('settings.fakeFirstRunSubtitle')}
               icon={{
-                ios: 'slider.horizontal.3',
-                android: 'tune',
-                web: 'tune',
+                ios: 'play.circle',
+                android: 'play_circle',
+                web: 'play_circle',
               }}
               showChevron
               onPress={() => {
                 Haptics.selectionChanged();
                 void (async () => {
-                  // Reset setup state; the CriteriaSetupGate detects the
-                  // incomplete setup and routes to /criteria-setup (which
-                  // starts with the tap-to-continue welcome, then the
-                  // 3-choice menu). No manual push here — avoids a duplicate
-                  // stack entry racing the gate's replace().
+                  // Fake a first run: resets the setup-completed flag (and the
+                  // criteria to the first-start defaults). The CriteriaSetupGate
+                  // then routes to /criteria-setup, which starts with the
+                  // tap-to-continue welcome (Gustra logo), then the 3-choice
+                  // menu. No manual push here — avoids a duplicate stack entry
+                  // racing the gate's replace().
                   await reopenCriteriaSetupForDev();
                 })();
               }}
@@ -11505,11 +12204,11 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
  * Choose-step: pick a starting preset. Quick/Essentials apply fixed criteria
  * and go straight to the app; Full control opens the full criteria screen.
  *
- * Layout (HIG + house style): headline on top (clearing the notch via
- * insets.top), the three options as real house-style buttons (bubble cards,
- * round forest-green icon chips, no chevrons), the recommended preset gets a
- * subtle 'Recommended' label on the title line, and the Gustra logo sits at
- * the very bottom on the same background color as the splash icon.
+ * Layout (HIG + house style): the headline plus the three option buttons are
+ * vertically centred in the upper area (clearing the notch via insets.top),
+ * the personalisation hint sits right below the last button, and the Gustra
+ * logo with the italic tagline sits at the bottom of the screen, on the same
+ * background color as the splash icon.
  */
 function ChooseStep({
   onChooseQuick,
@@ -11562,73 +12261,76 @@ function ChooseStep({
         contentContainerStyle={[
           styles.chooseContent,
           {
-            paddingTop: Math.max(insets.top, 16) + 28,
+            paddingTop: Math.max(insets.top, 16) + 20,
             paddingBottom: Math.max(insets.bottom, 12) + 16,
           },
         ]}
         showsVerticalScrollIndicator={false}
         overScrollMode="never">
-        <View style={styles.chooseHeadlineWrap}>
-          <SerifText size={28} weight="bold" style={styles.chooseHeadline}>
-            {t('setup.choose.headline')}
-          </SerifText>
+        <View style={styles.chooseMain}>
+          <View style={styles.chooseHeadlineWrap}>
+            <SerifText size={28} weight="bold" style={styles.chooseHeadline}>
+              {t('setup.choose.headline')}
+            </SerifText>
+          </View>
+
+          <View style={styles.chooseButtons}>
+            {options.map((option) => (
+              <Pressable
+                key={option.id}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  option.recommended
+                    ? `${option.title}, ${t('setup.choose.recommended')}`
+                    : option.title
+                }
+                onPress={() => {
+                  Haptics.selectionChanged();
+                  option.onPress();
+                }}
+                style={({ pressed }) => [
+                  styles.chooseButton,
+                  pressed && styles.chooseButtonPressed,
+                ]}>
+                <View style={styles.chooseButtonIcon}>
+                  {Platform.OS === 'ios' ? (
+                    <SymbolView
+                      name={option.icon.ios}
+                      size={22}
+                      tintColor="#FFFFFF"
+                      weight="semibold"
+                    />
+                  ) : (
+                    <MaterialIcons
+                      name={option.icon.android}
+                      size={24}
+                      color="#FFFFFF"
+                    />
+                  )}
+                </View>
+                <View style={styles.chooseButtonText}>
+                  <View style={styles.chooseButtonTitleRow}>
+                    <Text style={styles.chooseButtonTitle}>{option.title}</Text>
+                    {option.recommended ? (
+                      <View style={styles.chooseRecommendedBadge}>
+                        <Text style={styles.chooseRecommendedLabel}>
+                          {t('setup.choose.recommended')}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={styles.chooseButtonSubtitle}>
+                    {option.subtitle}
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+
           <Text style={styles.chooseBody}>{t('setup.choose.body')}</Text>
         </View>
 
-        <View style={styles.chooseButtons}>
-          {options.map((option) => (
-            <Pressable
-              key={option.id}
-              accessibilityRole="button"
-              accessibilityLabel={
-                option.recommended
-                  ? `${option.title}, ${t('setup.choose.recommended')}`
-                  : option.title
-              }
-              onPress={() => {
-                Haptics.selectionChanged();
-                option.onPress();
-              }}
-              style={({ pressed }) => [
-                styles.chooseButton,
-                pressed && styles.chooseButtonPressed,
-              ]}>
-              <View style={styles.chooseButtonIcon}>
-                {Platform.OS === 'ios' ? (
-                  <SymbolView
-                    name={option.icon.ios}
-                    size={22}
-                    tintColor="#FFFFFF"
-                    weight="semibold"
-                  />
-                ) : (
-                  <MaterialIcons
-                    name={option.icon.android}
-                    size={24}
-                    color="#FFFFFF"
-                  />
-                )}
-              </View>
-              <View style={styles.chooseButtonText}>
-                <View style={styles.chooseButtonTitleRow}>
-                  <Text style={styles.chooseButtonTitle}>{option.title}</Text>
-                  {option.recommended ? (
-                    <View style={styles.chooseRecommendedBadge}>
-                      <Text style={styles.chooseRecommendedLabel}>
-                        {t('setup.choose.recommended')}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-                <Text style={styles.chooseButtonSubtitle}>
-                  {option.subtitle}
-                </Text>
-              </View>
-            </Pressable>
-          ))}
-        </View>
-
-        <View style={styles.chooseLogoWrap}>
+        <View style={styles.chooseLogoZone}>
           <View style={styles.chooseLogoCircle}>
             <Image
               source={require('@/assets/images/splash-icon.png')}
@@ -11636,6 +12338,7 @@ function ChooseStep({
               resizeMode="contain"
             />
           </View>
+          <Text style={styles.chooseTagline}>creating food memories</Text>
         </View>
       </ScrollView>
     </View>
@@ -11944,14 +12647,29 @@ const styles = StyleSheet.create({
   },
   chooseContent: {
     flexGrow: 1,
-    justifyContent: 'center',
     paddingHorizontal: 24,
     paddingVertical: 32,
-    gap: 24,
+    gap: 20,
   },
-  chooseLogoWrap: {
+  chooseMain: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: 20,
+  },
+  chooseLogoZone: {
+    flex: 1,
     alignItems: 'center',
-    paddingTop: 12,
+    justifyContent: 'center',
+    gap: 10,
+    paddingBottom: 8,
+  },
+  chooseTagline: {
+    // Real italic face (RN does not synthesize italic from upright Source Serif).
+    fontFamily: SERIF_FONT_REGULAR_ITALIC || systemSerifFamily,
+    fontSize: 15,
+    letterSpacing: 0.2,
+    color: 'rgba(35, 32, 26, 0.6)',
+    textAlign: 'center',
   },
   chooseLogoCircle: {
     width: 76,
@@ -12453,7 +13171,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       supportsTablet: true,
       // Must match the existing App Store Connect / Swift app.
       bundleIdentifier: 'com.philip.gustra',
-      buildNumber: '55',
+      buildNumber: '60',
       // Keep in sync with android.versionCode — deploy-store.sh bumps both together.
       entitlements: {
         'com.apple.security.application-groups': ['group.com.philip.gustra'],
@@ -12512,7 +13230,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
       package: 'net.gustra.app',
       // Keep in sync with ios.buildNumber — deploy-store.sh bumps both together.
-      versionCode: 55,
+      versionCode: 60,
       // Material / gesture navigation — cream surfaces bleed under system bars.
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: true,
@@ -18819,6 +19537,242 @@ export default AnimatedCounter;
 
 
 ================================================================================
+FILE: components/passport/BucketListSection.tsx
+================================================================================
+import { useCallback, useMemo } from 'react';
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { SymbolView } from 'expo-symbols';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+
+import { FeedSwipeDelete } from '@/components/feed/FeedSwipeDelete';
+import { PassportSection } from '@/components/passport/PassportSection';
+import { SerifText } from '@/components/ui/SerifText';
+import { GustraColors } from '@/constants/Colors';
+import { Theme, captionTextStyle, bodyTextStyle } from '@/constants/Theme';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
+import { useReviewsStore } from '@/context/ReviewsStore';
+import { resolveReviewOrigin, type Restaurant } from '@/data/types';
+import { requestSwipeDelete } from '@/services/swipeDelete';
+import { Haptics } from '@/services/haptics';
+
+type BucketListSectionProps = {
+  restaurants: Restaurant[];
+  onOpenRestaurant: (restaurant: Restaurant) => void;
+};
+
+/**
+ * "My Gustra" bucket list — restaurants the user wants to visit, shown above
+ * the Time Travel banner. Swipe-to-delete removes the bookmark (iOS confirm,
+ * Android Undo snackbar).
+ */
+export function BucketListSection({
+  restaurants,
+  onOpenRestaurant,
+}: BucketListSectionProps) {
+  const { t } = useAppTranslation();
+  const { setRestaurantBucket, reviews } = useReviewsStore();
+
+  /** Restaurants that already have an own (possibly draft) review. */
+  const reviewedRestaurantIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const review of reviews) {
+      if (resolveReviewOrigin(review) !== 'own') continue;
+      ids.add(review.restaurantId);
+    }
+    return ids;
+  }, [reviews]);
+
+  const handleRemove = useCallback(
+    (restaurant: Restaurant) => {
+      requestSwipeDelete({
+        title: t('bucketList.removeTitle'),
+        message: t('bucketList.deleteConfirm', { name: restaurant.name }),
+        undoMessage: t('bucketList.deleteRemoved'),
+        onCommit: () => {
+          void setRestaurantBucket(restaurant.id, false);
+        },
+      });
+    },
+    [setRestaurantBucket, t],
+  );
+
+  if (restaurants.length === 0) {
+    return (
+      <PassportSection title={t('bucketList.title')}>
+        <View style={styles.empty}>
+          <SymbolView
+            name={{
+              ios: 'bookmark',
+              android: 'bookmark_border',
+              web: 'bookmark_border',
+            }}
+            tintColor="rgba(35, 32, 26, 0.35)"
+            size={22}
+          />
+          <Text style={styles.emptyText}>{t('bucketList.emptyBody')}</Text>
+        </View>
+      </PassportSection>
+    );
+  }
+
+  return (
+    <PassportSection title={t('bucketList.title')}>
+      {restaurants.map((restaurant) => (
+        <View key={restaurant.id} style={styles.rowWrap}>
+          <FeedSwipeDelete
+            id={`bucket-${restaurant.id}`}
+            onDelete={() => handleRemove(restaurant)}
+            cornerRadius={Theme.radius.lg}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={restaurant.name}
+              accessibilityHint={t('passport.timeTravelSubtitle')}
+              onPress={() => {
+                Haptics.selectionChanged();
+                onOpenRestaurant(restaurant);
+              }}
+              style={({ pressed }) => [
+                styles.row,
+                pressed && styles.rowPressed,
+              ]}>
+              <View style={styles.icon}>
+                {Platform.OS === 'ios' ? (
+                  <SymbolView
+                    name="bookmark.fill"
+                    tintColor={GustraColors.gold}
+                    size={20}
+                  />
+                ) : (
+                  <MaterialIcons
+                    name="bookmark"
+                    size={20}
+                    color={GustraColors.gold}
+                  />
+                )}
+              </View>
+              <View style={styles.copy}>
+                <SerifText size={16} weight="semibold" style={styles.name}>
+                  {restaurant.name}
+                </SerifText>
+                <Text style={styles.subtitle}>
+                  {[restaurant.city, restaurant.country]
+                    .map((part) => part.trim())
+                    .filter(Boolean)
+                    .join(', ') || t('common.none')}
+                </Text>
+              </View>
+              {reviewedRestaurantIds.has(restaurant.id) ? (
+                <View style={styles.hasReviewBadge}>
+                  {Platform.OS === 'ios' ? (
+                    <SymbolView
+                      name="checkmark"
+                      tintColor={GustraColors.forestGreen}
+                      size={14}
+                    />
+                  ) : (
+                    <MaterialIcons
+                      name="check"
+                      size={16}
+                      color={GustraColors.forestGreen}
+                    />
+                  )}
+                </View>
+              ) : null}
+              {Platform.OS === 'ios' ? (
+                <SymbolView
+                  name="chevron.right"
+                  tintColor="rgba(35, 32, 26, 0.35)"
+                  size={16}
+                />
+              ) : (
+                <MaterialIcons
+                  name="chevron-right"
+                  size={22}
+                  color="rgba(35, 32, 26, 0.35)"
+                />
+              )}
+            </Pressable>
+          </FeedSwipeDelete>
+        </View>
+      ))}
+    </PassportSection>
+  );
+}
+
+const styles = StyleSheet.create({
+  rowWrap: {
+    borderRadius: Theme.radius.lg,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: GustraColors.bubble,
+    borderRadius: Theme.radius.lg,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(217, 162, 39, 0.35)',
+  },
+  rowPressed: {
+    opacity: 0.85,
+  },
+  icon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(217, 162, 39, 0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  copy: {
+    flex: 1,
+    gap: 2,
+  },
+  name: {
+    color: GustraColors.ink,
+  },
+  subtitle: {
+    ...captionTextStyle,
+    fontSize: 13,
+    color: 'rgba(35, 32, 26, 0.55)',
+  },
+  hasReviewBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(36, 78, 57, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  empty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: GustraColors.bubble,
+    borderRadius: Theme.radius.lg,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(217, 162, 39, 0.2)',
+  },
+  emptyText: {
+    ...bodyTextStyle,
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+    color: 'rgba(35, 32, 26, 0.55)',
+  },
+});
+
+
+================================================================================
 FILE: components/passport/PassportSection.tsx
 ================================================================================
 import type { ReactNode } from 'react';
@@ -18936,6 +19890,7 @@ import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
+import { floorToHalfHour } from '@/i18n/formatDates';
 
 type DatePickerModalProps = {
   visible: boolean;
@@ -18989,7 +19944,7 @@ export const DatePickerModal = React.memo(function DatePickerModal({
                 onClose();
               }
               if (!selected) return;
-              setVisitDate(selected);
+              setVisitDate(floorToHalfHour(selected));
             }}
           />
           {Platform.OS === 'ios' ? (
@@ -19002,11 +19957,12 @@ export const DatePickerModal = React.memo(function DatePickerModal({
                 mode="time"
                 display="spinner"
                 maximumDate={new Date()}
+                minuteInterval={30}
                 themeVariant="light"
                 accentColor={GustraColors.forestGreen}
                 onChange={(_, selected) => {
                   if (!selected) return;
-                  setVisitDate(selected);
+                  setVisitDate(floorToHalfHour(selected));
                 }}
               />
             </View>
@@ -19878,6 +20834,7 @@ FILE: components/review/SelectedRestaurantBanner.tsx
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 
+import { houseAlert, type HouseAlertButton } from '@/components/ui/HouseAlert';
 import { HousePrimaryButton } from '@/components/ui/HousePrimaryButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
@@ -19890,9 +20847,17 @@ type SelectedRestaurantBannerProps = {
   draft: RestaurantDraft;
   actionTitle: string;
   onAction: () => void;
-  onClear?: () => void;
+  onClear: () => void;
   /** Own visits already on record for this restaurant (shows a subtle note). */
   visitedCount?: number;
+  /**
+   * When provided, shows a bookmark button in the top-right corner. Tapping it
+   * toggles the restaurant on/off the bucket list: when already bookmarked it
+   * asks to remove, otherwise it asks to add.
+   */
+  onToggleBucketList?: () => void;
+  /** Bucket-list state for the bookmark icon (filled when already on list). */
+  inBucketList?: boolean;
 };
 
 /** Swift `SelectedRestaurantBanner`. */
@@ -19902,22 +20867,62 @@ export function SelectedRestaurantBanner({
   onAction,
   onClear,
   visitedCount = 0,
+  onToggleBucketList,
+  inBucketList = false,
 }: SelectedRestaurantBannerProps) {
   const { t } = useAppTranslation();
   const addressLine = draftAddressLine(draft);
 
+  const handleBookmarkPress = () => {
+    if (!onToggleBucketList) return;
+    if (inBucketList) {
+      houseAlert(
+        t('bucketList.removeTitle'),
+        t('bucketList.removeBody', { name: draft.name }),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('bucketList.removeConfirm'),
+            style: 'default',
+            onPress: () => onToggleBucketList(),
+          },
+        ] satisfies HouseAlertButton[],
+      );
+      return;
+    }
+    houseAlert(
+      t('bucketList.addTitle'),
+      t('bucketList.addBody', { name: draft.name }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('bucketList.addConfirm'),
+          style: 'default',
+          onPress: () => onToggleBucketList(),
+        },
+      ] satisfies HouseAlertButton[],
+    );
+  };
+
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <SymbolView
-          name={{
-            ios: 'checkmark.circle.fill',
-            android: 'check_circle',
-            web: 'check_circle',
-          }}
-          tintColor={GustraColors.forestGreen}
-          size={28}
-        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('common.deselectRestaurant')}
+          hitSlop={8}
+          onPress={onClear}
+          style={({ pressed }) => pressed && styles.pressed}>
+          <SymbolView
+            name={{
+              ios: 'xmark.circle.fill',
+              android: 'cancel',
+              web: 'cancel',
+            }}
+            tintColor="rgba(35, 32, 26, 0.35)"
+            size={28}
+          />
+        </Pressable>
         <View style={styles.copy}>
           <Text style={styles.caption}>{t('common.selectedRestaurant')}</Text>
           <SerifText size={17} weight="semibold" style={styles.name}>
@@ -19943,21 +20948,33 @@ export function SelectedRestaurantBanner({
             <Text style={styles.address}>{addressLine}</Text>
           ) : null}
         </View>
-        {onClear ? (
+        {onToggleBucketList ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t('common.deselectRestaurant')}
+            accessibilityLabel={
+              inBucketList
+                ? t('bucketList.removeTitle')
+                : t('bucketList.addTitle')
+            }
+            accessibilityState={{ selected: inBucketList }}
             hitSlop={8}
-            onPress={onClear}
-            style={({ pressed }) => pressed && styles.pressed}>
+            onPress={handleBookmarkPress}
+            style={({ pressed }) => [
+              styles.bookmarkButton,
+              pressed && styles.pressed,
+            ]}>
             <SymbolView
               name={{
-                ios: 'xmark.circle.fill',
-                android: 'cancel',
-                web: 'cancel',
+                ios: inBucketList ? 'bookmark.fill' : 'bookmark',
+                android: inBucketList ? 'bookmark' : 'bookmark_border',
+                web: inBucketList ? 'bookmark' : 'bookmark_border',
               }}
-              tintColor="rgba(35, 32, 26, 0.35)"
-              size={28}
+              tintColor={
+                inBucketList
+                  ? GustraColors.gold
+                  : 'rgba(35, 32, 26, 0.45)'
+              }
+              size={30}
             />
           </Pressable>
         ) : null}
@@ -19974,11 +20991,23 @@ const styles = StyleSheet.create({
     borderRadius: Theme.radius.xl,
     padding: 16,
     gap: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(36, 78, 57, 0.18)',
+    shadowColor: 'rgba(35, 32, 26, 0.08)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 4,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
+  },
+  /** Bookmark peeks over the card's top edge; horizontal position unchanged. */
+  bookmarkButton: {
+    marginTop: -16,
+    zIndex: 2,
   },
   copy: {
     flex: 1,
@@ -19987,6 +21016,9 @@ const styles = StyleSheet.create({
   caption: {
     ...captionTextStyle,
     fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
     color: 'rgba(35, 32, 26, 0.55)',
   },
   name: {
@@ -21920,8 +22952,9 @@ export type VisitTimelineProps = {
   onPressEntry?: (entry: VisitTimelineEntry) => void;
   /**
    * Show the year/month visit-count labels. Time Travel keeps them (total per
-   * year, visits per month); the restaurant visits overview hides them because
-   * every row is already an individual visit.
+   * year; visits per month, but only from two visits onward — a single visit
+   * per month needs no "1 visit" caption); the restaurant visits overview
+   * hides them because every row is already an individual visit.
    */
   showCounts?: boolean;
 };
@@ -21974,7 +23007,7 @@ export function VisitTimeline({
                           year: yearGroup.year,
                         })}
                       </Text>
-                      {showCounts ? (
+                      {showCounts && month.entries.length > 1 ? (
                         <Text style={styles.monthCount}>
                           {t('passport.timeTravelMonthCount', {
                             count: month.entries.length,
@@ -22806,7 +23839,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GustraColors } from '@/constants/Colors';
 import { captionTextStyle, Surface, Theme } from '@/constants/Theme';
-import { unlockAdvancedMenu } from '@/context/AdvancedMenu';
+import { toggleAdvancedMenu } from '@/context/AdvancedMenu';
 import { Haptics } from '@/services/haptics';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -22945,9 +23978,9 @@ export function GustraTabBar(props: Record<string, unknown>) {
                   type: 'tabLongPress',
                   target: route.key,
                 });
-                // Secret advanced-settings gate: long-press the Settings tab
-                // to reveal the hidden "Advanced" section in Settings.
-                if (route.name === 'settings' && unlockAdvancedMenu()) {
+                // Secret developer-settings gate: long-press the Settings tab
+                // to toggle the hidden "Developer" section in Settings.
+                if (route.name === 'settings' && toggleAdvancedMenu()) {
                   // Distinct confirmation so the gesture feels intentional.
                   Haptics.success();
                 }
@@ -27080,12 +28113,13 @@ FILE: context/AdvancedMenu.ts
 import { useCallback, useSyncExternalStore } from 'react';
 
 /**
- * Hidden "Advanced" settings menu — a secret Easter-egg gate.
+ * Hidden "Developer" settings menu — a secret Easter-egg gate.
  *
- * The Geavanceerd/Advanced section in Settings is invisible by default. It
- * only appears after the user long-presses the Settings tab in the floating
- * tab bar. This is a per-session, in-memory flag shared between the tab bar
- * (which fires the unlock) and the Settings screen (which reveals the section).
+ * The Developer section in Settings is invisible by default. It appears
+ * after the user long-presses the Settings tab in the floating tab bar, and
+ * hides again on another long-press (toggle). This is a per-session,
+ * in-memory flag shared between the tab bar (which fires the toggle) and the
+ * Settings screen (which reveals the section).
  *
  * Implemented as a tiny module singleton with `useSyncExternalStore` so no
  * React context provider is needed in the root layout.
@@ -27105,12 +28139,30 @@ export function isAdvancedMenuUnlocked(): boolean {
   return advancedUnlocked;
 }
 
-/** Reveals the hidden Advanced section. No-op when already unlocked. */
+/** Reveals the hidden Developer section. No-op when already unlocked. */
 export function unlockAdvancedMenu(): boolean {
   if (advancedUnlocked) return false;
   advancedUnlocked = true;
   emitChange();
   return true;
+}
+
+/** Hides the Developer section again. No-op when already locked. */
+export function lockAdvancedMenu(): boolean {
+  if (!advancedUnlocked) return false;
+  advancedUnlocked = false;
+  emitChange();
+  return true;
+}
+
+/**
+ * Toggle the hidden Developer section (long-press Settings tab opens it,
+ * long-press again closes it). Returns the new unlocked state.
+ */
+export function toggleAdvancedMenu(): boolean {
+  advancedUnlocked = !advancedUnlocked;
+  emitChange();
+  return advancedUnlocked;
 }
 
 /** Test-only: back to the locked state (not used by the app). */
@@ -27120,7 +28172,7 @@ export function resetAdvancedMenuUnlocked(): void {
   emitChange();
 }
 
-/** Accessor for the hidden Advanced section. */
+/** Accessor for the hidden Developer section. */
 export function useAdvancedMenuUnlocked(): boolean {
   return useSyncExternalStore(
     useCallback((onStoreChange: () => void) => {
@@ -27289,6 +28341,15 @@ export const ESSENTIALS_PRESET_STANDARD_IDS: readonly StandardCriterionId[] =
 /** Required to complete every review; users cannot disable it. */
 export const MANDATORY_STANDARD_CRITERION_IDS: readonly StandardCriterionId[] = [
   'food',
+] as const;
+
+/**
+ * "Full control" opens the criteria screen with a sensible starting point:
+ * the mandatory Food plus Drinks preselected (everything else off).
+ */
+export const FULL_CONTROL_INITIAL_STANDARD_IDS: readonly StandardCriterionId[] = [
+  'food',
+  'drinks',
 ] as const;
 
 export function isMandatoryStandardCriterion(id: string): boolean {
@@ -27656,10 +28717,11 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
         setDisabledStandardIds(nextDisabled);
         persistDisabled(nextDisabled);
       } else {
-        // Full control: only the mandatory criterion (food) stays on.
+        // Full control: the criteria screen opens with Food + Drinks on,
+        // everything else off (user personalises from there).
         const nextDisabled = new Set(
           STANDARD_CRITERIA.map((c) => c.id).filter(
-            (id) => !isMandatoryStandardCriterion(id),
+            (id) => !FULL_CONTROL_INITIAL_STANDARD_IDS.includes(id as StandardCriterionId),
           ),
         );
         setDisabledStandardIds(nextDisabled);
@@ -28824,6 +29886,16 @@ type ReviewsStoreValue = {
     restaurantId: string,
     isFavorite: boolean,
   ) => Promise<void>;
+  /** Toggle a restaurant on the user's bucket list (no review yet). */
+  setRestaurantBucket: (
+    restaurantId: string,
+    isInBucketList: boolean,
+  ) => Promise<void>;
+  /**
+   * Add a draft restaurant to the bucket list: finds an existing restaurant
+   * by draft or creates one, then flags it. Returns the restaurant id.
+   */
+  addDraftToBucketList: (draft: RestaurantDraft) => Promise<string | null>;
   /** Create or update a review from the review form (Swift `persistReview`). */
   upsertReviewFromForm: (
     input: ReviewFormUpsertInput,
@@ -28888,6 +29960,7 @@ function restaurantFromDraft(
     mapItemIdentifier: draft.mapItemIdentifier,
     primaryType: draft.primaryType.trim(),
     isFavorite,
+    isInBucketList: false,
     thumbnailColor: THUMB_COLORS[Math.floor(Math.random() * THUMB_COLORS.length)],
     photoUrl: '',
   });
@@ -29463,6 +30536,55 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
     [restaurants, reviews],
   );
 
+  const setRestaurantBucket = useCallback(
+    async (restaurantId: string, isInBucketList: boolean) => {
+      const nextRestaurants = restaurants.map((restaurant) =>
+        restaurant.id === restaurantId
+          ? { ...restaurant, isInBucketList }
+          : restaurant,
+      );
+      setRestaurants(nextRestaurants);
+      await persist({ restaurants: nextRestaurants, reviews });
+    },
+    [restaurants, reviews],
+  );
+
+  const addDraftToBucketList = useCallback(
+    async (draft: RestaurantDraft): Promise<string | null> => {
+      const draftName = draft.name.trim();
+      if (!draftName) return null;
+
+      let nextRestaurants = [...restaurantsRef.current];
+      const existing = findExistingRestaurant(draft, nextRestaurants);
+      if (existing) {
+        // A restaurant you already visited belongs in Memories, not on the
+        // bucket list — keep it off (the review flow auto-removes it too).
+        const hasOwnReview = reviewsRef.current.some(
+          (r) =>
+            r.restaurantId === existing.id && resolveReviewOrigin(r) === 'own',
+        );
+        if (!hasOwnReview && !existing.isInBucketList) {
+          nextRestaurants = nextRestaurants.map((r) =>
+            r.id === existing.id ? { ...r, isInBucketList: true } : r,
+          );
+          restaurantsRef.current = nextRestaurants;
+          setRestaurants(nextRestaurants);
+          await persist({ restaurants: nextRestaurants, reviews: reviewsRef.current });
+        }
+        return existing.id;
+      }
+
+      const created = restaurantFromDraft(draft, false);
+      const withBucket = { ...created, isInBucketList: true };
+      nextRestaurants = [...nextRestaurants, withBucket];
+      restaurantsRef.current = nextRestaurants;
+      setRestaurants(nextRestaurants);
+      await persist({ restaurants: nextRestaurants, reviews: reviewsRef.current });
+      return withBucket.id;
+    },
+    [],
+  );
+
   // Swift `PlaceTypeBackfillService.backfillMissingTypesIfNeeded` at launch.
   useEffect(() => {
     if (!ready) return;
@@ -29655,6 +30777,12 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
           restaurant.id,
           nextReviews,
         );
+        // A restaurant with a review no longer belongs on the bucket list.
+        if (restaurant.isInBucketList) {
+          nextRestaurants = nextRestaurants.map((r) =>
+            r.id === restaurant!.id ? { ...r, isInBucketList: false } : r,
+          );
+        }
         restaurant =
           nextRestaurants.find((r) => r.id === restaurant!.id) ?? restaurant;
 
@@ -30074,6 +31202,8 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       resyncRestaurantCovers,
       deleteRestaurantFromFeed,
       setRestaurantFavorite,
+      setRestaurantBucket,
+      addDraftToBucketList,
       upsertReviewFromForm,
       deleteReview,
       removeWineFromReview,
@@ -30098,6 +31228,8 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
       resyncRestaurantCovers,
       deleteRestaurantFromFeed,
       setRestaurantFavorite,
+      setRestaurantBucket,
+      addDraftToBucketList,
       upsertReviewFromForm,
       deleteReview,
       removeWineFromReview,
@@ -30516,6 +31648,7 @@ export const mockRestaurants: Restaurant[] = [
     mapItemIdentifier: null,
     primaryType: 'restaurant',
     isFavorite: true,
+    isInBucketList: false,
     thumbnailColor: '#3D6B52',
     photoUrl: photos.greenhouseDish,
   },
@@ -30531,6 +31664,7 @@ export const mockRestaurants: Restaurant[] = [
     mapItemIdentifier: null,
     primaryType: 'fine_dining_restaurant',
     isFavorite: true,
+    isInBucketList: false,
     thumbnailColor: '#5A4634',
     photoUrl: photos.fineDiningPlate,
   },
@@ -30545,6 +31679,7 @@ export const mockRestaurants: Restaurant[] = [
     mapItemIdentifier: null,
     primaryType: 'fine_dining_restaurant',
     isFavorite: false,
+    isInBucketList: false,
     thumbnailColor: '#2F4A3C',
     photoUrl: photos.nordicPlating,
   },
@@ -30560,6 +31695,7 @@ export const mockRestaurants: Restaurant[] = [
     mapItemIdentifier: null,
     primaryType: 'italian_restaurant',
     isFavorite: false,
+    isInBucketList: false,
     thumbnailColor: '#6B4E3D',
     photoUrl: photos.pastaClose,
   },
@@ -30574,6 +31710,7 @@ export const mockRestaurants: Restaurant[] = [
     mapItemIdentifier: null,
     primaryType: 'indonesian_restaurant',
     isFavorite: false,
+    isInBucketList: false,
     thumbnailColor: '#4A5C3A',
     photoUrl: photos.asianSpread,
   },
@@ -30589,6 +31726,7 @@ export const mockRestaurants: Restaurant[] = [
     mapItemIdentifier: null,
     primaryType: 'french_restaurant',
     isFavorite: true,
+    isInBucketList: false,
     thumbnailColor: '#6B5344',
     photoUrl: photos.steakPlate,
   },
@@ -30989,6 +32127,11 @@ export function formatReviewDate(iso: string): string {
 
 /**
  * Remove showcase / legacy shipping seed. Keeps anything the user created.
+ *
+ * If a user-created review still points at a demo restaurant (e.g. they added
+ * their own visit to a showcase venue while it was visible), the restaurant is
+ * kept — but it is "adopted" into a user id (demo-rN → user-…) so it stops
+ * being detected as demo (no more Demo pill) while the user's review stays.
  */
 export function stripShippingSeedData(
   restaurants: Restaurant[],
@@ -30996,15 +32139,30 @@ export function stripShippingSeedData(
 ): { restaurants: Restaurant[]; reviews: Review[]; stripped: boolean } {
   const nextReviews = reviews.filter((r) => !isDemoReviewId(r.id));
   const keptRestaurantIds = new Set(nextReviews.map((r) => r.restaurantId));
-  const nextRestaurants = restaurants.filter(
-    (r) => !isDemoRestaurantId(r.id) || keptRestaurantIds.has(r.id),
+  const demoOwnedByUser = new Set(
+    restaurants
+      .filter((r) => isDemoRestaurantId(r.id) && keptRestaurantIds.has(r.id))
+      .map((r) => r.id),
+  );
+  const adoptId = (id: string): string =>
+    demoOwnedByUser.has(id) ? `user-${id.replace(/^demo-/, '')}` : id;
+  const nextRestaurants = restaurants
+    .filter(
+      (r) => !isDemoRestaurantId(r.id) || keptRestaurantIds.has(r.id),
+    )
+    .map((r) => (demoOwnedByUser.has(r.id) ? { ...r, id: adoptId(r.id) } : r));
+  const rewrittenReviews = nextReviews.map((r) =>
+    demoOwnedByUser.has(r.restaurantId)
+      ? { ...r, restaurantId: adoptId(r.restaurantId) }
+      : r,
   );
   const stripped =
     nextReviews.length !== reviews.length ||
-    nextRestaurants.length !== restaurants.length;
+    nextRestaurants.length !== restaurants.length ||
+    demoOwnedByUser.size > 0;
   return {
     restaurants: nextRestaurants,
-    reviews: nextReviews,
+    reviews: rewrittenReviews,
     stripped,
   };
 }
@@ -31024,17 +32182,31 @@ export function stripDemoShowcase(
 /**
  * Merge showcase restaurants/reviews into user data (in-memory only).
  * Existing user rows win on ID collision.
+ *
+ * A user-adopted demo restaurant (demo-rN adopted as user-rN while the user
+ * kept their own review) counts as the same venue: if user-rN exists, the
+ * demo-rN showcase row is not added again, otherwise the venue would appear
+ * twice once the showcase is re-enabled.
  */
 export function mergeDemoShowcase(
   restaurants: Restaurant[],
   reviews: Review[],
 ): { restaurants: Restaurant[]; reviews: Review[] } {
   const restaurantIds = new Set(restaurants.map((r) => r.id));
+  const adoptedDemoIds = new Set(
+    restaurants
+      .map((r) => /^user-(demo-)?(.+)$/.exec(r.id)?.[2])
+      .filter((v): v is string => Boolean(v) && DEMO_RESTAURANT_IDS.has(`demo-${v}`)),
+  );
   const reviewIds = new Set(reviews.map((r) => r.id));
   return {
     restaurants: [
       ...restaurants,
-      ...mockRestaurants.filter((r) => !restaurantIds.has(r.id)),
+      ...mockRestaurants.filter(
+        (r) =>
+          !restaurantIds.has(r.id) &&
+          !adoptedDemoIds.has(r.id.replace(/^demo-/, '')),
+      ),
     ],
     reviews: [
       ...reviews,
@@ -31492,6 +32664,12 @@ export type Restaurant = {
    */
   primaryType: string;
   isFavorite: boolean;
+  /**
+   * User's bucket list (places to visit). Restaurants on the list have no
+   * review yet — adding a review auto-removes them from the list. Additive:
+   * older persisted records simply lack this flag (defaults to false).
+   */
+  isInBucketList: boolean;
   thumbnailColor: string;
   /** Dish or interior photo for feed cards. */
   photoUrl: string;
@@ -31516,6 +32694,7 @@ export function normalizeRestaurant(restaurant: Restaurant): Restaurant {
     primaryType: restaurant.primaryType ?? '',
     phone: restaurant.phone,
     isFavorite: Boolean(restaurant.isFavorite),
+    isInBucketList: Boolean(restaurant.isInBucketList),
     thumbnailColor: restaurant.thumbnailColor || '#3D6B52',
     photoUrl: restaurant.photoUrl ?? '',
   };
@@ -32019,6 +33198,7 @@ import {
   restaurantDraftFromRestaurant,
   type RestaurantDraft,
 } from '@/services/places';
+import { floorToHalfHour } from '@/i18n/formatDates';
 
 type EditBaseline = {
   visitDateIso: string;
@@ -32047,9 +33227,13 @@ export function useReviewFormState() {
     draft?: string;
     reviewId?: string;
     restaurantId?: string;
+    /** 'bucket' when opened from the My Gustra bucket list (back → passport). */
+    from?: string;
   }>();
   const router = useRouter();
   const navigation = useNavigation();
+
+  const fromBucket = params.from === 'bucket';
 
   const { enabledCriteria, customCriteria } = useCriteriaSettings();
   const {
@@ -32080,7 +33264,7 @@ export function useReviewFormState() {
   }, [existingReview, getRestaurant, params.draft, params.restaurantId]);
 
   const [draft, setDraft] = useState<RestaurantDraft | null>(null);
-  const [visitDate, setVisitDate] = useState(() => new Date());
+  const [visitDate, setVisitDate] = useState(() => floorToHalfHour(new Date()));
   const [isFavorite, setIsFavorite] = useState(false);
   const [generalComment, setGeneralComment] = useState('');
   const [criteriaState, setCriteriaState] = useState<
@@ -32138,6 +33322,8 @@ export function useReviewFormState() {
   isEditRef.current = isEdit;
   const isEditDirtyRef = useRef(false);
   const allowLeaveRef = useRef(false);
+  const fromBucketRef = useRef(fromBucket);
+  fromBucketRef.current = fromBucket;
   didDeleteRef.current = didDelete;
 
   // Hydrate once store + route params are ready.
@@ -32150,7 +33336,7 @@ export function useReviewFormState() {
     activeReviewIdRef.current = existingReview?.id;
 
     if (existingReview) {
-      const visitDateValue = new Date(existingReview.date);
+      const visitDateValue = floorToHalfHour(new Date(existingReview.date));
       const winesCopy = wineLabelsForReview(existingReview);
       const photoUrlsCopy = stripWineLabelUrisFromPhotoUrls(
         [...existingReview.photoUrls],
@@ -32203,7 +33389,7 @@ export function useReviewFormState() {
     } else {
       const match = findExistingRestaurant(initialDraft, restaurants);
       const prefilledFavorite = Boolean(match?.isFavorite);
-      const visitDateValue = new Date();
+      const visitDateValue = floorToHalfHour(new Date());
       setIsFavorite(prefilledFavorite);
       setVisitDate(visitDateValue);
       editBaselineRef.current = null;
@@ -32511,12 +33697,18 @@ export function useReviewFormState() {
 
   const leaveToReviews = useCallback(() => {
     allowLeaveRef.current = true;
+    // Bucket drafts opened from My Gustra: simply pop back — the review form
+    // was pushed directly on top of the passport tab, so back restores My
+    // Gustra with its scroll offset untouched.
+    if (fromBucketRef.current) {
+      router.back();
+      return;
+    }
     if (router.canDismiss()) {
       router.dismissAll();
     }
     router.navigate('/(tabs)/(main)');
   }, [router]);
-
   const discardEditPhotos = useCallback(() => {
     const baseline = editBaselineRef.current;
     if (!baseline) return;
@@ -32645,6 +33837,21 @@ export function useReviewFormState() {
 
   const onBack = useCallback(() => {
     if (persistTimer.current) clearTimeout(persistTimer.current);
+    // Bucket-list drafts are pushed directly on top of My Gustra; backing out
+    // pops the form so the passport screen restores at its previous scroll
+    // offset, exactly where the user tapped.
+    if (fromBucketRef.current) {
+      if (isFormDirty) {
+        promptDiscardEdits(() => {
+          allowLeaveRef.current = true;
+          leaveToReviews();
+        });
+        return;
+      }
+      allowLeaveRef.current = true;
+      leaveToReviews();
+      return;
+    }
     // New reviews are pushed from a picker stack (nearby / map-search /
     // manual entry). Backing out of a brand-new draft should land on the
     // feed — not step back through the picker — so the user never clicks
@@ -33250,6 +34457,17 @@ export function activeIntlLocale(): string {
   return resolveIntlLocale(language);
 }
 
+/**
+ * Floor a date's time-of-day down to the nearest half hour (20:42 → 20:30,
+ * seconds/ms zeroed). Visit times in the review form always round down so the
+ * picker only ever settles on :00 / :30.
+ */
+export function floorToHalfHour(date: Date): Date {
+  const floored = new Date(date.getTime());
+  floored.setMinutes(Math.floor(floored.getMinutes() / 30) * 30, 0, 0);
+  return floored;
+}
+
 /** Full review date/time (e.g. review detail). */
 export function formatReviewDateTime(
   iso: string,
@@ -33493,7 +34711,7 @@ FILE: i18n/locales/de.json
     "title": "Meine Karte",
     "friendSuffix": "(Freund)",
     "legend": {
-      "title": "Stecknadeln",
+      "title": "Legende",
       "own": "Meine Erinnerungen",
       "friends": "Mit dir geteilt"
     },
@@ -33520,18 +34738,32 @@ FILE: i18n/locales/de.json
     "topCities": "Top-Städte",
     "cityAverages": "Top-Städte",
     "noCityData": "Noch keine Städtedaten.",
-    "timeTravel": "Zeitreise",
-    "timeTravelSubtitle": "Reise zurück durch all deine Besuche.",
+    "timeTravel": "Rückblick",
+    "timeTravelSubtitle": "Sieh dir deine Erinnerungen an.",
     "timeTravelYears": "Jahre",
     "timeTravelReviews_one": "{{count}} Besuch",
     "timeTravelReviews_other": "{{count}} Besuche",
     "timeTravelAverage": "Durchschnitt",
     "timeTravelTotal": "Besuche insgesamt",
-    "timeTravelEmptyTitle": "Noch nichts zu bereisen",
-    "timeTravelEmptyBody": "Füge Restaurant-Erinnerungen hinzu und deine Zeitreise erscheint hier.",
+    "timeTravelEmptyTitle": "Noch nichts zum Zurückblicken",
+    "timeTravelEmptyBody": "Füge Restaurant-Erinnerungen hinzu und deine Übersicht erscheint hier.",
     "timeTravelMonthHeader": "{{month}} {{year}}",
     "timeTravelMonthCount_one": "{{count}} Besuch",
     "timeTravelMonthCount_other": "{{count}} Besuche"
+  },
+  "bucketList": {
+    "title": "Wunschliste",
+    "emptyTitle": "Noch keine Wunschliste",
+    "emptyBody": "Tippe auf das Lesezeichen bei einem Restaurant, das du besuchen möchtest, um es hier zu speichern.",
+    "addTitle": "Zur Wunschliste hinzufügen",
+    "addBody": "Möchtest du {{name}} zu deiner Wunschliste hinzufügen?",
+    "addConfirm": "Hinzufügen",
+    "added": "Zu deiner Wunschliste hinzugefügt",
+    "removeTitle": "Von der Wunschliste entfernen",
+    "removeBody": "Möchtest du {{name}} von deiner Wunschliste entfernen?",
+    "removeConfirm": "Entfernen",
+    "deleteConfirm": "{{name}} von deiner Wunschliste entfernen?",
+    "deleteRemoved": "Von der Wunschliste entfernt"
   },
   "settings": {
     "language": "Sprache",
@@ -33555,7 +34787,7 @@ FILE: i18n/locales/de.json
     "sectionStorage": "Speicher",
     "sectionData": "Daten & Backup",
     "sectionGoogle": "Google-API-Nutzung",
-    "sectionAdvanced": "Erweitert",
+    "sectionDeveloper": "Entwickler",
     "sectionLanguage": "Sprache",
     "editPhotoHint": "Tippe auf das Foto zum Ändern",
     "editCriteria": "Kriterien bearbeiten",
@@ -33626,8 +34858,8 @@ FILE: i18n/locales/de.json
     "languageValueFrench": "Français",
     "geminiApi": "Gemini Wein-Vision",
     "sectionDeveloper": "Entwickler",
-    "showCriteriaSetup": "Kriterien-Setup zeigen",
-    "showCriteriaSetupSubtitle": "First-Start-Bildschirm erneut öffnen",
+    "fakeFirstRun": "Ersten Start simulieren",
+    "fakeFirstRunSubtitle": "Gustra-Logo anzeigen, tippen zum Fortfahren und das 3-Auswahl-Menü",
     "sentryTestCrash": "Sentry-Testevent senden",
     "sentryTestCrashSubtitle": "Prüft Absturzberichte (sichere Fehler)",
     "sentryTestCrashNoDsn": "Zuerst EXPO_PUBLIC_SENTRY_DSN in .env setzen",
@@ -33665,10 +34897,13 @@ FILE: i18n/locales/de.json
   },
   "forms": {
     "addReview": {
-      "title": "Erinnerung hinzufügen",
-      "nearby": "Restaurants in der Nähe",
-      "mapSearch": "Auf der Karte suchen",
-      "manual": "Manuelle Eingabe"
+      "title": "Neue Erinnerung",
+      "nearby": "In der Nähe",
+      "nearbySubtitle": "Entdecke Restaurants in deiner Nähe",
+      "mapSearch": "Auf der Karte",
+      "mapSearchSubtitle": "Entdecke Orte auf der Karte",
+      "manual": "Manuell",
+      "manualSubtitle": "Gib Name und Details selbst ein"
     },
     "addVisit": {
       "title": "Besuch hinzufügen"
@@ -33693,7 +34928,9 @@ FILE: i18n/locales/de.json
       "startReview": "Erinnerung hinzufügen",
       "hint": "Verschiebe die Karte und tippe dann auf Diesen Bereich durchsuchen.",
       "emptyTitle": "Keine Restaurants gefunden",
-      "searchAreaHint": "Im sichtbaren Kartenbereich nach Restaurants suchen"
+      "searchAreaHint": "Im sichtbaren Kartenbereich nach Restaurants suchen",
+      "searchPlaceholder": "Überall suchen (z. B. Frankfurt)",
+      "searchEmpty": "Keine Restaurants für „{{query}}“ gefunden."
     },
     "manual": {
       "title": "Manuelle Eingabe",
@@ -33701,13 +34938,13 @@ FILE: i18n/locales/de.json
       "city": "Stadt (optional)",
       "country": "Land (optional)",
       "findOnGoogle": "Bei Google finden",
-      "searchHint": "Durchsuche Google, um Ortsdetails hinzuzufügen, oder fahre manuell fort.",
+      "searchHint": "Durchsuche Google, um Adresse und Kartenposition automatisch auszufüllen.",
       "googleMatches": "Google-Treffer",
       "loading": "Restaurants werden geladen…",
       "continueManually": "Manuell fortfahren",
+      "startReview": "Erinnerung hinzufügen",
       "searchFailed": "Der Restaurantsuchdienst konnte nicht erreicht werden.",
-      "noMatch": "Kein Treffer bei Google gefunden.",
-      "manualMapHint": "Ohne Google-Treffer erscheint dieses Restaurant nicht auf deiner Karte."
+      "noMatch": "Kein Treffer bei Google gefunden."
     },
     "review": {
       "editTitle": "Bearbeiten",
@@ -33728,6 +34965,7 @@ FILE: i18n/locales/de.json
       "avg": "{{score}} Ø",
       "time": "Uhrzeit",
       "setTime": "Uhrzeit festlegen · {{time}}",
+      "noMapPinHint": "Dieses Restaurant hat keine Kartenposition und erscheint daher nicht auf deiner Karte.",
       "photoStrip": {
         "hintReorder": "Tippen zum Auswählen · gedrückt halten zum Sortieren",
         "hintSelect": "Tippen zum Auswählen zum Entfernen",
@@ -33812,7 +35050,7 @@ FILE: i18n/locales/de.json
       "cancel": "Abbrechen",
       "continue": "Weiter"
     },
-    "selectReviews": "Erinnerungen auswählen",
+    "selectReviews": "Erinnerungen teilen",
     "selectRestaurants": "Restaurants auswählen",
     "selectOneRestaurant": "1 Restaurant auswählen"
   },
@@ -34101,8 +35339,8 @@ FILE: i18n/locales/de.json
       "tapToContinue": "Tippen, um fortzufahren"
     },
     "choose": {
-      "headline": "Wie möchten Sie sich erinnern?",
-      "body": "Wählen Sie einen Ausgangspunkt. Ihre Kriterien können Sie später in den Einstellungen ändern.",
+      "headline": "Wie möchtest du deine Erinnerungen festhalten?",
+      "body": "Sie können Ihre Kriterien später jederzeit in den Einstellungen anpassen.",
       "recommended": "Empfohlen",
       "quick": {
         "title": "Schnell",
@@ -34110,7 +35348,7 @@ FILE: i18n/locales/de.json
       },
       "essentials": {
         "title": "Essentiell",
-        "subtitle": "Die 5 Kernkriterien — ein guter Startpunkt"
+        "subtitle": "Essen, Getränke, Service, Atmosphäre und Preis-Leistung"
       },
       "full": {
         "title": "Volle Kontrolle",
@@ -34197,7 +35435,7 @@ FILE: i18n/locales/en.json
     "filters": "Filters",
     "addReview": "Add memory",
     "myLocation": "My location",
-    "mapLegend": "Map pin legend",
+    "mapLegend": "Map legend",
     "clearLocation": "Clear location filter",
     "clearCuisine": "Clear cuisine filter",
     "clearFavorites": "Clear favorites filter",
@@ -34271,7 +35509,7 @@ FILE: i18n/locales/en.json
     "title": "My map",
     "friendSuffix": "(friend)",
     "legend": {
-      "title": "Pins",
+      "title": "Legend",
       "own": "My memories",
       "friends": "Shared with you"
     },
@@ -34298,18 +35536,32 @@ FILE: i18n/locales/en.json
     "topCities": "Top cities",
     "cityAverages": "Top cities",
     "noCityData": "No city data yet.",
-    "timeTravel": "Time Travel",
-    "timeTravelSubtitle": "Travel back through all your visits.",
+    "timeTravel": "Flashback",
+    "timeTravelSubtitle": "Look back on your memories.",
     "timeTravelYears": "Years",
     "timeTravelReviews_one": "{{count}} visit",
     "timeTravelReviews_other": "{{count}} visits",
     "timeTravelAverage": "Average",
     "timeTravelTotal": "All-time visits",
-    "timeTravelEmptyTitle": "Nothing to travel through yet",
+    "timeTravelEmptyTitle": "Nothing to look back on yet",
     "timeTravelEmptyBody": "Add restaurant memories and your timeline will appear here.",
     "timeTravelMonthHeader": "{{month}} {{year}}",
     "timeTravelMonthCount_one": "{{count}} visit",
     "timeTravelMonthCount_other": "{{count}} visits"
+  },
+  "bucketList": {
+    "title": "Bucket List",
+    "emptyTitle": "No bucket list yet",
+    "emptyBody": "Tap the bookmark on a restaurant you want to visit to save it here.",
+    "addTitle": "Add to bucket list",
+    "addBody": "Do you want to add {{name}} to your bucket list?",
+    "addConfirm": "Add",
+    "added": "Added to your bucket list",
+    "removeTitle": "Remove from bucket list",
+    "removeBody": "Do you want to remove {{name}} from your bucket list?",
+    "removeConfirm": "Remove",
+    "deleteConfirm": "Remove {{name}} from your bucket list?",
+    "deleteRemoved": "Removed from bucket list"
   },
   "settings": {
     "language": "Language",
@@ -34333,7 +35585,7 @@ FILE: i18n/locales/en.json
     "sectionStorage": "Storage",
     "sectionData": "Data & backup",
     "sectionGoogle": "Google API usage",
-    "sectionAdvanced": "Advanced",
+    "sectionDeveloper": "Developer",
     "sectionLanguage": "Language",
     "editPhotoHint": "Tap photo to change",
     "editCriteria": "Edit criteria",
@@ -34404,8 +35656,8 @@ FILE: i18n/locales/en.json
     "languageValueFrench": "Français",
     "geminiApi": "Gemini wine Vision",
     "sectionDeveloper": "Developer",
-    "showCriteriaSetup": "Show criteria setup",
-    "showCriteriaSetupSubtitle": "Re-open the first-start screen",
+    "fakeFirstRun": "Simulate first run",
+    "fakeFirstRunSubtitle": "Show Gustra logo, tap to continue, and the 3-choice menu",
     "sentryTestCrash": "Send Sentry test event",
     "sentryTestCrashSubtitle": "Verifies crash reporting (safe error)",
     "sentryTestCrashNoDsn": "Set EXPO_PUBLIC_SENTRY_DSN in .env first",
@@ -34443,10 +35695,13 @@ FILE: i18n/locales/en.json
   },
   "forms": {
     "addReview": {
-      "title": "Add Memory",
-      "nearby": "Show nearby restaurants",
-      "mapSearch": "Search on map",
-      "manual": "Manual entry"
+      "title": "New memory",
+      "nearby": "Nearby",
+      "nearbySubtitle": "Discover restaurants right around you",
+      "mapSearch": "On the map",
+      "mapSearchSubtitle": "Explore places on the map",
+      "manual": "Manual",
+      "manualSubtitle": "Enter the name and details yourself"
     },
     "addVisit": {
       "title": "Add visit"
@@ -34471,7 +35726,9 @@ FILE: i18n/locales/en.json
       "startReview": "Add Memory",
       "hint": "Move the map, then tap Search this area.",
       "emptyTitle": "No restaurants found",
-      "searchAreaHint": "Search restaurants in the visible map area"
+      "searchAreaHint": "Search restaurants in the visible map area",
+      "searchPlaceholder": "Search anywhere (e.g. Frankfurt)",
+      "searchEmpty": "No restaurants found for “{{query}}”."
     },
     "manual": {
       "title": "Manual entry",
@@ -34479,13 +35736,13 @@ FILE: i18n/locales/en.json
       "city": "City (optional)",
       "country": "Country (optional)",
       "findOnGoogle": "Find on Google",
-      "searchHint": "Search Google to add place details, or continue manually.",
+      "searchHint": "Search Google to auto-fill the address and map location.",
       "googleMatches": "Google matches",
       "loading": "Loading restaurants…",
       "continueManually": "Continue manually",
+      "startReview": "Add Memory",
       "searchFailed": "Could not reach the restaurant search service.",
-      "noMatch": "No match found on Google.",
-      "manualMapHint": "Without a Google match this restaurant won't appear on your map."
+      "noMatch": "No match found on Google."
     },
     "review": {
       "editTitle": "Edit",
@@ -34511,6 +35768,7 @@ FILE: i18n/locales/en.json
       "avg": "{{score}} avg",
       "time": "Time",
       "setTime": "Set time · {{time}}",
+      "noMapPinHint": "This restaurant has no map location, so it won't appear on your map.",
       "photoStrip": {
         "hintReorder": "Tap to select · long-press to reorder",
         "hintSelect": "Tap to select for removal",
@@ -34590,7 +35848,7 @@ FILE: i18n/locales/en.json
       "cancel": "Cancel",
       "continue": "Continue"
     },
-    "selectReviews": "Select memories",
+    "selectReviews": "Share memories",
     "selectRestaurants": "Select restaurants",
     "selectOneRestaurant": "Select 1 restaurant"
   },
@@ -34879,8 +36137,8 @@ FILE: i18n/locales/en.json
       "tapToContinue": "Tap to continue"
     },
     "choose": {
-      "headline": "How do you want to remember?",
-      "body": "Pick a starting point. You can change your criteria later in Settings.",
+      "headline": "How do you want to record your memories?",
+      "body": "You can always adjust your criteria later in Settings.",
       "recommended": "Recommended",
       "quick": {
         "title": "Quick",
@@ -34888,7 +36146,7 @@ FILE: i18n/locales/en.json
       },
       "essentials": {
         "title": "Essentials",
-        "subtitle": "The 5 core criteria — a great place to start"
+        "subtitle": "Food, drinks, service, ambiance & value for money"
       },
       "full": {
         "title": "Full control",
@@ -35049,7 +36307,7 @@ FILE: i18n/locales/es.json
     "title": "Mi mapa",
     "friendSuffix": "(amigo)",
     "legend": {
-      "title": "Marcadores",
+      "title": "Leyenda",
       "own": "Mis recuerdos",
       "friends": "Compartidos contigo"
     },
@@ -35076,18 +36334,32 @@ FILE: i18n/locales/es.json
     "topCities": "Mejores ciudades",
     "cityAverages": "Mejores ciudades",
     "noCityData": "Aún no hay datos de ciudades.",
-    "timeTravel": "Viaje en el tiempo",
-    "timeTravelSubtitle": "Viaja atrás a través de todas tus visitas.",
+    "timeTravel": "Recuerdos",
+    "timeTravelSubtitle": "Revive tus recuerdos.",
     "timeTravelYears": "Años",
     "timeTravelReviews_one": "{{count}} visita",
     "timeTravelReviews_other": "{{count}} visitas",
     "timeTravelAverage": "Media",
     "timeTravelTotal": "Visitas en total",
-    "timeTravelEmptyTitle": "Nada que recorrer todavía",
+    "timeTravelEmptyTitle": "Nada que recordar todavía",
     "timeTravelEmptyBody": "Añade recuerdos de restaurantes y tu línea temporal aparecerá aquí.",
     "timeTravelMonthHeader": "{{month}} {{year}}",
     "timeTravelMonthCount_one": "{{count}} visita",
     "timeTravelMonthCount_other": "{{count}} visitas"
+  },
+  "bucketList": {
+    "title": "Lista de deseos",
+    "emptyTitle": "Aún no hay lista de deseos",
+    "emptyBody": "Toca el marcador de un restaurante que quieras visitar para guardarlo aquí.",
+    "addTitle": "Añadir a la lista de deseos",
+    "addBody": "¿Quieres añadir {{name}} a tu lista de deseos?",
+    "addConfirm": "Añadir",
+    "added": "Añadido a tu lista de deseos",
+    "removeTitle": "Quitar de la lista de deseos",
+    "removeBody": "¿Quieres quitar {{name}} de tu lista de deseos?",
+    "removeConfirm": "Quitar",
+    "deleteConfirm": "¿Quitar {{name}} de tu lista de deseos?",
+    "deleteRemoved": "Quitado de la lista de deseos"
   },
   "settings": {
     "language": "Idioma",
@@ -35111,7 +36383,7 @@ FILE: i18n/locales/es.json
     "sectionStorage": "Almacenamiento",
     "sectionData": "Datos y copia de seguridad",
     "sectionGoogle": "Uso de la API de Google",
-    "sectionAdvanced": "Avanzado",
+    "sectionDeveloper": "Desarrollador",
     "sectionLanguage": "Idioma",
     "editPhotoHint": "Toca la foto para cambiarla",
     "editCriteria": "Editar criterios",
@@ -35182,8 +36454,8 @@ FILE: i18n/locales/es.json
     "languageValueFrench": "Français",
     "geminiApi": "Gemini Vision de vino",
     "sectionDeveloper": "Desarrollador",
-    "showCriteriaSetup": "Mostrar setup de criterios",
-    "showCriteriaSetupSubtitle": "Reabrir la pantalla de inicio",
+    "fakeFirstRun": "Simular primer inicio",
+    "fakeFirstRunSubtitle": "Mostrar logo Gustra, tocar para continuar y el menú de 3 opciones",
     "sentryTestCrash": "Enviar evento de prueba Sentry",
     "sentryTestCrashSubtitle": "Comprueba el informe de fallos (error seguro)",
     "sentryTestCrashNoDsn": "Define primero EXPO_PUBLIC_SENTRY_DSN en .env",
@@ -35221,10 +36493,13 @@ FILE: i18n/locales/es.json
   },
   "forms": {
     "addReview": {
-      "title": "Añadir recuerdo",
-      "nearby": "Mostrar restaurantes cercanos",
-      "mapSearch": "Buscar en el mapa",
-      "manual": "Entrada manual"
+      "title": "Nuevo recuerdo",
+      "nearby": "Cerca",
+      "nearbySubtitle": "Descubre restaurantes cerca de ti",
+      "mapSearch": "En el mapa",
+      "mapSearchSubtitle": "Explora lugares en el mapa",
+      "manual": "A mano",
+      "manualSubtitle": "Introduce tú el nombre y los datos"
     },
     "addVisit": {
       "title": "Añadir visita"
@@ -35249,7 +36524,9 @@ FILE: i18n/locales/es.json
       "startReview": "Añadir recuerdo",
       "hint": "Mueve el mapa y pulsa Buscar en esta zona.",
       "emptyTitle": "No se encontraron restaurantes",
-      "searchAreaHint": "Buscar restaurantes en la zona visible del mapa"
+      "searchAreaHint": "Buscar restaurantes en la zona visible del mapa",
+      "searchPlaceholder": "Buscar en cualquier lugar (p. ej. Fráncfort)",
+      "searchEmpty": "No se encontraron restaurantes para «{{query}}»."
     },
     "manual": {
       "title": "Entrada manual",
@@ -35257,13 +36534,13 @@ FILE: i18n/locales/es.json
       "city": "Ciudad (opcional)",
       "country": "País (opcional)",
       "findOnGoogle": "Buscar en Google",
-      "searchHint": "Busca en Google para añadir detalles del lugar o continúa manualmente.",
+      "searchHint": "Busca en Google para rellenar automáticamente la dirección y la posición en el mapa.",
       "googleMatches": "Resultados de Google",
       "loading": "Cargando restaurantes…",
       "continueManually": "Continuar manualmente",
+      "startReview": "Añadir recuerdo",
       "searchFailed": "No se pudo conectar con el servicio de búsqueda de restaurantes.",
-      "noMatch": "No se encontró ninguna coincidencia en Google.",
-      "manualMapHint": "Sin una coincidencia de Google, este restaurante no aparecerá en el mapa."
+      "noMatch": "No se encontró ninguna coincidencia en Google."
     },
     "review": {
       "editTitle": "Editar",
@@ -35284,6 +36561,7 @@ FILE: i18n/locales/es.json
       "avg": "{{score}} de media",
       "time": "Hora",
       "setTime": "Elegir hora · {{time}}",
+      "noMapPinHint": "Este restaurante no tiene posición en el mapa, por lo que no aparecerá en tu mapa.",
       "photoStrip": {
         "hintReorder": "Toca para seleccionar · mantén pulsado para reordenar",
         "hintSelect": "Toca para seleccionar y eliminar",
@@ -35368,7 +36646,7 @@ FILE: i18n/locales/es.json
       "cancel": "Cancelar",
       "continue": "Continuar"
     },
-    "selectReviews": "Seleccionar recuerdos",
+    "selectReviews": "Compartir recuerdos",
     "selectRestaurants": "Seleccionar restaurantes",
     "selectOneRestaurant": "Seleccionar 1 restaurante"
   },
@@ -35657,8 +36935,8 @@ FILE: i18n/locales/es.json
       "tapToContinue": "Toca para continuar"
     },
     "choose": {
-      "headline": "¿Cómo quieres recordar?",
-      "body": "Elige un punto de partida. Puedes cambiar los criterios más tarde en Ajustes.",
+      "headline": "¿Cómo quieres registrar tus recuerdos?",
+      "body": "Siempre puedes ajustar los criterios más tarde en Ajustes.",
       "recommended": "Recomendado",
       "quick": {
         "title": "Rápido",
@@ -35666,7 +36944,7 @@ FILE: i18n/locales/es.json
       },
       "essentials": {
         "title": "Esenciales",
-        "subtitle": "Los 5 criterios principales — un buen punto de partida"
+        "subtitle": "Comida, bebidas, servicio, ambiente y relación calidad-precio"
       },
       "full": {
         "title": "Control total",
@@ -35827,7 +37105,7 @@ FILE: i18n/locales/fr.json
     "title": "Ma carte",
     "friendSuffix": "(ami)",
     "legend": {
-      "title": "Épingles",
+      "title": "Légende",
       "own": "Mes souvenirs",
       "friends": "Partagés avec vous"
     },
@@ -35854,18 +37132,32 @@ FILE: i18n/locales/fr.json
     "topCities": "Meilleures villes",
     "cityAverages": "Meilleures villes",
     "noCityData": "Pas encore de données de ville.",
-    "timeTravel": "Voyage dans le temps",
-    "timeTravelSubtitle": "Remontez le temps à travers toutes vos visites.",
+    "timeTravel": "Retour en arrière",
+    "timeTravelSubtitle": "Retrouvez tous vos souvenirs.",
     "timeTravelYears": "Années",
     "timeTravelReviews_one": "{{count}} visite",
     "timeTravelReviews_other": "{{count}} visites",
     "timeTravelAverage": "Moyenne",
     "timeTravelTotal": "Visites au total",
-    "timeTravelEmptyTitle": "Rien à parcourir pour l’instant",
+    "timeTravelEmptyTitle": "Rien à revoir pour l’instant",
     "timeTravelEmptyBody": "Ajoutez des souvenirs de restaurant et votre frise apparaîtra ici.",
     "timeTravelMonthHeader": "{{month}} {{year}}",
     "timeTravelMonthCount_one": "{{count}} visite",
     "timeTravelMonthCount_other": "{{count}} visites"
+  },
+  "bucketList": {
+    "title": "Liste de souhaits",
+    "emptyTitle": "Pas encore de liste de souhaits",
+    "emptyBody": "Touchez le signet d’un restaurant que vous voulez visiter pour l’enregistrer ici.",
+    "addTitle": "Ajouter à la liste de souhaits",
+    "addBody": "Voulez-vous ajouter {{name}} à votre liste de souhaits ?",
+    "addConfirm": "Ajouter",
+    "added": "Ajouté à votre liste de souhaits",
+    "removeTitle": "Retirer de la liste de souhaits",
+    "removeBody": "Voulez-vous retirer {{name}} de votre liste de souhaits ?",
+    "removeConfirm": "Retirer",
+    "deleteConfirm": "Retirer {{name}} de votre liste de souhaits ?",
+    "deleteRemoved": "Retiré de la liste de souhaits"
   },
   "settings": {
     "language": "Langue",
@@ -35889,7 +37181,7 @@ FILE: i18n/locales/fr.json
     "sectionStorage": "Stockage",
     "sectionData": "Données et sauvegarde",
     "sectionGoogle": "Utilisation de l’API Google",
-    "sectionAdvanced": "Avancé",
+    "sectionDeveloper": "Développeur",
     "sectionLanguage": "Langue",
     "editPhotoHint": "Touchez la photo pour la modifier",
     "editCriteria": "Modifier les critères",
@@ -35960,8 +37252,8 @@ FILE: i18n/locales/fr.json
     "languageValueFrench": "Français",
     "geminiApi": "Gemini Vision (vin)",
     "sectionDeveloper": "Développeur",
-    "showCriteriaSetup": "Afficher la config. des critères",
-    "showCriteriaSetupSubtitle": "Rouvrir l’écran de première ouverture",
+    "fakeFirstRun": "Simuler un premier lancement",
+    "fakeFirstRunSubtitle": "Afficher le logo Gustra, appuyer pour continuer et le menu à 3 choix",
     "sentryTestCrash": "Envoyer un événement test Sentry",
     "sentryTestCrashSubtitle": "Vérifie le rapport de plantages (erreur sûre)",
     "sentryTestCrashNoDsn": "Définissez d’abord EXPO_PUBLIC_SENTRY_DSN dans .env",
@@ -35999,10 +37291,13 @@ FILE: i18n/locales/fr.json
   },
   "forms": {
     "addReview": {
-      "title": "Ajouter un souvenir",
-      "nearby": "Afficher les restaurants à proximité",
-      "mapSearch": "Rechercher sur la carte",
-      "manual": "Saisie manuelle"
+      "title": "Nouveau souvenir",
+      "nearby": "À proximité",
+      "nearbySubtitle": "Découvrez des restaurants autour de vous",
+      "mapSearch": "Sur la carte",
+      "mapSearchSubtitle": "Explorez des lieux sur la carte",
+      "manual": "Manuel",
+      "manualSubtitle": "Saisissez vous-même le nom et les détails"
     },
     "addVisit": {
       "title": "Ajouter une visite"
@@ -36027,7 +37322,9 @@ FILE: i18n/locales/fr.json
       "startReview": "Ajouter un souvenir",
       "hint": "Déplacez la carte, puis touchez Rechercher dans cette zone.",
       "emptyTitle": "Aucun restaurant trouvé",
-      "searchAreaHint": "Rechercher des restaurants dans la zone visible"
+      "searchAreaHint": "Rechercher des restaurants dans la zone visible",
+      "searchPlaceholder": "Rechercher partout (ex. Francfort)",
+      "searchEmpty": "Aucun restaurant trouvé pour « {{query}} »."
     },
     "manual": {
       "title": "Saisie manuelle",
@@ -36035,13 +37332,13 @@ FILE: i18n/locales/fr.json
       "city": "Ville (facultatif)",
       "country": "Pays (facultatif)",
       "findOnGoogle": "Trouver sur Google",
-      "searchHint": "Recherchez sur Google pour ajouter des détails, ou continuez manuellement.",
+      "searchHint": "Recherchez sur Google pour remplir automatiquement l’adresse et la position sur la carte.",
       "googleMatches": "Résultats Google",
       "loading": "Chargement des restaurants…",
       "continueManually": "Continuer manuellement",
+      "startReview": "Ajouter un souvenir",
       "searchFailed": "Impossible d’atteindre le service de recherche.",
-      "noMatch": "Aucune correspondance sur Google.",
-      "manualMapHint": "Sans correspondance Google, ce restaurant n’apparaîtra pas sur votre carte."
+      "noMatch": "Aucune correspondance sur Google."
     },
     "review": {
       "editTitle": "Modifier",
@@ -36062,6 +37359,7 @@ FILE: i18n/locales/fr.json
       "avg": "{{score}} moy.",
       "time": "Heure",
       "setTime": "Choisir l’heure · {{time}}",
+      "noMapPinHint": "Ce restaurant n’a pas de position sur la carte et n’apparaîtra donc pas sur votre carte.",
       "photoStrip": {
         "hintReorder": "Touchez pour sélectionner · appui long pour réordonner",
         "hintSelect": "Touchez pour sélectionner et supprimer",
@@ -36146,7 +37444,7 @@ FILE: i18n/locales/fr.json
       "cancel": "Annuler",
       "continue": "Continuer"
     },
-    "selectReviews": "Sélectionner les souvenirs",
+    "selectReviews": "Partager des souvenirs",
     "selectRestaurants": "Choisir les restaurants",
     "selectOneRestaurant": "Choisir 1 restaurant"
   },
@@ -36435,8 +37733,8 @@ FILE: i18n/locales/fr.json
       "tapToContinue": "Touchez pour continuer"
     },
     "choose": {
-      "headline": "Comment voulez-vous vous souvenir ?",
-      "body": "Choisissez un point de départ. Vous pourrez modifier vos critères plus tard dans Réglages.",
+      "headline": "Comment souhaitez-vous consigner vos souvenirs ?",
+      "body": "Vous pourrez toujours ajuster vos critères plus tard dans Réglages.",
       "recommended": "Recommandé",
       "quick": {
         "title": "Rapide",
@@ -36444,7 +37742,7 @@ FILE: i18n/locales/fr.json
       },
       "essentials": {
         "title": "Essentiels",
-        "subtitle": "Les 5 critères essentiels — un bon point de départ"
+        "subtitle": "Cuisine, boissons, service, ambiance et rapport qualité-prix"
       },
       "full": {
         "title": "Contrôle total",
@@ -36605,7 +37903,7 @@ FILE: i18n/locales/it.json
     "title": "La mia mappa",
     "friendSuffix": "(amico)",
     "legend": {
-      "title": "Spilli",
+      "title": "Legenda",
       "own": "I miei ricordi",
       "friends": "Condivisi con te"
     },
@@ -36632,18 +37930,32 @@ FILE: i18n/locales/it.json
     "topCities": "Città top",
     "cityAverages": "Medie per città",
     "noCityData": "Ancora nessun dato sulle città.",
-    "timeTravel": "Viaggio nel tempo",
-    "timeTravelSubtitle": "Torna indietro nel tempo attraverso tutte le tue visite.",
+    "timeTravel": "Ricordi",
+    "timeTravelSubtitle": "Rivivi i tuoi ricordi.",
     "timeTravelYears": "Anni",
     "timeTravelReviews_one": "{{count}} visita",
     "timeTravelReviews_other": "{{count}} visite",
     "timeTravelAverage": "Media",
     "timeTravelTotal": "Visite in totale",
-    "timeTravelEmptyTitle": "Niente da percorrere per ora",
+    "timeTravelEmptyTitle": "Niente da ricordare per ora",
     "timeTravelEmptyBody": "Aggiungi ricordi di ristoranti e la tua cronologia apparirà qui.",
     "timeTravelMonthHeader": "{{month}} {{year}}",
     "timeTravelMonthCount_one": "{{count}} visita",
     "timeTravelMonthCount_other": "{{count}} visite"
+  },
+  "bucketList": {
+    "title": "Lista dei desideri",
+    "emptyTitle": "Ancora nessuna lista dei desideri",
+    "emptyBody": "Tocca il segnalibro di un ristorante che vuoi visitare per salvarlo qui.",
+    "addTitle": "Aggiungi alla lista dei desideri",
+    "addBody": "Vuoi aggiungere {{name}} alla tua lista dei desideri?",
+    "addConfirm": "Aggiungi",
+    "added": "Aggiunto alla tua lista dei desideri",
+    "removeTitle": "Rimuovi dalla lista dei desideri",
+    "removeBody": "Vuoi rimuovere {{name}} dalla tua lista dei desideri?",
+    "removeConfirm": "Rimuovi",
+    "deleteConfirm": "Rimuovere {{name}} dalla tua lista dei desideri?",
+    "deleteRemoved": "Rimosso dalla lista dei desideri"
   },
   "settings": {
     "language": "Lingua",
@@ -36667,7 +37979,7 @@ FILE: i18n/locales/it.json
     "sectionStorage": "Archiviazione",
     "sectionData": "Dati e backup",
     "sectionGoogle": "Utilizzo API Google",
-    "sectionAdvanced": "Avanzate",
+    "sectionDeveloper": "Sviluppatore",
     "sectionLanguage": "Lingua",
     "editPhotoHint": "Tocca la foto per modificarla",
     "editCriteria": "Modifica criteri",
@@ -36738,8 +38050,8 @@ FILE: i18n/locales/it.json
     "languageValueFrench": "Français",
     "geminiApi": "Gemini Vision vino",
     "sectionDeveloper": "Sviluppatore",
-    "showCriteriaSetup": "Mostra setup criteri",
-    "showCriteriaSetupSubtitle": "Riapri la schermata di primo avvio",
+    "fakeFirstRun": "Simula primo avvio",
+    "fakeFirstRunSubtitle": "Mostra logo Gustra, tocca per continuare e il menu a 3 scelte",
     "sentryTestCrash": "Invia evento di test Sentry",
     "sentryTestCrashSubtitle": "Verifica i report crash (errore sicuro)",
     "sentryTestCrashNoDsn": "Imposta prima EXPO_PUBLIC_SENTRY_DSN in .env",
@@ -36777,10 +38089,13 @@ FILE: i18n/locales/it.json
   },
   "forms": {
     "addReview": {
-      "title": "Aggiungi ricordo",
-      "nearby": "Mostra ristoranti vicini",
-      "mapSearch": "Cerca sulla mappa",
-      "manual": "Inserimento manuale"
+      "title": "Nuovo ricordo",
+      "nearby": "Nelle vicinanze",
+      "nearbySubtitle": "Scopri ristoranti vicino a te",
+      "mapSearch": "Sulla mappa",
+      "mapSearchSubtitle": "Esplora i luoghi sulla mappa",
+      "manual": "Manuale",
+      "manualSubtitle": "Inserisci tu il nome e i dettagli"
     },
     "addVisit": {
       "title": "Aggiungi visita"
@@ -36805,7 +38120,9 @@ FILE: i18n/locales/it.json
       "startReview": "Aggiungi ricordo",
       "hint": "Sposta la mappa, poi tocca Cerca in quest’area.",
       "emptyTitle": "Nessun ristorante trovato",
-      "searchAreaHint": "Cerca ristoranti nell’area visibile della mappa"
+      "searchAreaHint": "Cerca ristoranti nell’area visibile della mappa",
+      "searchPlaceholder": "Cerca ovunque (es. Francoforte)",
+      "searchEmpty": "Nessun ristorante trovato per «{{query}}»."
     },
     "manual": {
       "title": "Inserimento manuale",
@@ -36813,13 +38130,13 @@ FILE: i18n/locales/it.json
       "city": "Città (facoltativo)",
       "country": "Paese (facoltativo)",
       "findOnGoogle": "Trova su Google",
-      "searchHint": "Cerca su Google per aggiungere i dettagli, oppure continua manualmente.",
+      "searchHint": "Cerca su Google per compilare automaticamente indirizzo e posizione sulla mappa.",
       "googleMatches": "Corrispondenze Google",
       "loading": "Caricamento ristoranti…",
       "continueManually": "Continua manualmente",
+      "startReview": "Aggiungi ricordo",
       "searchFailed": "Impossibile raggiungere il servizio di ricerca ristoranti.",
-      "noMatch": "Nessuna corrispondenza su Google.",
-      "manualMapHint": "Senza una corrispondenza Google questo ristorante non apparirà sulla mappa."
+      "noMatch": "Nessuna corrispondenza su Google."
     },
     "review": {
       "editTitle": "Modifica ricordo",
@@ -36840,6 +38157,7 @@ FILE: i18n/locales/it.json
       "avg": "{{score}} media",
       "time": "Ora",
       "setTime": "Imposta ora · {{time}}",
+      "noMapPinHint": "Questo ristorante non ha una posizione sulla mappa, quindi non apparirà sulla tua mappa.",
       "photoStrip": {
         "hintReorder": "Tocca per selezionare · tieni premuto per riordinare",
         "hintSelect": "Tocca per selezionare e rimuovere",
@@ -36924,7 +38242,7 @@ FILE: i18n/locales/it.json
       "cancel": "Annulla",
       "continue": "Continua"
     },
-    "selectReviews": "Seleziona ricordi",
+    "selectReviews": "Condividi ricordi",
     "selectRestaurants": "Seleziona ristoranti",
     "selectOneRestaurant": "Seleziona 1 ristorante"
   },
@@ -37213,8 +38531,8 @@ FILE: i18n/locales/it.json
       "tapToContinue": "Tocca per continuare"
     },
     "choose": {
-      "headline": "Come vuoi ricordare?",
-      "body": "Scegli un punto di partenza. Puoi modificare i criteri in seguito nelle Impostazioni.",
+      "headline": "Come vuoi conservare i tuoi ricordi?",
+      "body": "Puoi sempre modificare i criteri in seguito nelle Impostazioni.",
       "recommended": "Consigliato",
       "quick": {
         "title": "Veloce",
@@ -37222,7 +38540,7 @@ FILE: i18n/locales/it.json
       },
       "essentials": {
         "title": "Essenziali",
-        "subtitle": "I 5 criteri principali — un buon punto di partenza"
+        "subtitle": "Cibo, bevande, servizio, atmosfera e rapporto qualità-prezzo"
       },
       "full": {
         "title": "Controllo totale",
@@ -37309,7 +38627,7 @@ FILE: i18n/locales/nl.json
     "filters": "Filters",
     "addReview": "Herinnering toevoegen",
     "myLocation": "Mijn locatie",
-    "mapLegend": "Legenda kaartspelden",
+    "mapLegend": "Legende van de kaart",
     "clearLocation": "Locatiefilter wissen",
     "clearCuisine": "Keukenfilter wissen",
     "clearFavorites": "Favorietenfilter wissen",
@@ -37383,7 +38701,7 @@ FILE: i18n/locales/nl.json
     "title": "Mijn kaart",
     "friendSuffix": "(vriend)",
     "legend": {
-      "title": "Spelden",
+      "title": "Legende",
       "own": "Mijn herinneringen",
       "friends": "Met je gedeeld"
     },
@@ -37410,18 +38728,32 @@ FILE: i18n/locales/nl.json
     "topCities": "Topsteden",
     "cityAverages": "Topsteden",
     "noCityData": "Nog geen stadsgegevens.",
-    "timeTravel": "Tijdreis",
-    "timeTravelSubtitle": "Reis terug door al je bezoeken.",
+    "timeTravel": "Terugblik",
+    "timeTravelSubtitle": "Bekijk je herinneringen.",
     "timeTravelYears": "Jaren",
     "timeTravelReviews_one": "{{count}} bezoek",
     "timeTravelReviews_other": "{{count}} bezoeken",
     "timeTravelAverage": "Gemiddelde",
     "timeTravelTotal": "Bezoeken all-time",
-    "timeTravelEmptyTitle": "Nog niets om doorheen te reizen",
+    "timeTravelEmptyTitle": "Nog niets om op terug te kijken",
     "timeTravelEmptyBody": "Voeg restaurantherinneringen toe en hier verschijnt je tijdlijn.",
     "timeTravelMonthHeader": "{{month}} {{year}}",
     "timeTravelMonthCount_one": "{{count}} bezoek",
     "timeTravelMonthCount_other": "{{count}} bezoeken"
+  },
+  "bucketList": {
+    "title": "Bucket list",
+    "emptyTitle": "Nog geen bucket list",
+    "emptyBody": "Tik op het bladwijzer-icoon bij een restaurant dat je wilt bezoeken om het hier op te slaan.",
+    "addTitle": "Toevoegen aan bucket list",
+    "addBody": "Wil je {{name}} toevoegen aan je bucket list?",
+    "addConfirm": "Toevoegen",
+    "added": "Toegevoegd aan je bucket list",
+    "removeTitle": "Verwijderen van bucket list",
+    "removeBody": "Wil je {{name}} verwijderen van je bucket list?",
+    "removeConfirm": "Verwijderen",
+    "deleteConfirm": "{{name}} verwijderen van je bucket list?",
+    "deleteRemoved": "Verwijderd van bucket list"
   },
   "settings": {
     "language": "Taal",
@@ -37445,7 +38777,7 @@ FILE: i18n/locales/nl.json
     "sectionStorage": "Opslag",
     "sectionData": "Data & back-up",
     "sectionGoogle": "Google API-gebruik",
-    "sectionAdvanced": "Geavanceerd",
+    "sectionDeveloper": "Ontwikkelaar",
     "sectionLanguage": "Taal",
     "editPhotoHint": "Tik op de foto om te wijzigen",
     "editCriteria": "Criteria bewerken",
@@ -37516,8 +38848,8 @@ FILE: i18n/locales/nl.json
     "languageValueFrench": "Français",
     "geminiApi": "Gemini wijn-Vision",
     "sectionDeveloper": "Ontwikkelaar",
-    "showCriteriaSetup": "Toon criteria-setup",
-    "showCriteriaSetupSubtitle": "First-start scherm opnieuw openen",
+    "fakeFirstRun": "Simuleer eerste start",
+    "fakeFirstRunSubtitle": "Toon Gustra-logo, tik om verder te gaan en het 3-keuzemenu",
     "sentryTestCrash": "Stuur Sentry-testevent",
     "sentryTestCrashSubtitle": "Controleert crashrapportage (veilige fout)",
     "sentryTestCrashNoDsn": "Zet eerst EXPO_PUBLIC_SENTRY_DSN in .env",
@@ -37555,10 +38887,13 @@ FILE: i18n/locales/nl.json
   },
   "forms": {
     "addReview": {
-      "title": "Herinnering toevoegen",
-      "nearby": "Toon restaurants in de buurt",
-      "mapSearch": "Zoeken op kaart",
-      "manual": "Handmatig invoeren"
+      "title": "Nieuwe herinnering",
+      "nearby": "In de buurt",
+      "nearbySubtitle": "Ontdek restaurants direct in je omgeving",
+      "mapSearch": "Op de kaart",
+      "mapSearchSubtitle": "Verken locaties via de landkaart",
+      "manual": "Handmatig",
+      "manualSubtitle": "Voer zelf de naam en gegevens in"
     },
     "addVisit": {
       "title": "Bezoek toevoegen"
@@ -37583,7 +38918,9 @@ FILE: i18n/locales/nl.json
       "startReview": "Herinnering toevoegen",
       "hint": "Verplaats de kaart en tik op Zoek in dit gebied.",
       "emptyTitle": "Geen restaurants gevonden",
-      "searchAreaHint": "Zoek restaurants in het zichtbare kaartgebied"
+      "searchAreaHint": "Zoek restaurants in het zichtbare kaartgebied",
+      "searchPlaceholder": "Zoek overal (bijv. Frankfurt)",
+      "searchEmpty": "Geen restaurants gevonden voor “{{query}}”."
     },
     "manual": {
       "title": "Handmatig invoeren",
@@ -37591,13 +38928,13 @@ FILE: i18n/locales/nl.json
       "city": "Stad (optioneel)",
       "country": "Land (optioneel)",
       "findOnGoogle": "Zoek op Google",
-      "searchHint": "Zoek op Google om plaatsgegevens toe te voegen, of ga handmatig verder.",
+      "searchHint": "Zoek op Google om het adres en de kaartpositie automatisch aan te vullen.",
       "googleMatches": "Google-resultaten",
       "loading": "Restaurants laden…",
       "continueManually": "Handmatig doorgaan",
+      "startReview": "Herinnering toevoegen",
       "searchFailed": "Kon de restaurantzoekdienst niet bereiken.",
-      "noMatch": "Geen match gevonden op Google.",
-      "manualMapHint": "Zonder Google-match verschijnt dit restaurant niet op je kaart."
+      "noMatch": "Geen match gevonden op Google."
     },
     "review": {
       "editTitle": "Bewerken",
@@ -37618,6 +38955,7 @@ FILE: i18n/locales/nl.json
       "avg": "{{score}} gem.",
       "time": "Tijd",
       "setTime": "Tijd instellen · {{time}}",
+      "noMapPinHint": "Dit restaurant heeft geen kaartpositie en verschijnt daarom niet op je kaart.",
       "photoStrip": {
         "hintReorder": "Tik om te selecteren · lang indrukken om te herschikken",
         "hintSelect": "Tik om te selecteren voor verwijderen",
@@ -37702,7 +39040,7 @@ FILE: i18n/locales/nl.json
       "cancel": "Annuleren",
       "continue": "Doorgaan"
     },
-    "selectReviews": "Selecteer herinneringen",
+    "selectReviews": "Deel herinneringen",
     "selectRestaurants": "Selecteer restaurants",
     "selectOneRestaurant": "Selecter 1 restaurant"
   },
@@ -37991,16 +39329,16 @@ FILE: i18n/locales/nl.json
       "tapToContinue": "Tik om verder te gaan"
     },
     "choose": {
-      "headline": "Hoe wil je herinneren?",
-      "body": "Kies een startpunt. Je kunt je criteria later altijd wijzigen in Instellingen.",
+      "headline": "Hoe wil je jouw herinneringen vastleggen?",
+      "body": "Je kunt je criteria later altijd aanpassen in Instellingen.",
       "recommended": "Aangeraden",
       "quick": {
         "title": "Snel",
-        "subtitle": "Eten, dranken & bediening"
+        "subtitle": "Eten, drank & bediening"
       },
       "essentials": {
         "title": "Basis",
-        "subtitle": "De 5 kerncriteria — ideaal om te starten"
+        "subtitle": "Eten, drank, service, sfeer en prijs"
       },
       "full": {
         "title": "Volledige controle",
@@ -38324,6 +39662,7 @@ FILE: package.json
     "deploy:localization": "python3 scripts/deploy-localization.py",
     "deploy:github": "python3 scripts/deploy-github.py",
     "i18n:check": "python3 scripts/check-i18n.py",
+    "build:sync:check": "bash scripts/check-build-sync.sh",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:unit": "jest",
@@ -39346,6 +40685,7 @@ export function restaurantToBackup(restaurant: Restaurant): RestaurantBackup {
     longitude: Number.isFinite(restaurant.longitude) ? restaurant.longitude : 0,
     mapItemIdentifier: mapId,
     isFavorite: restaurant.isFavorite,
+    isInBucketList: restaurant.isInBucketList,
     // Absent/empty in older backups — omit empty so Swift stays compatible.
     primaryType: primaryType.length > 0 ? primaryType : null,
   };
@@ -39464,6 +40804,7 @@ export function backupRestaurantToApp(
     primaryType:
       (item.primaryType ?? previous?.primaryType ?? '').trim(),
     isFavorite: item.isFavorite ?? previous?.isFavorite ?? false,
+    isInBucketList: item.isInBucketList ?? previous?.isInBucketList ?? false,
     thumbnailColor: previous?.thumbnailColor ?? '#3D6B52',
     photoUrl: previous?.photoUrl ?? '',
   };
@@ -40074,6 +41415,8 @@ export type RestaurantBackup = {
   longitude: number;
   mapItemIdentifier?: string | null;
   isFavorite?: boolean | null;
+  /** User's bucket list flag. Additive — older backups omit it. */
+  isInBucketList?: boolean | null;
   primaryType?: string | null;
 };
 
@@ -40888,6 +42231,7 @@ export {
 export { Haptics } from './haptics';
 export {
   DEFAULT_SEARCH_RADIUS_M,
+  MAX_NEARBY_SEARCH_RADIUS_M,
   FALLBACK_MAP_CENTER,
   RestaurantSearchError,
   backfillMissingPrimaryTypes,
@@ -43201,12 +44545,23 @@ import { recordSearchEvent } from '@/services/debug/debugLog';
 import { assertGoogleApiAllowed } from '@/services/google/GoogleApiQuota';
 import { incrementGoogleApi } from '@/services/google/GoogleApiTracker';
 import { distanceMeters } from '@/services/places/distance';
+import { resolveCache } from '@/services/places/searchCache';
+import {
+  DEFAULT_SEARCH_RADIUS_M,
+  MAX_NEARBY_SEARCH_RADIUS_M,
+} from '@/services/places/searchRadii';
 import type {
   LatLng,
   RestaurantSearchResult,
 } from '@/services/places/types';
 
-export const DEFAULT_SEARCH_RADIUS_M = 2_000;
+/**
+ * Default radius for nearby/list searches and text-search bias.
+ * @deprecated Use `DEFAULT_SEARCH_RADIUS_M` from `@/services/places/searchRadii`
+ *   (kept re-exported here for backward-compatible callers).
+ */
+export { DEFAULT_SEARCH_RADIUS_M } from '@/services/places/searchRadii';
+export { MAX_NEARBY_SEARCH_RADIUS_M } from '@/services/places/searchRadii';
 
 /** Nearby Search `includedTypes` — dining venues only (no bakery/retail food). */
 const FOOD_INCLUDED_TYPES = [
@@ -43326,79 +44681,6 @@ export { distanceMeters } from '@/services/places/distance';
  * not have to pull in the Google Places networking stack.
  */
 export { formattedDistance } from '@/services/units/distance';
-
-type CacheEntry = {
-  center: LatLng;
-  query: string;
-  timestamp: number;
-  results: RestaurantSearchResult[];
-};
-
-const cacheEntries: CacheEntry[] = [];
-const inFlight = new Map<string, Promise<RestaurantSearchResult[]>>();
-const CACHE_TTL_MS = 5 * 60 * 1000;
-const CACHE_RADIUS_M = 100;
-
-function bucketKey(
-  center: LatLng | null,
-  query: string,
-  extras: string = '',
-): string {
-  const lat = center ? Math.round(center.latitude * 1000) / 1000 : 'none';
-  const lng = center ? Math.round(center.longitude * 1000) / 1000 : 'none';
-  // v3: optional locationBias + regionCode for country-scoped manual search.
-  return `v3:${query}@${lat},${lng}${extras ? `:${extras}` : ''}`;
-}
-
-function cached(
-  center: LatLng | null,
-  query: string,
-): RestaurantSearchResult[] | null {
-  const now = Date.now();
-  for (let i = cacheEntries.length - 1; i >= 0; i -= 1) {
-    if (now - cacheEntries[i]!.timestamp > CACHE_TTL_MS) {
-      cacheEntries.splice(i, 1);
-    }
-  }
-  const hit = cacheEntries.find((entry) => {
-    if (entry.query !== query) return false;
-    if (!center) return entry.center.latitude === 0 && entry.center.longitude === 0;
-    return distanceMeters(entry.center, center) <= CACHE_RADIUS_M;
-  });
-  return hit?.results ?? null;
-}
-
-async function resolveCache(
-  center: LatLng | null,
-  query: string,
-  work: () => Promise<RestaurantSearchResult[]>,
-  extras: string = '',
-): Promise<RestaurantSearchResult[]> {
-  const hit = cached(center, query);
-  if (hit) return hit;
-
-  const key = bucketKey(center, query, extras);
-  const existing = inFlight.get(key);
-  if (existing) return existing;
-
-  const task = (async () => {
-    const results = await work();
-    cacheEntries.push({
-      center: center ?? { latitude: 0, longitude: 0 },
-      query,
-      timestamp: Date.now(),
-      results,
-    });
-    return results;
-  })();
-
-  inFlight.set(key, task);
-  try {
-    return await task;
-  } finally {
-    inFlight.delete(key);
-  }
-}
 
 function componentOf(
   components: PlacesApiPlace['addressComponents'],
@@ -43660,7 +44942,7 @@ export async function searchNearby(
   center: LatLng,
   radius: number = DEFAULT_SEARCH_RADIUS_M,
 ): Promise<RestaurantSearchResult[]> {
-  const results = await resolveCache(center, '__nearby__', () =>
+  const results = await resolveCache(center, '__nearby__', radius, () =>
     postNearby(center, radius),
   );
   const withIds = withDistance(results, center);
@@ -43788,6 +45070,7 @@ export async function searchText(
   const results = await resolveCache(
     biasCenter,
     cacheQuery,
+    radius,
     () => postText(trimmed, biasCenter, radius, regionCode),
     regionCode ?? '',
   );
@@ -43971,6 +45254,7 @@ export { resolveDistanceUnit, type DistanceUnit } from '@/services/units/units';
 export { formattedDistance } from '@/services/units/distance';
 export {
   DEFAULT_SEARCH_RADIUS_M,
+  MAX_NEARBY_SEARCH_RADIUS_M,
   RestaurantSearchError,
   distanceMeters,
   fetchPrimaryType,
@@ -44092,6 +45376,129 @@ export function restaurantDraftFromRestaurant(
     primaryType: restaurant.primaryType,
   };
 }
+
+
+================================================================================
+FILE: services/places/searchCache.ts
+================================================================================
+import { distanceMeters } from '@/services/places/distance';
+import type { LatLng, RestaurantSearchResult } from '@/services/places/types';
+
+/**
+ * In-memory search-result cache, kept in a pure module so the radius-aware
+ * hit logic can be unit-tested without pulling in the Google Places
+ * networking stack (expo-constants etc.).
+ */
+
+type CacheEntry = {
+  center: LatLng;
+  query: string;
+  /** Meters — results for a wider radius must not satisfy a narrower request. */
+  radius: number;
+  timestamp: number;
+  results: RestaurantSearchResult[];
+};
+
+const cacheEntries: CacheEntry[] = [];
+const inFlight = new Map<string, Promise<RestaurantSearchResult[]>>();
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_RADIUS_M = 100;
+
+export function bucketKey(
+  center: LatLng | null,
+  query: string,
+  radius: number,
+  extras: string = '',
+): string {
+  const lat = center ? Math.round(center.latitude * 1000) / 1000 : 'none';
+  const lng = center ? Math.round(center.longitude * 1000) / 1000 : 'none';
+  // v3: optional locationBias + regionCode for country-scoped manual search.
+  return `v3:${query}@${lat},${lng}|r=${Math.round(radius / 100) * 100}${
+    extras ? `:${extras}` : ''
+  }`;
+}
+
+export function cached(
+  center: LatLng | null,
+  query: string,
+  radius: number,
+): RestaurantSearchResult[] | null {
+  const now = Date.now();
+  for (let i = cacheEntries.length - 1; i >= 0; i -= 1) {
+    if (now - cacheEntries[i]!.timestamp > CACHE_TTL_MS) {
+      cacheEntries.splice(i, 1);
+    }
+  }
+  const hit = cacheEntries.find((entry) => {
+    if (entry.query !== query) return false;
+    // A wider radius returns more results than a narrower one, so a cache
+    // entry may only serve requests asking for at least that much radius.
+    if (entry.radius < radius) return false;
+    if (!center) return entry.center.latitude === 0 && entry.center.longitude === 0;
+    return distanceMeters(entry.center, center) <= CACHE_RADIUS_M;
+  });
+  return hit?.results ?? null;
+}
+
+export async function resolveCache(
+  center: LatLng | null,
+  query: string,
+  radius: number,
+  work: () => Promise<RestaurantSearchResult[]>,
+  extras: string = '',
+): Promise<RestaurantSearchResult[]> {
+  const hit = cached(center, query, radius);
+  if (hit) return hit;
+
+  const key = bucketKey(center, query, radius, extras);
+  const existing = inFlight.get(key);
+  if (existing) return existing;
+
+  const task = (async () => {
+    const results = await work();
+    cacheEntries.push({
+      center: center ?? { latitude: 0, longitude: 0 },
+      query,
+      radius,
+      timestamp: Date.now(),
+      results,
+    });
+    return results;
+  })();
+
+  inFlight.set(key, task);
+  try {
+    return await task;
+  } finally {
+    inFlight.delete(key);
+  }
+}
+
+/** Test helper: drop all cache entries and in-flight requests. */
+export function clearSearchCache(): void {
+  cacheEntries.splice(0, cacheEntries.length);
+  inFlight.clear();
+}
+
+
+================================================================================
+FILE: services/places/searchRadii.ts
+================================================================================
+/**
+ * Search-radius constants, kept in a pure module so the nearby-list logic and
+ * the search cache can use them in unit tests without pulling in the Google
+ * Places networking stack (expo-constants etc.).
+ */
+
+/** Default radius for nearby/list searches and text-search bias. */
+export const DEFAULT_SEARCH_RADIUS_M = 2_000;
+
+/**
+ * Hard cap for Nearby Search: Google Places returns at most 20 results,
+ * ranked by distance — a wider circle therefore only adds far-away places
+ * when fewer than 20 exist closer by (remote areas).
+ */
+export const MAX_NEARBY_SEARCH_RADIUS_M = 50_000;
 
 
 ================================================================================
@@ -45793,6 +47200,8 @@ function restaurantFromBackup(
     mapItemIdentifier:
       backup.mapItemIdentifier ?? previous?.mapItemIdentifier ?? null,
     isFavorite: previous?.isFavorite ?? false,
+    // Bucket list is a personal flag — never import from a share package.
+    isInBucketList: previous?.isInBucketList ?? false,
     primaryType: backup.primaryType ?? previous?.primaryType ?? '',
     thumbnailColor: previous?.thumbnailColor || '#3D6B52',
     photoUrl: previous?.photoUrl ?? '',

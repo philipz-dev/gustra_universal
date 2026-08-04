@@ -487,6 +487,8 @@ function restaurantFromBackup(
     mapItemIdentifier:
       backup.mapItemIdentifier ?? previous?.mapItemIdentifier ?? null,
     isFavorite: previous?.isFavorite ?? false,
+    // Bucket list is a personal flag — never import from a share package.
+    isInBucketList: previous?.isInBucketList ?? false,
     primaryType: backup.primaryType ?? previous?.primaryType ?? '',
     thumbnailColor: previous?.thumbnailColor || '#3D6B52',
     photoUrl: previous?.photoUrl ?? '',

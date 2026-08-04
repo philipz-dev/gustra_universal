@@ -6,6 +6,7 @@ export {
 export { Haptics } from './haptics';
 export {
   DEFAULT_SEARCH_RADIUS_M,
+  MAX_NEARBY_SEARCH_RADIUS_M,
   FALLBACK_MAP_CENTER,
   RestaurantSearchError,
   backfillMissingPrimaryTypes,

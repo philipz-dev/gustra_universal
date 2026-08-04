@@ -152,6 +152,15 @@ export const MANDATORY_STANDARD_CRITERION_IDS: readonly StandardCriterionId[] = 
   'food',
 ] as const;
 
+/**
+ * "Full control" opens the criteria screen with a sensible starting point:
+ * the mandatory Food plus Drinks preselected (everything else off).
+ */
+export const FULL_CONTROL_INITIAL_STANDARD_IDS: readonly StandardCriterionId[] = [
+  'food',
+  'drinks',
+] as const;
+
 export function isMandatoryStandardCriterion(id: string): boolean {
   return MANDATORY_STANDARD_CRITERION_IDS.some((mandatoryId) => mandatoryId === id);
 }
@@ -517,10 +526,11 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
         setDisabledStandardIds(nextDisabled);
         persistDisabled(nextDisabled);
       } else {
-        // Full control: only the mandatory criterion (food) stays on.
+        // Full control: the criteria screen opens with Food + Drinks on,
+        // everything else off (user personalises from there).
         const nextDisabled = new Set(
           STANDARD_CRITERIA.map((c) => c.id).filter(
-            (id) => !isMandatoryStandardCriterion(id),
+            (id) => !FULL_CONTROL_INITIAL_STANDARD_IDS.includes(id as StandardCriterionId),
           ),
         );
         setDisabledStandardIds(nextDisabled);

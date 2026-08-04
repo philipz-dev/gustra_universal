@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 
+import { houseAlert, type HouseAlertButton } from '@/components/ui/HouseAlert';
 import { HousePrimaryButton } from '@/components/ui/HousePrimaryButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
@@ -13,9 +14,17 @@ type SelectedRestaurantBannerProps = {
   draft: RestaurantDraft;
   actionTitle: string;
   onAction: () => void;
-  onClear?: () => void;
+  onClear: () => void;
   /** Own visits already on record for this restaurant (shows a subtle note). */
   visitedCount?: number;
+  /**
+   * When provided, shows a bookmark button in the top-right corner. Tapping it
+   * toggles the restaurant on/off the bucket list: when already bookmarked it
+   * asks to remove, otherwise it asks to add.
+   */
+  onToggleBucketList?: () => void;
+  /** Bucket-list state for the bookmark icon (filled when already on list). */
+  inBucketList?: boolean;
 };
 
 /** Swift `SelectedRestaurantBanner`. */
@@ -25,22 +34,62 @@ export function SelectedRestaurantBanner({
   onAction,
   onClear,
   visitedCount = 0,
+  onToggleBucketList,
+  inBucketList = false,
 }: SelectedRestaurantBannerProps) {
   const { t } = useAppTranslation();
   const addressLine = draftAddressLine(draft);
 
+  const handleBookmarkPress = () => {
+    if (!onToggleBucketList) return;
+    if (inBucketList) {
+      houseAlert(
+        t('bucketList.removeTitle'),
+        t('bucketList.removeBody', { name: draft.name }),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('bucketList.removeConfirm'),
+            style: 'default',
+            onPress: () => onToggleBucketList(),
+          },
+        ] satisfies HouseAlertButton[],
+      );
+      return;
+    }
+    houseAlert(
+      t('bucketList.addTitle'),
+      t('bucketList.addBody', { name: draft.name }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('bucketList.addConfirm'),
+          style: 'default',
+          onPress: () => onToggleBucketList(),
+        },
+      ] satisfies HouseAlertButton[],
+    );
+  };
+
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <SymbolView
-          name={{
-            ios: 'checkmark.circle.fill',
-            android: 'check_circle',
-            web: 'check_circle',
-          }}
-          tintColor={GustraColors.forestGreen}
-          size={28}
-        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('common.deselectRestaurant')}
+          hitSlop={8}
+          onPress={onClear}
+          style={({ pressed }) => pressed && styles.pressed}>
+          <SymbolView
+            name={{
+              ios: 'xmark.circle.fill',
+              android: 'cancel',
+              web: 'cancel',
+            }}
+            tintColor="rgba(35, 32, 26, 0.35)"
+            size={28}
+          />
+        </Pressable>
         <View style={styles.copy}>
           <Text style={styles.caption}>{t('common.selectedRestaurant')}</Text>
           <SerifText size={17} weight="semibold" style={styles.name}>
@@ -66,21 +115,33 @@ export function SelectedRestaurantBanner({
             <Text style={styles.address}>{addressLine}</Text>
           ) : null}
         </View>
-        {onClear ? (
+        {onToggleBucketList ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t('common.deselectRestaurant')}
+            accessibilityLabel={
+              inBucketList
+                ? t('bucketList.removeTitle')
+                : t('bucketList.addTitle')
+            }
+            accessibilityState={{ selected: inBucketList }}
             hitSlop={8}
-            onPress={onClear}
-            style={({ pressed }) => pressed && styles.pressed}>
+            onPress={handleBookmarkPress}
+            style={({ pressed }) => [
+              styles.bookmarkButton,
+              pressed && styles.pressed,
+            ]}>
             <SymbolView
               name={{
-                ios: 'xmark.circle.fill',
-                android: 'cancel',
-                web: 'cancel',
+                ios: inBucketList ? 'bookmark.fill' : 'bookmark',
+                android: inBucketList ? 'bookmark' : 'bookmark_border',
+                web: inBucketList ? 'bookmark' : 'bookmark_border',
               }}
-              tintColor="rgba(35, 32, 26, 0.35)"
-              size={28}
+              tintColor={
+                inBucketList
+                  ? GustraColors.gold
+                  : 'rgba(35, 32, 26, 0.45)'
+              }
+              size={30}
             />
           </Pressable>
         ) : null}
@@ -97,11 +158,23 @@ const styles = StyleSheet.create({
     borderRadius: Theme.radius.xl,
     padding: 16,
     gap: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(36, 78, 57, 0.18)',
+    shadowColor: 'rgba(35, 32, 26, 0.08)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 4,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
+  },
+  /** Bookmark peeks over the card's top edge; horizontal position unchanged. */
+  bookmarkButton: {
+    marginTop: -16,
+    zIndex: 2,
   },
   copy: {
     flex: 1,
@@ -110,6 +183,9 @@ const styles = StyleSheet.create({
   caption: {
     ...captionTextStyle,
     fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
     color: 'rgba(35, 32, 26, 0.55)',
   },
   name: {

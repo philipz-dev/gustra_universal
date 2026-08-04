@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -56,6 +56,14 @@ function formatVisitDate(date: Date): string {
   return formatVisitDateTime(date);
 }
 
+function hasCoordinates(lat: number, lng: number): boolean {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    !(lat === 0 && lng === 0)
+  );
+}
+
 function formatShortDate(iso: string): string {
   return formatAbbreviatedDate(iso);
 }
@@ -93,9 +101,7 @@ export default function ReviewFormScreen() {
   const extraCriteria = enabledCriteria.filter(
     (c) => !CORE_CRITERION_IDS.includes(c.id),
   );
-  const [extendedOpen, setExtendedOpen] = useState(
-    () => extraCriteria.some((c) => (criteriaState[c.id]?.rating ?? 0) > 0),
-  );
+  const [extendedOpen, setExtendedOpen] = useState(false);
   const visibleCriteria = extendedOpen
     ? enabledCriteria
     : coreCriteria;
@@ -120,7 +126,6 @@ export default function ReviewFormScreen() {
     lastVisitIso,
     revisitAverage,
     showsDone,
-    draftReason,
     isDraftForm,
     wineLabels,
     pendingWineKeys,
@@ -143,6 +148,17 @@ export default function ReviewFormScreen() {
     setCriterionRating,
     setCriterionComment,
   } = state;
+
+  // Once the store hydrates, auto-expand the "More criteria" section when any
+  // of the extra criteria already has a rating (e.g. editing an older memory
+  // that scored a hidden criterion) — done in an effect because `criteriaState`
+  // is not available when the `extendedOpen` state initializer runs.
+  useEffect(() => {
+    if (!ready || extendedOpen) return;
+    if (extraCriteria.some((c) => (criteriaState[c.id]?.rating ?? 0) > 0)) {
+      setExtendedOpen(true);
+    }
+  }, [criteriaState, extendedOpen, extraCriteria, ready]);
 
   const {
     photoUrls,
@@ -226,25 +242,10 @@ export default function ReviewFormScreen() {
           draftLabel={t('reviews.draftLabel')}
         />
 
-        {isDraftForm && draftReason ? (
-          <View style={styles.draftHint} accessibilityRole="alert">
-            {Platform.OS === 'ios' ? (
-              <SymbolView
-                name="exclamationmark.circle.fill"
-                size={18}
-                tintColor={GustraColors.gold}
-              />
-            ) : (
-              <MaterialIcons
-                name="error-outline"
-                size={20}
-                color={GustraColors.gold}
-              />
-            )}
-            <Text style={styles.draftHintText}>
-              {draftReason === 'wine'
-                ? t('forms.review.draftBannerWine')
-                : t('forms.review.draftBannerFood')}
+        {!hasCoordinates(draft.latitude, draft.longitude) ? (
+          <View style={styles.noMapPinHint}>
+            <Text style={styles.noMapPinHintText}>
+              {t('forms.review.noMapPinHint')}
             </Text>
           </View>
         ) : null}
@@ -338,11 +339,6 @@ export default function ReviewFormScreen() {
                       <SerifText style={styles.criterionTitle}>
                         {criterion.title}
                       </SerifText>
-                      {criterion.id === 'food' ? (
-                        <Text style={styles.requiredBadge}>
-                          {t('common.required')}
-                        </Text>
-                      ) : null}
                     </View>
                     <View style={styles.criterionRating}>
                       {winesHasBottles ? (
@@ -732,23 +728,18 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
   },
-  draftHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  noMapPinHint: {
+    backgroundColor: 'rgba(217, 162, 39, 0.1)',
+    borderRadius: Theme.radius.md,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: Theme.radius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(217, 162, 39, 0.45)',
-    backgroundColor: 'rgba(217, 162, 39, 0.12)',
+    paddingVertical: 10,
   },
-  draftHintText: {
-    ...bodyTextStyle,
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'rgba(166, 118, 12, 1)',
+  noMapPinHintText: {
+    ...captionTextStyle,
+    fontSize: 13,
+    lineHeight: 18,
+    color: 'rgba(35, 32, 26, 0.65)',
+    textAlign: 'center',
   },
   sectionTitleWrap: {
     gap: 6,
@@ -840,14 +831,6 @@ const styles = StyleSheet.create({
   criterionRating: {
     minHeight: 24,
     justifyContent: 'center',
-  },
-  requiredBadge: {
-    ...captionTextStyle,
-    fontSize: 11,
-    fontWeight: '700',
-    color: GustraColors.ratingAvoid,
-    textTransform: 'uppercase',
-    marginTop: 2,
   },
   commentField: {
     ...bodyTextStyle,

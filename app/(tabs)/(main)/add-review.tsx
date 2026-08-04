@@ -6,11 +6,15 @@ import { SymbolView, type SFSymbol } from 'expo-symbols';
 
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { GustraColors } from '@/constants/Colors';
-import { Theme, bodyTextStyle } from '@/constants/Theme';
+import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 type AddReviewOption = {
   titleKey: 'forms.addReview.nearby' | 'forms.addReview.mapSearch' | 'forms.addReview.manual';
+  subtitleKey:
+    | 'forms.addReview.nearbySubtitle'
+    | 'forms.addReview.mapSearchSubtitle'
+    | 'forms.addReview.manualSubtitle';
   iosName: SFSymbol;
   androidName: keyof typeof MaterialIcons.glyphMap;
   /** Expo Router path when ready; omit for not-yet-wired options. */
@@ -21,18 +25,21 @@ type AddReviewOption = {
 const OPTIONS: AddReviewOption[] = [
   {
     titleKey: 'forms.addReview.nearby',
+    subtitleKey: 'forms.addReview.nearbySubtitle',
     iosName: 'location',
     androidName: 'location-on',
     href: '/nearby-restaurants',
   },
   {
     titleKey: 'forms.addReview.mapSearch',
+    subtitleKey: 'forms.addReview.mapSearchSubtitle',
     iosName: 'map',
     androidName: 'map',
     href: '/map-search',
   },
   {
     titleKey: 'forms.addReview.manual',
+    subtitleKey: 'forms.addReview.manualSubtitle',
     iosName: 'square.and.pencil',
     androidName: 'edit',
     href: '/manual-entry',
@@ -40,8 +47,8 @@ const OPTIONS: AddReviewOption[] = [
 ];
 
 /**
- * Add Review chooser (Swift `AddReviewView`).
- * Pushed from the Reviews FAB — three entry paths, no behavior yet.
+ * New Memory chooser (Swift `AddReviewView`).
+ * Pushed from the Memories FAB — three ways to start a new memory.
  */
 export default function AddReviewScreen() {
   const { t } = useAppTranslation();
@@ -73,6 +80,7 @@ export default function AddReviewScreen() {
               <AddReviewRow
                 key={option.titleKey}
                 title={title}
+                subtitle={t(option.subtitleKey)}
                 option={option}
                 isLast={index === OPTIONS.length - 1}
                 onPress={() => {
@@ -91,11 +99,13 @@ export default function AddReviewScreen() {
 
 function AddReviewRow({
   title,
+  subtitle,
   option,
   isLast,
   onPress,
 }: {
   title: string;
+  subtitle: string;
   option: AddReviewOption;
   isLast: boolean;
   onPress: () => void;
@@ -110,22 +120,27 @@ function AddReviewRow({
         !isLast && styles.rowBorder,
         pressed && styles.pressed,
       ]}>
-      {Platform.OS === 'ios' ? (
-        <SymbolView
-          name={option.iosName}
-          tintColor={GustraColors.forestGreen}
-          size={22}
-          style={styles.icon}
-        />
-      ) : (
-        <MaterialIcons
-          name={option.androidName}
-          color={GustraColors.forestGreen}
-          size={22}
-          style={styles.icon}
-        />
-      )}
-      <Text style={styles.rowTitle}>{title}</Text>
+      <View style={styles.iconChip}>
+        {Platform.OS === 'ios' ? (
+          <SymbolView
+            name={option.iosName}
+            tintColor={GustraColors.forestGreen}
+            size={22}
+            style={styles.icon}
+          />
+        ) : (
+          <MaterialIcons
+            name={option.androidName}
+            color={GustraColors.forestGreen}
+            size={22}
+            style={styles.icon}
+          />
+        )}
+      </View>
+      <View style={styles.copy}>
+        <Text style={styles.rowTitle}>{title}</Text>
+        <Text style={styles.rowSubtitle}>{subtitle}</Text>
+      </View>
       {Platform.OS === 'ios' ? (
         <SymbolView
           name="chevron.right"
@@ -150,7 +165,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: Theme.spacing.listRowHorizontal,
-    paddingTop: 20,
+    paddingTop: 12,
   },
   group: {
     backgroundColor: GustraColors.bubble,
@@ -160,10 +175,10 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 52,
+    minHeight: 64,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    gap: 12,
+    gap: 14,
   },
   rowBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -172,14 +187,31 @@ const styles = StyleSheet.create({
   pressed: {
     backgroundColor: 'rgba(35, 32, 26, 0.06)',
   },
+  iconChip: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(36, 78, 57, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   icon: {
     width: 28,
     textAlign: 'center',
   },
+  copy: {
+    flex: 1,
+    gap: 2,
+  },
   rowTitle: {
     ...bodyTextStyle,
-    flex: 1,
     fontSize: 17,
     color: GustraColors.ink,
+  },
+  rowSubtitle: {
+    ...captionTextStyle,
+    fontSize: 13,
+    lineHeight: 18,
+    color: 'rgba(35, 32, 26, 0.55)',
   },
 });

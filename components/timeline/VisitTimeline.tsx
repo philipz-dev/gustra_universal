@@ -85,8 +85,9 @@ export type VisitTimelineProps = {
   onPressEntry?: (entry: VisitTimelineEntry) => void;
   /**
    * Show the year/month visit-count labels. Time Travel keeps them (total per
-   * year, visits per month); the restaurant visits overview hides them because
-   * every row is already an individual visit.
+   * year; visits per month, but only from two visits onward — a single visit
+   * per month needs no "1 visit" caption); the restaurant visits overview
+   * hides them because every row is already an individual visit.
    */
   showCounts?: boolean;
 };
@@ -139,7 +140,7 @@ export function VisitTimeline({
                           year: yearGroup.year,
                         })}
                       </Text>
-                      {showCounts ? (
+                      {showCounts && month.entries.length > 1 ? (
                         <Text style={styles.monthCount}>
                           {t('passport.timeTravelMonthCount', {
                             count: month.entries.length,

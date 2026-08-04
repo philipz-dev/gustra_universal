@@ -119,6 +119,7 @@ export const mockRestaurants: Restaurant[] = [
     mapItemIdentifier: null,
     primaryType: 'restaurant',
     isFavorite: true,
+    isInBucketList: false,
     thumbnailColor: '#3D6B52',
     photoUrl: photos.greenhouseDish,
   },
@@ -134,6 +135,7 @@ export const mockRestaurants: Restaurant[] = [
     mapItemIdentifier: null,
     primaryType: 'fine_dining_restaurant',
     isFavorite: true,
+    isInBucketList: false,
     thumbnailColor: '#5A4634',
     photoUrl: photos.fineDiningPlate,
   },
@@ -148,6 +150,7 @@ export const mockRestaurants: Restaurant[] = [
     mapItemIdentifier: null,
     primaryType: 'fine_dining_restaurant',
     isFavorite: false,
+    isInBucketList: false,
     thumbnailColor: '#2F4A3C',
     photoUrl: photos.nordicPlating,
   },
@@ -163,6 +166,7 @@ export const mockRestaurants: Restaurant[] = [
     mapItemIdentifier: null,
     primaryType: 'italian_restaurant',
     isFavorite: false,
+    isInBucketList: false,
     thumbnailColor: '#6B4E3D',
     photoUrl: photos.pastaClose,
   },
@@ -177,6 +181,7 @@ export const mockRestaurants: Restaurant[] = [
     mapItemIdentifier: null,
     primaryType: 'indonesian_restaurant',
     isFavorite: false,
+    isInBucketList: false,
     thumbnailColor: '#4A5C3A',
     photoUrl: photos.asianSpread,
   },
@@ -192,6 +197,7 @@ export const mockRestaurants: Restaurant[] = [
     mapItemIdentifier: null,
     primaryType: 'french_restaurant',
     isFavorite: true,
+    isInBucketList: false,
     thumbnailColor: '#6B5344',
     photoUrl: photos.steakPlate,
   },
@@ -592,6 +598,11 @@ export function formatReviewDate(iso: string): string {
 
 /**
  * Remove showcase / legacy shipping seed. Keeps anything the user created.
+ *
+ * If a user-created review still points at a demo restaurant (e.g. they added
+ * their own visit to a showcase venue while it was visible), the restaurant is
+ * kept — but it is "adopted" into a user id (demo-rN → user-…) so it stops
+ * being detected as demo (no more Demo pill) while the user's review stays.
  */
 export function stripShippingSeedData(
   restaurants: Restaurant[],
@@ -599,15 +610,30 @@ export function stripShippingSeedData(
 ): { restaurants: Restaurant[]; reviews: Review[]; stripped: boolean } {
   const nextReviews = reviews.filter((r) => !isDemoReviewId(r.id));
   const keptRestaurantIds = new Set(nextReviews.map((r) => r.restaurantId));
-  const nextRestaurants = restaurants.filter(
-    (r) => !isDemoRestaurantId(r.id) || keptRestaurantIds.has(r.id),
+  const demoOwnedByUser = new Set(
+    restaurants
+      .filter((r) => isDemoRestaurantId(r.id) && keptRestaurantIds.has(r.id))
+      .map((r) => r.id),
+  );
+  const adoptId = (id: string): string =>
+    demoOwnedByUser.has(id) ? `user-${id.replace(/^demo-/, '')}` : id;
+  const nextRestaurants = restaurants
+    .filter(
+      (r) => !isDemoRestaurantId(r.id) || keptRestaurantIds.has(r.id),
+    )
+    .map((r) => (demoOwnedByUser.has(r.id) ? { ...r, id: adoptId(r.id) } : r));
+  const rewrittenReviews = nextReviews.map((r) =>
+    demoOwnedByUser.has(r.restaurantId)
+      ? { ...r, restaurantId: adoptId(r.restaurantId) }
+      : r,
   );
   const stripped =
     nextReviews.length !== reviews.length ||
-    nextRestaurants.length !== restaurants.length;
+    nextRestaurants.length !== restaurants.length ||
+    demoOwnedByUser.size > 0;
   return {
     restaurants: nextRestaurants,
-    reviews: nextReviews,
+    reviews: rewrittenReviews,
     stripped,
   };
 }
@@ -627,17 +653,31 @@ export function stripDemoShowcase(
 /**
  * Merge showcase restaurants/reviews into user data (in-memory only).
  * Existing user rows win on ID collision.
+ *
+ * A user-adopted demo restaurant (demo-rN adopted as user-rN while the user
+ * kept their own review) counts as the same venue: if user-rN exists, the
+ * demo-rN showcase row is not added again, otherwise the venue would appear
+ * twice once the showcase is re-enabled.
  */
 export function mergeDemoShowcase(
   restaurants: Restaurant[],
   reviews: Review[],
 ): { restaurants: Restaurant[]; reviews: Review[] } {
   const restaurantIds = new Set(restaurants.map((r) => r.id));
+  const adoptedDemoIds = new Set(
+    restaurants
+      .map((r) => /^user-(demo-)?(.+)$/.exec(r.id)?.[2])
+      .filter((v): v is string => Boolean(v) && DEMO_RESTAURANT_IDS.has(`demo-${v}`)),
+  );
   const reviewIds = new Set(reviews.map((r) => r.id));
   return {
     restaurants: [
       ...restaurants,
-      ...mockRestaurants.filter((r) => !restaurantIds.has(r.id)),
+      ...mockRestaurants.filter(
+        (r) =>
+          !restaurantIds.has(r.id) &&
+          !adoptedDemoIds.has(r.id.replace(/^demo-/, '')),
+      ),
     ],
     reviews: [
       ...reviews,

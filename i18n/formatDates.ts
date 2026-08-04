@@ -12,6 +12,17 @@ export function activeIntlLocale(): string {
   return resolveIntlLocale(language);
 }
 
+/**
+ * Floor a date's time-of-day down to the nearest half hour (20:42 → 20:30,
+ * seconds/ms zeroed). Visit times in the review form always round down so the
+ * picker only ever settles on :00 / :30.
+ */
+export function floorToHalfHour(date: Date): Date {
+  const floored = new Date(date.getTime());
+  floored.setMinutes(Math.floor(floored.getMinutes() / 30) * 30, 0, 0);
+  return floored;
+}
+
 /** Full review date/time (e.g. review detail). */
 export function formatReviewDateTime(
   iso: string,

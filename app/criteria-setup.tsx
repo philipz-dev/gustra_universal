@@ -126,11 +126,11 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
  * Choose-step: pick a starting preset. Quick/Essentials apply fixed criteria
  * and go straight to the app; Full control opens the full criteria screen.
  *
- * Layout (HIG + house style): headline on top (clearing the notch via
- * insets.top), the three options as real house-style buttons (bubble cards,
- * round forest-green icon chips, no chevrons), the recommended preset gets a
- * subtle 'Recommended' label on the title line, and the Gustra logo sits at
- * the very bottom on the same background color as the splash icon.
+ * Layout (HIG + house style): the headline plus the three option buttons are
+ * vertically centred in the upper area (clearing the notch via insets.top),
+ * the personalisation hint sits right below the last button, and the Gustra
+ * logo with the italic tagline sits at the bottom of the screen, on the same
+ * background color as the splash icon.
  */
 function ChooseStep({
   onChooseQuick,
@@ -183,73 +183,76 @@ function ChooseStep({
         contentContainerStyle={[
           styles.chooseContent,
           {
-            paddingTop: Math.max(insets.top, 16) + 28,
+            paddingTop: Math.max(insets.top, 16) + 20,
             paddingBottom: Math.max(insets.bottom, 12) + 16,
           },
         ]}
         showsVerticalScrollIndicator={false}
         overScrollMode="never">
-        <View style={styles.chooseHeadlineWrap}>
-          <SerifText size={28} weight="bold" style={styles.chooseHeadline}>
-            {t('setup.choose.headline')}
-          </SerifText>
+        <View style={styles.chooseMain}>
+          <View style={styles.chooseHeadlineWrap}>
+            <SerifText size={28} weight="bold" style={styles.chooseHeadline}>
+              {t('setup.choose.headline')}
+            </SerifText>
+          </View>
+
+          <View style={styles.chooseButtons}>
+            {options.map((option) => (
+              <Pressable
+                key={option.id}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  option.recommended
+                    ? `${option.title}, ${t('setup.choose.recommended')}`
+                    : option.title
+                }
+                onPress={() => {
+                  Haptics.selectionChanged();
+                  option.onPress();
+                }}
+                style={({ pressed }) => [
+                  styles.chooseButton,
+                  pressed && styles.chooseButtonPressed,
+                ]}>
+                <View style={styles.chooseButtonIcon}>
+                  {Platform.OS === 'ios' ? (
+                    <SymbolView
+                      name={option.icon.ios}
+                      size={22}
+                      tintColor="#FFFFFF"
+                      weight="semibold"
+                    />
+                  ) : (
+                    <MaterialIcons
+                      name={option.icon.android}
+                      size={24}
+                      color="#FFFFFF"
+                    />
+                  )}
+                </View>
+                <View style={styles.chooseButtonText}>
+                  <View style={styles.chooseButtonTitleRow}>
+                    <Text style={styles.chooseButtonTitle}>{option.title}</Text>
+                    {option.recommended ? (
+                      <View style={styles.chooseRecommendedBadge}>
+                        <Text style={styles.chooseRecommendedLabel}>
+                          {t('setup.choose.recommended')}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={styles.chooseButtonSubtitle}>
+                    {option.subtitle}
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+
           <Text style={styles.chooseBody}>{t('setup.choose.body')}</Text>
         </View>
 
-        <View style={styles.chooseButtons}>
-          {options.map((option) => (
-            <Pressable
-              key={option.id}
-              accessibilityRole="button"
-              accessibilityLabel={
-                option.recommended
-                  ? `${option.title}, ${t('setup.choose.recommended')}`
-                  : option.title
-              }
-              onPress={() => {
-                Haptics.selectionChanged();
-                option.onPress();
-              }}
-              style={({ pressed }) => [
-                styles.chooseButton,
-                pressed && styles.chooseButtonPressed,
-              ]}>
-              <View style={styles.chooseButtonIcon}>
-                {Platform.OS === 'ios' ? (
-                  <SymbolView
-                    name={option.icon.ios}
-                    size={22}
-                    tintColor="#FFFFFF"
-                    weight="semibold"
-                  />
-                ) : (
-                  <MaterialIcons
-                    name={option.icon.android}
-                    size={24}
-                    color="#FFFFFF"
-                  />
-                )}
-              </View>
-              <View style={styles.chooseButtonText}>
-                <View style={styles.chooseButtonTitleRow}>
-                  <Text style={styles.chooseButtonTitle}>{option.title}</Text>
-                  {option.recommended ? (
-                    <View style={styles.chooseRecommendedBadge}>
-                      <Text style={styles.chooseRecommendedLabel}>
-                        {t('setup.choose.recommended')}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-                <Text style={styles.chooseButtonSubtitle}>
-                  {option.subtitle}
-                </Text>
-              </View>
-            </Pressable>
-          ))}
-        </View>
-
-        <View style={styles.chooseLogoWrap}>
+        <View style={styles.chooseLogoZone}>
           <View style={styles.chooseLogoCircle}>
             <Image
               source={require('@/assets/images/splash-icon.png')}
@@ -257,6 +260,7 @@ function ChooseStep({
               resizeMode="contain"
             />
           </View>
+          <Text style={styles.chooseTagline}>creating food memories</Text>
         </View>
       </ScrollView>
     </View>
@@ -565,14 +569,29 @@ const styles = StyleSheet.create({
   },
   chooseContent: {
     flexGrow: 1,
-    justifyContent: 'center',
     paddingHorizontal: 24,
     paddingVertical: 32,
-    gap: 24,
+    gap: 20,
   },
-  chooseLogoWrap: {
+  chooseMain: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: 20,
+  },
+  chooseLogoZone: {
+    flex: 1,
     alignItems: 'center',
-    paddingTop: 12,
+    justifyContent: 'center',
+    gap: 10,
+    paddingBottom: 8,
+  },
+  chooseTagline: {
+    // Real italic face (RN does not synthesize italic from upright Source Serif).
+    fontFamily: SERIF_FONT_REGULAR_ITALIC || systemSerifFamily,
+    fontSize: 15,
+    letterSpacing: 0.2,
+    color: 'rgba(35, 32, 26, 0.6)',
+    textAlign: 'center',
   },
   chooseLogoCircle: {
     width: 76,

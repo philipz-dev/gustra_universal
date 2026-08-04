@@ -11,6 +11,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolView } from 'expo-symbols';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 import { ActiveFilterSummary } from '@/components/feed/ActiveFilterSummary';
 import { FilterOptionsModal } from '@/components/feed/FilterOptionsModal';
@@ -64,6 +65,24 @@ function hasCoordinates(lat: number, lng: number): boolean {
   );
 }
 
+/**
+ * Small teardrop "flag" pin used in the map legend — mirrors the map pin shape
+ * (pointed flag with a white inner dot) so the legend matches the actual pins.
+ */
+function LegendFlag({ color }: { color: string }) {
+  return (
+    <Svg width={14} height={20} viewBox="0 0 28 40">
+      <Path
+        d="M14 1.25C7.55 1.25 2.25 6.55 2.25 13c0 8.6 10.35 21.05 11.15 21.95a1.1 1.1 0 0 0 1.6 0C15.8 34.05 25.75 21.6 25.75 13c0-6.45-5.3-11.75-11.75-11.75z"
+        fill={color}
+        stroke="#FFFFFF"
+        strokeWidth={1.75}
+      />
+      <Circle cx={14} cy={13} r={4.75} fill="#FFFFFF" />
+    </Svg>
+  );
+}
+
 export default function MemoriesMapScreen() {
   const { t } = useAppTranslation();
   return (
@@ -106,7 +125,8 @@ function MemoriesMapContent() {
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
   const [locating, setLocating] = useState(false);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
-  const [legendExpanded, setLegendExpanded] = useState(false);
+  /** Open by default so the pin colors are explained on first visit. */
+  const [legendExpanded, setLegendExpanded] = useState(true);
   const mapRef = useRef<GoogleMapsViewHandle>(null);
   const pendingFitRef = useRef(false);
   /** Snapshot at mount — module cache may update while this screen is mounted. */
@@ -359,18 +379,11 @@ function MemoriesMapContent() {
             {legendExpanded ? (
               <View style={styles.legendRows}>
                 <View style={styles.legendRow}>
-                  <View
-                    style={[styles.legendDot, { backgroundColor: OWN_PIN_COLOR }]}
-                  />
+                  <LegendFlag color={OWN_PIN_COLOR} />
                   <Text style={styles.legendLabel}>{t('map.legend.own')}</Text>
                 </View>
                 <View style={styles.legendRow}>
-                  <View
-                    style={[
-                      styles.legendDot,
-                      { backgroundColor: FRIENDS_PIN_COLOR },
-                    ]}
-                  />
+                  <LegendFlag color={FRIENDS_PIN_COLOR} />
                   <Text style={styles.legendLabel}>
                     {t('map.legend.friends')}
                   </Text>
@@ -533,11 +546,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
   },
   legendLabel: {
     ...captionTextStyle,

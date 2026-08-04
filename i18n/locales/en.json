@@ -62,7 +62,7 @@
     "filters": "Filters",
     "addReview": "Add memory",
     "myLocation": "My location",
-    "mapLegend": "Map pin legend",
+    "mapLegend": "Map legend",
     "clearLocation": "Clear location filter",
     "clearCuisine": "Clear cuisine filter",
     "clearFavorites": "Clear favorites filter",
@@ -136,7 +136,7 @@
     "title": "My map",
     "friendSuffix": "(friend)",
     "legend": {
-      "title": "Pins",
+      "title": "Legend",
       "own": "My memories",
       "friends": "Shared with you"
     },
@@ -163,18 +163,32 @@
     "topCities": "Top cities",
     "cityAverages": "Top cities",
     "noCityData": "No city data yet.",
-    "timeTravel": "Time Travel",
-    "timeTravelSubtitle": "Travel back through all your visits.",
+    "timeTravel": "Flashback",
+    "timeTravelSubtitle": "Look back on your memories.",
     "timeTravelYears": "Years",
     "timeTravelReviews_one": "{{count}} visit",
     "timeTravelReviews_other": "{{count}} visits",
     "timeTravelAverage": "Average",
     "timeTravelTotal": "All-time visits",
-    "timeTravelEmptyTitle": "Nothing to travel through yet",
+    "timeTravelEmptyTitle": "Nothing to look back on yet",
     "timeTravelEmptyBody": "Add restaurant memories and your timeline will appear here.",
     "timeTravelMonthHeader": "{{month}} {{year}}",
     "timeTravelMonthCount_one": "{{count}} visit",
     "timeTravelMonthCount_other": "{{count}} visits"
+  },
+  "bucketList": {
+    "title": "Bucket List",
+    "emptyTitle": "No bucket list yet",
+    "emptyBody": "Tap the bookmark on a restaurant you want to visit to save it here.",
+    "addTitle": "Add to bucket list",
+    "addBody": "Do you want to add {{name}} to your bucket list?",
+    "addConfirm": "Add",
+    "added": "Added to your bucket list",
+    "removeTitle": "Remove from bucket list",
+    "removeBody": "Do you want to remove {{name}} from your bucket list?",
+    "removeConfirm": "Remove",
+    "deleteConfirm": "Remove {{name}} from your bucket list?",
+    "deleteRemoved": "Removed from bucket list"
   },
   "settings": {
     "language": "Language",
@@ -198,7 +212,7 @@
     "sectionStorage": "Storage",
     "sectionData": "Data & backup",
     "sectionGoogle": "Google API usage",
-    "sectionAdvanced": "Advanced",
+    "sectionDeveloper": "Developer",
     "sectionLanguage": "Language",
     "editPhotoHint": "Tap photo to change",
     "editCriteria": "Edit criteria",
@@ -269,8 +283,8 @@
     "languageValueFrench": "Français",
     "geminiApi": "Gemini wine Vision",
     "sectionDeveloper": "Developer",
-    "showCriteriaSetup": "Show criteria setup",
-    "showCriteriaSetupSubtitle": "Re-open the first-start screen",
+    "fakeFirstRun": "Simulate first run",
+    "fakeFirstRunSubtitle": "Show Gustra logo, tap to continue, and the 3-choice menu",
     "sentryTestCrash": "Send Sentry test event",
     "sentryTestCrashSubtitle": "Verifies crash reporting (safe error)",
     "sentryTestCrashNoDsn": "Set EXPO_PUBLIC_SENTRY_DSN in .env first",
@@ -308,10 +322,13 @@
   },
   "forms": {
     "addReview": {
-      "title": "Add Memory",
-      "nearby": "Show nearby restaurants",
-      "mapSearch": "Search on map",
-      "manual": "Manual entry"
+      "title": "New memory",
+      "nearby": "Nearby",
+      "nearbySubtitle": "Discover restaurants right around you",
+      "mapSearch": "On the map",
+      "mapSearchSubtitle": "Explore places on the map",
+      "manual": "Manual",
+      "manualSubtitle": "Enter the name and details yourself"
     },
     "addVisit": {
       "title": "Add visit"
@@ -336,7 +353,9 @@
       "startReview": "Add Memory",
       "hint": "Move the map, then tap Search this area.",
       "emptyTitle": "No restaurants found",
-      "searchAreaHint": "Search restaurants in the visible map area"
+      "searchAreaHint": "Search restaurants in the visible map area",
+      "searchPlaceholder": "Search anywhere (e.g. Frankfurt)",
+      "searchEmpty": "No restaurants found for “{{query}}”."
     },
     "manual": {
       "title": "Manual entry",
@@ -344,13 +363,13 @@
       "city": "City (optional)",
       "country": "Country (optional)",
       "findOnGoogle": "Find on Google",
-      "searchHint": "Search Google to add place details, or continue manually.",
+      "searchHint": "Search Google to auto-fill the address and map location.",
       "googleMatches": "Google matches",
       "loading": "Loading restaurants…",
       "continueManually": "Continue manually",
+      "startReview": "Add Memory",
       "searchFailed": "Could not reach the restaurant search service.",
-      "noMatch": "No match found on Google.",
-      "manualMapHint": "Without a Google match this restaurant won't appear on your map."
+      "noMatch": "No match found on Google."
     },
     "review": {
       "editTitle": "Edit",
@@ -376,6 +395,7 @@
       "avg": "{{score}} avg",
       "time": "Time",
       "setTime": "Set time · {{time}}",
+      "noMapPinHint": "This restaurant has no map location, so it won't appear on your map.",
       "photoStrip": {
         "hintReorder": "Tap to select · long-press to reorder",
         "hintSelect": "Tap to select for removal",
@@ -455,7 +475,7 @@
       "cancel": "Cancel",
       "continue": "Continue"
     },
-    "selectReviews": "Select memories",
+    "selectReviews": "Share memories",
     "selectRestaurants": "Select restaurants",
     "selectOneRestaurant": "Select 1 restaurant"
   },
@@ -744,8 +764,8 @@
       "tapToContinue": "Tap to continue"
     },
     "choose": {
-      "headline": "How do you want to remember?",
-      "body": "Pick a starting point. You can change your criteria later in Settings.",
+      "headline": "How do you want to record your memories?",
+      "body": "You can always adjust your criteria later in Settings.",
       "recommended": "Recommended",
       "quick": {
         "title": "Quick",
@@ -753,7 +773,7 @@
       },
       "essentials": {
         "title": "Essentials",
-        "subtitle": "The 5 core criteria — a great place to start"
+        "subtitle": "Food, drinks, service, ambiance & value for money"
       },
       "full": {
         "title": "Full control",

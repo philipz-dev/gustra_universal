@@ -7,6 +7,7 @@ export { resolveDistanceUnit, type DistanceUnit } from '@/services/units/units';
 export { formattedDistance } from '@/services/units/distance';
 export {
   DEFAULT_SEARCH_RADIUS_M,
+  MAX_NEARBY_SEARCH_RADIUS_M,
   RestaurantSearchError,
   distanceMeters,
   fetchPrimaryType,

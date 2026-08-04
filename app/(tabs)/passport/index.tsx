@@ -16,6 +16,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { PassportSection } from '@/components/passport/PassportSection';
 import { PassportStatRow } from '@/components/passport/PassportStatRow';
+import { BucketListSection } from '@/components/passport/BucketListSection';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
 import { HouseEmptyState } from '@/components/ui/HouseEmptyState';
@@ -34,6 +35,7 @@ import {
   type BestWineEntry,
 } from '@/data/passportStats';
 import { resolveReviewOrigin } from '@/data/types';
+import type { Restaurant } from '@/data/types';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import {
   RatingValue,
@@ -264,6 +266,21 @@ function CulinaryPassportContent() {
     [ownReviews],
   );
 
+  const bucketListRestaurants = useMemo(
+    () => restaurants.filter((restaurant) => restaurant.isInBucketList),
+    [restaurants],
+  );
+
+  const openBucketRestaurant = useCallback(
+    (restaurant: Restaurant) => {
+      router.push({
+        pathname: '/review-form',
+        params: { restaurantId: restaurant.id, from: 'bucket' },
+      });
+    },
+    [router],
+  );
+
   const bestSectionTitle =
     stats.bestRestaurants.length === 1
       ? t('passport.bestRestaurant')
@@ -380,6 +397,11 @@ function CulinaryPassportContent() {
               ))
             )}
           </PassportSection>
+
+          <BucketListSection
+            restaurants={bucketListRestaurants}
+            onOpenRestaurant={openBucketRestaurant}
+          />
 
           <PassportSection title="">
             <Pressable

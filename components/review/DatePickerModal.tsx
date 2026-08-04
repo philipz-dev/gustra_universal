@@ -6,6 +6,7 @@ import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
+import { floorToHalfHour } from '@/i18n/formatDates';
 
 type DatePickerModalProps = {
   visible: boolean;
@@ -59,7 +60,7 @@ export const DatePickerModal = React.memo(function DatePickerModal({
                 onClose();
               }
               if (!selected) return;
-              setVisitDate(selected);
+              setVisitDate(floorToHalfHour(selected));
             }}
           />
           {Platform.OS === 'ios' ? (
@@ -72,11 +73,12 @@ export const DatePickerModal = React.memo(function DatePickerModal({
                 mode="time"
                 display="spinner"
                 maximumDate={new Date()}
+                minuteInterval={30}
                 themeVariant="light"
                 accentColor={GustraColors.forestGreen}
                 onChange={(_, selected) => {
                   if (!selected) return;
-                  setVisitDate(selected);
+                  setVisitDate(floorToHalfHour(selected));
                 }}
               />
             </View>

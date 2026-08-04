@@ -62,7 +62,7 @@
     "filters": "Filters",
     "addReview": "Herinnering toevoegen",
     "myLocation": "Mijn locatie",
-    "mapLegend": "Legenda kaartspelden",
+    "mapLegend": "Legende van de kaart",
     "clearLocation": "Locatiefilter wissen",
     "clearCuisine": "Keukenfilter wissen",
     "clearFavorites": "Favorietenfilter wissen",
@@ -136,7 +136,7 @@
     "title": "Mijn kaart",
     "friendSuffix": "(vriend)",
     "legend": {
-      "title": "Spelden",
+      "title": "Legende",
       "own": "Mijn herinneringen",
       "friends": "Met je gedeeld"
     },
@@ -163,18 +163,32 @@
     "topCities": "Topsteden",
     "cityAverages": "Topsteden",
     "noCityData": "Nog geen stadsgegevens.",
-    "timeTravel": "Tijdreis",
-    "timeTravelSubtitle": "Reis terug door al je bezoeken.",
+    "timeTravel": "Terugblik",
+    "timeTravelSubtitle": "Bekijk je herinneringen.",
     "timeTravelYears": "Jaren",
     "timeTravelReviews_one": "{{count}} bezoek",
     "timeTravelReviews_other": "{{count}} bezoeken",
     "timeTravelAverage": "Gemiddelde",
     "timeTravelTotal": "Bezoeken all-time",
-    "timeTravelEmptyTitle": "Nog niets om doorheen te reizen",
+    "timeTravelEmptyTitle": "Nog niets om op terug te kijken",
     "timeTravelEmptyBody": "Voeg restaurantherinneringen toe en hier verschijnt je tijdlijn.",
     "timeTravelMonthHeader": "{{month}} {{year}}",
     "timeTravelMonthCount_one": "{{count}} bezoek",
     "timeTravelMonthCount_other": "{{count}} bezoeken"
+  },
+  "bucketList": {
+    "title": "Bucket list",
+    "emptyTitle": "Nog geen bucket list",
+    "emptyBody": "Tik op het bladwijzer-icoon bij een restaurant dat je wilt bezoeken om het hier op te slaan.",
+    "addTitle": "Toevoegen aan bucket list",
+    "addBody": "Wil je {{name}} toevoegen aan je bucket list?",
+    "addConfirm": "Toevoegen",
+    "added": "Toegevoegd aan je bucket list",
+    "removeTitle": "Verwijderen van bucket list",
+    "removeBody": "Wil je {{name}} verwijderen van je bucket list?",
+    "removeConfirm": "Verwijderen",
+    "deleteConfirm": "{{name}} verwijderen van je bucket list?",
+    "deleteRemoved": "Verwijderd van bucket list"
   },
   "settings": {
     "language": "Taal",
@@ -198,7 +212,7 @@
     "sectionStorage": "Opslag",
     "sectionData": "Data & back-up",
     "sectionGoogle": "Google API-gebruik",
-    "sectionAdvanced": "Geavanceerd",
+    "sectionDeveloper": "Ontwikkelaar",
     "sectionLanguage": "Taal",
     "editPhotoHint": "Tik op de foto om te wijzigen",
     "editCriteria": "Criteria bewerken",
@@ -269,8 +283,8 @@
     "languageValueFrench": "Français",
     "geminiApi": "Gemini wijn-Vision",
     "sectionDeveloper": "Ontwikkelaar",
-    "showCriteriaSetup": "Toon criteria-setup",
-    "showCriteriaSetupSubtitle": "First-start scherm opnieuw openen",
+    "fakeFirstRun": "Simuleer eerste start",
+    "fakeFirstRunSubtitle": "Toon Gustra-logo, tik om verder te gaan en het 3-keuzemenu",
     "sentryTestCrash": "Stuur Sentry-testevent",
     "sentryTestCrashSubtitle": "Controleert crashrapportage (veilige fout)",
     "sentryTestCrashNoDsn": "Zet eerst EXPO_PUBLIC_SENTRY_DSN in .env",
@@ -308,10 +322,13 @@
   },
   "forms": {
     "addReview": {
-      "title": "Herinnering toevoegen",
-      "nearby": "Toon restaurants in de buurt",
-      "mapSearch": "Zoeken op kaart",
-      "manual": "Handmatig invoeren"
+      "title": "Nieuwe herinnering",
+      "nearby": "In de buurt",
+      "nearbySubtitle": "Ontdek restaurants direct in je omgeving",
+      "mapSearch": "Op de kaart",
+      "mapSearchSubtitle": "Verken locaties via de landkaart",
+      "manual": "Handmatig",
+      "manualSubtitle": "Voer zelf de naam en gegevens in"
     },
     "addVisit": {
       "title": "Bezoek toevoegen"
@@ -336,7 +353,9 @@
       "startReview": "Herinnering toevoegen",
       "hint": "Verplaats de kaart en tik op Zoek in dit gebied.",
       "emptyTitle": "Geen restaurants gevonden",
-      "searchAreaHint": "Zoek restaurants in het zichtbare kaartgebied"
+      "searchAreaHint": "Zoek restaurants in het zichtbare kaartgebied",
+      "searchPlaceholder": "Zoek overal (bijv. Frankfurt)",
+      "searchEmpty": "Geen restaurants gevonden voor “{{query}}”."
     },
     "manual": {
       "title": "Handmatig invoeren",
@@ -344,13 +363,13 @@
       "city": "Stad (optioneel)",
       "country": "Land (optioneel)",
       "findOnGoogle": "Zoek op Google",
-      "searchHint": "Zoek op Google om plaatsgegevens toe te voegen, of ga handmatig verder.",
+      "searchHint": "Zoek op Google om het adres en de kaartpositie automatisch aan te vullen.",
       "googleMatches": "Google-resultaten",
       "loading": "Restaurants laden…",
       "continueManually": "Handmatig doorgaan",
+      "startReview": "Herinnering toevoegen",
       "searchFailed": "Kon de restaurantzoekdienst niet bereiken.",
-      "noMatch": "Geen match gevonden op Google.",
-      "manualMapHint": "Zonder Google-match verschijnt dit restaurant niet op je kaart."
+      "noMatch": "Geen match gevonden op Google."
     },
     "review": {
       "editTitle": "Bewerken",
@@ -371,6 +390,7 @@
       "avg": "{{score}} gem.",
       "time": "Tijd",
       "setTime": "Tijd instellen · {{time}}",
+      "noMapPinHint": "Dit restaurant heeft geen kaartpositie en verschijnt daarom niet op je kaart.",
       "photoStrip": {
         "hintReorder": "Tik om te selecteren · lang indrukken om te herschikken",
         "hintSelect": "Tik om te selecteren voor verwijderen",
@@ -455,7 +475,7 @@
       "cancel": "Annuleren",
       "continue": "Doorgaan"
     },
-    "selectReviews": "Selecteer herinneringen",
+    "selectReviews": "Deel herinneringen",
     "selectRestaurants": "Selecteer restaurants",
     "selectOneRestaurant": "Selecter 1 restaurant"
   },
@@ -744,16 +764,16 @@
       "tapToContinue": "Tik om verder te gaan"
     },
     "choose": {
-      "headline": "Hoe wil je herinneren?",
-      "body": "Kies een startpunt. Je kunt je criteria later altijd wijzigen in Instellingen.",
+      "headline": "Hoe wil je jouw herinneringen vastleggen?",
+      "body": "Je kunt je criteria later altijd aanpassen in Instellingen.",
       "recommended": "Aangeraden",
       "quick": {
         "title": "Snel",
-        "subtitle": "Eten, dranken & bediening"
+        "subtitle": "Eten, drank & bediening"
       },
       "essentials": {
         "title": "Basis",
-        "subtitle": "De 5 kerncriteria — ideaal om te starten"
+        "subtitle": "Eten, drank, service, sfeer en prijs"
       },
       "full": {
         "title": "Volledige controle",

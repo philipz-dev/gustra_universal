@@ -4,6 +4,7 @@ import {
   QUICK_PRESET_STANDARD_IDS,
   ESSENTIALS_PRESET_STANDARD_IDS,
   MANDATORY_STANDARD_CRITERION_IDS,
+  FULL_CONTROL_INITIAL_STANDARD_IDS,
   QUICK_SETUP_CHOICE,
   ESSENTIALS_SETUP_CHOICE,
   FULL_CONTROL_SETUP_CHOICE,
@@ -50,6 +51,14 @@ describe('criteria presets', () => {
     );
     expect(FULL_CONTROL_SETUP_CHOICE.ids).toBeNull();
     expect(FULL_CONTROL_SETUP_CHOICE.completeSetup).toBe(false);
+  });
+
+  it('Full control preselects Food and Drinks when the criteria screen opens', () => {
+    expect(FULL_CONTROL_INITIAL_STANDARD_IDS).toEqual(['food', 'drinks']);
+    expectValidPreset(FULL_CONTROL_INITIAL_STANDARD_IDS);
+    for (const mandatory of MANDATORY_STANDARD_CRITERION_IDS) {
+      expect(FULL_CONTROL_INITIAL_STANDARD_IDS).toContain(mandatory);
+    }
   });
 
   it('first-start defaults only disable non-mandatory criteria', () => {

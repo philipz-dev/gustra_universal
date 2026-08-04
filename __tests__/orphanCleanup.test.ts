@@ -28,6 +28,7 @@ function restaurant(id: string, name: string, photoUrl: string): Restaurant {
     longitude: 4,
     primaryType: 'restaurant',
     isFavorite: false,
+    isInBucketList: false,
     thumbnailColor: '#3D6B52',
     photoUrl,
   };

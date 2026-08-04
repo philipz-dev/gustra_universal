@@ -17,6 +17,7 @@ function restaurant(id: string, name: string, placeId?: string): Restaurant {
     mapItemIdentifier: placeId ?? null,
     primaryType: 'restaurant',
     isFavorite: false,
+    isInBucketList: false,
     thumbnailColor: '#3D6B52',
     photoUrl: '',
   };
