@@ -1,6 +1,6 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-08-04T11:34:10Z
+Generated: 2026-08-04T20:05:53Z
 Root: /Users/philipzvar/Desktop/gustra_universal
 Files: 262
 ================================================================================
@@ -539,12 +539,15 @@ describe('criteria presets', () => {
     expect(ESSENTIALS_SETUP_CHOICE.ids).toEqual(
       FIRST_START_ENABLED_STANDARD_IDS,
     );
-    expect(FULL_CONTROL_SETUP_CHOICE.ids).toBeNull();
-    expect(FULL_CONTROL_SETUP_CHOICE.completeSetup).toBe(false);
   });
 
-  it('Full control preselects Food and Drinks when the criteria screen opens', () => {
-    expect(FULL_CONTROL_INITIAL_STANDARD_IDS).toEqual(['food', 'drinks']);
+  it('Full control opens the criteria screen without completing setup', () => {
+    expect(FULL_CONTROL_SETUP_CHOICE.ids).toBeNull();
+    expect(FULL_CONTROL_SETUP_CHOICE.completeSetup).toBe(false);
+    // Full control no longer resets criteria to a fixed preset — the screen
+    // keeps whatever selection is already loaded (first-start defaults for a
+    // new install, or the user's own earlier choices). The historic preset is
+    // kept as a valid, mandatory-containing reference.
     expectValidPreset(FULL_CONTROL_INITIAL_STANDARD_IDS);
     for (const mandatory of MANDATORY_STANDARD_CRITERION_IDS) {
       expect(FULL_CONTROL_INITIAL_STANDARD_IDS).toContain(mandatory);
@@ -11511,63 +11514,63 @@ export default function SettingsScreen() {
             onPress={confirmImportSwiftLegacy}
           />
         ) : null}
+        <SettingsRow
+          title={t('settings.fakeFirstRun')}
+          subtitle={t('settings.fakeFirstRunSubtitle')}
+          icon={{
+            ios: 'play.circle',
+            android: 'play_circle',
+            web: 'play_circle',
+          }}
+          showChevron
+          isLast={!__DEV__}
+          onPress={() => {
+            Haptics.selectionChanged();
+            void (async () => {
+              // Fake a first run: only resets the setup-completed flag. The
+              // current criteria selection is kept, so the full-control
+              // screen in the replayed setup shows the user's own choices.
+              // The CriteriaSetupGate then routes to /criteria-setup, which
+              // starts with the tap-to-continue welcome (Gustra logo), then
+              // the 3-choice menu. No manual push here — avoids a duplicate
+              // stack entry racing the gate's replace().
+              await reopenCriteriaSetupForDev();
+            })();
+          }}
+        />
         {__DEV__ ? (
-          <>
-            <SettingsRow
-              title={t('settings.fakeFirstRun')}
-              subtitle={t('settings.fakeFirstRunSubtitle')}
-              icon={{
-                ios: 'play.circle',
-                android: 'play_circle',
-                web: 'play_circle',
-              }}
-              showChevron
-              onPress={() => {
-                Haptics.selectionChanged();
-                void (async () => {
-                  // Fake a first run: resets the setup-completed flag (and the
-                  // criteria to the first-start defaults). The CriteriaSetupGate
-                  // then routes to /criteria-setup, which starts with the
-                  // tap-to-continue welcome (Gustra logo), then the 3-choice
-                  // menu. No manual push here — avoids a duplicate stack entry
-                  // racing the gate's replace().
-                  await reopenCriteriaSetupForDev();
-                })();
-              }}
-            />
-            <SettingsRow
-              title={t('settings.sentryTestCrash')}
-              subtitle={
-                isSentryEnabled
-                  ? t('settings.sentryTestCrashSubtitle')
-                  : t('settings.sentryTestCrashNoDsn')
-              }
-              icon={{
-                ios: 'ant',
-                android: 'bug_report',
-                web: 'bug_report',
-              }}
-              showChevron
-              isLast
-              onPress={() => {
-                Haptics.selectionChanged();
-                if (!isSentryEnabled) {
-                  houseAlert(
-                    t('settings.sentryTestCrash'),
-                    t('settings.sentryTestCrashNoDsn'),
-                  );
-                  return;
-                }
-                Sentry.captureException(
-                  new Error('Gustra Sentry test — safe to ignore'),
-                );
+          <SettingsRow
+            title={t('settings.sentryTestCrash')}
+            subtitle={
+              isSentryEnabled
+                ? t('settings.sentryTestCrashSubtitle')
+                : t('settings.sentryTestCrashNoDsn')
+            }
+            icon={{
+              ios: 'ant',
+              android: 'bug_report',
+              web: 'bug_report',
+            }}
+            showChevron
+            isLast
+            onPress={() => {
+              Haptics.selectionChanged();
+              if (!isSentryEnabled) {
                 houseAlert(
                   t('settings.sentryTestCrash'),
-                  t('settings.sentryTestCrashSent'),
+                  t('settings.sentryTestCrashNoDsn'),
                 );
-              }}
-            />
-          </>
+                return;
+              }
+              Sentry.captureException(
+                new Error('Gustra Sentry test — safe to ignore'),
+              );
+              houseAlert(
+                t('settings.sentryTestCrash'),
+                t('settings.sentryTestCrashSent'),
+              );
+            }}
+          />
         ) : null}
         </SettingsSection>
       ) : null}
@@ -12196,7 +12199,7 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
       }}>
       <Animated.View style={[styles.welcomeCenter, { opacity: fadeIn }]}>
         <Image
-          source={require('@/assets/images/splash-icon.png')}
+          source={require('@/assets/images/android-icon-foreground.png')}
           style={styles.welcomeLogo}
           resizeMode="contain"
         />
@@ -12349,7 +12352,7 @@ function ChooseStep({
         <View style={styles.chooseLogoZone}>
           <View style={styles.chooseLogoCircle}>
             <Image
-              source={require('@/assets/images/splash-icon.png')}
+              source={require('@/assets/images/android-icon-foreground.png')}
               style={styles.chooseLogo}
               resizeMode="contain"
             />
@@ -12419,6 +12422,11 @@ export default function CriteriaSetupScreen() {
       <HouseNavHeader
         title={t('setup.criteria.title')}
         titleSize={Theme.navigation.secondaryTitleSize}
+        showBack
+        onBack={() => {
+          Haptics.selectionChanged();
+          setStep('choose');
+        }}
         right={
           <HouseToolbarIconButton
             iosName="checkmark"
@@ -12526,8 +12534,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F6ECE2',
     alignItems: 'center',
     justifyContent: 'flex-end',
-  },
-  welcomeCenter: {
+  },  welcomeCenter: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -12535,8 +12542,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   welcomeLogo: {
-    width: 148,
-    height: 148,
+    width: 176,
+    height: 176,
     marginBottom: 18,
   },
   welcomeTitle: {
@@ -12688,9 +12695,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   chooseLogoCircle: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     // Match splash-icon.png fill so the logo doesn't sit on a different cream.
     backgroundColor: '#F6ECE2',
     borderWidth: StyleSheet.hairlineWidth,
@@ -12699,8 +12706,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   chooseLogo: {
-    width: 60,
-    height: 60,
+    width: 80,
+    height: 80,
   },
   chooseButtons: {
     gap: 12,
@@ -13187,7 +13194,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       supportsTablet: true,
       // Must match the existing App Store Connect / Swift app.
       bundleIdentifier: 'com.philip.gustra',
-      buildNumber: '61',
+      buildNumber: '62',
       // Keep in sync with android.versionCode — deploy-store.sh bumps both together.
       entitlements: {
         'com.apple.security.application-groups': ['group.com.philip.gustra'],
@@ -13246,7 +13253,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
       package: 'net.gustra.app',
       // Keep in sync with ios.buildNumber — deploy-store.sh bumps both together.
-      versionCode: 61,
+      versionCode: 62,
       // Material / gesture navigation — cream surfaces bleed under system bars.
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: true,
@@ -28360,8 +28367,10 @@ export const MANDATORY_STANDARD_CRITERION_IDS: readonly StandardCriterionId[] = 
 ] as const;
 
 /**
- * "Full control" opens the criteria screen with a sensible starting point:
- * the mandatory Food plus Drinks preselected (everything else off).
+ * Historic "full control" starting point (Food + Drinks preselected). Kept as
+ * documentation: full control no longer resets criteria — it keeps whatever
+ * selection is already loaded (first-start defaults for a new install, or the
+ * user's own earlier choices), so the constant is not applied anymore.
  */
 export const FULL_CONTROL_INITIAL_STANDARD_IDS: readonly StandardCriterionId[] = [
   'food',
@@ -28732,17 +28741,11 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
         );
         setDisabledStandardIds(nextDisabled);
         persistDisabled(nextDisabled);
-      } else {
-        // Full control: the criteria screen opens with Food + Drinks on,
-        // everything else off (user personalises from there).
-        const nextDisabled = new Set(
-          STANDARD_CRITERIA.map((c) => c.id).filter(
-            (id) => !FULL_CONTROL_INITIAL_STANDARD_IDS.includes(id as StandardCriterionId),
-          ),
-        );
-        setDisabledStandardIds(nextDisabled);
-        persistDisabled(nextDisabled);
       }
+      // Full control: keep whatever criteria are already selected (the
+      // first-start defaults for a brand-new install, or the user's own
+      // earlier choices for a returning user). The criteria screen opens on
+      // that existing selection instead of resetting to a fixed preset.
       if (choice.completeSetup) {
         await AsyncStorage.setItem(SETUP_KEY, '1');
         setSetupCompleted(true);
@@ -28752,12 +28755,11 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
   );
 
   const reopenCriteriaSetupForDev = useCallback(async () => {
-    const nextDisabled = firstStartDisabledStandardIds();
-    setDisabledStandardIds(nextDisabled);
-    persistDisabled(nextDisabled);
+    // Only reopen the setup flow — keep the current criteria selection so a
+    // returning user sees their own choices on the full-control screen.
     await AsyncStorage.removeItem(SETUP_KEY);
     setSetupCompleted(false);
-  }, [persistDisabled]);
+  }, []);
 
   const enabledCriteria = useMemo(() => {
     // Only the 20 fixed criteria are selectable. Custom criteria from old
@@ -31596,6 +31598,21 @@ const photos = {
     'https://images.unsplash.com/photo-1569529465841-dfecdabaa329?w=800&q=80',
   dessertPlate:
     'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=800&q=80',
+  /* ——— People: friends at the table, toasts, shared moments ——— */
+  friendsToast:
+    'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&q=80',
+  friendsDinner:
+    'https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?w=800&q=80',
+  friendsLaughing:
+    'https://images.unsplash.com/photo-1543269865-cbf427effbad?w=800&q=80',
+  friendsCheers:
+    'https://images.unsplash.com/photo-1529333166437-7750a6dd5a70?w=800&q=80',
+  tableTogether:
+    'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800&q=80',
+  peopleAtTable:
+    'https://images.unsplash.com/photo-1533777857889-4be7c70b33f7?w=800&q=80',
+  groupToast:
+    'https://images.unsplash.com/photo-1647905555465-0f9004fbdaed?w=800&q=80',
 };
 
 const wineAtelierBac: WineLabelFiche = {
@@ -31796,6 +31813,7 @@ export const mockReviews: Review[] = [
       },
     ],
     photoUrls: [
+      photos.friendsDinner,
       photos.greenhouseDish,
       photos.greenhouseInterior,
       photos.vegetableCourse,
@@ -31849,6 +31867,7 @@ export const mockReviews: Review[] = [
       },
     ],
     photoUrls: [
+      photos.peopleAtTable,
       photos.fineDiningPlate,
       photos.fineDiningRoom,
       photos.dessertPlate,
@@ -31904,6 +31923,7 @@ export const mockReviews: Review[] = [
       },
     ],
     photoUrls: [
+      photos.friendsToast,
       photos.nordicPlating,
       photos.nordicInterior,
       photos.tastingMenu,
@@ -31952,7 +31972,7 @@ export const mockReviews: Review[] = [
         comment: 'Excellent for the price.',
       },
     ],
-    photoUrls: [photos.pastaClose, photos.candleRestaurant],
+    photoUrls: [photos.friendsCheers, photos.pastaClose, photos.candleRestaurant],
     reviewedBy: 'You',
     origin: 'own',
     overallScore: 4.2,
@@ -31995,7 +32015,7 @@ export const mockReviews: Review[] = [
         comment: 'Filling and fair.',
       },
     ],
-    photoUrls: [photos.asianSpread, photos.vegetableCourse],
+    photoUrls: [photos.tableTogether, photos.asianSpread, photos.vegetableCourse],
     reviewedBy: 'You',
     origin: 'own',
     overallScore: 3.4,
@@ -32038,7 +32058,12 @@ export const mockReviews: Review[] = [
         comment: 'Fair for the quality.',
       },
     ],
-    photoUrls: [photos.steakPlate, photos.bistroInterior, photos.candleRestaurant],
+    photoUrls: [
+      photos.friendsLaughing,
+      photos.steakPlate,
+      photos.bistroInterior,
+      photos.candleRestaurant,
+    ],
     reviewedBy: 'You',
     origin: 'own',
     overallScore: 4.1,
@@ -34693,7 +34718,7 @@ FILE: i18n/locales/de.json
     "filters": "Filter",
     "none": "Keine",
     "favorites": "Favoriten",
-    "friendsReviews": "Geteilte Erinnerungen einbeziehen",
+    "friendsReviews": "Erinnerungen von Freunden anzeigen",
     "location": "Ort",
     "cuisine": "Küchenart",
     "sortBy": "Sortieren nach",
@@ -35491,7 +35516,7 @@ FILE: i18n/locales/en.json
     "filters": "Filters",
     "none": "None",
     "favorites": "Favorites",
-    "friendsReviews": "Include shared memories",
+    "friendsReviews": "Show memories from friends",
     "location": "Location",
     "cuisine": "Cuisine type",
     "sortBy": "Sort by",
@@ -36289,7 +36314,7 @@ FILE: i18n/locales/es.json
     "filters": "Filtros",
     "none": "Ninguno",
     "favorites": "Favoritos",
-    "friendsReviews": "Incluir recuerdos compartidos",
+    "friendsReviews": "Mostrar recuerdos de amigos",
     "location": "Ubicación",
     "cuisine": "Tipo de cocina",
     "sortBy": "Ordenar por",
@@ -37087,7 +37112,7 @@ FILE: i18n/locales/fr.json
     "filters": "Filtres",
     "none": "Aucun",
     "favorites": "Favoris",
-    "friendsReviews": "Inclure les souvenirs partagés",
+    "friendsReviews": "Afficher les souvenirs d'amis",
     "location": "Lieu",
     "cuisine": "Type de cuisine",
     "sortBy": "Trier par",
@@ -37885,7 +37910,7 @@ FILE: i18n/locales/it.json
     "filters": "Filtri",
     "none": "Nessuno",
     "favorites": "Preferiti",
-    "friendsReviews": "Includi ricordi condivisi",
+    "friendsReviews": "Mostra ricordi degli amici",
     "location": "Località",
     "cuisine": "Tipo di cucina",
     "sortBy": "Ordina per",
@@ -38683,7 +38708,7 @@ FILE: i18n/locales/nl.json
     "filters": "Filters",
     "none": "Geen",
     "favorites": "Favorieten",
-    "friendsReviews": "Gedeelde herinneringen meenemen",
+    "friendsReviews": "Herinneringen van vrienden tonen",
     "location": "Locatie",
     "cuisine": "Type keuken",
     "sortBy": "Sorteren op",

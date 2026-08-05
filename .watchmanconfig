@@ -1,0 +1,21 @@
+{
+  "ignore_dirs": [
+    "ios/Pods",
+    "ios/build",
+    "ios/DerivedData",
+    "android/.gradle",
+    "android/build",
+    "android/app/build",
+    "android/app/.cxx",
+    ".expo",
+    ".git",
+    "roadmap",
+    "localization",
+    "secrets",
+    "build-61-ios.ipa",
+    "build-61-android.aab"
+  ],
+  "enforce_root_files": [
+    "package.json"
+  ]
+}

@@ -102,7 +102,7 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
       }}>
       <Animated.View style={[styles.welcomeCenter, { opacity: fadeIn }]}>
         <Image
-          source={require('@/assets/images/splash-icon.png')}
+          source={require('@/assets/images/android-icon-foreground.png')}
           style={styles.welcomeLogo}
           resizeMode="contain"
         />
@@ -255,7 +255,7 @@ function ChooseStep({
         <View style={styles.chooseLogoZone}>
           <View style={styles.chooseLogoCircle}>
             <Image
-              source={require('@/assets/images/splash-icon.png')}
+              source={require('@/assets/images/android-icon-foreground.png')}
               style={styles.chooseLogo}
               resizeMode="contain"
             />
@@ -325,6 +325,11 @@ export default function CriteriaSetupScreen() {
       <HouseNavHeader
         title={t('setup.criteria.title')}
         titleSize={Theme.navigation.secondaryTitleSize}
+        showBack
+        onBack={() => {
+          Haptics.selectionChanged();
+          setStep('choose');
+        }}
         right={
           <HouseToolbarIconButton
             iosName="checkmark"
@@ -432,8 +437,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F6ECE2',
     alignItems: 'center',
     justifyContent: 'flex-end',
-  },
-  welcomeCenter: {
+  },  welcomeCenter: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -441,8 +445,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   welcomeLogo: {
-    width: 148,
-    height: 148,
+    width: 176,
+    height: 176,
     marginBottom: 18,
   },
   welcomeTitle: {
@@ -594,9 +598,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   chooseLogoCircle: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     // Match splash-icon.png fill so the logo doesn't sit on a different cream.
     backgroundColor: '#F6ECE2',
     borderWidth: StyleSheet.hairlineWidth,
@@ -605,8 +609,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   chooseLogo: {
-    width: 60,
-    height: 60,
+    width: 80,
+    height: 80,
   },
   chooseButtons: {
     gap: 12,

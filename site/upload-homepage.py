@@ -19,6 +19,8 @@ FILES = [
     "assets/screenshots/screenshot-review.png",
     "assets/screenshots/screenshot-passport.png",
     "assets/screenshots/screenshot-map.png",
+    "assets/screenshots/screenshot-timeline.png",
+    "assets/screenshots/screenshot-friends.png",
 ]
 
 

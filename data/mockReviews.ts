@@ -51,6 +51,21 @@ const photos = {
     'https://images.unsplash.com/photo-1569529465841-dfecdabaa329?w=800&q=80',
   dessertPlate:
     'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=800&q=80',
+  /* ——— People: friends at the table, toasts, shared moments ——— */
+  friendsToast:
+    'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&q=80',
+  friendsDinner:
+    'https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?w=800&q=80',
+  friendsLaughing:
+    'https://images.unsplash.com/photo-1543269865-cbf427effbad?w=800&q=80',
+  friendsCheers:
+    'https://images.unsplash.com/photo-1529333166437-7750a6dd5a70?w=800&q=80',
+  tableTogether:
+    'https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=800&q=80',
+  peopleAtTable:
+    'https://images.unsplash.com/photo-1533777857889-4be7c70b33f7?w=800&q=80',
+  groupToast:
+    'https://images.unsplash.com/photo-1647905555465-0f9004fbdaed?w=800&q=80',
 };
 
 const wineAtelierBac: WineLabelFiche = {
@@ -251,6 +266,7 @@ export const mockReviews: Review[] = [
       },
     ],
     photoUrls: [
+      photos.friendsDinner,
       photos.greenhouseDish,
       photos.greenhouseInterior,
       photos.vegetableCourse,
@@ -304,6 +320,7 @@ export const mockReviews: Review[] = [
       },
     ],
     photoUrls: [
+      photos.peopleAtTable,
       photos.fineDiningPlate,
       photos.fineDiningRoom,
       photos.dessertPlate,
@@ -359,6 +376,7 @@ export const mockReviews: Review[] = [
       },
     ],
     photoUrls: [
+      photos.friendsToast,
       photos.nordicPlating,
       photos.nordicInterior,
       photos.tastingMenu,
@@ -407,7 +425,7 @@ export const mockReviews: Review[] = [
         comment: 'Excellent for the price.',
       },
     ],
-    photoUrls: [photos.pastaClose, photos.candleRestaurant],
+    photoUrls: [photos.friendsCheers, photos.pastaClose, photos.candleRestaurant],
     reviewedBy: 'You',
     origin: 'own',
     overallScore: 4.2,
@@ -450,7 +468,7 @@ export const mockReviews: Review[] = [
         comment: 'Filling and fair.',
       },
     ],
-    photoUrls: [photos.asianSpread, photos.vegetableCourse],
+    photoUrls: [photos.tableTogether, photos.asianSpread, photos.vegetableCourse],
     reviewedBy: 'You',
     origin: 'own',
     overallScore: 3.4,
@@ -493,7 +511,12 @@ export const mockReviews: Review[] = [
         comment: 'Fair for the quality.',
       },
     ],
-    photoUrls: [photos.steakPlate, photos.bistroInterior, photos.candleRestaurant],
+    photoUrls: [
+      photos.friendsLaughing,
+      photos.steakPlate,
+      photos.bistroInterior,
+      photos.candleRestaurant,
+    ],
     reviewedBy: 'You',
     origin: 'own',
     overallScore: 4.1,

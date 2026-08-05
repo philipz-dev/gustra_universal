@@ -27,4 +27,6 @@ config.resolver.blockList = Array.isArray(prev)
     ? [prev, ...extraBlock]
     : extraBlock;
 
+config.resolver.useWatchman = false;
+
 module.exports = config;

@@ -4,6 +4,8 @@
   "version": "1.0.0",
   "dependencies": {
     "@expo-google-fonts/source-serif-4": "^0.4.1",
+    "@expo/cli": "^57.0.12",
+    "@expo/metro": "^56.0.0",
     "@expo/vector-icons": "^15.0.2",
     "@noble/ciphers": "^2.2.0",
     "@noble/hashes": "^2.2.0",

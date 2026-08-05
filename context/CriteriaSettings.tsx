@@ -153,8 +153,10 @@ export const MANDATORY_STANDARD_CRITERION_IDS: readonly StandardCriterionId[] = 
 ] as const;
 
 /**
- * "Full control" opens the criteria screen with a sensible starting point:
- * the mandatory Food plus Drinks preselected (everything else off).
+ * Historic "full control" starting point (Food + Drinks preselected). Kept as
+ * documentation: full control no longer resets criteria — it keeps whatever
+ * selection is already loaded (first-start defaults for a new install, or the
+ * user's own earlier choices), so the constant is not applied anymore.
  */
 export const FULL_CONTROL_INITIAL_STANDARD_IDS: readonly StandardCriterionId[] = [
   'food',
@@ -525,17 +527,11 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
         );
         setDisabledStandardIds(nextDisabled);
         persistDisabled(nextDisabled);
-      } else {
-        // Full control: the criteria screen opens with Food + Drinks on,
-        // everything else off (user personalises from there).
-        const nextDisabled = new Set(
-          STANDARD_CRITERIA.map((c) => c.id).filter(
-            (id) => !FULL_CONTROL_INITIAL_STANDARD_IDS.includes(id as StandardCriterionId),
-          ),
-        );
-        setDisabledStandardIds(nextDisabled);
-        persistDisabled(nextDisabled);
       }
+      // Full control: keep whatever criteria are already selected (the
+      // first-start defaults for a brand-new install, or the user's own
+      // earlier choices for a returning user). The criteria screen opens on
+      // that existing selection instead of resetting to a fixed preset.
       if (choice.completeSetup) {
         await AsyncStorage.setItem(SETUP_KEY, '1');
         setSetupCompleted(true);
@@ -545,12 +541,11 @@ export function CriteriaSettingsProvider({ children }: { children: ReactNode }) 
   );
 
   const reopenCriteriaSetupForDev = useCallback(async () => {
-    const nextDisabled = firstStartDisabledStandardIds();
-    setDisabledStandardIds(nextDisabled);
-    persistDisabled(nextDisabled);
+    // Only reopen the setup flow — keep the current criteria selection so a
+    // returning user sees their own choices on the full-control screen.
     await AsyncStorage.removeItem(SETUP_KEY);
     setSetupCompleted(false);
-  }, [persistDisabled]);
+  }, []);
 
   const enabledCriteria = useMemo(() => {
     // Only the 20 fixed criteria are selectable. Custom criteria from old

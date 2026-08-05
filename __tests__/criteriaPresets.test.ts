@@ -49,12 +49,15 @@ describe('criteria presets', () => {
     expect(ESSENTIALS_SETUP_CHOICE.ids).toEqual(
       FIRST_START_ENABLED_STANDARD_IDS,
     );
-    expect(FULL_CONTROL_SETUP_CHOICE.ids).toBeNull();
-    expect(FULL_CONTROL_SETUP_CHOICE.completeSetup).toBe(false);
   });
 
-  it('Full control preselects Food and Drinks when the criteria screen opens', () => {
-    expect(FULL_CONTROL_INITIAL_STANDARD_IDS).toEqual(['food', 'drinks']);
+  it('Full control opens the criteria screen without completing setup', () => {
+    expect(FULL_CONTROL_SETUP_CHOICE.ids).toBeNull();
+    expect(FULL_CONTROL_SETUP_CHOICE.completeSetup).toBe(false);
+    // Full control no longer resets criteria to a fixed preset — the screen
+    // keeps whatever selection is already loaded (first-start defaults for a
+    // new install, or the user's own earlier choices). The historic preset is
+    // kept as a valid, mandatory-containing reference.
     expectValidPreset(FULL_CONTROL_INITIAL_STANDARD_IDS);
     for (const mandatory of MANDATORY_STANDARD_CRITERION_IDS) {
       expect(FULL_CONTROL_INITIAL_STANDARD_IDS).toContain(mandatory);

@@ -618,63 +618,63 @@ export default function SettingsScreen() {
             onPress={confirmImportSwiftLegacy}
           />
         ) : null}
+        <SettingsRow
+          title={t('settings.fakeFirstRun')}
+          subtitle={t('settings.fakeFirstRunSubtitle')}
+          icon={{
+            ios: 'play.circle',
+            android: 'play_circle',
+            web: 'play_circle',
+          }}
+          showChevron
+          isLast={!__DEV__}
+          onPress={() => {
+            Haptics.selectionChanged();
+            void (async () => {
+              // Fake a first run: only resets the setup-completed flag. The
+              // current criteria selection is kept, so the full-control
+              // screen in the replayed setup shows the user's own choices.
+              // The CriteriaSetupGate then routes to /criteria-setup, which
+              // starts with the tap-to-continue welcome (Gustra logo), then
+              // the 3-choice menu. No manual push here — avoids a duplicate
+              // stack entry racing the gate's replace().
+              await reopenCriteriaSetupForDev();
+            })();
+          }}
+        />
         {__DEV__ ? (
-          <>
-            <SettingsRow
-              title={t('settings.fakeFirstRun')}
-              subtitle={t('settings.fakeFirstRunSubtitle')}
-              icon={{
-                ios: 'play.circle',
-                android: 'play_circle',
-                web: 'play_circle',
-              }}
-              showChevron
-              onPress={() => {
-                Haptics.selectionChanged();
-                void (async () => {
-                  // Fake a first run: resets the setup-completed flag (and the
-                  // criteria to the first-start defaults). The CriteriaSetupGate
-                  // then routes to /criteria-setup, which starts with the
-                  // tap-to-continue welcome (Gustra logo), then the 3-choice
-                  // menu. No manual push here — avoids a duplicate stack entry
-                  // racing the gate's replace().
-                  await reopenCriteriaSetupForDev();
-                })();
-              }}
-            />
-            <SettingsRow
-              title={t('settings.sentryTestCrash')}
-              subtitle={
-                isSentryEnabled
-                  ? t('settings.sentryTestCrashSubtitle')
-                  : t('settings.sentryTestCrashNoDsn')
-              }
-              icon={{
-                ios: 'ant',
-                android: 'bug_report',
-                web: 'bug_report',
-              }}
-              showChevron
-              isLast
-              onPress={() => {
-                Haptics.selectionChanged();
-                if (!isSentryEnabled) {
-                  houseAlert(
-                    t('settings.sentryTestCrash'),
-                    t('settings.sentryTestCrashNoDsn'),
-                  );
-                  return;
-                }
-                Sentry.captureException(
-                  new Error('Gustra Sentry test — safe to ignore'),
-                );
+          <SettingsRow
+            title={t('settings.sentryTestCrash')}
+            subtitle={
+              isSentryEnabled
+                ? t('settings.sentryTestCrashSubtitle')
+                : t('settings.sentryTestCrashNoDsn')
+            }
+            icon={{
+              ios: 'ant',
+              android: 'bug_report',
+              web: 'bug_report',
+            }}
+            showChevron
+            isLast
+            onPress={() => {
+              Haptics.selectionChanged();
+              if (!isSentryEnabled) {
                 houseAlert(
                   t('settings.sentryTestCrash'),
-                  t('settings.sentryTestCrashSent'),
+                  t('settings.sentryTestCrashNoDsn'),
                 );
-              }}
-            />
-          </>
+                return;
+              }
+              Sentry.captureException(
+                new Error('Gustra Sentry test — safe to ignore'),
+              );
+              houseAlert(
+                t('settings.sentryTestCrash'),
+                t('settings.sentryTestCrashSent'),
+              );
+            }}
+          />
         ) : null}
         </SettingsSection>
       ) : null}
