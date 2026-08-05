@@ -15,7 +15,8 @@ import { SymbolView } from 'expo-symbols';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { PassportSection } from '@/components/passport/PassportSection';
-import { PassportStatRow } from '@/components/passport/PassportStatRow';
+import { PassportStatCards } from '@/components/passport/PassportStatCards';
+import { CityChips } from '@/components/passport/CityChips';
 import { BucketListSection } from '@/components/passport/BucketListSection';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
@@ -24,7 +25,6 @@ import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
 import { ReviewsHeader } from '@/components/ui/ReviewsHeader';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, captionTextStyle, serifStyle } from '@/constants/Theme';
-import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { usePassportDisplaySettings } from '@/context/PassportDisplaySettings';
 import type { CategoryAveragesDisplayStyle } from '@/context/PassportDisplaySettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
@@ -180,7 +180,17 @@ function RankedWineRow({
         styles.wineCard,
         pressed && styles.linkPressed,
       ]}>
-      <RankMedal rank={rank} />
+      <View style={styles.wineIcon}>
+        {Platform.OS === 'ios' ? (
+          <SymbolView
+            name="wineglass.fill"
+            tintColor={GustraColors.gold}
+            size={18}
+          />
+        ) : (
+          <MaterialIcons name="local-bar" size={20} color={GustraColors.gold} />
+        )}
+      </View>
       <Text style={styles.wineTitle} numberOfLines={2}>
         {entry.fiche.nameAndEstate}
       </Text>
@@ -194,35 +204,6 @@ function RankedWineRow({
         )}
       </View>
     </Pressable>
-  );
-}
-
-/** City average row: reserved serif number or stars (per display style). */
-function CityRow({
-  rank,
-  city,
-  average,
-  style,
-}: {
-  rank: number;
-  city: string;
-  average: number;
-  style: CategoryAveragesDisplayStyle;
-}) {
-  return (
-    <View style={styles.cityRow}>
-      <RankMedal rank={rank} />
-      <Text style={styles.cityTitle} numberOfLines={2}>
-        {city}
-      </Text>
-      {style === 'stars' ? (
-        <FractionalStarRating score={average} size={15} gap={1} />
-      ) : (
-        <SerifText size={17} weight="semibold" style={styles.cityScore}>
-          {formatScoreOutOfFive(average)}
-        </SerifText>
-      )}
-    </View>
   );
 }
 
@@ -242,7 +223,6 @@ function CulinaryPassportContent() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { enabledCriteria } = useCriteriaSettings();
   const { categoryAveragesStyle } = usePassportDisplaySettings();
   const { reviews, restaurants, ready } = useReviewsStore();
 
@@ -256,9 +236,9 @@ function CulinaryPassportContent() {
   const stats = useMemo(
     () =>
       ready
-        ? getPassportStats(enabledCriteria, ownReviews, restaurants)
-        : getPassportStats(enabledCriteria, [], []),
-    [enabledCriteria, ownReviews, ready, restaurants],
+        ? getPassportStats(ownReviews, restaurants)
+        : getPassportStats([], []),
+    [ownReviews, ready, restaurants],
   );
 
   const bestWines = useMemo(
@@ -343,19 +323,22 @@ function CulinaryPassportContent() {
           ]}
           overScrollMode="never"
           showsVerticalScrollIndicator={false}>
-          <PassportSection title={t('passport.overview')}>
-            <PassportStatRow
-              title={t('passport.totalReviews')}
-              value={`${stats.totalReviews}`}
-            />
-            <PassportStatRow
-              title={t('passport.averageOverall')}
-              value={formatScoreOutOfFive(stats.averageOverall)}
+          <PassportSection
+            title={t('passport.overview')}
+            kicker={t('passport.overviewKicker')}>
+            <PassportStatCards
+              totalReviews={stats.totalReviews}
+              averageOverall={formatScoreOutOfFive(stats.averageOverall)}
+              totalLabel={t('passport.totalReviews')}
+              averageLabel={t('passport.averageOverall')}
+              averageSubtitle={t('passport.averageBasedOnAllRated')}
             />
           </PassportSection>
 
           {stats.bestRestaurants.length > 0 ? (
-            <PassportSection title={bestSectionTitle}>
+            <PassportSection
+              title={bestSectionTitle}
+              kicker={t('passport.bestKicker')}>
               <BestRestaurantPodium
                 entries={stats.bestRestaurants}
                 style={categoryAveragesStyle}
@@ -365,7 +348,9 @@ function CulinaryPassportContent() {
           ) : null}
 
           {bestWines.length > 0 ? (
-            <PassportSection title={t('passport.bestWines')}>
+            <PassportSection
+              title={t('passport.bestWines')}
+              kicker={t('passport.winesKicker')}>
               {bestWines.map((entry, index) => (
                 <RankedWineRow
                   key={`${entry.reviewId}-${index}`}
@@ -380,28 +365,22 @@ function CulinaryPassportContent() {
             </PassportSection>
           ) : null}
 
-          <PassportSection title={t('passport.topCities')}>
-            {stats.cityAverages.length === 0 ? (
-              <View style={styles.mutedRow}>
-                <Text style={styles.muted}>{t('passport.noCityData')}</Text>
-              </View>
-            ) : (
-              stats.cityAverages.map((row, index) => (
-                <CityRow
-                  key={row.city}
-                  rank={index + 1}
-                  city={row.city}
-                  average={row.average}
-                  style={categoryAveragesStyle}
-                />
-              ))
-            )}
+          <PassportSection
+            title={t('passport.topCities')}
+            kicker={t('passport.citiesKicker')}>
+            <CityChips
+              cities={stats.cityAverages}
+              emptyLabel={t('passport.noCityData')}
+              style={categoryAveragesStyle}
+            />
           </PassportSection>
 
-          <BucketListSection
-            restaurants={bucketListRestaurants}
-            onOpenRestaurant={openBucketRestaurant}
-          />
+          {bucketListRestaurants.length > 0 ? (
+            <BucketListSection
+              restaurants={bucketListRestaurants}
+              onOpenRestaurant={openBucketRestaurant}
+            />
+          ) : null}
 
           <PassportSection title="">
             <Pressable
@@ -482,14 +461,6 @@ const styles = StyleSheet.create({
   emptyPad: {
     flex: 1,
     paddingHorizontal: Theme.spacing.listRowHorizontal,
-  },
-  mutedRow: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  muted: {
-    color: 'rgba(35, 32, 26, 0.45)',
-    fontSize: 15,
   },
   /* ——— Time Travel cinematic banner ——— */
   timeTravelBanner: {
@@ -701,32 +672,20 @@ const styles = StyleSheet.create({
     flex: 1,
     color: GustraColors.ink,
   },
+  wineIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(217, 162, 39, 0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   wineScoreRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
   wineScore: {
-    color: GustraColors.forestGreen,
-    fontVariant: ['tabular-nums'],
-  },
-
-  /* ——— City rows (number-only, no stars) ——— */
-  cityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    backgroundColor: 'rgba(236, 227, 207, 0.45)',
-    borderRadius: 12,
-  },
-  cityTitle: {
-    ...serifStyle(16, 'semibold'),
-    flex: 1,
-    color: GustraColors.ink,
-  },
-  cityScore: {
     color: GustraColors.forestGreen,
     fontVariant: ['tabular-nums'],
   },

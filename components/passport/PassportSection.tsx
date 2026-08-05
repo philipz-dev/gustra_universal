@@ -3,19 +3,29 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
-import { Theme } from '@/constants/Theme';
+import { Theme, SERIF_FONT_REGULAR_ITALIC } from '@/constants/Theme';
 
 type PassportSectionProps = {
   title: string;
+  /** Optional cursive kicker above the title (e.g. "your favourites"). */
+  kicker?: string;
   trailing?: string;
   children: ReactNode;
 };
 
-export function PassportSection({ title, trailing, children }: PassportSectionProps) {
+export function PassportSection({
+  title,
+  kicker,
+  trailing,
+  children,
+}: PassportSectionProps) {
   return (
     <View style={styles.section}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{title}</Text>
+        <View style={styles.headerCopy}>
+          {kicker ? <Text style={styles.kicker}>{kicker}</Text> : null}
+          <Text style={styles.headerTitle}>{title}</Text>
+        </View>
         {trailing ? (
           <SerifText size={17} weight="semibold" style={styles.trailing}>
             {trailing}
@@ -36,11 +46,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 4,
+    paddingBottom: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(217, 162, 39, 0.3)',
+  },
+  headerCopy: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+  },
+  kicker: {
+    fontFamily: SERIF_FONT_REGULAR_ITALIC,
+    fontSize: 13,
+    color: 'rgba(35, 32, 26, 0.5)',
+    letterSpacing: -0.2,
   },
   headerTitle: {
     fontSize: Theme.typography.sectionHeader,
     fontWeight: '600',
-    color: 'rgba(35, 32, 26, 0.55)',
+    color: GustraColors.forestGreen,
     textTransform: 'none',
   },
   trailing: {
@@ -48,5 +72,6 @@ const styles = StyleSheet.create({
   },
   body: {
     gap: 6,
+    paddingTop: 6,
   },
 });

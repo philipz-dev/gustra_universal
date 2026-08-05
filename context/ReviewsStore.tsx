@@ -53,6 +53,7 @@ import {
 import { findExistingRestaurant } from '@/services/places/RestaurantMatcher';
 import type { RestaurantDraft } from '@/services/places/types';
 import { deleteReviewPhotoFiles } from '@/services/reviews/photoStorage';
+import { findReviewToReuse } from '@/services/reviews/upsertReviewReuse';
 import { isReviewDraft } from '@/services/reviews/draftReview';
 import { planImportedReviewCollapse } from '@/services/share/ShareImportService';
 import {
@@ -385,6 +386,18 @@ function buildFeedSummaries(
       ...(isDraft && draftVisits[0]
         ? { draftReviewId: draftVisits[0].id }
         : {}),
+      // Own-only score/count — feed shows the owner's own average as the main
+      // score; friend scores are merged separately as context.
+      ...(origin === 'own'
+        ? {
+            ownScore: isDraft ? 0 : averageScore,
+            ownVisitCount: visits.length,
+            ownReviewIds: visits.map((v) => v.id),
+          }
+        : {
+            friendScore: isDraft ? 0 : averageScore,
+            friendVisitCount: visits.length,
+          }),
     });
   }
   // Drafts first, then most recent visit.
@@ -962,13 +975,15 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
         let reviewId = existingReview?.id;
         let reviewToUpdate = existingReview;
         if (!reviewToUpdate) {
-          // Concurrent autosave/Done without reviewId: reuse the visit just
-          // created for this restaurant + exact visit timestamp.
-          reviewToUpdate = nextReviews.find(
-            (r) =>
-              r.restaurantId === restaurant!.id &&
-              resolveReviewOrigin(r) === 'own' &&
-              r.date === input.visitDateIso,
+          // Reuse only the in-progress draft for this restaurant + exact visit
+          // timestamp (concurrent autosave/Done must not create a duplicate
+          // draft). A completed review is never silently overwritten: two
+          // visits on the same day (e.g. the 4th visit today) always create a
+          // new review instead of replacing an existing one.
+          reviewToUpdate = findReviewToReuse(
+            nextReviews,
+            restaurant!.id,
+            input.visitDateIso,
           );
           reviewId = reviewToUpdate?.id;
         }

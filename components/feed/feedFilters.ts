@@ -94,6 +94,19 @@ export function mergeSummariesByRestaurant(
                 : (existing.averageScore * existing.visitCount +
                     summary.averageScore * summary.visitCount) /
                   (existing.visitCount + summary.visitCount),
+        // Own score stays the main score when merging own + friends:
+        // the user's own average (and count) is preserved on the card; the
+        // friends' average/count travel as separate context fields.
+        ownScore:
+          existing.ownScore ?? summary.ownScore ?? undefined,
+        ownVisitCount:
+          existing.ownVisitCount ?? summary.ownVisitCount ?? undefined,
+        ownReviewIds:
+          existing.ownReviewIds ?? summary.ownReviewIds ?? undefined,
+        friendScore:
+          existing.friendScore ?? summary.friendScore ?? undefined,
+        friendVisitCount:
+          existing.friendVisitCount ?? summary.friendVisitCount ?? undefined,
         isFavorite: existing.isFavorite || summary.isFavorite,
         isDraft: Boolean(existing.isDraft) && Boolean(summary.isDraft),
         draftReviewId:
@@ -210,6 +223,10 @@ function rankByAverageScore(
     const aDraft = a.isDraft ? 1 : 0;
     const bDraft = b.isDraft ? 1 : 0;
     if (aDraft !== bDraft) return bDraft - aDraft;
+    // Own headline score first; combined average only as a tiebreak.
+    const aScore = a.ownScore ?? a.averageScore;
+    const bScore = b.ownScore ?? b.averageScore;
+    if (aScore !== bScore) return bScore - aScore;
     if (a.averageScore !== b.averageScore) {
       return b.averageScore - a.averageScore;
     }

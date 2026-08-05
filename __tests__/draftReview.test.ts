@@ -1,5 +1,5 @@
 import {
-  hasRequiredFoodRating,
+  hasAnyRatedCriterion,
   isReviewDraft,
   draftReviewReason,
   isFormDraft,
@@ -25,31 +25,44 @@ function fiche(overrides: Partial<WineLabelFiche> = {}): WineLabelFiche {
   };
 }
 
-describe('hasRequiredFoodRating', () => {
-  it('requires a star rating on the food criterion', () => {
-    expect(hasRequiredFoodRating(criteria({ food: 6 }))).toBe(true);
-    expect(hasRequiredFoodRating(criteria({ food: 0 }))).toBe(false);
-    expect(hasRequiredFoodRating(criteria({ food: -1 }))).toBe(false);
-    expect(hasRequiredFoodRating([])).toBe(false);
-    expect(hasRequiredFoodRating(criteria({ service: 8 }))).toBe(false);
+describe('hasAnyRatedCriterion', () => {
+  it('is true when at least one criterion has a star rating', () => {
+    expect(hasAnyRatedCriterion(criteria({ food: 6 }))).toBe(true);
+    expect(hasAnyRatedCriterion(criteria({ service: 8 }))).toBe(true);
+    expect(hasAnyRatedCriterion(criteria({ setting: 2 }))).toBe(true);
+  });
+
+  it('is false when nothing is rated', () => {
+    expect(hasAnyRatedCriterion(criteria({ food: 0 }))).toBe(false);
+    expect(hasAnyRatedCriterion(criteria({ food: -1 }))).toBe(false);
+    expect(hasAnyRatedCriterion([])).toBe(false);
+    expect(hasAnyRatedCriterion(criteria({ food: 0, service: 0 }))).toBe(false);
   });
 });
 
 describe('draft detection', () => {
-  it('marks a review as draft when food is unrated', () => {
+  it('marks a review as draft when no criterion is rated', () => {
     const review = {
       criteria: criteria({ food: 0, service: 8 }),
     } as unknown as Review;
-    expect(isReviewDraft(review)).toBe(true);
-    expect(draftReviewReason(review)).toBe('food');
+    expect(isReviewDraft(review)).toBe(false);
+    expect(draftReviewReason(review)).toBeNull();
   });
 
-  it('marks a review complete when food is rated and no wine is attached', () => {
+  it('marks a review complete when any criterion is rated (no wine attached)', () => {
     const review = {
       criteria: criteria({ food: 6, service: 8 }),
     } as unknown as Review;
     expect(isReviewDraft(review)).toBe(false);
     expect(draftReviewReason(review)).toBeNull();
+  });
+
+  it('marks a review as draft when only unrated criteria are present', () => {
+    const review = {
+      criteria: criteria({ food: 0, service: 0 }),
+    } as unknown as Review;
+    expect(isReviewDraft(review)).toBe(true);
+    expect(draftReviewReason(review)).toBe('criteria');
   });
 
   it('marks a review as draft when an attached wine lacks a rating', () => {
@@ -88,7 +101,7 @@ describe('draft detection', () => {
   it('handles null/undefined reviews', () => {
     expect(isReviewDraft(null)).toBe(true);
     expect(isReviewDraft(undefined)).toBe(true);
-    expect(draftReviewReason(null)).toBe('food');
+    expect(draftReviewReason(null)).toBe('criteria');
   });
 });
 
@@ -96,6 +109,7 @@ describe('form-state variants', () => {
   it('mirrors the review logic for the form', () => {
     expect(isFormDraft(criteria({ food: 0 }), [])).toBe(true);
     expect(isFormDraft(criteria({ food: 6 }), [])).toBe(false);
+    expect(isFormDraft(criteria({ food: 0, service: 8 }), [])).toBe(false);
     expect(isFormDraft(criteria({ food: 6 }), [fiche()])).toBe(true);
     expect(formDraftReason(criteria({ food: 6 }), [fiche({ userRating: 5 })])).toBeNull();
   });

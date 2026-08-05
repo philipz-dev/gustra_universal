@@ -3,10 +3,30 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { Image } from 'react-native';
 
 import { relocateLocalPhotoRef } from '@/services/backup/photos';
+import { isPhotoLibrarySaveEnabled } from '@/services/photos/PhotoLibrarySave';
 import {
   hydratePhotoDataSavings,
   reviewPhotoMaxPixelSide,
 } from '@/services/photos/PhotoQualitySettings';
+
+/** Best-effort copy into the system photo library (iOS Photos / Android). */
+async function saveToDeviceLibrary(localUri: string): Promise<void> {
+  // Lazy load: a top-level import crashes Expo Go when ExpoMediaLibraryNext
+  // is missing.
+  let MediaLibrary: typeof import('expo-media-library');
+  try {
+    MediaLibrary = await import('expo-media-library');
+  } catch {
+    return;
+  }
+  try {
+    const { status } = await MediaLibrary.requestPermissionsAsync(true);
+    if (status !== 'granted') return;
+    await MediaLibrary.Asset.create(localUri);
+  } catch {
+    // Never fail the review save because the library copy failed.
+  }
+}
 
 function photosDir(): string {
   const root = FileSystem.documentDirectory;
@@ -70,6 +90,11 @@ export async function saveReviewPhoto(sourceUri: string): Promise<string> {
   const filename = `review_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.jpg`;
   const dest = `${dir}${filename}`;
   await FileSystem.copyAsync({ from: prepared.uri, to: dest });
+  // When the setting is on (default), also write a copy to the system photo
+  // library. Best-effort and non-blocking: the app copy is the source of truth.
+  if (isPhotoLibrarySaveEnabled()) {
+    void saveToDeviceLibrary(dest).catch(() => undefined);
+  }
   return dest;
 }
 

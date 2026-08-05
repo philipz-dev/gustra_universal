@@ -42,6 +42,7 @@ import { FeedFilterProvider } from '@/context/FeedFilterContext';
 import { GoogleApiTrackerProvider } from '@/context/GoogleApiTracker';
 import { LanguageSettingsProvider } from '@/context/LanguageSettings';
 import { PassportDisplaySettingsProvider } from '@/context/PassportDisplaySettings';
+import { PhotoLibrarySettingsProvider } from '@/context/PhotoLibrarySettings';
 import { PhotoQualitySettingsProvider } from '@/context/PhotoQualitySettings';
 import { ReviewerProfileProvider } from '@/context/ReviewerProfile';
 import { ReviewsStoreProvider } from '@/context/ReviewsStore';
@@ -158,51 +159,53 @@ function RootLayout() {
           <DemoLabelSettingsProvider>
           <PassportDisplaySettingsProvider>
             <PhotoQualitySettingsProvider>
-              <GoogleApiTrackerProvider>
-                <ReviewerProfileProvider>
-                  <ReviewsStoreProvider>
-                    <FeedFilterProvider>
-                      <ShareImportLaunchProvider>
-                        <ThemeProvider value={GustraNavigationTheme}>
-                          <GlobalKeyboardDismiss>
-                            <View style={styles.root}>
-                              {/*
-                                Prefer imperative setStyle only. The declarative
-                                <NavigationBar /> unmount path calls setHidden via
-                                setImmediate and races activity teardown on Android.
-                              */}
-                              <StatusBar style="light" />
-                              <Stack screenOptions={{ headerShown: false }}>
-                                <Stack.Screen name="(tabs)" />
-                                <Stack.Screen
-                                  name="criteria-setup"
-                                  options={{
-                                    presentation: 'fullScreenModal',
-                                    animation: 'fade',
-                                    gestureEnabled: false,
-                                  }}
-                                />
-                                <Stack.Screen
-                                  name="share-import"
-                                  options={{
-                                    presentation: 'modal',
-                                    animation: 'slide_from_bottom',
-                                  }}
-                                />
-                              </Stack>
-                              <CriteriaSetupGate />
-                              <SwipeDismissOverlay />
-                              <ReviewEmailSnapshotHost />
-                              <HouseAlertHost />
-                              <HouseUndoSnackbarHost />
-                            </View>
-                          </GlobalKeyboardDismiss>
-                        </ThemeProvider>
-                      </ShareImportLaunchProvider>
-                    </FeedFilterProvider>
-                  </ReviewsStoreProvider>
-                </ReviewerProfileProvider>
-              </GoogleApiTrackerProvider>
+              <PhotoLibrarySettingsProvider>
+                <GoogleApiTrackerProvider>
+                  <ReviewerProfileProvider>
+                    <ReviewsStoreProvider>
+                      <FeedFilterProvider>
+                        <ShareImportLaunchProvider>
+                          <ThemeProvider value={GustraNavigationTheme}>
+                            <GlobalKeyboardDismiss>
+                              <View style={styles.root}>
+                                {/*
+                                  Prefer imperative setStyle only. The declarative
+                                  <NavigationBar /> unmount path calls setHidden via
+                                  setImmediate and races activity teardown on Android.
+                                */}
+                                <StatusBar style="light" />
+                                <Stack screenOptions={{ headerShown: false }}>
+                                  <Stack.Screen name="(tabs)" />
+                                  <Stack.Screen
+                                    name="criteria-setup"
+                                    options={{
+                                      presentation: 'fullScreenModal',
+                                      animation: 'fade',
+                                      gestureEnabled: false,
+                                    }}
+                                  />
+                                  <Stack.Screen
+                                    name="share-import"
+                                    options={{
+                                      presentation: 'modal',
+                                      animation: 'slide_from_bottom',
+                                    }}
+                                  />
+                                </Stack>
+                                <CriteriaSetupGate />
+                                <SwipeDismissOverlay />
+                                <ReviewEmailSnapshotHost />
+                                <HouseAlertHost />
+                                <HouseUndoSnackbarHost />
+                              </View>
+                            </GlobalKeyboardDismiss>
+                          </ThemeProvider>
+                        </ShareImportLaunchProvider>
+                      </FeedFilterProvider>
+                    </ReviewsStoreProvider>
+                  </ReviewerProfileProvider>
+                </GoogleApiTrackerProvider>
+              </PhotoLibrarySettingsProvider>
             </PhotoQualitySettingsProvider>
           </PassportDisplaySettingsProvider>
           </DemoLabelSettingsProvider>

@@ -53,14 +53,9 @@ function review(
   };
 }
 
-const ENABLED = [
-  { id: 'food', title: 'Food' },
-  { id: 'service', title: 'Service' },
-];
-
 describe('getPassportStats', () => {
   it('returns empty stats for no reviews', () => {
-    const stats = getPassportStats(ENABLED, [], []);
+    const stats = getPassportStats([], []);
     expect(stats.totalReviews).toBe(0);
     expect(stats.averageOverall).toBe(0);
     expect(stats.bestRestaurants).toEqual([]);
@@ -77,7 +72,7 @@ describe('getPassportStats', () => {
       review('b', 'r1', '2024-07-01', { food: 6, service: 8 }), // avg 3.5
       review('c', 'r2', '2024-08-01', { food: 10, service: 8 }), // avg 4.5
     ];
-    const stats = getPassportStats(ENABLED, reviews, restaurants);
+    const stats = getPassportStats(reviews, restaurants);
 
     expect(stats.totalReviews).toBe(3);
     // (3.5 + 3.5 + 4.5) / 3
@@ -100,7 +95,7 @@ describe('getPassportStats', () => {
       review('a', 'r1', '2024-06-01', { food: 8 }), // complete
       review('b', 'r1', '2024-07-01', { food: 0 }), // draft
     ];
-    const stats = getPassportStats(ENABLED, reviews, restaurants);
+    const stats = getPassportStats(reviews, restaurants);
     expect(stats.totalReviews).toBe(1);
     expect(stats.averageOverall).toBeCloseTo(4, 3);
   });
@@ -112,8 +107,29 @@ describe('getPassportStats', () => {
     const reviews = [1, 2, 3, 4].map((n) =>
       review(`a${n}`, `r${n}`, '2024-06-01', { food: 2 * n }),
     );
-    const stats = getPassportStats(ENABLED, reviews, restaurants);
+    const stats = getPassportStats(reviews, restaurants);
     expect(stats.bestRestaurants).toHaveLength(3);
+  });
+
+  it('averages ALL rated criteria, including disabled ones', () => {
+    const restaurants = [restaurant('r1', 'Het Huis', 'Gent')];
+    const reviews = [
+      // 'ambiance' is not in the enabled set, but it is rated (6).
+      // (food 8 + service 6 + ambiance 6) / 3 = 6.67 → /5 = 3.333
+      review('a', 'r1', '2024-06-01', {
+        food: 8,
+        service: 6,
+        ambiance: 6,
+      }),
+      // Only 'food' rated: (8) / 1 = 8 → /5 = 4.0
+      review('b', 'r1', '2024-07-01', { food: 8 }),
+    ];
+    const stats = getPassportStats(reviews, restaurants);
+    expect(stats.averageOverall).toBeCloseTo((3.3333 + 4) / 2, 3);
+    expect(stats.bestRestaurants[0]!.average).toBeCloseTo(
+      (3.3333 + 4) / 2,
+      3,
+    );
   });
 });
 

@@ -1,8 +1,8 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-08-04T20:05:53Z
-Root: /Users/philipzvar/Desktop/gustra_universal
-Files: 262
+Generated: 2026-08-05T21:22:11Z
+Root: /Users/philipzvar/gustra_universal
+Files: 270
 ================================================================================
 
 ================================================================================
@@ -826,7 +826,7 @@ describe('resolveDistanceUnit', () => {
 FILE: __tests__/draftReview.test.ts
 ================================================================================
 import {
-  hasRequiredFoodRating,
+  hasAnyRatedCriterion,
   isReviewDraft,
   draftReviewReason,
   isFormDraft,
@@ -852,31 +852,44 @@ function fiche(overrides: Partial<WineLabelFiche> = {}): WineLabelFiche {
   };
 }
 
-describe('hasRequiredFoodRating', () => {
-  it('requires a star rating on the food criterion', () => {
-    expect(hasRequiredFoodRating(criteria({ food: 6 }))).toBe(true);
-    expect(hasRequiredFoodRating(criteria({ food: 0 }))).toBe(false);
-    expect(hasRequiredFoodRating(criteria({ food: -1 }))).toBe(false);
-    expect(hasRequiredFoodRating([])).toBe(false);
-    expect(hasRequiredFoodRating(criteria({ service: 8 }))).toBe(false);
+describe('hasAnyRatedCriterion', () => {
+  it('is true when at least one criterion has a star rating', () => {
+    expect(hasAnyRatedCriterion(criteria({ food: 6 }))).toBe(true);
+    expect(hasAnyRatedCriterion(criteria({ service: 8 }))).toBe(true);
+    expect(hasAnyRatedCriterion(criteria({ setting: 2 }))).toBe(true);
+  });
+
+  it('is false when nothing is rated', () => {
+    expect(hasAnyRatedCriterion(criteria({ food: 0 }))).toBe(false);
+    expect(hasAnyRatedCriterion(criteria({ food: -1 }))).toBe(false);
+    expect(hasAnyRatedCriterion([])).toBe(false);
+    expect(hasAnyRatedCriterion(criteria({ food: 0, service: 0 }))).toBe(false);
   });
 });
 
 describe('draft detection', () => {
-  it('marks a review as draft when food is unrated', () => {
+  it('marks a review as draft when no criterion is rated', () => {
     const review = {
       criteria: criteria({ food: 0, service: 8 }),
     } as unknown as Review;
-    expect(isReviewDraft(review)).toBe(true);
-    expect(draftReviewReason(review)).toBe('food');
+    expect(isReviewDraft(review)).toBe(false);
+    expect(draftReviewReason(review)).toBeNull();
   });
 
-  it('marks a review complete when food is rated and no wine is attached', () => {
+  it('marks a review complete when any criterion is rated (no wine attached)', () => {
     const review = {
       criteria: criteria({ food: 6, service: 8 }),
     } as unknown as Review;
     expect(isReviewDraft(review)).toBe(false);
     expect(draftReviewReason(review)).toBeNull();
+  });
+
+  it('marks a review as draft when only unrated criteria are present', () => {
+    const review = {
+      criteria: criteria({ food: 0, service: 0 }),
+    } as unknown as Review;
+    expect(isReviewDraft(review)).toBe(true);
+    expect(draftReviewReason(review)).toBe('criteria');
   });
 
   it('marks a review as draft when an attached wine lacks a rating', () => {
@@ -915,7 +928,7 @@ describe('draft detection', () => {
   it('handles null/undefined reviews', () => {
     expect(isReviewDraft(null)).toBe(true);
     expect(isReviewDraft(undefined)).toBe(true);
-    expect(draftReviewReason(null)).toBe('food');
+    expect(draftReviewReason(null)).toBe('criteria');
   });
 });
 
@@ -923,6 +936,7 @@ describe('form-state variants', () => {
   it('mirrors the review logic for the form', () => {
     expect(isFormDraft(criteria({ food: 0 }), [])).toBe(true);
     expect(isFormDraft(criteria({ food: 6 }), [])).toBe(false);
+    expect(isFormDraft(criteria({ food: 0, service: 8 }), [])).toBe(false);
     expect(isFormDraft(criteria({ food: 6 }), [fiche()])).toBe(true);
     expect(formDraftReason(criteria({ food: 6 }), [fiche({ userRating: 5 })])).toBeNull();
   });
@@ -971,6 +985,132 @@ declare module 'expo-file-system/legacy' {
   export function __mockFile(path: string): void;
   export function __resetMockFiles(): void;
 }
+
+
+================================================================================
+FILE: __tests__/feedMerge.test.ts
+================================================================================
+import { mergeSummariesByRestaurant } from '@/components/feed/feedFilters';
+import type { RestaurantVisitSummary } from '@/data/types';
+
+function summary(
+  restaurantId: string,
+  averageScore: number,
+  visitCount: number,
+  extra: Partial<RestaurantVisitSummary> = {},
+): RestaurantVisitSummary {
+  return {
+    restaurantId,
+    name: 'Resto',
+    city: 'Gent',
+    primaryType: 'restaurant',
+    averageScore,
+    visitCount,
+    lastVisitDate: '1 aug',
+    lastVisitAt: +new Date('2026-08-01'),
+    thumbnailColor: '#3D6B52',
+    photoUrl: '',
+    isFavorite: false,
+    reviewIds: [`${restaurantId}-${visitCount}`],
+    ...extra,
+  };
+}
+
+describe('mergeSummariesByRestaurant — own headline score', () => {
+  it('keeps own score as the headline and friends as context', () => {
+    const own = summary('r1', 4.2, 2, {
+      ownScore: 4.2,
+      ownVisitCount: 2,
+      ownReviewIds: ['r1-1', 'r1-2'],
+      reviewIds: ['r1-1', 'r1-2'],
+    });
+    const friends = summary('r1', 3.0, 1, {
+      friendScore: 3.0,
+      friendVisitCount: 1,
+      reviewIds: ['f1'],
+    });
+
+    const merged = mergeSummariesByRestaurant([[own, friends]]);
+
+    expect(merged).toHaveLength(1);
+    const m = merged[0]!;
+    // Own score is the main score.
+    expect(m.ownScore).toBe(4.2);
+    expect(m.ownVisitCount).toBe(2);
+    // Friends travel as context.
+    expect(m.friendScore).toBe(3.0);
+    expect(m.friendVisitCount).toBe(1);
+    // Combined counts stay available.
+    expect(m.visitCount).toBe(3);
+    expect(m.reviewIds).toEqual(expect.arrayContaining(['r1-1', 'r1-2', 'f1']));
+  });
+
+  it('does not invent own/friend fields when only one source exists', () => {
+    const onlyOwn = summary('r1', 4.2, 1, {
+      ownScore: 4.2,
+      ownVisitCount: 1,
+      ownReviewIds: ['r1-1'],
+    });
+    const merged = mergeSummariesByRestaurant([[onlyOwn]]);
+    expect(merged[0]!.friendScore).toBeUndefined();
+    expect(merged[0]!.friendVisitCount).toBeUndefined();
+  });
+
+  it('counts every own visit when a 4th visit is added (3 -> 4)', () => {
+    const own3 = summary('r1', 4.0, 3, {
+      ownScore: 4.0,
+      ownVisitCount: 3,
+      ownReviewIds: ['r1-1', 'r1-2', 'r1-3'],
+      reviewIds: ['r1-1', 'r1-2', 'r1-3'],
+    });
+    const own4 = summary('r1', 4.5, 4, {
+      ownScore: 4.5,
+      ownVisitCount: 4,
+      ownReviewIds: ['r1-1', 'r1-2', 'r1-3', 'r1-4'],
+      reviewIds: ['r1-1', 'r1-2', 'r1-3', 'r1-4'],
+    });
+    // A fresh feed build replaces the old summary entirely — no merge of the
+    // same source. The card must show the new count.
+    expect(own4.visitCount).toBe(4);
+    expect(own4.ownVisitCount).toBe(4);
+  });
+
+  it('preserves own visit count when merging own + friends lists', () => {
+    const own = summary('r1', 4.2, 2, {
+      ownScore: 4.2,
+      ownVisitCount: 2,
+      ownReviewIds: ['r1-1', 'r1-2'],
+      reviewIds: ['r1-1', 'r1-2'],
+    });
+    const friends = summary('r1', 3.0, 1, {
+      friendScore: 3.0,
+      friendVisitCount: 1,
+      reviewIds: ['f1'],
+    });
+    const merged = mergeSummariesByRestaurant([[friends, own]]);
+    expect(merged[0]!.visitCount).toBe(3);
+    expect(merged[0]!.ownVisitCount).toBe(2);
+    expect(merged[0]!.ownReviewIds).toEqual(['r1-1', 'r1-2']);
+  });
+
+  it('merges own-score-first when lists arrive in either order', () => {
+    const own = summary('r1', 4.2, 2, {
+      ownScore: 4.2,
+      ownVisitCount: 2,
+      ownReviewIds: ['r1-1', 'r1-2'],
+      reviewIds: ['r1-1', 'r1-2'],
+    });
+    const friends = summary('r1', 3.0, 1, {
+      friendScore: 3.0,
+      friendVisitCount: 1,
+      reviewIds: ['f1'],
+    });
+
+    const merged = mergeSummariesByRestaurant([[friends, own]]);
+    expect(merged[0]!.ownScore).toBe(4.2);
+    expect(merged[0]!.friendScore).toBe(3.0);
+  });
+});
 
 
 ================================================================================
@@ -1227,14 +1367,9 @@ function review(
   };
 }
 
-const ENABLED = [
-  { id: 'food', title: 'Food' },
-  { id: 'service', title: 'Service' },
-];
-
 describe('getPassportStats', () => {
   it('returns empty stats for no reviews', () => {
-    const stats = getPassportStats(ENABLED, [], []);
+    const stats = getPassportStats([], []);
     expect(stats.totalReviews).toBe(0);
     expect(stats.averageOverall).toBe(0);
     expect(stats.bestRestaurants).toEqual([]);
@@ -1251,7 +1386,7 @@ describe('getPassportStats', () => {
       review('b', 'r1', '2024-07-01', { food: 6, service: 8 }), // avg 3.5
       review('c', 'r2', '2024-08-01', { food: 10, service: 8 }), // avg 4.5
     ];
-    const stats = getPassportStats(ENABLED, reviews, restaurants);
+    const stats = getPassportStats(reviews, restaurants);
 
     expect(stats.totalReviews).toBe(3);
     // (3.5 + 3.5 + 4.5) / 3
@@ -1274,7 +1409,7 @@ describe('getPassportStats', () => {
       review('a', 'r1', '2024-06-01', { food: 8 }), // complete
       review('b', 'r1', '2024-07-01', { food: 0 }), // draft
     ];
-    const stats = getPassportStats(ENABLED, reviews, restaurants);
+    const stats = getPassportStats(reviews, restaurants);
     expect(stats.totalReviews).toBe(1);
     expect(stats.averageOverall).toBeCloseTo(4, 3);
   });
@@ -1286,8 +1421,29 @@ describe('getPassportStats', () => {
     const reviews = [1, 2, 3, 4].map((n) =>
       review(`a${n}`, `r${n}`, '2024-06-01', { food: 2 * n }),
     );
-    const stats = getPassportStats(ENABLED, reviews, restaurants);
+    const stats = getPassportStats(reviews, restaurants);
     expect(stats.bestRestaurants).toHaveLength(3);
+  });
+
+  it('averages ALL rated criteria, including disabled ones', () => {
+    const restaurants = [restaurant('r1', 'Het Huis', 'Gent')];
+    const reviews = [
+      // 'ambiance' is not in the enabled set, but it is rated (6).
+      // (food 8 + service 6 + ambiance 6) / 3 = 6.67 → /5 = 3.333
+      review('a', 'r1', '2024-06-01', {
+        food: 8,
+        service: 6,
+        ambiance: 6,
+      }),
+      // Only 'food' rated: (8) / 1 = 8 → /5 = 4.0
+      review('b', 'r1', '2024-07-01', { food: 8 }),
+    ];
+    const stats = getPassportStats(reviews, restaurants);
+    expect(stats.averageOverall).toBeCloseTo((3.3333 + 4) / 2, 3);
+    expect(stats.bestRestaurants[0]!.average).toBeCloseTo(
+      (3.3333 + 4) / 2,
+      3,
+    );
   });
 });
 
@@ -1474,6 +1630,75 @@ describe('buildTimeMachineEntries', () => {
       restaurants,
     );
     expect(entries[0]!.photoUrl).toBe('');
+  });
+});
+
+
+================================================================================
+FILE: __tests__/photoLibrarySave.test.ts
+================================================================================
+jest.mock('@react-native-async-storage/async-storage', () => {
+  const store = new Map<string, string>();
+  return {
+    __esModule: true,
+    default: {
+      getItem: jest.fn(async (key: string) => store.get(key) ?? null),
+      setItem: jest.fn(async (key: string, value: string) => {
+        store.set(key, value);
+      }),
+      removeItem: jest.fn(async (key: string) => {
+        store.delete(key);
+      }),
+      __clear: jest.fn(async () => {
+        store.clear();
+      }),
+    },
+  };
+});
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import {
+  hydratePhotoLibrarySave,
+  isPhotoLibrarySaveEnabled,
+  setPhotoLibrarySaveEnabled,
+  subscribePhotoLibrarySave,
+} from '@/services/photos/PhotoLibrarySave';
+
+const mockAsyncStorage = AsyncStorage as unknown as {
+  __clear: () => Promise<void>;
+};
+
+beforeEach(async () => {
+  await mockAsyncStorage.__clear();
+  await hydratePhotoLibrarySave();
+});
+
+describe('PhotoLibrarySave — save review photos to device library', () => {
+  it('defaults to enabled (ON) when no preference is stored', async () => {
+    expect(await hydratePhotoLibrarySave()).toBe(true);
+    expect(isPhotoLibrarySaveEnabled()).toBe(true);
+  });
+
+  it('persists a disabled preference and reads it back on next hydrate', async () => {
+    await setPhotoLibrarySaveEnabled(false);
+    expect(isPhotoLibrarySaveEnabled()).toBe(false);
+    expect(await hydratePhotoLibrarySave()).toBe(false);
+    expect(isPhotoLibrarySaveEnabled()).toBe(false);
+  });
+
+  it('honours an explicitly stored "true"', async () => {
+    await setPhotoLibrarySaveEnabled(true);
+    expect(await hydratePhotoLibrarySave()).toBe(true);
+  });
+
+  it('notifies subscribers when the preference changes', async () => {
+    const seen: boolean[] = [];
+    const unsubscribe = subscribePhotoLibrarySave((next) => seen.push(next));
+    await setPhotoLibrarySaveEnabled(false);
+    await setPhotoLibrarySaveEnabled(true);
+    unsubscribe();
+    expect(seen).toEqual([false, true]);
   });
 });
 
@@ -1890,6 +2115,73 @@ describe('search cache radius awareness', () => {
 describe('MAX_NEARBY_SEARCH_RADIUS_M', () => {
   it('is the Places API hard cap (50 km)', () => {
     expect(MAX_NEARBY_SEARCH_RADIUS_M).toBe(50_000);
+  });
+});
+
+
+================================================================================
+FILE: __tests__/upsertReviewReuse.test.ts
+================================================================================
+import { findReviewToReuse } from '@/services/reviews/upsertReviewReuse';
+import type { Review } from '@/data/types';
+
+function review(overrides: Partial<Review>): Review {
+  return {
+    id: 'v1',
+    restaurantId: 'r1',
+    date: '2026-08-05T18:00:00',
+    generalComment: '',
+    criteria: [
+      {
+        id: 'food',
+        title: 'Food',
+        rating: 0,
+        comment: '',
+      },
+    ],
+    photoUrls: [],
+    reviewedBy: '',
+    overallScore: 0,
+    origin: 'own',
+    ...overrides,
+  };
+}
+
+describe('findReviewToReuse', () => {
+  const sameDay = '2026-08-05T18:00:00';
+
+  it('reuses an in-progress draft for the same restaurant + timestamp', () => {
+    const draft = review({ id: 'draft-1' });
+    const found = findReviewToReuse([draft], 'r1', sameDay);
+    expect(found?.id).toBe('draft-1');
+  });
+
+  it('never reuses a completed review — a 4th visit stays a new review', () => {
+    const completed = review({
+      id: 'v-complete',
+      criteria: [{ id: 'food', title: 'Food', rating: 8, comment: '' }],
+      overallScore: 8,
+    });
+    const found = findReviewToReuse([completed], 'r1', sameDay);
+    expect(found).toBeUndefined();
+  });
+
+  it('ignores reviews for other restaurants and other timestamps', () => {
+    const otherRestaurant = review({ id: 'draft-2', restaurantId: 'r2' });
+    const otherDay = review({ id: 'draft-3', date: '2026-08-01T18:00:00' });
+    expect(
+      findReviewToReuse([otherRestaurant, otherDay], 'r1', sameDay),
+    ).toBeUndefined();
+  });
+
+  it('ignores friend/imported reviews', () => {
+    const friendDraft = review({
+      id: 'friend-1',
+      origin: 'imported',
+      reviewedBy: 'Emma',
+    });
+    const found = findReviewToReuse([friendDraft], 'r1', sameDay);
+    expect(found).toBeUndefined();
   });
 });
 
@@ -4660,7 +4952,7 @@ import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
 import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
 import { GustraColors } from '@/constants/Colors';
-import { bodyTextStyle, Theme } from '@/constants/Theme';
+import { captionTextStyle, bodyTextStyle, Theme } from '@/constants/Theme';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import type { Review, ReviewOrigin } from '@/data/types';
 import {
@@ -4774,6 +5066,45 @@ export default function RestaurantVisitsScreen() {
     return scores.reduce((a, b) => a + b, 0) / scores.length;
   }, [reviews]);
 
+  // B: per-source groups. When no explicit `origin` is passed (friend filter
+  // active), visits are grouped by "Jij" / friends so each group shows its own
+  // average — the user's own score stays the prominent headline.
+  const sourceGroups = useMemo(() => {
+    const byOrigin = new Map<ReviewOrigin, Review[]>();
+    for (const review of visibleReviews) {
+      const o = resolveReviewOrigin(review);
+      byOrigin.set(o, [...(byOrigin.get(o) ?? []), review]);
+    }
+    const order: ReviewOrigin[] = ['own', 'imported'];
+    return order
+      .map((o) => {
+        const group = byOrigin.get(o) ?? [];
+        if (group.length === 0) return null;
+        const scores = group
+          .filter((review) => !isReviewDraft(review))
+          .map((review) => {
+            const rated = review.criteria
+              .filter(
+                (c) =>
+                  c.rating !== undefined &&
+                  RatingValue.isStarRating(c.rating),
+              )
+              .map((c) => RatingValue.starValue(c.rating));
+            if (rated.length === 0) return review.overallScore;
+            return rated.reduce((a, b) => a + b, 0) / rated.length;
+          })
+          .filter((score) => score > 0);
+        const avg =
+          scores.length === 0
+            ? 0
+            : scores.reduce((a, b) => a + b, 0) / scores.length;
+        return { origin: o, reviews: group, average: avg };
+      })
+      .filter((g): g is NonNullable<typeof g> => g !== null);
+  }, [visibleReviews]);
+
+  const showSourceGroups = origin === undefined && sourceGroups.length > 1;
+
   const confirmDeleteVisit = useCallback(
     (review: Review) => {
       const reviewId = review.id;
@@ -4872,46 +5203,151 @@ export default function RestaurantVisitsScreen() {
                     restaurant.country,
                   )}
                 </SerifText>
-                {averageScore > 0 ? (
-                  <View style={styles.avgRow}>
-                    <FractionalStarRating score={averageScore} size={22} />
-                    <SerifText size={17} weight="semibold" style={styles.avgText}>
-                      {formatScoreOutOfFive(averageScore)}
-                    </SerifText>
-                  </View>
-                ) : null}
-                {reviews.length > 1 ? (
-                  <Text style={styles.visitCount}>
-                    {t('detail.restaurant.visitCount', {
-                      count: reviews.length,
+                {showSourceGroups ? (
+                  <>
+                    {sourceGroups.map((group) => {
+                      const isOwn = group.origin === 'own';
+                      const label = isOwn
+                        ? t('detail.restaurant.myVisits')
+                        : t('detail.restaurant.friendsVisits');
+                      return (
+                        <View key={group.origin} style={styles.sourceRow}>
+                          <Text style={styles.sourceLabel}>{label}</Text>
+                          <View style={styles.sourceAvgRow}>
+                            {group.average > 0 ? (
+                              <>
+                                <FractionalStarRating
+                                  score={group.average}
+                                  size={isOwn ? 18 : 15}
+                                />
+                                <SerifText
+                                  size={isOwn ? 17 : 14}
+                                  weight={isOwn ? 'semibold' : 'regular'}
+                                  style={[
+                                    styles.avgText,
+                                    !isOwn && styles.sourceAvgMuted,
+                                  ]}>
+                                  {formatScoreOutOfFive(group.average)}
+                                </SerifText>
+                              </>
+                            ) : (
+                              <Text style={styles.sourceAvgMuted}>
+                                {t('reviews.notRated')}
+                              </Text>
+                            )}
+                            <Text style={styles.sourceCount}>
+                              {group.reviews.length}
+                            </Text>
+                          </View>
+                        </View>
+                      );
                     })}
-                  </Text>
-                ) : null}
+                    {reviews.length > 1 ? (
+                      <Text style={styles.visitCount}>
+                        {t('detail.restaurant.visitCount', {
+                          count: reviews.length,
+                        })}
+                      </Text>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    {averageScore > 0 ? (
+                      <View style={styles.avgRow}>
+                        <FractionalStarRating score={averageScore} size={22} />
+                        <SerifText
+                          size={17}
+                          weight="semibold"
+                          style={styles.avgText}>
+                          {formatScoreOutOfFive(averageScore)}
+                        </SerifText>
+                      </View>
+                    ) : null}
+                    {reviews.length > 1 ? (
+                      <Text style={styles.visitCount}>
+                        {t('detail.restaurant.visitCount', {
+                          count: reviews.length,
+                        })}
+                      </Text>
+                    ) : null}
+                  </>
+                )}
               </View>
             </View>
 
             {/* ——— Visit timeline (identical to Time Travel) ——— */}
-            <VisitTimeline
-              entries={entries}
-              showCounts={false}
-              renderCard={(entry) => {
-                const review = visibleReviews.find(
-                  (r) => r.id === entry.reviewId,
-                );
-                if (!review) return null;
-                const deletable = resolveReviewOrigin(review) === 'own';
-                return (
-                  <VisitTimelineCard
-                    key={entry.reviewId}
-                    entry={entry}
-                    onPress={() => openReview(review)}
-                    onDelete={
-                      deletable ? () => confirmDeleteVisit(review) : undefined
-                    }
+            {showSourceGroups ? (
+              sourceGroups.map((group) => (
+                <View key={group.origin} style={styles.groupBlock}>
+                  <View style={styles.groupHeader}>
+                    <Text style={styles.groupTitle}>
+                      {group.origin === 'own'
+                        ? t('detail.restaurant.myVisits')
+                        : t('detail.restaurant.friendsVisits')}
+                    </Text>
+                    {group.average > 0 ? (
+                      <Text style={styles.groupAvg}>
+                        {group.origin === 'own'
+                          ? t('detail.restaurant.myAverage')
+                          : t('detail.restaurant.friendsAverage')}
+                        {' · '}
+                        {formatScoreOutOfFive(group.average)}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <VisitTimeline
+                    entries={entries.filter((e) =>
+                      group.reviews.some((r) => r.id === e.reviewId),
+                    )}
+                    showCounts={false}
+                    renderCard={(entry) => {
+                      const review = group.reviews.find(
+                        (r) => r.id === entry.reviewId,
+                      );
+                      if (!review) return null;
+                      const deletable =
+                        resolveReviewOrigin(review) === 'own';
+                      return (
+                        <VisitTimelineCard
+                          key={entry.reviewId}
+                          entry={entry}
+                          onPress={() => openReview(review)}
+                          onDelete={
+                            deletable
+                              ? () => confirmDeleteVisit(review)
+                              : undefined
+                          }
+                        />
+                      );
+                    }}
                   />
-                );
-              }}
-            />
+                </View>
+              ))
+            ) : (
+              <VisitTimeline
+                entries={entries}
+                showCounts={false}
+                renderCard={(entry) => {
+                  const review = visibleReviews.find(
+                    (r) => r.id === entry.reviewId,
+                  );
+                  if (!review) return null;
+                  const deletable = resolveReviewOrigin(review) === 'own';
+                  return (
+                    <VisitTimelineCard
+                      key={entry.reviewId}
+                      entry={entry}
+                      onPress={() => openReview(review)}
+                      onDelete={
+                        deletable
+                          ? () => confirmDeleteVisit(review)
+                          : undefined
+                      }
+                    />
+                  );
+                }}
+              />
+            )}
           </ScrollView>
 
           <TabBarBottomFade />
@@ -4971,6 +5407,50 @@ const styles = StyleSheet.create({
     ...bodyTextStyle,
     fontSize: 15,
     color: 'rgba(35, 32, 26, 0.65)',
+  },
+  sourceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sourceLabel: {
+    ...bodyTextStyle,
+    fontSize: 15,
+    color: 'rgba(35, 32, 26, 0.65)',
+  },
+  sourceAvgRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sourceAvgMuted: {
+    ...bodyTextStyle,
+    fontSize: 14,
+    color: 'rgba(35, 32, 26, 0.45)',
+  },
+  sourceCount: {
+    ...captionTextStyle,
+    fontSize: 13,
+    color: 'rgba(35, 32, 26, 0.45)',
+  },
+  groupBlock: {
+    gap: 14,
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  groupTitle: {
+    ...bodyTextStyle,
+    fontSize: 16,
+    fontWeight: '600',
+    color: GustraColors.forestGreen,
+  },
+  groupAvg: {
+    ...captionTextStyle,
+    fontSize: 13,
+    color: 'rgba(35, 32, 26, 0.5)',
   },
 });
 
@@ -9547,7 +10027,8 @@ import { SymbolView } from 'expo-symbols';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { PassportSection } from '@/components/passport/PassportSection';
-import { PassportStatRow } from '@/components/passport/PassportStatRow';
+import { PassportStatCards } from '@/components/passport/PassportStatCards';
+import { CityChips } from '@/components/passport/CityChips';
 import { BucketListSection } from '@/components/passport/BucketListSection';
 import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
@@ -9556,7 +10037,6 @@ import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
 import { ReviewsHeader } from '@/components/ui/ReviewsHeader';
 import { GustraColors } from '@/constants/Colors';
 import { Theme, captionTextStyle, serifStyle } from '@/constants/Theme';
-import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { usePassportDisplaySettings } from '@/context/PassportDisplaySettings';
 import type { CategoryAveragesDisplayStyle } from '@/context/PassportDisplaySettings';
 import { useReviewsStore } from '@/context/ReviewsStore';
@@ -9712,7 +10192,17 @@ function RankedWineRow({
         styles.wineCard,
         pressed && styles.linkPressed,
       ]}>
-      <RankMedal rank={rank} />
+      <View style={styles.wineIcon}>
+        {Platform.OS === 'ios' ? (
+          <SymbolView
+            name="wineglass.fill"
+            tintColor={GustraColors.gold}
+            size={18}
+          />
+        ) : (
+          <MaterialIcons name="local-bar" size={20} color={GustraColors.gold} />
+        )}
+      </View>
       <Text style={styles.wineTitle} numberOfLines={2}>
         {entry.fiche.nameAndEstate}
       </Text>
@@ -9726,35 +10216,6 @@ function RankedWineRow({
         )}
       </View>
     </Pressable>
-  );
-}
-
-/** City average row: reserved serif number or stars (per display style). */
-function CityRow({
-  rank,
-  city,
-  average,
-  style,
-}: {
-  rank: number;
-  city: string;
-  average: number;
-  style: CategoryAveragesDisplayStyle;
-}) {
-  return (
-    <View style={styles.cityRow}>
-      <RankMedal rank={rank} />
-      <Text style={styles.cityTitle} numberOfLines={2}>
-        {city}
-      </Text>
-      {style === 'stars' ? (
-        <FractionalStarRating score={average} size={15} gap={1} />
-      ) : (
-        <SerifText size={17} weight="semibold" style={styles.cityScore}>
-          {formatScoreOutOfFive(average)}
-        </SerifText>
-      )}
-    </View>
   );
 }
 
@@ -9774,7 +10235,6 @@ function CulinaryPassportContent() {
   const { t } = useAppTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { enabledCriteria } = useCriteriaSettings();
   const { categoryAveragesStyle } = usePassportDisplaySettings();
   const { reviews, restaurants, ready } = useReviewsStore();
 
@@ -9788,9 +10248,9 @@ function CulinaryPassportContent() {
   const stats = useMemo(
     () =>
       ready
-        ? getPassportStats(enabledCriteria, ownReviews, restaurants)
-        : getPassportStats(enabledCriteria, [], []),
-    [enabledCriteria, ownReviews, ready, restaurants],
+        ? getPassportStats(ownReviews, restaurants)
+        : getPassportStats([], []),
+    [ownReviews, ready, restaurants],
   );
 
   const bestWines = useMemo(
@@ -9875,19 +10335,22 @@ function CulinaryPassportContent() {
           ]}
           overScrollMode="never"
           showsVerticalScrollIndicator={false}>
-          <PassportSection title={t('passport.overview')}>
-            <PassportStatRow
-              title={t('passport.totalReviews')}
-              value={`${stats.totalReviews}`}
-            />
-            <PassportStatRow
-              title={t('passport.averageOverall')}
-              value={formatScoreOutOfFive(stats.averageOverall)}
+          <PassportSection
+            title={t('passport.overview')}
+            kicker={t('passport.overviewKicker')}>
+            <PassportStatCards
+              totalReviews={stats.totalReviews}
+              averageOverall={formatScoreOutOfFive(stats.averageOverall)}
+              totalLabel={t('passport.totalReviews')}
+              averageLabel={t('passport.averageOverall')}
+              averageSubtitle={t('passport.averageBasedOnAllRated')}
             />
           </PassportSection>
 
           {stats.bestRestaurants.length > 0 ? (
-            <PassportSection title={bestSectionTitle}>
+            <PassportSection
+              title={bestSectionTitle}
+              kicker={t('passport.bestKicker')}>
               <BestRestaurantPodium
                 entries={stats.bestRestaurants}
                 style={categoryAveragesStyle}
@@ -9897,7 +10360,9 @@ function CulinaryPassportContent() {
           ) : null}
 
           {bestWines.length > 0 ? (
-            <PassportSection title={t('passport.bestWines')}>
+            <PassportSection
+              title={t('passport.bestWines')}
+              kicker={t('passport.winesKicker')}>
               {bestWines.map((entry, index) => (
                 <RankedWineRow
                   key={`${entry.reviewId}-${index}`}
@@ -9912,28 +10377,22 @@ function CulinaryPassportContent() {
             </PassportSection>
           ) : null}
 
-          <PassportSection title={t('passport.topCities')}>
-            {stats.cityAverages.length === 0 ? (
-              <View style={styles.mutedRow}>
-                <Text style={styles.muted}>{t('passport.noCityData')}</Text>
-              </View>
-            ) : (
-              stats.cityAverages.map((row, index) => (
-                <CityRow
-                  key={row.city}
-                  rank={index + 1}
-                  city={row.city}
-                  average={row.average}
-                  style={categoryAveragesStyle}
-                />
-              ))
-            )}
+          <PassportSection
+            title={t('passport.topCities')}
+            kicker={t('passport.citiesKicker')}>
+            <CityChips
+              cities={stats.cityAverages}
+              emptyLabel={t('passport.noCityData')}
+              style={categoryAveragesStyle}
+            />
           </PassportSection>
 
-          <BucketListSection
-            restaurants={bucketListRestaurants}
-            onOpenRestaurant={openBucketRestaurant}
-          />
+          {bucketListRestaurants.length > 0 ? (
+            <BucketListSection
+              restaurants={bucketListRestaurants}
+              onOpenRestaurant={openBucketRestaurant}
+            />
+          ) : null}
 
           <PassportSection title="">
             <Pressable
@@ -10014,14 +10473,6 @@ const styles = StyleSheet.create({
   emptyPad: {
     flex: 1,
     paddingHorizontal: Theme.spacing.listRowHorizontal,
-  },
-  mutedRow: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-  },
-  muted: {
-    color: 'rgba(35, 32, 26, 0.45)',
-    fontSize: 15,
   },
   /* ——— Time Travel cinematic banner ——— */
   timeTravelBanner: {
@@ -10233,32 +10684,20 @@ const styles = StyleSheet.create({
     flex: 1,
     color: GustraColors.ink,
   },
+  wineIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(217, 162, 39, 0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   wineScoreRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
   wineScore: {
-    color: GustraColors.forestGreen,
-    fontVariant: ['tabular-nums'],
-  },
-
-  /* ——— City rows (number-only, no stars) ——— */
-  cityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    backgroundColor: 'rgba(236, 227, 207, 0.45)',
-    borderRadius: 12,
-  },
-  cityTitle: {
-    ...serifStyle(16, 'semibold'),
-    flex: 1,
-    color: GustraColors.ink,
-  },
-  cityScore: {
     color: GustraColors.forestGreen,
     fontVariant: ['tabular-nums'],
   },
@@ -10928,6 +11367,7 @@ import { useLanguageSettings } from '@/context/LanguageSettings';
 import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import { useDemoLabelSettings } from '@/context/DemoLabelSettings';
 import { usePassportDisplaySettings } from '@/context/PassportDisplaySettings';
+import { usePhotoLibrarySettings } from '@/context/PhotoLibrarySettings';
 import { usePhotoQualitySettings } from '@/context/PhotoQualitySettings';
 import {
   REVIEWER_MAX_NAME_LENGTH,
@@ -10988,6 +11428,8 @@ export default function SettingsScreen() {
   } = usePassportDisplaySettings();
   const { isDataSavingsEnabled, setDataSavingsEnabled } =
     usePhotoQualitySettings();
+  const { isPhotoLibrarySaveEnabled, setPhotoLibrarySaveEnabled } =
+    usePhotoLibrarySettings();
   const {
     mapsToday,
     mapsTotal,
@@ -11345,6 +11787,25 @@ export default function SettingsScreen() {
       </SettingsSection>
 
       <SettingsSection title={t('settings.sectionStorage')}>
+        <SettingsRow
+          title={t('settings.saveToLibrary')}
+          subtitle={
+            isPhotoLibrarySaveEnabled
+              ? t('settings.saveToLibraryOn')
+              : t('settings.saveToLibraryOff')
+          }
+          icon={{
+            ios: 'photo.on.rectangle.angled',
+            android: 'photo_library',
+            web: 'photo_library',
+          }}
+          trailing={
+            <GustraSwitch
+              value={isPhotoLibrarySaveEnabled}
+              onValueChange={setPhotoLibrarySaveEnabled}
+            />
+          }
+        />
         <SettingsRow
           title={t('settings.dataSavings')}
           subtitle={
@@ -11913,6 +12374,7 @@ import { FeedFilterProvider } from '@/context/FeedFilterContext';
 import { GoogleApiTrackerProvider } from '@/context/GoogleApiTracker';
 import { LanguageSettingsProvider } from '@/context/LanguageSettings';
 import { PassportDisplaySettingsProvider } from '@/context/PassportDisplaySettings';
+import { PhotoLibrarySettingsProvider } from '@/context/PhotoLibrarySettings';
 import { PhotoQualitySettingsProvider } from '@/context/PhotoQualitySettings';
 import { ReviewerProfileProvider } from '@/context/ReviewerProfile';
 import { ReviewsStoreProvider } from '@/context/ReviewsStore';
@@ -12029,51 +12491,53 @@ function RootLayout() {
           <DemoLabelSettingsProvider>
           <PassportDisplaySettingsProvider>
             <PhotoQualitySettingsProvider>
-              <GoogleApiTrackerProvider>
-                <ReviewerProfileProvider>
-                  <ReviewsStoreProvider>
-                    <FeedFilterProvider>
-                      <ShareImportLaunchProvider>
-                        <ThemeProvider value={GustraNavigationTheme}>
-                          <GlobalKeyboardDismiss>
-                            <View style={styles.root}>
-                              {/*
-                                Prefer imperative setStyle only. The declarative
-                                <NavigationBar /> unmount path calls setHidden via
-                                setImmediate and races activity teardown on Android.
-                              */}
-                              <StatusBar style="light" />
-                              <Stack screenOptions={{ headerShown: false }}>
-                                <Stack.Screen name="(tabs)" />
-                                <Stack.Screen
-                                  name="criteria-setup"
-                                  options={{
-                                    presentation: 'fullScreenModal',
-                                    animation: 'fade',
-                                    gestureEnabled: false,
-                                  }}
-                                />
-                                <Stack.Screen
-                                  name="share-import"
-                                  options={{
-                                    presentation: 'modal',
-                                    animation: 'slide_from_bottom',
-                                  }}
-                                />
-                              </Stack>
-                              <CriteriaSetupGate />
-                              <SwipeDismissOverlay />
-                              <ReviewEmailSnapshotHost />
-                              <HouseAlertHost />
-                              <HouseUndoSnackbarHost />
-                            </View>
-                          </GlobalKeyboardDismiss>
-                        </ThemeProvider>
-                      </ShareImportLaunchProvider>
-                    </FeedFilterProvider>
-                  </ReviewsStoreProvider>
-                </ReviewerProfileProvider>
-              </GoogleApiTrackerProvider>
+              <PhotoLibrarySettingsProvider>
+                <GoogleApiTrackerProvider>
+                  <ReviewerProfileProvider>
+                    <ReviewsStoreProvider>
+                      <FeedFilterProvider>
+                        <ShareImportLaunchProvider>
+                          <ThemeProvider value={GustraNavigationTheme}>
+                            <GlobalKeyboardDismiss>
+                              <View style={styles.root}>
+                                {/*
+                                  Prefer imperative setStyle only. The declarative
+                                  <NavigationBar /> unmount path calls setHidden via
+                                  setImmediate and races activity teardown on Android.
+                                */}
+                                <StatusBar style="light" />
+                                <Stack screenOptions={{ headerShown: false }}>
+                                  <Stack.Screen name="(tabs)" />
+                                  <Stack.Screen
+                                    name="criteria-setup"
+                                    options={{
+                                      presentation: 'fullScreenModal',
+                                      animation: 'fade',
+                                      gestureEnabled: false,
+                                    }}
+                                  />
+                                  <Stack.Screen
+                                    name="share-import"
+                                    options={{
+                                      presentation: 'modal',
+                                      animation: 'slide_from_bottom',
+                                    }}
+                                  />
+                                </Stack>
+                                <CriteriaSetupGate />
+                                <SwipeDismissOverlay />
+                                <ReviewEmailSnapshotHost />
+                                <HouseAlertHost />
+                                <HouseUndoSnackbarHost />
+                              </View>
+                            </GlobalKeyboardDismiss>
+                          </ThemeProvider>
+                        </ShareImportLaunchProvider>
+                      </FeedFilterProvider>
+                    </ReviewsStoreProvider>
+                  </ReviewerProfileProvider>
+                </GoogleApiTrackerProvider>
+              </PhotoLibrarySettingsProvider>
             </PhotoQualitySettingsProvider>
           </PassportDisplaySettingsProvider>
           </DemoLabelSettingsProvider>
@@ -12502,14 +12966,6 @@ export default function CriteriaSetupScreen() {
             );
           })}
         </View>
-
-        <View style={styles.hints}>
-          <Text style={styles.hint}>{t('setup.criteria.minOne')}</Text>
-          <Text style={styles.hint}>
-            <Text style={styles.hintTip}>{t('setup.criteria.tip')}</Text>
-            {t('setup.criteria.idealThree')}
-          </Text>
-        </View>
       </ScrollView>
     </View>
   );
@@ -12621,19 +13077,6 @@ const styles = StyleSheet.create({
   requiredLabel: {
     ...captionTextStyle,
     color: GustraColors.ratingAvoid,
-  },
-  hints: {
-    gap: 4,
-  },
-  hint: {
-    ...captionTextStyle,
-    fontSize: 13,
-    lineHeight: 18,
-    color: 'rgba(35, 32, 26, 0.55)',
-    paddingHorizontal: 4,
-  },
-  hintTip: {
-    textDecorationLine: 'underline',
   },
   choiceRow: {
     flexDirection: 'row',
@@ -17563,7 +18006,12 @@ export function RestaurantFeedCard({
   const isDraft = Boolean(summary.isDraft);
   const isDemo = isDemoRestaurantId(summary.restaurantId);
   const displayScore =
-    typeof scoreOverride === 'number' ? scoreOverride : summary.averageScore;
+    typeof scoreOverride === 'number'
+      ? scoreOverride
+      : summary.ownScore ?? summary.averageScore;
+  // Friend score as context below the own main score (only when merged).
+  const friendScore =
+    summary.friendScore && summary.friendVisitCount ? summary.friendScore : null;
 
   const card = (
     <Pressable
@@ -17611,6 +18059,14 @@ export function RestaurantFeedCard({
         {summary.reviewerName && !isDemo ? (
           <Text style={styles.reviewer}>
             {t('detail.review.reviewedBy', { name: summary.reviewerName })}
+          </Text>
+        ) : null}
+        {friendScore ? (
+          <Text style={styles.friendScore}>
+            {t('reviews.friendScoreLabel', {
+              score: formatScoreOutOfFive(friendScore),
+              count: summary.friendVisitCount,
+            })}
           </Text>
         ) : null}
       </View>
@@ -17719,6 +18175,11 @@ const styles = StyleSheet.create({
     ...captionTextStyle,
     fontSize: Type.label,
     color: 'rgba(35, 32, 26, 0.5)',
+  },
+  friendScore: {
+    ...captionTextStyle,
+    fontSize: Type.caption,
+    color: 'rgba(35, 32, 26, 0.45)',
   },
   trailing: {
     alignItems: 'flex-end',
@@ -18662,6 +19123,19 @@ export function mergeSummariesByRestaurant(
                 : (existing.averageScore * existing.visitCount +
                     summary.averageScore * summary.visitCount) /
                   (existing.visitCount + summary.visitCount),
+        // Own score stays the main score when merging own + friends:
+        // the user's own average (and count) is preserved on the card; the
+        // friends' average/count travel as separate context fields.
+        ownScore:
+          existing.ownScore ?? summary.ownScore ?? undefined,
+        ownVisitCount:
+          existing.ownVisitCount ?? summary.ownVisitCount ?? undefined,
+        ownReviewIds:
+          existing.ownReviewIds ?? summary.ownReviewIds ?? undefined,
+        friendScore:
+          existing.friendScore ?? summary.friendScore ?? undefined,
+        friendVisitCount:
+          existing.friendVisitCount ?? summary.friendVisitCount ?? undefined,
         isFavorite: existing.isFavorite || summary.isFavorite,
         isDraft: Boolean(existing.isDraft) && Boolean(summary.isDraft),
         draftReviewId:
@@ -18778,6 +19252,10 @@ function rankByAverageScore(
     const aDraft = a.isDraft ? 1 : 0;
     const bDraft = b.isDraft ? 1 : 0;
     if (aDraft !== bDraft) return bDraft - aDraft;
+    // Own headline score first; combined average only as a tiebreak.
+    const aScore = a.ownScore ?? a.averageScore;
+    const bScore = b.ownScore ?? b.averageScore;
+    if (aScore !== bScore) return bScore - aScore;
     if (a.averageScore !== b.averageScore) {
       return b.averageScore - a.averageScore;
     }
@@ -19627,7 +20105,9 @@ export function BucketListSection({
 
   if (restaurants.length === 0) {
     return (
-      <PassportSection title={t('bucketList.title')}>
+      <PassportSection
+        title={t('bucketList.title')}
+        kicker={t('bucketList.kicker')}>
         <View style={styles.empty}>
           <SymbolView
             name={{
@@ -19645,7 +20125,9 @@ export function BucketListSection({
   }
 
   return (
-    <PassportSection title={t('bucketList.title')}>
+    <PassportSection
+      title={t('bucketList.title')}
+      kicker={t('bucketList.kicker')}>
       {restaurants.map((restaurant) => (
         <View key={restaurant.id} style={styles.rowWrap}>
           <FeedSwipeDelete
@@ -19736,12 +20218,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: GustraColors.bubble,
+    backgroundColor: 'rgba(236, 227, 207, 0.55)',
     borderRadius: Theme.radius.lg,
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(217, 162, 39, 0.35)',
+    borderColor: 'rgba(35, 32, 26, 0.08)',
+    shadowColor: '#000000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
   rowPressed: {
     opacity: 0.85,
@@ -19750,7 +20237,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: 'rgba(217, 162, 39, 0.14)',
+    backgroundColor: 'rgba(36, 78, 57, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -19778,18 +20265,151 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: GustraColors.bubble,
+    backgroundColor: 'rgba(236, 227, 207, 0.45)',
     borderRadius: Theme.radius.lg,
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(217, 162, 39, 0.2)',
+    borderColor: 'rgba(35, 32, 26, 0.08)',
   },
   emptyText: {
     ...bodyTextStyle,
     flex: 1,
     fontSize: 14,
     lineHeight: 20,
+    color: 'rgba(35, 32, 26, 0.55)',
+  },
+});
+
+
+================================================================================
+FILE: components/passport/CityChips.tsx
+================================================================================
+import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+
+import { SerifText } from '@/components/ui/SerifText';
+import { FractionalStarRating } from '@/components/ui/StarRating';
+import { GustraColors } from '@/constants/Colors';
+import { captionTextStyle } from '@/constants/Theme';
+import type { CategoryAveragesDisplayStyle } from '@/context/PassportDisplaySettings';
+import type { CityAverage } from '@/data/passportStats';
+import { formatScoreOutOfFive } from '@/services/reviews/ratings';
+
+type CityChipsProps = {
+  cities: CityAverage[];
+  emptyLabel: string;
+  style: CategoryAveragesDisplayStyle;
+};
+
+/**
+ * Top cities as a horizontal swipeable chip row — "passport stamp" feel,
+ * no more vertical ranked list. Each pill: map pin icon, city name and score
+ * (stars or number, per the shared passport display setting).
+ */
+export function CityChips({ cities, emptyLabel, style }: CityChipsProps) {
+  if (cities.length === 0) {
+    return (
+      <View style={styles.empty}>
+        <Text style={styles.emptyText}>{emptyLabel}</Text>
+      </View>
+    );
+  }
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.chipRow}>
+      {cities.map((row) => (
+        <View key={row.city} style={styles.chip}>
+          <View style={styles.chipIcon}>
+            {Platform.OS === 'ios' ? (
+              <SymbolView
+                name="mappin.and.ellipse"
+                tintColor={GustraColors.forestGreen}
+                size={18}
+              />
+            ) : (
+              <MaterialIcons
+                name="place"
+                size={20}
+                color={GustraColors.forestGreen}
+              />
+            )}
+          </View>
+          <View style={styles.chipCopy}>
+            <Text style={styles.cityName} numberOfLines={1}>
+              {row.city}
+            </Text>
+            {style === 'stars' ? (
+              <FractionalStarRating score={row.average} size={13} gap={1} />
+            ) : (
+              <SerifText size={14} weight="bold" style={styles.score}>
+                {formatScoreOutOfFive(row.average)}
+              </SerifText>
+            )}
+          </View>
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  chipRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 2,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: 'rgba(236, 227, 207, 0.6)',
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(36, 78, 57, 0.16)',
+    shadowColor: '#000000',
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  chipIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(36, 78, 57, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipCopy: {
+    gap: 1,
+    alignItems: 'flex-start',
+  },
+  cityName: {
+    ...captionTextStyle,
+    fontSize: 15,
+    fontWeight: '600',
+    color: GustraColors.ink,
+    maxWidth: 120,
+  },
+  score: {
+    color: GustraColors.forestGreen,
+    fontVariant: ['tabular-nums'],
+  },
+  empty: {
+    backgroundColor: 'rgba(236, 227, 207, 0.45)',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  emptyText: {
+    ...captionTextStyle,
+    fontSize: 14,
     color: 'rgba(35, 32, 26, 0.55)',
   },
 });
@@ -19803,19 +20423,29 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
-import { Theme } from '@/constants/Theme';
+import { Theme, SERIF_FONT_REGULAR_ITALIC } from '@/constants/Theme';
 
 type PassportSectionProps = {
   title: string;
+  /** Optional cursive kicker above the title (e.g. "your favourites"). */
+  kicker?: string;
   trailing?: string;
   children: ReactNode;
 };
 
-export function PassportSection({ title, trailing, children }: PassportSectionProps) {
+export function PassportSection({
+  title,
+  kicker,
+  trailing,
+  children,
+}: PassportSectionProps) {
   return (
     <View style={styles.section}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{title}</Text>
+        <View style={styles.headerCopy}>
+          {kicker ? <Text style={styles.kicker}>{kicker}</Text> : null}
+          <Text style={styles.headerTitle}>{title}</Text>
+        </View>
         {trailing ? (
           <SerifText size={17} weight="semibold" style={styles.trailing}>
             {trailing}
@@ -19836,11 +20466,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 4,
+    paddingBottom: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(217, 162, 39, 0.3)',
+  },
+  headerCopy: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+  },
+  kicker: {
+    fontFamily: SERIF_FONT_REGULAR_ITALIC,
+    fontSize: 13,
+    color: 'rgba(35, 32, 26, 0.5)',
+    letterSpacing: -0.2,
   },
   headerTitle: {
     fontSize: Theme.typography.sectionHeader,
     fontWeight: '600',
-    color: 'rgba(35, 32, 26, 0.55)',
+    color: GustraColors.forestGreen,
     textTransform: 'none',
   },
   trailing: {
@@ -19848,32 +20492,58 @@ const styles = StyleSheet.create({
   },
   body: {
     gap: 6,
+    paddingTop: 6,
   },
 });
 
 
 ================================================================================
-FILE: components/passport/PassportStatRow.tsx
+FILE: components/passport/PassportStatCards.tsx
 ================================================================================
 import { StyleSheet, Text, View } from 'react-native';
 
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
-import { bodyTextStyle } from '@/constants/Theme';
+import { captionTextStyle } from '@/constants/Theme';
 
-
-type PassportStatRowProps = {
-  title: string;
-  value: string;
+type PassportStatCardsProps = {
+  totalReviews: number;
+  averageOverall: string;
+  totalLabel: string;
+  averageLabel: string;
+  /** Explains that the average is over all rated criteria, not a subset. */
+  averageSubtitle?: string;
 };
 
-export function PassportStatRow({ title, value }: PassportStatRowProps) {
+/**
+ * "Overview" stat cards — replaces the two PassportStatRow rows. Big serif
+ * number with a small caption underneath, side by side (wider card for the
+ * total, golden accent ring). No longer an Excel-like two-row list.
+ */
+export function PassportStatCards({
+  totalReviews,
+  averageOverall,
+  totalLabel,
+  averageLabel,
+  averageSubtitle,
+}: PassportStatCardsProps) {
   return (
     <View style={styles.row}>
-      <Text style={styles.title}>{title}</Text>
-      <SerifText size={17} weight="semibold" style={styles.value}>
-        {value}
-      </SerifText>
+      <View style={[styles.card, styles.cardTotal]}>
+        <SerifText size={40} weight="bold" style={styles.totalValue}>
+          {totalReviews}
+        </SerifText>
+        <Text style={styles.caption}>{totalLabel}</Text>
+      </View>
+      <View style={[styles.card, styles.cardAverage]}>
+        <SerifText size={40} weight="bold" style={styles.averageValue}>
+          {averageOverall}
+        </SerifText>
+        <Text style={styles.caption}>{averageLabel}</Text>
+        {averageSubtitle ? (
+          <Text style={styles.subtitle}>{averageSubtitle}</Text>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -19881,23 +20551,51 @@ export function PassportStatRow({ title, value }: PassportStatRowProps) {
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    backgroundColor: 'rgba(236, 227, 207, 0.45)',
-    borderRadius: 12,
   },
-  title: {
-    ...bodyTextStyle,
+  card: {
     flex: 1,
-    fontSize: 16,
-    color: GustraColors.ink,
+    borderRadius: 18,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
   },
-
-  value: {
+  cardTotal: {
+    flex: 1.25,
+    backgroundColor: 'rgba(36, 78, 57, 0.08)',
+    borderColor: 'rgba(36, 78, 57, 0.22)',
+  },
+  cardAverage: {
+    flex: 1,
+    backgroundColor: 'rgba(217, 162, 39, 0.1)',
+    borderColor: 'rgba(217, 162, 39, 0.4)',
+  },
+  totalValue: {
     color: GustraColors.forestGreen,
+    fontVariant: ['tabular-nums'],
+    lineHeight: 46,
+  },
+  averageValue: {
+    color: GustraColors.gold,
+    fontVariant: ['tabular-nums'],
+    lineHeight: 46,
+  },
+  caption: {
+    ...captionTextStyle,
+    marginTop: 2,
+    fontSize: 13,
+    textAlign: 'center',
+    color: 'rgba(35, 32, 26, 0.6)',
+  },
+  subtitle: {
+    ...captionTextStyle,
+    marginTop: 4,
+    fontSize: 11,
+    textAlign: 'center',
+    lineHeight: 14,
+    color: 'rgba(35, 32, 26, 0.45)',
   },
 });
 
@@ -20854,6 +21552,7 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: components/review/SelectedRestaurantBanner.tsx
 ================================================================================
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 
@@ -20895,19 +21594,42 @@ export function SelectedRestaurantBanner({
 }: SelectedRestaurantBannerProps) {
   const { t } = useAppTranslation();
   const addressLine = draftAddressLine(draft);
+  /**
+   * Optimistic bucket-list state while the confirm dialog is open: tapping the
+   * bookmark flips the icon immediately, and cancelling rolls it back. Only a
+   * confirmed press actually toggles the restaurant (via onToggleBucketList).
+   */
+  const [pendingToggle, setPendingToggle] = useState<boolean | null>(null);
+  const displayInBucketList = pendingToggle ?? inBucketList;
+
+  const rollback = () => setPendingToggle(null);
+
+  /** Confirmed press: keep the optimistic icon in the new state, then let the
+   *  incoming `inBucketList` prop take over seamlessly. */
+  const commit = () => {
+    setPendingToggle(!inBucketList);
+    onToggleBucketList?.();
+  };
 
   const handleBookmarkPress = () => {
     if (!onToggleBucketList) return;
+    const next = !inBucketList;
+    // Flip the icon before the dialog appears (cancelling restores it).
+    setPendingToggle(next);
     if (inBucketList) {
       houseAlert(
         t('bucketList.removeTitle'),
         t('bucketList.removeBody', { name: draft.name }),
         [
-          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('common.cancel'),
+            style: 'cancel',
+            onPress: rollback,
+          },
           {
             text: t('bucketList.removeConfirm'),
             style: 'default',
-            onPress: () => onToggleBucketList(),
+            onPress: commit,
           },
         ] satisfies HouseAlertButton[],
       );
@@ -20917,11 +21639,15 @@ export function SelectedRestaurantBanner({
       t('bucketList.addTitle'),
       t('bucketList.addBody', { name: draft.name }),
       [
-        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.cancel'),
+          style: 'cancel',
+          onPress: rollback,
+        },
         {
           text: t('bucketList.addConfirm'),
           style: 'default',
-          onPress: () => onToggleBucketList(),
+          onPress: commit,
         },
       ] satisfies HouseAlertButton[],
     );
@@ -20975,11 +21701,11 @@ export function SelectedRestaurantBanner({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={
-              inBucketList
+              displayInBucketList
                 ? t('bucketList.removeTitle')
                 : t('bucketList.addTitle')
             }
-            accessibilityState={{ selected: inBucketList }}
+            accessibilityState={{ selected: displayInBucketList }}
             hitSlop={8}
             onPress={handleBookmarkPress}
             style={({ pressed }) => [
@@ -20988,16 +21714,18 @@ export function SelectedRestaurantBanner({
             ]}>
             <SymbolView
               name={{
-                ios: inBucketList ? 'bookmark.fill' : 'bookmark',
-                android: inBucketList ? 'bookmark' : 'bookmark_border',
-                web: inBucketList ? 'bookmark' : 'bookmark_border',
+                ios: displayInBucketList ? 'bookmark.fill' : 'bookmark',
+                android: displayInBucketList
+                  ? 'bookmark'
+                  : 'bookmark_border',
+                web: displayInBucketList ? 'bookmark' : 'bookmark_border',
               }}
               tintColor={
-                inBucketList
+                displayInBucketList
                   ? GustraColors.gold
                   : 'rgba(35, 32, 26, 0.45)'
               }
-              size={30}
+              size={28}
             />
           </Pressable>
         ) : null}
@@ -21027,10 +21755,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 12,
   },
-  /** Bookmark peeks over the card's top edge; horizontal position unchanged. */
+  /** Bookmark sits on the same row as the X, vertically aligned with it. */
   bookmarkButton: {
-    marginTop: -16,
-    zIndex: 2,
+    alignSelf: 'flex-start',
   },
   copy: {
     flex: 1,
@@ -25459,11 +26186,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle, Theme } from '@/constants/Theme';
-import { i18n } from '@/i18n';
 import { Haptics } from '@/services/haptics';
 
 export type HouseUndoSnackbarRequest = {
   message: string;
+  /**
+   * Optional action button label. When omitted the snackbar is purely
+   * informational (no Undo button) — used for save confirmations.
+   */
   actionLabel?: string;
   /** Auto-commit after this many ms (default 4500). */
   durationMs?: number;
@@ -25553,7 +26283,7 @@ export function HouseUndoSnackbarHost() {
 
   if (!request) return null;
 
-  const actionLabel = request.actionLabel ?? i18n.t('common.undo');
+  const actionLabel = request.actionLabel ?? null;
   const bottom =
     Theme.spacing.floatingTabBarClearance + Math.max(insets.bottom, 8);
 
@@ -25565,23 +26295,25 @@ export function HouseUndoSnackbarHost() {
         <Text style={styles.message} numberOfLines={2}>
           {request.message}
         </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={actionLabel}
-          onPress={() => {
-            clearTimer();
-            const current = active;
-            active = null;
-            setRequest(null);
-            Haptics.light();
-            current?.onUndo();
-          }}
-          style={({ pressed }) => [
-            styles.action,
-            pressed && styles.actionPressed,
-          ]}>
-          <Text style={styles.actionLabel}>{actionLabel}</Text>
-        </Pressable>
+        {actionLabel ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={actionLabel}
+            onPress={() => {
+              clearTimer();
+              const current = active;
+              active = null;
+              setRequest(null);
+              Haptics.light();
+              current?.onUndo();
+            }}
+            style={({ pressed }) => [
+              styles.action,
+              pressed && styles.actionPressed,
+            ]}>
+            <Text style={styles.actionLabel}>{actionLabel}</Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -29388,6 +30120,96 @@ export function usePassportDisplaySettings(): PassportDisplaySettingsValue {
 
 
 ================================================================================
+FILE: context/PhotoLibrarySettings.tsx
+================================================================================
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+
+import {
+  hydratePhotoLibrarySave,
+  isPhotoLibrarySaveEnabled as getPhotoLibrarySaveEnabled,
+  setPhotoLibrarySaveEnabled,
+  subscribePhotoLibrarySave,
+} from '@/services/photos/PhotoLibrarySave';
+
+type PhotoLibrarySettingsValue = {
+  ready: boolean;
+  /** Default ON — review photos are also written to the system photo library. */
+  isPhotoLibrarySaveEnabled: boolean;
+  setPhotoLibrarySaveEnabled: (enabled: boolean) => void;
+};
+
+const PhotoLibrarySettingsContext =
+  createContext<PhotoLibrarySettingsValue | null>(null);
+
+export function PhotoLibrarySettingsProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const [ready, setReady] = useState(false);
+  const [isPhotoLibrarySaveEnabled, setIsPhotoLibrarySaveEnabled] = useState(
+    getPhotoLibrarySaveEnabled,
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      await hydratePhotoLibrarySave();
+      if (!cancelled) {
+        setIsPhotoLibrarySaveEnabled(getPhotoLibrarySaveEnabled());
+        setReady(true);
+      }
+    })();
+    const unsubscribe = subscribePhotoLibrarySave((enabled) => {
+      setIsPhotoLibrarySaveEnabled(enabled);
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+
+  const setPhotoLibrarySaveEnabledState = useCallback((enabled: boolean) => {
+    setIsPhotoLibrarySaveEnabled(enabled);
+    void setPhotoLibrarySaveEnabled(enabled);
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      ready,
+      isPhotoLibrarySaveEnabled,
+      setPhotoLibrarySaveEnabled: setPhotoLibrarySaveEnabledState,
+    }),
+    [ready, isPhotoLibrarySaveEnabled, setPhotoLibrarySaveEnabledState],
+  );
+
+  return (
+    <PhotoLibrarySettingsContext.Provider value={value}>
+      {children}
+    </PhotoLibrarySettingsContext.Provider>
+  );
+}
+
+export function usePhotoLibrarySettings(): PhotoLibrarySettingsValue {
+  const ctx = useContext(PhotoLibrarySettingsContext);
+  if (!ctx) {
+    throw new Error(
+      'usePhotoLibrarySettings must be used within PhotoLibrarySettingsProvider',
+    );
+  }
+  return ctx;
+}
+
+
+================================================================================
 FILE: context/PhotoQualitySettings.tsx
 ================================================================================
 import {
@@ -29829,6 +30651,7 @@ import {
 import { findExistingRestaurant } from '@/services/places/RestaurantMatcher';
 import type { RestaurantDraft } from '@/services/places/types';
 import { deleteReviewPhotoFiles } from '@/services/reviews/photoStorage';
+import { findReviewToReuse } from '@/services/reviews/upsertReviewReuse';
 import { isReviewDraft } from '@/services/reviews/draftReview';
 import { planImportedReviewCollapse } from '@/services/share/ShareImportService';
 import {
@@ -30161,6 +30984,18 @@ function buildFeedSummaries(
       ...(isDraft && draftVisits[0]
         ? { draftReviewId: draftVisits[0].id }
         : {}),
+      // Own-only score/count — feed shows the owner's own average as the main
+      // score; friend scores are merged separately as context.
+      ...(origin === 'own'
+        ? {
+            ownScore: isDraft ? 0 : averageScore,
+            ownVisitCount: visits.length,
+            ownReviewIds: visits.map((v) => v.id),
+          }
+        : {
+            friendScore: isDraft ? 0 : averageScore,
+            friendVisitCount: visits.length,
+          }),
     });
   }
   // Drafts first, then most recent visit.
@@ -30738,13 +31573,15 @@ export function ReviewsStoreProvider({ children }: { children: ReactNode }) {
         let reviewId = existingReview?.id;
         let reviewToUpdate = existingReview;
         if (!reviewToUpdate) {
-          // Concurrent autosave/Done without reviewId: reuse the visit just
-          // created for this restaurant + exact visit timestamp.
-          reviewToUpdate = nextReviews.find(
-            (r) =>
-              r.restaurantId === restaurant!.id &&
-              resolveReviewOrigin(r) === 'own' &&
-              r.date === input.visitDateIso,
+          // Reuse only the in-progress draft for this restaurant + exact visit
+          // timestamp (concurrent autosave/Done must not create a duplicate
+          // draft). A completed review is never silently overwritten: two
+          // visits on the same day (e.g. the 4th visit today) always create a
+          // new review instead of replacing an existing one.
+          reviewToUpdate = findReviewToReuse(
+            nextReviews,
+            restaurant!.id,
+            input.visitDateIso,
           );
           reviewId = reviewToUpdate?.id;
         }
@@ -31683,7 +32520,9 @@ export const mockRestaurants: Restaurant[] = [
     isFavorite: true,
     isInBucketList: false,
     thumbnailColor: '#3D6B52',
-    photoUrl: photos.greenhouseDish,
+    // Landscape interior (not the portrait dish) so the passport hero crop
+    // stays cinematic instead of zooming into a narrow strip of the photo.
+    photoUrl: photos.greenhouseInterior,
   },
   {
     id: 'demo-r2',
@@ -32323,28 +33162,26 @@ export type TimeTravelStats = {
   averageAllTime: number;
 };
 
-export type EnabledCriterion = { id: string; title: string };
-
 const TOP_N = 3;
-
 function displayLocation(name: string, city: string): string {
   if (city.trim()) return `${name}, ${city}`;
   return name;
 }
 
-function scoreForEnabled(review: Review, enabledIds: Set<string>): number {
-  return overallScoreFromCriteria(
-    review.criteria.filter((c) => enabledIds.has(c.id)),
-  );
+/**
+ * Passport score for one review: the average of ALL rated criteria —
+ * exactly the same rule as the feed and the restaurant detail screen.
+ * Enabled-criteria filtering must not change the headline score.
+ */
+function scoreForReview(review: Review): number {
+  return overallScoreFromCriteria(review.criteria);
 }
 
 /** Passport stats over the (already filtered) review set. */
 export function getPassportStats(
-  enabledCriteria: EnabledCriterion[],
   sourceReviews: Review[],
   restaurants: Restaurant[],
 ): PassportStats {
-  const enabledIds = new Set(enabledCriteria.map((c) => c.id));
   const restaurantById = new Map(restaurants.map((r) => [r.id, r]));
   // Drafts (no criterion stars, or unrated wines) do not count toward passport.
   const reviews = sourceReviews
@@ -32363,7 +33200,7 @@ export function getPassportStats(
 
   const scored = reviews.map((review) => ({
     review,
-    score: scoreForEnabled(review, enabledIds),
+    score: scoreForReview(review),
   }));
 
   const averageOverall =
@@ -32866,6 +33703,19 @@ export type RestaurantVisitSummary = {
   isDraft?: boolean;
   /** Newest draft review id when `isDraft` (for open-in-edit). */
   draftReviewId?: string;
+  /**
+   * Average score of the owner's own visits only (excludes friend reviews).
+   * Additive — older clients ignore; falls back to `averageScore`.
+   */
+  ownScore?: number;
+  /** Count of the owner's own visits only (excludes friend reviews). */
+  ownVisitCount?: number;
+  /** Review ids of the owner's own visits only (for criterion scoring). */
+  ownReviewIds?: string[];
+  /** Average score of friend/imported visits only (excludes own). */
+  friendScore?: number;
+  /** Count of friend/imported visits only. */
+  friendVisitCount?: number;
 };
 
 export function satisfactionFromScore(score: number): SatisfactionLevel {
@@ -33210,6 +34060,7 @@ import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { usePhotoManager } from '@/hooks/usePhotoManager';
 import { houseAlert, houseSaveChangesAlert } from '@/components/ui/HouseAlert';
+import { showHouseUndoSnackbar } from '@/components/ui/HouseUndoSnackbar';
 import { Haptics } from '@/services/haptics';
 
 import type { CriterionRating, WineLabelFiche } from '@/data/types';
@@ -33222,7 +34073,6 @@ import { deleteReviewPhotoFiles } from '@/services/reviews/photoStorage';
 import { RatingValue } from '@/services/reviews/ratings';
 import {
   formDraftReason,
-  hasRequiredFoodRating,
   isFormDraft,
   isReviewDraft,
 } from '@/services/reviews/draftReview';
@@ -33338,7 +34188,6 @@ export function useReviewFormState() {
 
   const photoSetKey = useMemo(() => [...photoUrls].sort().join('\0'), [photoUrls]);
 
-  const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didHydrate = useRef(false);
   const ocrIndexedTextRef = useRef(ocrIndexedText);
   ocrIndexedTextRef.current = ocrIndexedText;
@@ -33347,7 +34196,6 @@ export function useReviewFormState() {
   const didDeleteRef = useRef(false);
   const initialLoadCompleteRef = useRef(false);
   const persistNowRef = useRef<(markBusy?: boolean) => Promise<boolean>>(async () => false);
-  const schedulePersistRef = useRef<() => void>(() => undefined);
   const persistChainRef = useRef(Promise.resolve());
   const editBaselineRef = useRef<EditBaseline | null>(null);
   /** Prefilled state of a brand-new form (restaurant favorite etc.). */
@@ -33523,7 +34371,9 @@ export function useReviewFormState() {
   const showsDone = Boolean(draft);
   const draftReason = formDraftReason(criteriaList, wineLabels);
   const isDraftForm = isFormDraft(criteriaList, wineLabels);
-  const foodRatingRequired = !hasRequiredFoodRating(criteriaList);
+  const hasRatedCriterion = criteriaList.some((c) =>
+    RatingValue.isStarRating(c.rating),
+  );
 
   const customCriterionNames = useMemo(
     () => customCriteria.map((c) => c.name.trim()).filter(Boolean),
@@ -33609,25 +34459,14 @@ export function useReviewFormState() {
     [buildInput, existingReview, hasPersistableContent, upsertReviewFromForm],
   );
 
-  const schedulePersist = useCallback(() => {}, []);
-
-  const persistPhotosNow = useCallback(() => {
-    if (!initialLoadCompleteRef.current) return;
-    if (!isEditRef.current) return;
-    void persistNowRef.current(false);
-  }, []);
-
-  const afterPhotoChange = useCallback(() => {
-    if (isEditRef.current) {
-      persistPhotosNow();
-      return;
-    }
-    schedulePersist();
-  }, [persistPhotosNow, schedulePersist]);
+  // Drafts are only persisted when the user leaves the form (onDone, or
+  // "save & leave" via onBack/beforeRemove). In-form changes must never be
+  // written to the list while the user is still editing, so photo/wine/OCR/
+  // criterion changes are intentionally NOT persisted here.
+  const afterPhotoChange = useCallback(() => {}, [afterPhotoChangeRef]);
 
   afterPhotoChangeRef.current = afterPhotoChange;
   persistNowRef.current = persistNow;
-  schedulePersistRef.current = schedulePersist;
 
   const isEditDirty = useMemo(() => {
     if (!isEdit || !editBaselineRef.current || !initialLoadComplete) {
@@ -33682,11 +34521,6 @@ export function useReviewFormState() {
         if (ocrIndexedTextRef.current) {
           setOcrIndexedText('');
           ocrIndexedTextRef.current = '';
-          if (isEditRef.current) {
-            void persistNowRef.current(false);
-          } else {
-            schedulePersistRef.current();
-          }
         }
         setIsIndexingPhotos(false);
         return;
@@ -33699,11 +34533,6 @@ export function useReviewFormState() {
       if (next !== ocrIndexedTextRef.current) {
         setOcrIndexedText(next);
         ocrIndexedTextRef.current = next;
-        if (isEditRef.current) {
-          void persistNowRef.current(false);
-        } else {
-          schedulePersistRef.current();
-        }
       }
       setIsIndexingPhotos(false);
     };
@@ -33716,7 +34545,6 @@ export function useReviewFormState() {
 
   useEffect(() => {
     return () => {
-      if (persistTimer.current) clearTimeout(persistTimer.current);
       if (isEditRef.current) {
         if (!allowLeaveRef.current && !didDeleteRef.current && editBaselineRef.current) {
           const baselinePhotos = new Set(editBaselineRef.current.photoUrls);
@@ -33810,7 +34638,6 @@ export function useReviewFormState() {
         title: t('alerts.reviewForm.discardEdits.title'),
         onYes: () => {
           void (async () => {
-            if (persistTimer.current) clearTimeout(persistTimer.current);
             const ok = await persistNow(true);
             if (!ok) {
               Haptics.warning();
@@ -33856,15 +34683,54 @@ export function useReviewFormState() {
 
   const onDone = useCallback(async () => {
     if (isSaving || !showsDone) return;
-    if (foodRatingRequired) {
+    // A memory without any rated criterion stays a draft. Ask the user first
+    // so they can consciously save it as a draft or keep editing.
+    if (!hasRatedCriterion) {
       Haptics.warning();
       houseAlert(
-        t('alerts.reviewForm.foodRequiredTitle'),
-        t('alerts.reviewForm.foodRequiredBody'),
+        t('alerts.reviewForm.draftNoticeTitle'),
+        t('alerts.reviewForm.draftNoticeBody'),
+        [
+          {
+            text: t('alerts.reviewForm.continueEditing'),
+            style: 'default',
+            onPress: () => undefined,
+          },
+          {
+            text: t('alerts.reviewForm.saveDraft'),
+            style: 'destructive',
+            onPress: () => {
+              void (async () => {
+                const ok = await persistNow(true);
+                if (!ok) {
+                  Haptics.warning();
+                  houseAlert(
+                    t('forms.review.title'),
+                    t('alerts.reviewForm.saveFailed'),
+                  );
+                  return;
+                }
+                Haptics.success();
+                if (draft) {
+                  showHouseUndoSnackbar({
+                    message:
+                      revisitCount > 0
+                        ? t('reviews.visitSaved', { name: draft.name })
+                        : t('reviews.memorySaved', { name: draft.name }),
+                    durationMs: 3000,
+                    onUndo: () => undefined,
+                    onCommit: () => undefined,
+                  });
+                }
+                allowLeaveRef.current = true;
+                leaveToReviews();
+              })();
+            },
+          },
+        ],
       );
       return;
     }
-    if (persistTimer.current) clearTimeout(persistTimer.current);
     const ok = await persistNow(true);
     if (!ok) {
       Haptics.warning();
@@ -33872,12 +34738,33 @@ export function useReviewFormState() {
       return;
     }
     Haptics.success();
+    // Informative, non-intrusive confirmation (no Undo button — purely
+    // informational). First visit reads as "herinnering vastgelegd", a repeat
+    // visit as "bezoek vastgelegd".
+    if (draft) {
+      showHouseUndoSnackbar({
+        message:
+          revisitCount > 0
+            ? t('reviews.visitSaved', { name: draft.name })
+            : t('reviews.memorySaved', { name: draft.name }),
+        durationMs: 3000,
+        onUndo: () => undefined,
+        onCommit: () => undefined,
+      });
+    }
     allowLeaveRef.current = true;
     leaveToReviews();
-  }, [foodRatingRequired, isSaving, leaveToReviews, persistNow, showsDone, t]);
+  }, [
+    hasRatedCriterion,
+    isSaving,
+    leaveToReviews,
+    persistNow,
+    revisitCount,
+    showsDone,
+    t,
+  ]);
 
   const onBack = useCallback(() => {
-    if (persistTimer.current) clearTimeout(persistTimer.current);
     // Bucket-list drafts are pushed directly on top of My Gustra; backing out
     // pops the form so the passport screen restores at its previous scroll
     // offset, exactly where the user tapped.
@@ -33961,11 +34848,6 @@ export function useReviewFormState() {
         return cleaned;
       });
     }
-    if (isEditRef.current) {
-      void persistNowRef.current(false);
-    } else {
-      schedulePersistRef.current();
-    }
   }, []);
 
   const setCriterionRating = (id: string, rating: number) => {
@@ -33977,7 +34859,6 @@ export function useReviewFormState() {
           comment: RatingValue.isStarRating(rating) ? (prev[id]?.comment ?? '') : '',
         },
       }));
-      schedulePersist();
     };
 
     if (id === 'drinks' && !RatingValue.isStarRating(rating) && wineLabelsRef.current.length > 0) {
@@ -34006,7 +34887,6 @@ export function useReviewFormState() {
         comment,
       },
     }));
-    schedulePersist();
   };
 
   const syncWinesRatingFromWines = useCallback((wines: WineLabelFiche[]) => {
@@ -34127,11 +35007,6 @@ export function useReviewFormState() {
           ocrIndexedTextRef.current = next;
           return next;
         });
-      }
-      if (isEditRef.current) {
-        void persistNowRef.current(false);
-      } else {
-        schedulePersistRef.current();
       }
       Haptics.success();
     }, [buildInput, router, syncWinesRatingFromWines, upsertReviewFromForm]),
@@ -34423,7 +35298,10 @@ export function useSharedRestaurantFilters() {
 
   const criterionAverageFor = useCallback(
     (summary: RestaurantVisitSummary, criterionId: string) => {
-      const values = summary.reviewIds
+      // Use the owner's own reviews only, so a friend's visit never drags the
+      // criterion score shown next to the owner's headline score.
+      const ids = summary.ownReviewIds ?? summary.reviewIds;
+      const values = ids
         .map((id) => getReview(id))
         .filter((review): review is Review => Boolean(review))
         .filter((review) => !isReviewDraft(review))
@@ -34690,6 +35568,8 @@ FILE: i18n/locales/de.json
     "searchPlaceholder": "Restaurants, Kommentare, Fotos suchen…",
     "visitCount_one": "{{count}} Besuch · {{date}}",
     "visitCount_other": "{{count}} Besuche · {{date}}",
+    "friendScoreLabel": "Freunde: {{score}} ({{count}} Besuch)",
+    "friendScoreLabel_other": "Freunde: {{score}} ({{count}} Besuche)",
     "source": {
       "mine": "Meine Erinnerungen",
       "friends": "Mit dir geteilt"
@@ -34711,7 +35591,9 @@ FILE: i18n/locales/de.json
     "draftLabel": "Draft",
     "demoLabel": "Demo",
     "visitedBefore_one": "Bereits 1 Mal besucht",
-    "visitedBefore_other": "Bereits {{count}} Mal besucht"
+    "visitedBefore_other": "Bereits {{count}} Mal besucht",
+    "memorySaved": "Erinnerung an {{name}} gespeichert",
+    "visitSaved": "Besuch bei {{name}} gespeichert"
   },
   "filters": {
     "title": "Filteroptionen",
@@ -34770,8 +35652,13 @@ FILE: i18n/locales/de.json
     "emptyBody": "Dein Verkostungspass füllt sich, wenn du Restaurant-Erinnerungen hinzufügst.",
     "addReview": "Erinnerung hinzufügen",
     "overview": "Übersicht",
+    "overviewKicker": "deine Geschichte bisher",
     "totalReviews": "Erinnerungen gesamt",
     "averageOverall": "Gesamtdurchschnitt",
+    "averageBasedOnAllRated": "Basierend auf all deinen bewerteten Kriterien",
+    "bestKicker": "deine Favoriten",
+    "winesKicker": "ein Prost darauf",
+    "citiesKicker": "wo du gegessen hast",
     "bestRestaurant": "Bestes Restaurant",
     "bestRestaurants": "Beste Restaurants",
     "bestWines": "Beste Weine",
@@ -34794,6 +35681,7 @@ FILE: i18n/locales/de.json
   },
   "bucketList": {
     "title": "Wunschliste",
+    "kicker": "noch zu entdecken",
     "emptyTitle": "Noch keine Wunschliste",
     "emptyBody": "Tippe auf das Lesezeichen bei einem Restaurant, das du besuchen möchtest, um es hier zu speichern.",
     "addTitle": "Zur Wunschliste hinzufügen",
@@ -34835,6 +35723,9 @@ FILE: i18n/locales/de.json
     "dataSavings": "Datensparmodus für Fotos",
     "dataSavingsOn": "Niedrigere Auflösung",
     "dataSavingsOff": "Höhere Auflösung",
+    "saveToLibrary": "In der Fotomediathek speichern",
+    "saveToLibraryOn": "Fotos von Erinnerungen werden auch in Fotos / Google Fotos gespeichert",
+    "saveToLibraryOff": "Fotos von Erinnerungen bleiben nur in Gustra",
     "photos": "Fotos",
     "recoverPrevious": "Frühere Gustra-Daten wiederherstellen",
     "recoverScanSubtitle": "Dieses iPhone nach der alten Swift-Datenbank und Fotos durchsuchen",
@@ -35017,7 +35908,7 @@ FILE: i18n/locales/de.json
       "draftBannerCriteria": "Bewerte mindestens ein Kriterium, um diese Erinnerung abzuschließen.",
       "draftBannerFood": "Bewerte das Essen, um diese Erinnerung abzuschließen.",
       "draftBannerWine": "Ein Wein braucht noch eine Sternebewertung.",
-      "showMoreCriteria": "{{count}} weitere anzeigen",
+      "showMoreCriteria": "{{count}} weitere Kriterien anzeigen",
       "hideMoreCriteria": "Weniger anzeigen"
     },
     "photos": {
@@ -35055,7 +35946,11 @@ FILE: i18n/locales/de.json
       "noReviews": "Dieses Restaurant hat noch keine Erinnerungen.",
       "visitCount_one": "{{count}} Besuch",
       "visitCount_other": "{{count}} Besuche",
-      "visits": "Besuche"
+      "visits": "Besuche",
+      "myVisits": "Meine Besuche",
+      "friendsVisits": "Geteilte Besuche",
+      "myAverage": "Mein Durchschnitt",
+      "friendsAverage": "Durchschnitt der Freunde"
     },
     "location": {
       "title": "Ort",
@@ -35199,8 +36094,10 @@ FILE: i18n/locales/de.json
     },
     "reviewForm": {
       "needStars": "Füge mindestens eine Sternebewertung hinzu, um diese Erinnerung zu speichern.",
-      "foodRequiredTitle": "Essensbewertung erforderlich",
-      "foodRequiredBody": "Bewerte das Essen, bevor du diese Erinnerung abschließt.",
+      "draftNoticeTitle": "Erinnerung bleibt ein Entwurf",
+      "draftNoticeBody": "Bewerte mindestens ein Kriterium mit Sternen (z. B. Essen, Service oder Ambiente), um diese Erinnerung abzuschließen. Du kannst sie auch als Entwurf speichern und später fertigstellen.",
+      "saveDraft": "Entwurf speichern",
+      "continueEditing": "Weiter bearbeiten",
       "removePhotosTitle": "Fotos entfernen?",
       "removePhotosBody": "Ausgewählte Fotos werden aus dieser Erinnerung entfernt.",
       "photosSaveFailed": "Fotos konnten nicht gespeichert werden.",
@@ -35280,7 +36177,7 @@ FILE: i18n/locales/de.json
     "deleteWineTitle": "Wein entfernen?",
     "deleteWineBody": "„{{name}}“ wird aus dieser Erinnerung entfernt.",
     "deleteWineA11y": "Wein löschen",
-    "drinksCommentPlaceholder": "Deine Notizen zum Wein…",
+    "drinksCommentPlaceholder": "Deine Notizen zum Getränk…",
     "discardUnsaved": {
       "title": "Änderungen speichern?"
     },
@@ -35401,8 +36298,6 @@ FILE: i18n/locales/de.json
       "headline": "Personalisieren Sie Ihre Erfahrung",
       "body": "Wählen Sie, welche Kriterien für Ihre Erinnerungen wichtig sind. Später änderbar unter Einstellungen.",
       "minOne": "Wählen Sie mindestens ein Kriterium.",
-      "tip": "Tipp",
-      "idealThree": ": 3 Kriterien sind ideal",
       "footer": "Hinzugefügte Kriterien erscheinen in neuen Erinnerungen."
     }
   }
@@ -35490,8 +36385,12 @@ FILE: i18n/locales/en.json
     "demoLabel": "Demo",
     "visitedBefore_one": "Visited once before",
     "visitedBefore_other": "Visited {{count}} times before",
+    "memorySaved": "Memory of {{name}} recorded",
+    "visitSaved": "Visit to {{name}} recorded",
     "visitCount_one": "{{count}} visit · {{date}}",
     "visitCount_other": "{{count}} visits · {{date}}",
+    "friendScoreLabel": "Friends: {{score}} ({{count}} visit)",
+    "friendScoreLabel_other": "Friends: {{score}} ({{count}} visits)",
     "source": {
       "mine": "My memories",
       "friends": "Shared with you"
@@ -35568,8 +36467,13 @@ FILE: i18n/locales/en.json
     "emptyBody": "Your tasting passport fills in as you add restaurant memories.",
     "addReview": "Add Memory",
     "overview": "Overview",
+    "overviewKicker": "your story so far",
     "totalReviews": "Total Memories",
     "averageOverall": "Average Overall",
+    "averageBasedOnAllRated": "Based on all your rated criteria",
+    "bestKicker": "your favourites",
+    "winesKicker": "cheers to these",
+    "citiesKicker": "where you dined",
     "bestRestaurant": "Best restaurant",
     "bestRestaurants": "Best restaurants",
     "bestWines": "Best wines",
@@ -35592,6 +36496,7 @@ FILE: i18n/locales/en.json
   },
   "bucketList": {
     "title": "Bucket List",
+    "kicker": "still to explore",
     "emptyTitle": "No bucket list yet",
     "emptyBody": "Tap the bookmark on a restaurant you want to visit to save it here.",
     "addTitle": "Add to bucket list",
@@ -35633,6 +36538,9 @@ FILE: i18n/locales/en.json
     "dataSavings": "Data savings for photos",
     "dataSavingsOn": "Lower resolution",
     "dataSavingsOff": "Higher resolution",
+    "saveToLibrary": "Save to photo library",
+    "saveToLibraryOn": "Review photos are also saved to Photos / Google Photos",
+    "saveToLibraryOff": "Review photos stay inside Gustra only",
     "photos": "Photos",
     "recoverPrevious": "Recover previous Gustra data",
     "recoverScanSubtitle": "Search this iPhone for the old Swift database and photos",
@@ -35791,7 +36699,7 @@ FILE: i18n/locales/en.json
       "done": "Done",
       "visitDate": "Visit date",
       "ratings": "Ratings",
-      "showMoreCriteria": "Show {{count}} more",
+      "showMoreCriteria": "Show {{count}} more criteria",
       "hideMoreCriteria": "Show fewer",
       "generalComments": "General comments",
       "photos": "Photos",
@@ -35853,7 +36761,11 @@ FILE: i18n/locales/en.json
       "noReviews": "This restaurant has no memories yet.",
       "visitCount_one": "{{count}} visit",
       "visitCount_other": "{{count}} visits",
-      "visits": "Visits"
+      "visits": "Visits",
+      "myVisits": "My visits",
+      "friendsVisits": "Shared visits",
+      "myAverage": "My average",
+      "friendsAverage": "Friends' average"
     },
     "location": {
       "title": "Location",
@@ -35998,8 +36910,10 @@ FILE: i18n/locales/en.json
     "reviewForm": {
       "needStars": "Add at least one star rating to save this memory.",
       "saveFailed": "Could not save this memory.",
-      "foodRequiredTitle": "Food rating required",
-      "foodRequiredBody": "Rate Food before completing this memory.",
+      "draftNoticeTitle": "Memory stays a draft",
+      "draftNoticeBody": "Add a star rating to at least one criterion (e.g. Food, Service or Setting) to complete this memory. You can also save it as a draft and finish it later.",
+      "saveDraft": "Save draft",
+      "continueEditing": "Continue editing",
       "removePhotosTitle": "Remove Photos?",
       "removePhotosBody": "Selected photos will be removed from this memory.",
       "photosSaveFailed": "Could not save photos.",
@@ -36099,7 +37013,7 @@ FILE: i18n/locales/en.json
     "deleteWineTitle": "Remove wine?",
     "deleteWineBody": "“{{name}}” will be removed from this memory.",
     "deleteWineA11y": "Delete wine",
-    "drinksCommentPlaceholder": "Your notes on the wine…",
+    "drinksCommentPlaceholder": "Your notes on the drink…",
     "discardUnsaved": {
       "title": "Save changes?"
     },
@@ -36199,8 +37113,6 @@ FILE: i18n/locales/en.json
       "headline": "Personalize your experience",
       "body": "Choose which criteria matter when you remember. You can change this later in Settings.",
       "minOne": "Pick at least one criterion.",
-      "tip": "Tip",
-      "idealThree": ": 3 criteria are ideal",
       "footer": "Added criteria appear in new memories."
     }
   }
@@ -36286,6 +37198,8 @@ FILE: i18n/locales/es.json
     "searchPlaceholder": "Buscar restaurantes, comentarios, fotos…",
     "visitCount_one": "{{count}} visita · {{date}}",
     "visitCount_other": "{{count}} visitas · {{date}}",
+    "friendScoreLabel": "Amigos: {{score}} ({{count}} visita)",
+    "friendScoreLabel_other": "Amigos: {{score}} ({{count}} visitas)",
     "source": {
       "mine": "Mis recuerdos",
       "friends": "Compartidos contigo"
@@ -36307,7 +37221,9 @@ FILE: i18n/locales/es.json
     "draftLabel": "Draft",
     "demoLabel": "Demo",
     "visitedBefore_one": "Visitado 1 vez",
-    "visitedBefore_other": "Visitado {{count}} veces"
+    "visitedBefore_other": "Visitado {{count}} veces",
+    "memorySaved": "Recuerdo de {{name}} registrado",
+    "visitSaved": "Visita a {{name}} registrada"
   },
   "filters": {
     "title": "Opciones de filtro",
@@ -36366,8 +37282,13 @@ FILE: i18n/locales/es.json
     "emptyBody": "Tu pasaporte gastronómico se completa a medida que añades recuerdos de restaurantes.",
     "addReview": "Añadir recuerdo",
     "overview": "Resumen",
+    "overviewKicker": "tu historia hasta ahora",
     "totalReviews": "Recuerdos totales",
     "averageOverall": "Media general",
+    "averageBasedOnAllRated": "Basada en todos tus criterios puntuados",
+    "bestKicker": "tus favoritos",
+    "winesKicker": "un brindis por estos",
+    "citiesKicker": "dónde comiste",
     "bestRestaurant": "Mejor restaurante",
     "bestRestaurants": "Mejores restaurantes",
     "bestWines": "Mejores vinos",
@@ -36390,6 +37311,7 @@ FILE: i18n/locales/es.json
   },
   "bucketList": {
     "title": "Lista de deseos",
+    "kicker": "aún por explorar",
     "emptyTitle": "Aún no hay lista de deseos",
     "emptyBody": "Toca el marcador de un restaurante que quieras visitar para guardarlo aquí.",
     "addTitle": "Añadir a la lista de deseos",
@@ -36431,6 +37353,9 @@ FILE: i18n/locales/es.json
     "dataSavings": "Ahorro de datos para fotos",
     "dataSavingsOn": "Resolución más baja",
     "dataSavingsOff": "Resolución más alta",
+    "saveToLibrary": "Guardar en la biblioteca de fotos",
+    "saveToLibraryOn": "Las fotos de los recuerdos también se guardan en Fotos / Google Fotos",
+    "saveToLibraryOff": "Las fotos de los recuerdos permanecen solo en Gustra",
     "photos": "Fotos",
     "recoverPrevious": "Recuperar datos anteriores de Gustra",
     "recoverScanSubtitle": "Busca en este iPhone la antigua base de datos Swift y las fotos",
@@ -36613,7 +37538,7 @@ FILE: i18n/locales/es.json
       "draftBannerCriteria": "Valora al menos un criterio para terminar este recuerdo.",
       "draftBannerFood": "Valora la comida para completar este recuerdo.",
       "draftBannerWine": "Un vino aún necesita valoración.",
-      "showMoreCriteria": "Mostrar {{count}} más",
+      "showMoreCriteria": "Mostrar {{count}} criterios más",
       "hideMoreCriteria": "Mostrar menos"
     },
     "photos": {
@@ -36651,7 +37576,11 @@ FILE: i18n/locales/es.json
       "noReviews": "Este restaurante aún no tiene recuerdos.",
       "visitCount_one": "{{count}} visita",
       "visitCount_other": "{{count}} visitas",
-      "visits": "Visitas"
+      "visits": "Visitas",
+      "myVisits": "Mis visitas",
+      "friendsVisits": "Visitas compartidas",
+      "myAverage": "Mi media",
+      "friendsAverage": "Media de los amigos"
     },
     "location": {
       "title": "Ubicación",
@@ -36795,8 +37724,10 @@ FILE: i18n/locales/es.json
     },
     "reviewForm": {
       "needStars": "Agrega al menos una calificación de estrellas para guardar este recuerdo.",
-      "foodRequiredTitle": "Valoración de comida obligatoria",
-      "foodRequiredBody": "Valora la comida antes de completar este recuerdo.",
+      "draftNoticeTitle": "El recuerdo sigue siendo un borrador",
+      "draftNoticeBody": "Agrega una calificación con estrellas a al menos un criterio (p. ej. Comida, Servicio o Ambiente) para completar este recuerdo. También puedes guardarlo como borrador y terminarlo más tarde.",
+      "saveDraft": "Guardar borrador",
+      "continueEditing": "Seguir editando",
       "removePhotosTitle": "¿Quitar fotos?",
       "removePhotosBody": "Las fotos seleccionadas se eliminarán de este recuerdo.",
       "photosSaveFailed": "No se pudieron guardar las fotos.",
@@ -36876,7 +37807,7 @@ FILE: i18n/locales/es.json
     "deleteWineTitle": "¿Eliminar vino?",
     "deleteWineBody": "“{{name}}” se eliminará de este recuerdo.",
     "deleteWineA11y": "Eliminar vino",
-    "drinksCommentPlaceholder": "Tus notas sobre el vino…",
+    "drinksCommentPlaceholder": "Tus notas sobre la bebida…",
     "discardUnsaved": {
       "title": "¿Guardar cambios?"
     },
@@ -36997,8 +37928,6 @@ FILE: i18n/locales/es.json
       "headline": "Personaliza tu experiencia",
       "body": "Elige qué criterios importan al recordar. Puedes cambiarlo después en Ajustes.",
       "minOne": "Elige al menos un criterio.",
-      "tip": "Consejo",
-      "idealThree": ": 3 criterios son ideales",
       "footer": "Los criterios añadidos aparecen en los nuevos recuerdos."
     }
   }
@@ -37084,6 +38013,8 @@ FILE: i18n/locales/fr.json
     "searchPlaceholder": "Rechercher restaurants, commentaires, photos…",
     "visitCount_one": "{{count}} visite · {{date}}",
     "visitCount_other": "{{count}} visites · {{date}}",
+    "friendScoreLabel": "Amis : {{score}} ({{count}} visite)",
+    "friendScoreLabel_other": "Amis : {{score}} ({{count}} visites)",
     "source": {
       "mine": "Mes souvenirs",
       "friends": "Partagés avec vous"
@@ -37105,7 +38036,9 @@ FILE: i18n/locales/fr.json
     "draftLabel": "Draft",
     "demoLabel": "Demo",
     "visitedBefore_one": "Déjà visité 1 fois",
-    "visitedBefore_other": "Déjà visité {{count}} fois"
+    "visitedBefore_other": "Déjà visité {{count}} fois",
+    "memorySaved": "Souvenir de {{name}} enregistré",
+    "visitSaved": "Visite chez {{name}} enregistrée"
   },
   "filters": {
     "title": "Options de filtre",
@@ -37164,8 +38097,13 @@ FILE: i18n/locales/fr.json
     "emptyBody": "Votre passeport de dégustation se remplit au fur et à mesure de vos souvenirs de restaurant.",
     "addReview": "Ajouter un souvenir",
     "overview": "Aperçu",
+    "overviewKicker": "votre histoire jusqu’ici",
     "totalReviews": "Total de souvenirs",
     "averageOverall": "Moyenne générale",
+    "averageBasedOnAllRated": "Basée sur tous tes critères notés",
+    "bestKicker": "vos préférés",
+    "winesKicker": "un toast à ceux-ci",
+    "citiesKicker": "où vous avez dîné",
     "bestRestaurant": "Meilleur restaurant",
     "bestRestaurants": "Meilleurs restaurants",
     "bestWines": "Meilleurs vins",
@@ -37188,6 +38126,7 @@ FILE: i18n/locales/fr.json
   },
   "bucketList": {
     "title": "Liste de souhaits",
+    "kicker": "encore à découvrir",
     "emptyTitle": "Pas encore de liste de souhaits",
     "emptyBody": "Touchez le signet d’un restaurant que vous voulez visiter pour l’enregistrer ici.",
     "addTitle": "Ajouter à la liste de souhaits",
@@ -37229,6 +38168,9 @@ FILE: i18n/locales/fr.json
     "dataSavings": "Économie de données pour les photos",
     "dataSavingsOn": "Résolution plus basse",
     "dataSavingsOff": "Résolution plus haute",
+    "saveToLibrary": "Enregistrer dans la photothèque",
+    "saveToLibraryOn": "Les photos des souvenirs sont aussi enregistrées dans Photos / Google Photos",
+    "saveToLibraryOff": "Les photos des souvenirs restent uniquement dans Gustra",
     "photos": "Photos",
     "recoverPrevious": "Récupérer les anciennes données Gustra",
     "recoverScanSubtitle": "Chercher sur cet iPhone l’ancienne base Swift et les photos",
@@ -37411,7 +38353,7 @@ FILE: i18n/locales/fr.json
       "draftBannerCriteria": "Notez au moins un critère pour terminer ce souvenir.",
       "draftBannerFood": "Notez la cuisine pour terminer ce souvenir.",
       "draftBannerWine": "Un vin doit encore être noté.",
-      "showMoreCriteria": "Afficher {{count}} de plus",
+      "showMoreCriteria": "Afficher {{count}} critères de plus",
       "hideMoreCriteria": "Afficher moins"
     },
     "photos": {
@@ -37449,7 +38391,11 @@ FILE: i18n/locales/fr.json
       "noReviews": "Ce restaurant n’a pas encore de souvenirs.",
       "visitCount_one": "{{count}} visite",
       "visitCount_other": "{{count}} visites",
-      "visits": "Visites"
+      "visits": "Visites",
+      "myVisits": "Mes visites",
+      "friendsVisits": "Visites partagées",
+      "myAverage": "Ma moyenne",
+      "friendsAverage": "Moyenne des amis"
     },
     "location": {
       "title": "Lieu",
@@ -37593,8 +38539,10 @@ FILE: i18n/locales/fr.json
     },
     "reviewForm": {
       "needStars": "Ajoutez au moins une note en étoiles pour enregistrer ce souvenir.",
-      "foodRequiredTitle": "Note de cuisine obligatoire",
-      "foodRequiredBody": "Notez la cuisine avant de terminer ce souvenir.",
+      "draftNoticeTitle": "Le souvenir reste un brouillon",
+      "draftNoticeBody": "Ajoutez une note en étoiles à au moins un critère (ex. Cuisine, Service ou Ambiance) pour terminer ce souvenir. Vous pouvez aussi l’enregistrer comme brouillon et le finir plus tard.",
+      "saveDraft": "Enregistrer le brouillon",
+      "continueEditing": "Continuer la saisie",
       "removePhotosTitle": "Retirer les photos ?",
       "removePhotosBody": "Les photos sélectionnées seront retirées de ce souvenir.",
       "photosSaveFailed": "Impossible d’enregistrer les photos.",
@@ -37674,7 +38622,7 @@ FILE: i18n/locales/fr.json
     "deleteWineTitle": "Supprimer le vin ?",
     "deleteWineBody": "« {{name}} » sera retiré de ce souvenir.",
     "deleteWineA11y": "Supprimer le vin",
-    "drinksCommentPlaceholder": "Vos notes sur le vin…",
+    "drinksCommentPlaceholder": "Vos notes sur la boisson…",
     "discardUnsaved": {
       "title": "Enregistrer les modifications ?"
     },
@@ -37795,8 +38743,6 @@ FILE: i18n/locales/fr.json
       "headline": "Personnalisez votre expérience",
       "body": "Choisissez les critères importants pour vos souvenirs. Vous pourrez les modifier plus tard dans Réglages.",
       "minOne": "Choisissez au moins un critère.",
-      "tip": "Astuce",
-      "idealThree": " : 3 critères, c'est l'idéal",
       "footer": "Les critères ajoutés apparaissent dans les nouveaux souvenirs."
     }
   }
@@ -37882,6 +38828,8 @@ FILE: i18n/locales/it.json
     "searchPlaceholder": "Cerca ristoranti, commenti, foto…",
     "visitCount_one": "{{count}} visita · {{date}}",
     "visitCount_other": "{{count}} visite · {{date}}",
+    "friendScoreLabel": "Amici: {{score}} ({{count}} visita)",
+    "friendScoreLabel_other": "Amici: {{score}} ({{count}} visite)",
     "source": {
       "mine": "I miei ricordi",
       "friends": "Condivisi con te"
@@ -37903,7 +38851,9 @@ FILE: i18n/locales/it.json
     "draftLabel": "Draft",
     "demoLabel": "Demo",
     "visitedBefore_one": "Già visitato 1 volta",
-    "visitedBefore_other": "Già visitato {{count}} volte"
+    "visitedBefore_other": "Già visitato {{count}} volte",
+    "memorySaved": "Ricordo di {{name}} registrato",
+    "visitSaved": "Visita a {{name}} registrata"
   },
   "filters": {
     "title": "Opzioni filtro",
@@ -37962,8 +38912,13 @@ FILE: i18n/locales/it.json
     "emptyBody": "Il tuo passaporto del gusto si compila man mano che aggiungi ricordi di ristoranti.",
     "addReview": "Aggiungi ricordo",
     "overview": "Panoramica",
+    "overviewKicker": "la tua storia finora",
     "totalReviews": "Ricordi totali",
     "averageOverall": "Media complessiva",
+    "averageBasedOnAllRated": "Basata su tutti i tuoi criteri valutati",
+    "bestKicker": "i tuoi preferiti",
+    "winesKicker": "un brindisi a questi",
+    "citiesKicker": "dove hai cenato",
     "bestRestaurant": "Miglior ristorante",
     "bestRestaurants": "Migliori ristoranti",
     "bestWines": "Migliori vini",
@@ -37986,6 +38941,7 @@ FILE: i18n/locales/it.json
   },
   "bucketList": {
     "title": "Lista dei desideri",
+    "kicker": "ancora da esplorare",
     "emptyTitle": "Ancora nessuna lista dei desideri",
     "emptyBody": "Tocca il segnalibro di un ristorante che vuoi visitare per salvarlo qui.",
     "addTitle": "Aggiungi alla lista dei desideri",
@@ -38027,6 +38983,9 @@ FILE: i18n/locales/it.json
     "dataSavings": "Risparmio dati per le foto",
     "dataSavingsOn": "Risoluzione inferiore",
     "dataSavingsOff": "Risoluzione superiore",
+    "saveToLibrary": "Salva nella libreria foto",
+    "saveToLibraryOn": "Le foto dei ricordi vengono salvate anche in Foto / Google Foto",
+    "saveToLibraryOff": "Le foto dei ricordi restano solo in Gustra",
     "photos": "Foto",
     "recoverPrevious": "Recupera dati Gustra precedenti",
     "recoverScanSubtitle": "Cerca dati dell’app Swift su questo dispositivo",
@@ -38209,7 +39168,7 @@ FILE: i18n/locales/it.json
       "draftBannerCriteria": "Valuta almeno un criterio per completare questo ricordo.",
       "draftBannerFood": "Valuta il cibo per completare questo ricordo.",
       "draftBannerWine": "Un vino ha ancora bisogno di una valutazione.",
-      "showMoreCriteria": "Mostra altri {{count}}",
+      "showMoreCriteria": "Mostra altri {{count}} criteri",
       "hideMoreCriteria": "Mostra meno"
     },
     "photos": {
@@ -38247,7 +39206,11 @@ FILE: i18n/locales/it.json
       "noReviews": "Questo ristorante non ha ancora ricordi.",
       "visitCount_one": "{{count}} visita",
       "visitCount_other": "{{count}} visite",
-      "visits": "Visite"
+      "visits": "Visite",
+      "myVisits": "Le mie visite",
+      "friendsVisits": "Visite condivise",
+      "myAverage": "La mia media",
+      "friendsAverage": "Media degli amici"
     },
     "location": {
       "title": "Località",
@@ -38391,8 +39354,10 @@ FILE: i18n/locales/it.json
     },
     "reviewForm": {
       "needStars": "Aggiungi almeno una valutazione a stelle per salvare questo ricordo.",
-      "foodRequiredTitle": "Valutazione del cibo obbligatoria",
-      "foodRequiredBody": "Valuta il cibo prima di completare questo ricordo.",
+      "draftNoticeTitle": "Il ricordo resta una bozza",
+      "draftNoticeBody": "Aggiungi una valutazione a stelle ad almeno un criterio (es. Cibo, Servizio o Atmosfera) per completare questo ricordo. Puoi anche salvarlo come bozza e finirlo più tardi.",
+      "saveDraft": "Salva bozza",
+      "continueEditing": "Continua a modificare",
       "removePhotosTitle": "Rimuovere le foto?",
       "removePhotosBody": "Le foto selezionate verranno rimosse da questo ricordo.",
       "photosSaveFailed": "Impossibile salvare le foto.",
@@ -38472,7 +39437,7 @@ FILE: i18n/locales/it.json
     "deleteWineTitle": "Rimuovere il vino?",
     "deleteWineBody": "“{{name}}” verrà rimosso da questo ricordo.",
     "deleteWineA11y": "Elimina vino",
-    "drinksCommentPlaceholder": "Le tue note sul vino…",
+    "drinksCommentPlaceholder": "Le tue note sulla bevanda…",
     "discardUnsaved": {
       "title": "Salvare le modifiche?"
     },
@@ -38593,8 +39558,6 @@ FILE: i18n/locales/it.json
       "headline": "Personalizza la tua esperienza",
       "body": "Scegli quali criteri contano per i tuoi ricordi. Potrai modificarli dopo in Impostazioni.",
       "minOne": "Scegli almeno un criterio.",
-      "tip": "Suggerimento",
-      "idealThree": ": 3 criteri sono l'ideale",
       "footer": "I criteri aggiunti compaiono nei nuovi ricordi."
     }
   }
@@ -38680,6 +39643,8 @@ FILE: i18n/locales/nl.json
     "searchPlaceholder": "Zoek restaurants, reacties, foto’s…",
     "visitCount_one": "{{count}} bezoek · {{date}}",
     "visitCount_other": "{{count}} bezoeken · {{date}}",
+    "friendScoreLabel": "Vrienden: {{score}} ({{count}} bezoek)",
+    "friendScoreLabel_other": "Vrienden: {{score}} ({{count}} bezoeken)",
     "source": {
       "mine": "Mijn herinneringen",
       "friends": "Met je gedeeld"
@@ -38701,7 +39666,9 @@ FILE: i18n/locales/nl.json
     "draftLabel": "Draft",
     "demoLabel": "Demo",
     "visitedBefore_one": "Al 1 keer bezocht",
-    "visitedBefore_other": "Al {{count}} keer bezocht"
+    "visitedBefore_other": "Al {{count}} keer bezocht",
+    "memorySaved": "Herinnering aan {{name}} is vastgelegd",
+    "visitSaved": "Bezoek aan {{name}} is vastgelegd"
   },
   "filters": {
     "title": "Filteropties",
@@ -38760,8 +39727,13 @@ FILE: i18n/locales/nl.json
     "emptyBody": "Je proefpaspoort vult zich naarmate je restaurantherinneringen toevoegt.",
     "addReview": "Herinnering toevoegen",
     "overview": "Overzicht",
+    "overviewKicker": "jouw verhaal tot nu toe",
     "totalReviews": "Totaal herinneringen",
     "averageOverall": "Gemiddelde totaal",
+    "averageBasedOnAllRated": "Op basis van al je beoordeelde criteria",
+    "bestKicker": "jouw favorieten",
+    "winesKicker": "proost op deze",
+    "citiesKicker": "waar jij at",
     "bestRestaurant": "Beste restaurant",
     "bestRestaurants": "Beste restaurants",
     "bestWines": "Beste wijnen",
@@ -38784,6 +39756,7 @@ FILE: i18n/locales/nl.json
   },
   "bucketList": {
     "title": "Bucket list",
+    "kicker": "nog te ontdekken",
     "emptyTitle": "Nog geen bucket list",
     "emptyBody": "Tik op het bladwijzer-icoon bij een restaurant dat je wilt bezoeken om het hier op te slaan.",
     "addTitle": "Toevoegen aan bucket list",
@@ -38825,6 +39798,9 @@ FILE: i18n/locales/nl.json
     "dataSavings": "Databesparing voor foto’s",
     "dataSavingsOn": "Lagere resolutie",
     "dataSavingsOff": "Hogere resolutie",
+    "saveToLibrary": "Opslaan in fotobibliotheek",
+    "saveToLibraryOn": "Herinneringsfoto’s worden ook bewaard in Foto’s / Google Foto’s",
+    "saveToLibraryOff": "Herinneringsfoto’s blijven alleen in Gustra",
     "photos": "Foto’s",
     "recoverPrevious": "Vorige Gustra-gegevens herstellen",
     "recoverScanSubtitle": "Zoek op deze iPhone naar de oude Swift-database en foto’s",
@@ -39007,7 +39983,7 @@ FILE: i18n/locales/nl.json
       "draftBannerCriteria": "Beoordeel minstens 1 criterium om deze herinnering af te ronden.",
       "draftBannerFood": "Beoordeel Eten om deze herinnering af te ronden.",
       "draftBannerWine": "Een wijn heeft nog sterren nodig.",
-      "showMoreCriteria": "Toon {{count}} meer",
+      "showMoreCriteria": "Toon {{count}} meer criteria",
       "hideMoreCriteria": "Minder tonen"
     },
     "photos": {
@@ -39045,7 +40021,11 @@ FILE: i18n/locales/nl.json
       "noReviews": "Dit restaurant heeft nog geen herinneringen.",
       "visitCount_one": "{{count}} bezoek",
       "visitCount_other": "{{count}} bezoeken",
-      "visits": "Bezoeken"
+      "visits": "Bezoeken",
+      "myVisits": "Mijn bezoeken",
+      "friendsVisits": "Gedeelde bezoeken",
+      "myAverage": "Mijn gemiddelde",
+      "friendsAverage": "Gemiddelde van vrienden"
     },
     "location": {
       "title": "Locatie",
@@ -39189,8 +40169,10 @@ FILE: i18n/locales/nl.json
     },
     "reviewForm": {
       "needStars": "Voeg minstens één sterscore toe om deze herinnering op te slaan.",
-      "foodRequiredTitle": "Beoordeling voor Eten verplicht",
-      "foodRequiredBody": "Beoordeel Eten voordat je deze herinnering afrondt.",
+      "draftNoticeTitle": "Herinnering blijft een concept",
+      "draftNoticeBody": "Geef minstens één criterium een ster (bijv. Eten, Service of Sfeer) om deze herinnering af te ronden. Je kunt hem ook bewaren als concept en later afmaken.",
+      "saveDraft": "Bewaar als concept",
+      "continueEditing": "Verder bewerken",
       "removePhotosTitle": "Foto’s verwijderen?",
       "removePhotosBody": "Geselecteerde foto’s worden uit deze herinnering verwijderd.",
       "photosSaveFailed": "Kon foto’s niet opslaan.",
@@ -39270,7 +40252,7 @@ FILE: i18n/locales/nl.json
     "deleteWineTitle": "Wijn verwijderen?",
     "deleteWineBody": "“{{name}}” wordt uit deze herinnering verwijderd.",
     "deleteWineA11y": "Wijn verwijderen",
-    "drinksCommentPlaceholder": "Jouw notities bij de wijn…",
+    "drinksCommentPlaceholder": "Jouw notities bij de drank…",
     "discardUnsaved": {
       "title": "Wijzigingen opslaan?"
     },
@@ -39391,8 +40373,6 @@ FILE: i18n/locales/nl.json
       "headline": "Personaliseer je ervaring",
       "body": "Kies welke criteria belangrijk zijn bij het herinneren. Je kunt dit later altijd wijzigen in Instellingen.",
       "minOne": "Kies minstens één criterium.",
-      "tip": "Tip",
-      "idealThree": ": 3 criteria zijn ideaal",
       "footer": "Toegevoegde criteria verschijnen bij nieuwe herinneringen."
     }
   }
@@ -39611,6 +40591,8 @@ config.resolver.blockList = Array.isArray(prev)
     ? [prev, ...extraBlock]
     : extraBlock;
 
+config.resolver.useWatchman = false;
+
 module.exports = config;
 
 
@@ -39623,6 +40605,8 @@ FILE: package.json
   "version": "1.0.0",
   "dependencies": {
     "@expo-google-fonts/source-serif-4": "^0.4.1",
+    "@expo/cli": "^57.0.12",
+    "@expo/metro": "^56.0.0",
     "@expo/vector-icons": "^15.0.2",
     "@noble/ciphers": "^2.2.0",
     "@noble/hashes": "^2.2.0",
@@ -43655,6 +44639,77 @@ export async function unlockPhotoViewerOrientation(): Promise<void> {
 
 
 ================================================================================
+FILE: services/photos/PhotoLibrarySave.ts
+================================================================================
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+/**
+ * “Save review photos to the device photo library” preference.
+ *
+ * Default ON (user asked): every saved review photo is also written to the
+ * system photo library (iOS Photos / Android Media Store → Google Photos).
+ * The user can switch it off in Settings; the app folder stays the source of
+ * truth for the memory and backups either way.
+ */
+export const PHOTO_LIBRARY_SAVE_KEY = 'saveReviewPhotosToDeviceLibrary';
+
+type Listener = (enabled: boolean) => void;
+
+let cachedEnabled = true;
+let hydrated = false;
+const listeners = new Set<Listener>();
+
+function notify() {
+  for (const listener of listeners) listener(cachedEnabled);
+}
+
+export function subscribePhotoLibrarySave(listener: Listener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+export function isPhotoLibrarySaveEnabled(): boolean {
+  return cachedEnabled;
+}
+
+export function isPhotoLibrarySaveHydrated(): boolean {
+  return hydrated;
+}
+
+export async function hydratePhotoLibrarySave(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(PHOTO_LIBRARY_SAVE_KEY);
+    if (raw === null) {
+      cachedEnabled = true;
+    } else {
+      cachedEnabled = raw === 'true' || raw === '1';
+    }
+  } catch {
+    cachedEnabled = true;
+  }
+  hydrated = true;
+  notify();
+  return cachedEnabled;
+}
+
+export async function setPhotoLibrarySaveEnabled(enabled: boolean): Promise<void> {
+  cachedEnabled = enabled;
+  hydrated = true;
+  notify();
+  try {
+    await AsyncStorage.setItem(
+      PHOTO_LIBRARY_SAVE_KEY,
+      enabled ? 'true' : 'false',
+    );
+  } catch {
+    // Preference still held in memory for this session.
+  }
+}
+
+
+================================================================================
 FILE: services/photos/PhotoQualitySettings.ts
 ================================================================================
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -45721,17 +46776,21 @@ import type { CriterionRating, Review, WineLabelFiche } from '@/data/types';
 import { RatingValue } from '@/services/reviews/ratings';
 import { hasWineUserRating, wineLabelsForReview } from '@/services/wine/wineLabelTypes';
 
-export type DraftReviewReason = 'food' | 'wine';
+export type DraftReviewReason = 'criteria' | 'wine';
 
-/** Food is the one required restaurant rating for a completed review. */
-export function hasRequiredFoodRating(criteria: CriterionRating[]): boolean {
-  const food = criteria.find((criterion) => criterion.id === 'food');
-  return RatingValue.isStarRating(food?.rating ?? RatingValue.unrated);
+/**
+ * A completed review needs at least one criterion with a star rating —
+ * it doesn't matter which one (Food, Service, Setting, …).
+ */
+export function hasAnyRatedCriterion(criteria: CriterionRating[]): boolean {
+  return criteria.some((criterion) =>
+    RatingValue.isStarRating(criterion.rating),
+  );
 }
 
 /**
  * A review is a draft when:
- * - Food has no star rating, or
+ * - no criterion has a star rating, or
  * - at least one attached wine is missing a star rating.
  *
  * Computed (not stored) — backwards compatible with all prior data.
@@ -45747,8 +46806,8 @@ export function isReviewDraft(
 export function draftReviewReason(
   review: Pick<Review, 'criteria' | 'wineLabel' | 'wineLabels'> | null | undefined,
 ): DraftReviewReason | null {
-  if (!review) return 'food';
-  if (!hasRequiredFoodRating(review.criteria ?? [])) return 'food';
+  if (!review) return 'criteria';
+  if (!hasAnyRatedCriterion(review.criteria ?? [])) return 'criteria';
   const wines = wineLabelsForReview(review);
   if (wines.some((w) => !hasWineUserRating(w))) return 'wine';
   return null;
@@ -45759,7 +46818,7 @@ export function isFormDraft(
   criteria: CriterionRating[],
   wines: WineLabelFiche[],
 ): boolean {
-  if (!hasRequiredFoodRating(criteria)) return true;
+  if (!hasAnyRatedCriterion(criteria)) return true;
   if (wines.some((w) => !hasWineUserRating(w))) return true;
   return false;
 }
@@ -45768,7 +46827,7 @@ export function formDraftReason(
   criteria: CriterionRating[],
   wines: WineLabelFiche[],
 ): DraftReviewReason | null {
-  if (!hasRequiredFoodRating(criteria)) return 'food';
+  if (!hasAnyRatedCriterion(criteria)) return 'criteria';
   if (wines.some((w) => !hasWineUserRating(w))) return 'wine';
   return null;
 }
@@ -45798,10 +46857,30 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { Image } from 'react-native';
 
 import { relocateLocalPhotoRef } from '@/services/backup/photos';
+import { isPhotoLibrarySaveEnabled } from '@/services/photos/PhotoLibrarySave';
 import {
   hydratePhotoDataSavings,
   reviewPhotoMaxPixelSide,
 } from '@/services/photos/PhotoQualitySettings';
+
+/** Best-effort copy into the system photo library (iOS Photos / Android). */
+async function saveToDeviceLibrary(localUri: string): Promise<void> {
+  // Lazy load: a top-level import crashes Expo Go when ExpoMediaLibraryNext
+  // is missing.
+  let MediaLibrary: typeof import('expo-media-library');
+  try {
+    MediaLibrary = await import('expo-media-library');
+  } catch {
+    return;
+  }
+  try {
+    const { status } = await MediaLibrary.requestPermissionsAsync(true);
+    if (status !== 'granted') return;
+    await MediaLibrary.Asset.create(localUri);
+  } catch {
+    // Never fail the review save because the library copy failed.
+  }
+}
 
 function photosDir(): string {
   const root = FileSystem.documentDirectory;
@@ -45865,6 +46944,11 @@ export async function saveReviewPhoto(sourceUri: string): Promise<string> {
   const filename = `review_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.jpg`;
   const dest = `${dir}${filename}`;
   await FileSystem.copyAsync({ from: prepared.uri, to: dest });
+  // When the setting is on (default), also write a copy to the system photo
+  // library. Best-effort and non-blocking: the app copy is the source of truth.
+  if (isPhotoLibrarySaveEnabled()) {
+    void saveToDeviceLibrary(dest).catch(() => undefined);
+  }
   return dest;
 }
 
@@ -46121,6 +47205,38 @@ export function reviewMatchesSearchQuery(
   if (!q) return true;
   if (restaurantName?.toLowerCase().includes(q)) return true;
   return (review.searchableText ?? '').toLowerCase().includes(q);
+}
+
+
+================================================================================
+FILE: services/reviews/upsertReviewReuse.ts
+================================================================================
+import type { Review } from '@/data/types';
+import { resolveReviewOrigin } from '@/data/types';
+import { isReviewDraft } from '@/services/reviews/draftReview';
+
+/**
+ * Find the review that a form upsert without an explicit `reviewId` should
+ * update, instead of creating a brand-new visit.
+ *
+ * Only an in-progress **draft** for the same restaurant + exact visit
+ * timestamp is reused (so a concurrent autosave/Done cannot create a
+ * duplicate draft). A completed review is never silently overwritten — two
+ * visits on the same day (e.g. adding a 4th visit today) always create a new
+ * review rather than replacing an existing one.
+ */
+export function findReviewToReuse(
+  reviews: Review[],
+  restaurantId: string,
+  visitDateIso: string,
+): Review | undefined {
+  return reviews.find(
+    (r) =>
+      r.restaurantId === restaurantId &&
+      resolveReviewOrigin(r) === 'own' &&
+      isReviewDraft(r) &&
+      r.date === visitDateIso,
+  );
 }
 
 
@@ -49305,6 +50421,12 @@ export async function hasSeenWineVisionUploadNotice(): Promise<boolean> {
 export async function markWineVisionUploadNoticeSeen(): Promise<void> {
   await AsyncStorage.setItem(KEY, '1');
 }
+
+
+================================================================================
+FILE: site/controls/controls-state.json
+================================================================================
+{"submissions": {}, "updatedAt": null}
 
 
 ================================================================================

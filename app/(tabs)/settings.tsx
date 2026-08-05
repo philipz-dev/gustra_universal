@@ -32,6 +32,7 @@ import { useLanguageSettings } from '@/context/LanguageSettings';
 import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import { useDemoLabelSettings } from '@/context/DemoLabelSettings';
 import { usePassportDisplaySettings } from '@/context/PassportDisplaySettings';
+import { usePhotoLibrarySettings } from '@/context/PhotoLibrarySettings';
 import { usePhotoQualitySettings } from '@/context/PhotoQualitySettings';
 import {
   REVIEWER_MAX_NAME_LENGTH,
@@ -92,6 +93,8 @@ export default function SettingsScreen() {
   } = usePassportDisplaySettings();
   const { isDataSavingsEnabled, setDataSavingsEnabled } =
     usePhotoQualitySettings();
+  const { isPhotoLibrarySaveEnabled, setPhotoLibrarySaveEnabled } =
+    usePhotoLibrarySettings();
   const {
     mapsToday,
     mapsTotal,
@@ -449,6 +452,25 @@ export default function SettingsScreen() {
       </SettingsSection>
 
       <SettingsSection title={t('settings.sectionStorage')}>
+        <SettingsRow
+          title={t('settings.saveToLibrary')}
+          subtitle={
+            isPhotoLibrarySaveEnabled
+              ? t('settings.saveToLibraryOn')
+              : t('settings.saveToLibraryOff')
+          }
+          icon={{
+            ios: 'photo.on.rectangle.angled',
+            android: 'photo_library',
+            web: 'photo_library',
+          }}
+          trailing={
+            <GustraSwitch
+              value={isPhotoLibrarySaveEnabled}
+              onValueChange={setPhotoLibrarySaveEnabled}
+            />
+          }
+        />
         <SettingsRow
           title={t('settings.dataSavings')}
           subtitle={

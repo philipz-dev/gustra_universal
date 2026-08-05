@@ -51,28 +51,26 @@ export type TimeTravelStats = {
   averageAllTime: number;
 };
 
-export type EnabledCriterion = { id: string; title: string };
-
 const TOP_N = 3;
-
 function displayLocation(name: string, city: string): string {
   if (city.trim()) return `${name}, ${city}`;
   return name;
 }
 
-function scoreForEnabled(review: Review, enabledIds: Set<string>): number {
-  return overallScoreFromCriteria(
-    review.criteria.filter((c) => enabledIds.has(c.id)),
-  );
+/**
+ * Passport score for one review: the average of ALL rated criteria —
+ * exactly the same rule as the feed and the restaurant detail screen.
+ * Enabled-criteria filtering must not change the headline score.
+ */
+function scoreForReview(review: Review): number {
+  return overallScoreFromCriteria(review.criteria);
 }
 
 /** Passport stats over the (already filtered) review set. */
 export function getPassportStats(
-  enabledCriteria: EnabledCriterion[],
   sourceReviews: Review[],
   restaurants: Restaurant[],
 ): PassportStats {
-  const enabledIds = new Set(enabledCriteria.map((c) => c.id));
   const restaurantById = new Map(restaurants.map((r) => [r.id, r]));
   // Drafts (no criterion stars, or unrated wines) do not count toward passport.
   const reviews = sourceReviews
@@ -91,7 +89,7 @@ export function getPassportStats(
 
   const scored = reviews.map((review) => ({
     review,
-    score: scoreForEnabled(review, enabledIds),
+    score: scoreForReview(review),
   }));
 
   const averageOverall =

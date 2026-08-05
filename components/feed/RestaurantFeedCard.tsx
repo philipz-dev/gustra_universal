@@ -53,7 +53,12 @@ export function RestaurantFeedCard({
   const isDraft = Boolean(summary.isDraft);
   const isDemo = isDemoRestaurantId(summary.restaurantId);
   const displayScore =
-    typeof scoreOverride === 'number' ? scoreOverride : summary.averageScore;
+    typeof scoreOverride === 'number'
+      ? scoreOverride
+      : summary.ownScore ?? summary.averageScore;
+  // Friend score as context below the own main score (only when merged).
+  const friendScore =
+    summary.friendScore && summary.friendVisitCount ? summary.friendScore : null;
 
   const card = (
     <Pressable
@@ -101,6 +106,14 @@ export function RestaurantFeedCard({
         {summary.reviewerName && !isDemo ? (
           <Text style={styles.reviewer}>
             {t('detail.review.reviewedBy', { name: summary.reviewerName })}
+          </Text>
+        ) : null}
+        {friendScore ? (
+          <Text style={styles.friendScore}>
+            {t('reviews.friendScoreLabel', {
+              score: formatScoreOutOfFive(friendScore),
+              count: summary.friendVisitCount,
+            })}
           </Text>
         ) : null}
       </View>
@@ -209,6 +222,11 @@ const styles = StyleSheet.create({
     ...captionTextStyle,
     fontSize: Type.label,
     color: 'rgba(35, 32, 26, 0.5)',
+  },
+  friendScore: {
+    ...captionTextStyle,
+    fontSize: Type.caption,
+    color: 'rgba(35, 32, 26, 0.45)',
   },
   trailing: {
     alignItems: 'flex-end',

@@ -74,6 +74,8 @@
     "searchPlaceholder": "Zoek restaurants, reacties, foto’s…",
     "visitCount_one": "{{count}} bezoek · {{date}}",
     "visitCount_other": "{{count}} bezoeken · {{date}}",
+    "friendScoreLabel": "Vrienden: {{score}} ({{count}} bezoek)",
+    "friendScoreLabel_other": "Vrienden: {{score}} ({{count}} bezoeken)",
     "source": {
       "mine": "Mijn herinneringen",
       "friends": "Met je gedeeld"
@@ -95,7 +97,9 @@
     "draftLabel": "Draft",
     "demoLabel": "Demo",
     "visitedBefore_one": "Al 1 keer bezocht",
-    "visitedBefore_other": "Al {{count}} keer bezocht"
+    "visitedBefore_other": "Al {{count}} keer bezocht",
+    "memorySaved": "Herinnering aan {{name}} is vastgelegd",
+    "visitSaved": "Bezoek aan {{name}} is vastgelegd"
   },
   "filters": {
     "title": "Filteropties",
@@ -154,8 +158,13 @@
     "emptyBody": "Je proefpaspoort vult zich naarmate je restaurantherinneringen toevoegt.",
     "addReview": "Herinnering toevoegen",
     "overview": "Overzicht",
+    "overviewKicker": "jouw verhaal tot nu toe",
     "totalReviews": "Totaal herinneringen",
     "averageOverall": "Gemiddelde totaal",
+    "averageBasedOnAllRated": "Op basis van al je beoordeelde criteria",
+    "bestKicker": "jouw favorieten",
+    "winesKicker": "proost op deze",
+    "citiesKicker": "waar jij at",
     "bestRestaurant": "Beste restaurant",
     "bestRestaurants": "Beste restaurants",
     "bestWines": "Beste wijnen",
@@ -178,6 +187,7 @@
   },
   "bucketList": {
     "title": "Bucket list",
+    "kicker": "nog te ontdekken",
     "emptyTitle": "Nog geen bucket list",
     "emptyBody": "Tik op het bladwijzer-icoon bij een restaurant dat je wilt bezoeken om het hier op te slaan.",
     "addTitle": "Toevoegen aan bucket list",
@@ -219,6 +229,9 @@
     "dataSavings": "Databesparing voor foto’s",
     "dataSavingsOn": "Lagere resolutie",
     "dataSavingsOff": "Hogere resolutie",
+    "saveToLibrary": "Opslaan in fotobibliotheek",
+    "saveToLibraryOn": "Herinneringsfoto’s worden ook bewaard in Foto’s / Google Foto’s",
+    "saveToLibraryOff": "Herinneringsfoto’s blijven alleen in Gustra",
     "photos": "Foto’s",
     "recoverPrevious": "Vorige Gustra-gegevens herstellen",
     "recoverScanSubtitle": "Zoek op deze iPhone naar de oude Swift-database en foto’s",
@@ -401,7 +414,7 @@
       "draftBannerCriteria": "Beoordeel minstens 1 criterium om deze herinnering af te ronden.",
       "draftBannerFood": "Beoordeel Eten om deze herinnering af te ronden.",
       "draftBannerWine": "Een wijn heeft nog sterren nodig.",
-      "showMoreCriteria": "Toon {{count}} meer",
+      "showMoreCriteria": "Toon {{count}} meer criteria",
       "hideMoreCriteria": "Minder tonen"
     },
     "photos": {
@@ -439,7 +452,11 @@
       "noReviews": "Dit restaurant heeft nog geen herinneringen.",
       "visitCount_one": "{{count}} bezoek",
       "visitCount_other": "{{count}} bezoeken",
-      "visits": "Bezoeken"
+      "visits": "Bezoeken",
+      "myVisits": "Mijn bezoeken",
+      "friendsVisits": "Gedeelde bezoeken",
+      "myAverage": "Mijn gemiddelde",
+      "friendsAverage": "Gemiddelde van vrienden"
     },
     "location": {
       "title": "Locatie",
@@ -583,8 +600,10 @@
     },
     "reviewForm": {
       "needStars": "Voeg minstens één sterscore toe om deze herinnering op te slaan.",
-      "foodRequiredTitle": "Beoordeling voor Eten verplicht",
-      "foodRequiredBody": "Beoordeel Eten voordat je deze herinnering afrondt.",
+      "draftNoticeTitle": "Herinnering blijft een concept",
+      "draftNoticeBody": "Geef minstens één criterium een ster (bijv. Eten, Service of Sfeer) om deze herinnering af te ronden. Je kunt hem ook bewaren als concept en later afmaken.",
+      "saveDraft": "Bewaar als concept",
+      "continueEditing": "Verder bewerken",
       "removePhotosTitle": "Foto’s verwijderen?",
       "removePhotosBody": "Geselecteerde foto’s worden uit deze herinnering verwijderd.",
       "photosSaveFailed": "Kon foto’s niet opslaan.",
@@ -664,7 +683,7 @@
     "deleteWineTitle": "Wijn verwijderen?",
     "deleteWineBody": "“{{name}}” wordt uit deze herinnering verwijderd.",
     "deleteWineA11y": "Wijn verwijderen",
-    "drinksCommentPlaceholder": "Jouw notities bij de wijn…",
+    "drinksCommentPlaceholder": "Jouw notities bij de drank…",
     "discardUnsaved": {
       "title": "Wijzigingen opslaan?"
     },
@@ -785,8 +804,6 @@
       "headline": "Personaliseer je ervaring",
       "body": "Kies welke criteria belangrijk zijn bij het herinneren. Je kunt dit later altijd wijzigen in Instellingen.",
       "minOne": "Kies minstens één criterium.",
-      "tip": "Tip",
-      "idealThree": ": 3 criteria zijn ideaal",
       "footer": "Toegevoegde criteria verschijnen bij nieuwe herinneringen."
     }
   }

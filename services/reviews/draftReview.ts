@@ -2,17 +2,21 @@ import type { CriterionRating, Review, WineLabelFiche } from '@/data/types';
 import { RatingValue } from '@/services/reviews/ratings';
 import { hasWineUserRating, wineLabelsForReview } from '@/services/wine/wineLabelTypes';
 
-export type DraftReviewReason = 'food' | 'wine';
+export type DraftReviewReason = 'criteria' | 'wine';
 
-/** Food is the one required restaurant rating for a completed review. */
-export function hasRequiredFoodRating(criteria: CriterionRating[]): boolean {
-  const food = criteria.find((criterion) => criterion.id === 'food');
-  return RatingValue.isStarRating(food?.rating ?? RatingValue.unrated);
+/**
+ * A completed review needs at least one criterion with a star rating —
+ * it doesn't matter which one (Food, Service, Setting, …).
+ */
+export function hasAnyRatedCriterion(criteria: CriterionRating[]): boolean {
+  return criteria.some((criterion) =>
+    RatingValue.isStarRating(criterion.rating),
+  );
 }
 
 /**
  * A review is a draft when:
- * - Food has no star rating, or
+ * - no criterion has a star rating, or
  * - at least one attached wine is missing a star rating.
  *
  * Computed (not stored) — backwards compatible with all prior data.
@@ -28,8 +32,8 @@ export function isReviewDraft(
 export function draftReviewReason(
   review: Pick<Review, 'criteria' | 'wineLabel' | 'wineLabels'> | null | undefined,
 ): DraftReviewReason | null {
-  if (!review) return 'food';
-  if (!hasRequiredFoodRating(review.criteria ?? [])) return 'food';
+  if (!review) return 'criteria';
+  if (!hasAnyRatedCriterion(review.criteria ?? [])) return 'criteria';
   const wines = wineLabelsForReview(review);
   if (wines.some((w) => !hasWineUserRating(w))) return 'wine';
   return null;
@@ -40,7 +44,7 @@ export function isFormDraft(
   criteria: CriterionRating[],
   wines: WineLabelFiche[],
 ): boolean {
-  if (!hasRequiredFoodRating(criteria)) return true;
+  if (!hasAnyRatedCriterion(criteria)) return true;
   if (wines.some((w) => !hasWineUserRating(w))) return true;
   return false;
 }
@@ -49,7 +53,7 @@ export function formDraftReason(
   criteria: CriterionRating[],
   wines: WineLabelFiche[],
 ): DraftReviewReason | null {
-  if (!hasRequiredFoodRating(criteria)) return 'food';
+  if (!hasAnyRatedCriterion(criteria)) return 'criteria';
   if (wines.some((w) => !hasWineUserRating(w))) return 'wine';
   return null;
 }

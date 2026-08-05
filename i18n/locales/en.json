@@ -76,8 +76,12 @@
     "demoLabel": "Demo",
     "visitedBefore_one": "Visited once before",
     "visitedBefore_other": "Visited {{count}} times before",
+    "memorySaved": "Memory of {{name}} recorded",
+    "visitSaved": "Visit to {{name}} recorded",
     "visitCount_one": "{{count}} visit · {{date}}",
     "visitCount_other": "{{count}} visits · {{date}}",
+    "friendScoreLabel": "Friends: {{score}} ({{count}} visit)",
+    "friendScoreLabel_other": "Friends: {{score}} ({{count}} visits)",
     "source": {
       "mine": "My memories",
       "friends": "Shared with you"
@@ -154,8 +158,13 @@
     "emptyBody": "Your tasting passport fills in as you add restaurant memories.",
     "addReview": "Add Memory",
     "overview": "Overview",
+    "overviewKicker": "your story so far",
     "totalReviews": "Total Memories",
     "averageOverall": "Average Overall",
+    "averageBasedOnAllRated": "Based on all your rated criteria",
+    "bestKicker": "your favourites",
+    "winesKicker": "cheers to these",
+    "citiesKicker": "where you dined",
     "bestRestaurant": "Best restaurant",
     "bestRestaurants": "Best restaurants",
     "bestWines": "Best wines",
@@ -178,6 +187,7 @@
   },
   "bucketList": {
     "title": "Bucket List",
+    "kicker": "still to explore",
     "emptyTitle": "No bucket list yet",
     "emptyBody": "Tap the bookmark on a restaurant you want to visit to save it here.",
     "addTitle": "Add to bucket list",
@@ -219,6 +229,9 @@
     "dataSavings": "Data savings for photos",
     "dataSavingsOn": "Lower resolution",
     "dataSavingsOff": "Higher resolution",
+    "saveToLibrary": "Save to photo library",
+    "saveToLibraryOn": "Review photos are also saved to Photos / Google Photos",
+    "saveToLibraryOff": "Review photos stay inside Gustra only",
     "photos": "Photos",
     "recoverPrevious": "Recover previous Gustra data",
     "recoverScanSubtitle": "Search this iPhone for the old Swift database and photos",
@@ -377,7 +390,7 @@
       "done": "Done",
       "visitDate": "Visit date",
       "ratings": "Ratings",
-      "showMoreCriteria": "Show {{count}} more",
+      "showMoreCriteria": "Show {{count}} more criteria",
       "hideMoreCriteria": "Show fewer",
       "generalComments": "General comments",
       "photos": "Photos",
@@ -439,7 +452,11 @@
       "noReviews": "This restaurant has no memories yet.",
       "visitCount_one": "{{count}} visit",
       "visitCount_other": "{{count}} visits",
-      "visits": "Visits"
+      "visits": "Visits",
+      "myVisits": "My visits",
+      "friendsVisits": "Shared visits",
+      "myAverage": "My average",
+      "friendsAverage": "Friends' average"
     },
     "location": {
       "title": "Location",
@@ -584,8 +601,10 @@
     "reviewForm": {
       "needStars": "Add at least one star rating to save this memory.",
       "saveFailed": "Could not save this memory.",
-      "foodRequiredTitle": "Food rating required",
-      "foodRequiredBody": "Rate Food before completing this memory.",
+      "draftNoticeTitle": "Memory stays a draft",
+      "draftNoticeBody": "Add a star rating to at least one criterion (e.g. Food, Service or Setting) to complete this memory. You can also save it as a draft and finish it later.",
+      "saveDraft": "Save draft",
+      "continueEditing": "Continue editing",
       "removePhotosTitle": "Remove Photos?",
       "removePhotosBody": "Selected photos will be removed from this memory.",
       "photosSaveFailed": "Could not save photos.",
@@ -685,7 +704,7 @@
     "deleteWineTitle": "Remove wine?",
     "deleteWineBody": "“{{name}}” will be removed from this memory.",
     "deleteWineA11y": "Delete wine",
-    "drinksCommentPlaceholder": "Your notes on the wine…",
+    "drinksCommentPlaceholder": "Your notes on the drink…",
     "discardUnsaved": {
       "title": "Save changes?"
     },
@@ -785,8 +804,6 @@
       "headline": "Personalize your experience",
       "body": "Choose which criteria matter when you remember. You can change this later in Settings.",
       "minOne": "Pick at least one criterion.",
-      "tip": "Tip",
-      "idealThree": ": 3 criteria are ideal",
       "footer": "Added criteria appear in new memories."
     }
   }

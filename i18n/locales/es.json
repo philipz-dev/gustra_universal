@@ -74,6 +74,8 @@
     "searchPlaceholder": "Buscar restaurantes, comentarios, fotos…",
     "visitCount_one": "{{count}} visita · {{date}}",
     "visitCount_other": "{{count}} visitas · {{date}}",
+    "friendScoreLabel": "Amigos: {{score}} ({{count}} visita)",
+    "friendScoreLabel_other": "Amigos: {{score}} ({{count}} visitas)",
     "source": {
       "mine": "Mis recuerdos",
       "friends": "Compartidos contigo"
@@ -95,7 +97,9 @@
     "draftLabel": "Draft",
     "demoLabel": "Demo",
     "visitedBefore_one": "Visitado 1 vez",
-    "visitedBefore_other": "Visitado {{count}} veces"
+    "visitedBefore_other": "Visitado {{count}} veces",
+    "memorySaved": "Recuerdo de {{name}} registrado",
+    "visitSaved": "Visita a {{name}} registrada"
   },
   "filters": {
     "title": "Opciones de filtro",
@@ -154,8 +158,13 @@
     "emptyBody": "Tu pasaporte gastronómico se completa a medida que añades recuerdos de restaurantes.",
     "addReview": "Añadir recuerdo",
     "overview": "Resumen",
+    "overviewKicker": "tu historia hasta ahora",
     "totalReviews": "Recuerdos totales",
     "averageOverall": "Media general",
+    "averageBasedOnAllRated": "Basada en todos tus criterios puntuados",
+    "bestKicker": "tus favoritos",
+    "winesKicker": "un brindis por estos",
+    "citiesKicker": "dónde comiste",
     "bestRestaurant": "Mejor restaurante",
     "bestRestaurants": "Mejores restaurantes",
     "bestWines": "Mejores vinos",
@@ -178,6 +187,7 @@
   },
   "bucketList": {
     "title": "Lista de deseos",
+    "kicker": "aún por explorar",
     "emptyTitle": "Aún no hay lista de deseos",
     "emptyBody": "Toca el marcador de un restaurante que quieras visitar para guardarlo aquí.",
     "addTitle": "Añadir a la lista de deseos",
@@ -219,6 +229,9 @@
     "dataSavings": "Ahorro de datos para fotos",
     "dataSavingsOn": "Resolución más baja",
     "dataSavingsOff": "Resolución más alta",
+    "saveToLibrary": "Guardar en la biblioteca de fotos",
+    "saveToLibraryOn": "Las fotos de los recuerdos también se guardan en Fotos / Google Fotos",
+    "saveToLibraryOff": "Las fotos de los recuerdos permanecen solo en Gustra",
     "photos": "Fotos",
     "recoverPrevious": "Recuperar datos anteriores de Gustra",
     "recoverScanSubtitle": "Busca en este iPhone la antigua base de datos Swift y las fotos",
@@ -401,7 +414,7 @@
       "draftBannerCriteria": "Valora al menos un criterio para terminar este recuerdo.",
       "draftBannerFood": "Valora la comida para completar este recuerdo.",
       "draftBannerWine": "Un vino aún necesita valoración.",
-      "showMoreCriteria": "Mostrar {{count}} más",
+      "showMoreCriteria": "Mostrar {{count}} criterios más",
       "hideMoreCriteria": "Mostrar menos"
     },
     "photos": {
@@ -439,7 +452,11 @@
       "noReviews": "Este restaurante aún no tiene recuerdos.",
       "visitCount_one": "{{count}} visita",
       "visitCount_other": "{{count}} visitas",
-      "visits": "Visitas"
+      "visits": "Visitas",
+      "myVisits": "Mis visitas",
+      "friendsVisits": "Visitas compartidas",
+      "myAverage": "Mi media",
+      "friendsAverage": "Media de los amigos"
     },
     "location": {
       "title": "Ubicación",
@@ -583,8 +600,10 @@
     },
     "reviewForm": {
       "needStars": "Agrega al menos una calificación de estrellas para guardar este recuerdo.",
-      "foodRequiredTitle": "Valoración de comida obligatoria",
-      "foodRequiredBody": "Valora la comida antes de completar este recuerdo.",
+      "draftNoticeTitle": "El recuerdo sigue siendo un borrador",
+      "draftNoticeBody": "Agrega una calificación con estrellas a al menos un criterio (p. ej. Comida, Servicio o Ambiente) para completar este recuerdo. También puedes guardarlo como borrador y terminarlo más tarde.",
+      "saveDraft": "Guardar borrador",
+      "continueEditing": "Seguir editando",
       "removePhotosTitle": "¿Quitar fotos?",
       "removePhotosBody": "Las fotos seleccionadas se eliminarán de este recuerdo.",
       "photosSaveFailed": "No se pudieron guardar las fotos.",
@@ -664,7 +683,7 @@
     "deleteWineTitle": "¿Eliminar vino?",
     "deleteWineBody": "“{{name}}” se eliminará de este recuerdo.",
     "deleteWineA11y": "Eliminar vino",
-    "drinksCommentPlaceholder": "Tus notas sobre el vino…",
+    "drinksCommentPlaceholder": "Tus notas sobre la bebida…",
     "discardUnsaved": {
       "title": "¿Guardar cambios?"
     },
@@ -785,8 +804,6 @@
       "headline": "Personaliza tu experiencia",
       "body": "Elige qué criterios importan al recordar. Puedes cambiarlo después en Ajustes.",
       "minOne": "Elige al menos un criterio.",
-      "tip": "Consejo",
-      "idealThree": ": 3 criterios son ideales",
       "footer": "Los criterios añadidos aparecen en los nuevos recuerdos."
     }
   }

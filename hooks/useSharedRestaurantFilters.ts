@@ -78,7 +78,10 @@ export function useSharedRestaurantFilters() {
 
   const criterionAverageFor = useCallback(
     (summary: RestaurantVisitSummary, criterionId: string) => {
-      const values = summary.reviewIds
+      // Use the owner's own reviews only, so a friend's visit never drags the
+      // criterion score shown next to the owner's headline score.
+      const ids = summary.ownReviewIds ?? summary.reviewIds;
+      const values = ids
         .map((id) => getReview(id))
         .filter((review): review is Review => Boolean(review))
         .filter((review) => !isReviewDraft(review))

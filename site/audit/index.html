@@ -1,0 +1,1296 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gustra — UX-audit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --forest: #244e39;
+      --forest-deep: #1a3a2a;
+      --cream: #f5eedd;
+      --bubble: #ece3cf;
+      --gold: #d9a227;
+      --ink: #23201a;
+      --ink-soft: rgba(35, 32, 26, 0.55);
+      --ok: #388c56;
+      --danger: #c74742;
+      --shadow: 0 18px 50px rgba(36, 78, 57, 0.12);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "DM Sans", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(217, 162, 39, 0.16), transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, rgba(36, 78, 57, 0.14), transparent 50%),
+        linear-gradient(180deg, #f8f3e7 0%, var(--cream) 45%, #efe6d2 100%);
+    }
+
+    .wrap { width: min(920px, calc(100% - 2rem)); margin: 0 auto; padding: 2.25rem 0 4rem; }
+
+    header.hero {
+      background: linear-gradient(145deg, var(--forest) 0%, var(--forest-deep) 100%);
+      color: #f7f1e4;
+      border-radius: calc(var(--radius) + 6px);
+      padding: 1.75rem 1.5rem 1.5rem;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+    header.hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -20% -40% auto;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(217,162,39,.28), transparent 65%);
+      pointer-events: none;
+    }
+    .brand {
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: clamp(2.2rem, 5.5vw, 3rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 0.98;
+      margin: 0 0 0.4rem;
+    }
+    .tagline { margin: 0; max-width: 40rem; color: rgba(247, 241, 228, 0.85); font-size: 1.02rem; line-height: 1.5; }
+
+    .name-box {
+      margin-top: 1.2rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.7rem;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(247,241,228,0.22);
+      border-radius: 14px;
+      padding: 0.7rem 0.9rem;
+    }
+    .name-box .name-label {
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: rgba(247, 241, 228, 0.85);
+    }
+    .name-box input[type="text"] {
+      flex: 1;
+      min-width: 10rem;
+      font: inherit;
+      font-size: 0.95rem;
+      color: var(--ink);
+      background: #fffdf8;
+      border: 1.5px solid rgba(36, 78, 57, 0.3);
+      border-radius: 10px;
+      padding: 0.5rem 0.7rem;
+    }
+    .name-box input[type="text"]:focus { outline: 2px solid rgba(217, 162, 39, 0.5); border-color: var(--gold); }
+    .name-box .name-msg {
+      flex-basis: 100%;
+      font-size: 0.82rem;
+      color: rgba(247, 241, 228, 0.9);
+    }
+    .name-box .name-msg.err { color: #ffd9d4; font-weight: 600; }
+    .name-box .name-msg.ok { color: #d9f2e3; }
+
+    .status-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 1rem;
+      align-items: end;
+      margin-top: 1.4rem;
+    }
+    .progress-block { min-width: 0; }
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      font-size: 0.86rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: rgba(247, 241, 228, 0.72);
+      margin-bottom: 0.45rem;
+    }
+    .bar { height: 12px; border-radius: 999px; background: rgba(255,255,255,0.14); overflow: hidden; }
+    .bar > i { display: block; height: 100%; width: 0%; border-radius: inherit; background: linear-gradient(90deg, var(--gold), #f0d58a); transition: width 0.35s ease; }
+    .pct { font-family: "Source Serif 4", Georgia, serif; font-size: clamp(2.6rem, 6.5vw, 3.4rem); font-weight: 700; line-height: 1; color: var(--gold); text-align: right; }
+    .pct small { display: block; margin-top: 0.25rem; font-family: "DM Sans", sans-serif; font-size: 0.78rem; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(247, 241, 228, 0.65); }
+
+    nav.toc { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1.25rem 0 0.25rem; }
+    nav.toc a {
+      text-decoration: none;
+      color: var(--forest);
+      background: rgba(36, 78, 57, 0.08);
+      border: 1px solid rgba(36, 78, 57, 0.12);
+      border-radius: 999px;
+      padding: 0.45rem 0.85rem;
+      font-weight: 600;
+      font-size: 0.88rem;
+    }
+
+    section.panel {
+      margin-top: 1.15rem;
+      background: rgba(255,255,255,0.55);
+      border: 1px solid rgba(36, 78, 57, 0.1);
+      border-radius: var(--radius);
+      padding: 1.15rem 1.15rem 0.65rem;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 10px 30px rgba(36, 78, 57, 0.06);
+    }
+    section.panel h2 { font-family: "Source Serif 4", Georgia, serif; font-size: 1.55rem; margin: 0 0 0.2rem; color: var(--forest); letter-spacing: -0.02em; }
+    section.panel .section-meta { color: var(--ink-soft); font-size: 0.92rem; margin: 0 0 0.9rem; }
+    .section-count { font-size: 0.8rem; font-weight: 600; color: var(--forest); background: rgba(36, 78, 57, 0.1); border-radius: 999px; padding: 0.2rem 0.6rem; margin-left: 0.5rem; vertical-align: middle; }
+
+    ul.tasks { list-style: none; margin: 0; padding: 0; }
+    .task {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.6rem;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(36, 78, 57, 0.16);
+      border-radius: 14px;
+      padding: 0.8rem 0.9rem;
+      margin-bottom: 2.4rem;
+      box-shadow: 0 4px 14px rgba(36, 78, 57, 0.05);
+    }
+    .task .head { display: flex; align-items: baseline; gap: 0.6rem; }
+    .task .num {
+      flex-shrink: 0;
+      display: inline-grid;
+      place-items: center;
+      min-width: 1.7rem;
+      height: 1.7rem;
+      border-radius: 999px;
+      background: var(--forest);
+      color: #f7f1e4;
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      transform: translateY(2px);
+    }
+    .task .title { font-size: 1rem; line-height: 1.4; font-weight: 600; }
+    .task .what { font-size: 0.92rem; line-height: 1.5; color: var(--ink); margin-top: 0.25rem; margin-left: 2.3rem; }
+    .task .example {
+      font-size: 0.86rem;
+      line-height: 1.5;
+      color: var(--ink-soft);
+      background: rgba(36, 78, 57, 0.06);
+      border-left: 3px solid rgba(217, 162, 39, 0.7);
+      border-radius: 0 10px 10px 0;
+      padding: 0.5rem 0.7rem;
+      margin-top: 0.45rem;
+    }
+    .task .example b { color: var(--forest); }
+    .task .solution {
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: var(--ink);
+      background: rgba(36, 78, 57, 0.08);
+      border-left: 3px solid var(--forest);
+      border-radius: 0 10px 10px 0;
+      padding: 0.55rem 0.75rem;
+      margin-top: 0.45rem;
+      margin-left: 2.3rem;
+    }
+    .task .solution b { color: var(--forest); }
+
+    .choices {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.5rem;
+      margin-top: 0.7rem;
+    }
+    .choice {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      border: 1.5px solid rgba(36, 78, 57, 0.18);
+      border-radius: 12px;
+      background: #fffdf8;
+      padding: 0.6rem 0.7rem;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--ink);
+      transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
+      user-select: none;
+    }
+    .choice:hover { border-color: rgba(36, 78, 57, 0.45); }
+    .choice input { position: absolute; opacity: 0; pointer-events: none; }
+    .choice .dot {
+      width: 1rem;
+      height: 1rem;
+      border-radius: 50%;
+      border: 2px solid rgba(36, 78, 57, 0.4);
+      flex-shrink: 0;
+      display: grid;
+      place-items: center;
+      transition: border-color .15s ease, background .15s ease;
+    }
+    .choice .dot::after {
+      content: "";
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 50%;
+      background: transparent;
+      transition: background .15s ease;
+    }
+    .choice input:checked + .dot { border-color: var(--forest); }
+    .choice input:checked + .dot::after { background: var(--forest); }
+    .choice input:checked + .dot.agree { border-color: var(--ok); }
+    .choice input:checked + .dot.agree::after { background: var(--ok); }
+    .choice input:checked + .dot.fixed { border-color: var(--gold); }
+    .choice input:checked + .dot.fixed::after { background: var(--gold); }
+    .choice input:checked + .dot.disagree { border-color: var(--danger); }
+    .choice input:checked + .dot.disagree::after { background: var(--danger); }
+    .choice:has(input:checked) { border-color: var(--forest); background: rgba(36, 78, 57, 0.07); }
+    .choice:has(input:checked).agree { border-color: var(--ok); background: rgba(56, 140, 86, 0.1); }
+    .choice:has(input:checked).fixed { border-color: var(--gold); background: rgba(217, 162, 39, 0.12); }
+    .choice:has(input:checked).disagree { border-color: var(--danger); background: rgba(199, 71, 66, 0.09); }
+    .choice:has(input:checked).suggest { border-color: #2f6f9f; background: rgba(47, 111, 159, 0.1); }
+    .choice input:checked + .dot.suggest { border-color: #2f6f9f; }
+    .choice input:checked + .dot.suggest::after { background: #2f6f9f; }
+    .choice .hint { display: block; font-weight: 400; font-size: 0.74rem; color: var(--ink-soft); margin-top: 0.1rem; }
+
+    .remark { display: grid; gap: 0.35rem; margin-top: 0.5rem; }
+    .remark textarea {
+      width: 100%;
+      border: 1px solid rgba(36, 78, 57, 0.18);
+      background: #fffdf8;
+      border-radius: 12px;
+      padding: 0.6rem 0.75rem;
+      font: inherit;
+      font-size: 0.9rem;
+      color: var(--ink);
+      resize: vertical;
+      min-height: 44px;
+    }
+    .remark textarea:focus { outline: 2px solid rgba(36, 78, 57, 0.25); }
+    .remark label { font-size: 0.78rem; color: var(--ink-soft); font-weight: 600; letter-spacing: 0.03em; }
+
+    .others {
+      display: grid;
+      gap: 0.4rem;
+      margin-top: 0.45rem;
+      padding: 0.55rem 0.7rem;
+      background: rgba(36, 78, 57, 0.05);
+      border: 1px dashed rgba(36, 78, 57, 0.18);
+      border-radius: 12px;
+    }
+    .others .others-summary { font-size: 0.8rem; font-weight: 600; color: var(--forest); }
+    .others .others-none { font-size: 0.8rem; color: var(--ink-soft); font-style: italic; }
+    .others .others-list { display: grid; gap: 0.35rem; }
+    .others .others-item { font-size: 0.84rem; line-height: 1.4; color: var(--ink); background: rgba(255,255,255,0.55); border-radius: 10px; padding: 0.45rem 0.6rem; }
+    .others .others-item .who { display: block; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 0.15rem; }
+    .others .others-item .who .s-agree { color: var(--ok); }
+    .others .others-item .who .s-fixed { color: #8a4b12; }
+    .others .others-item .who .s-disagree { color: var(--danger); }
+    .others .others-item .who .s-suggest { color: #2f6f9f; }
+
+    .sync { margin: 1.2rem 0 0; font-size: 0.86rem; color: var(--ink-soft); }
+    .sync.ok { color: var(--ok); }
+
+    @media (max-width: 720px) {
+      .status-row { grid-template-columns: 1fr; }
+      .pct { text-align: left; }
+      .choices { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <h1 class="brand">Gustra — UX-audit</h1>
+      <p class="tagline">
+        Dit is een rondgang langs alle onderdelen van de Gustra-app, bekeken door de ogen van een
+        gebruiker zonder technische achtergrond. Bij elk onderdeel staat <strong>wat er gebeurt</strong>,
+        vaak een <strong>voorbeeld</strong>, en een concrete <strong>AI suggestie</strong>. Kies
+        per onderdeel één van de vier knoppen: <strong>Mag zo blijven</strong> (gedrag is goed zo),
+        <strong>Verander volgens AI suggestie</strong> (de AI-suggestie lijkt goed),
+        <strong>Pas aan volgens gebruiker uitleg</strong> (dit gedrag moet anders) of
+        <strong>Is intussen aangepast</strong> (is al aangepast in de app). Je opmerkingen en keuzes
+        zijn zichtbaar voor andere bezoekers — geef daarom je naam in, zodat anderen weten van wie
+        een reactie komt. Elke naam kan maar door één persoon gebruikt worden.
+      </p>
+      <div class="name-box">
+        <span class="name-label">Jouw naam</span>
+        <input type="text" id="editorName" placeholder="Bijv. Pieter" maxlength="40" autocomplete="name" />
+        <span class="name-msg" id="nameMsg">Laat je naam hier achter; die wordt bewaard in een cookie op dit apparaat.</span>
+      </div>
+      <div class="status-row">
+        <div class="progress-block">
+          <div class="progress-label">
+            <span id="countLabel">0 / 0 beoordeeld</span>
+            <span>server-sync aan</span>
+          </div>
+          <div class="bar"><i id="bar"></i></div>
+        </div>
+        <div class="pct" id="pct">0%<small>mag zo blijven of aangepast</small></div>
+      </div>
+    </header>
+
+    <nav class="toc">
+      <a href="#herinnering">Herinneringen & formulier</a>
+      <a href="#fotos">Foto's</a>
+      <a href="#zoeken">Zoeken & filteren</a>
+      <a href="#kaart">Kaart & in de buurt</a>
+      <a href="#mijn-gustra">Mijn Gustra & terugblik</a>
+      <a href="#restaurant">Restaurant & herinnering-detail</a>
+      <a href="#delen">Delen & importeren</a>
+      <a href="#backup">Back-up & herstel</a>
+      <a href="#overig">Overig</a>
+    </nav>
+
+    <section class="panel" id="herinnering">
+      <h2>Herinneringen & formulier<span class="section-count" id="count-herinnering"></span></h2>
+      <p class="section-meta">Alles rond het toevoegen en opslaan van een restaurantbezoek.</p>
+      <ul class="tasks" id="list-herinnering"></ul>
+    </section>
+
+    <section class="panel" id="fotos">
+      <h2>Foto's<span class="section-count" id="count-fotos"></span></h2>
+      <p class="section-meta">Foto's toevoegen, bekijken en verwijderen in een herinnering.</p>
+      <ul class="tasks" id="list-fotos"></ul>
+    </section>
+
+    <section class="panel" id="zoeken">
+      <h2>Zoeken & filteren<span class="section-count" id="count-zoeken"></span></h2>
+      <p class="section-meta">De herinneringenlijst doorzoeken, filteren en sorteren.</p>
+      <ul class="tasks" id="list-zoeken"></ul>
+    </section>
+
+    <section class="panel" id="kaart">
+      <h2>Kaart & in de buurt<span class="section-count" id="count-kaart"></span></h2>
+      <p class="section-meta">De kaart, zoeken op de kaart, en restaurants in de buurt.</p>
+      <ul class="tasks" id="list-kaart"></ul>
+    </section>
+
+    <section class="panel" id="mijn-gustra">
+      <h2>Mijn Gustra & terugblik<span class="section-count" id="count-mijn-gustra"></span></h2>
+      <p class="section-meta">Je persoonlijke overzicht en de tijdlijn.</p>
+      <ul class="tasks" id="list-mijn-gustra"></ul>
+    </section>
+
+    <section class="panel" id="restaurant">
+      <h2>Restaurant & herinnering-detail<span class="section-count" id="count-restaurant"></span></h2>
+      <p class="section-meta">De pagina's die je opent als je op een restaurant of herinnering tikt.</p>
+      <ul class="tasks" id="list-restaurant"></ul>
+    </section>
+
+    <section class="panel" id="delen">
+      <h2>Delen & importeren<span class="section-count" id="count-delen"></span></h2>
+      <p class="section-meta">Herinneringen delen met vrienden en ontvangen pakketten importeren.</p>
+      <ul class="tasks" id="list-delen"></ul>
+    </section>
+
+    <section class="panel" id="backup">
+      <h2>Back-up & herstel<span class="section-count" id="count-backup"></span></h2>
+      <p class="section-meta">Je gegevens bewaren en later terugzetten.</p>
+      <ul class="tasks" id="list-backup"></ul>
+    </section>
+
+    <section class="panel" id="overig">
+      <h2>Overig<span class="section-count" id="count-overig"></span></h2>
+      <p class="section-meta">Instellingen, eerste installatie en overige schermen.</p>
+      <ul class="tasks" id="list-overig"></ul>
+    </section>
+
+    <p class="sync" id="syncMsg">Status wordt op dit apparaat bewaard. Server-sync start zodra save-audit.php bereikbaar is.</p>
+  </div>
+
+  <script>
+    const REMOTE_SAVE = "save-audit.php";
+    const REMOTE_STATE = "audit-state.json";
+    const STORAGE_KEY = "gustra-audit-v1";
+    const ID_KEY = "gustra-audit-id";
+
+    function myId() {
+      let id = localStorage.getItem(ID_KEY);
+      if (!id) {
+        id = "u-" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+        localStorage.setItem(ID_KEY, id);
+      }
+      return id;
+    }
+    const ME = myId();
+
+    const NAME_COOKIE = "gustra-audit-name";
+
+    function getCookie(name) {
+      const m = document.cookie.match(new RegExp("(?:^|; )" + name.replace(/([.$?*|{}()[\]\\/+^])/g, "\\$1") + "=([^;]*)"));
+      return m ? decodeURIComponent(m[1]) : "";
+    }
+    function setCookie(name, value, days) {
+      const expires = new Date(Date.now() + days * 864e5).toUTCString();
+      document.cookie = name + "=" + encodeURIComponent(value) + "; expires=" + expires + "; path=/; SameSite=Lax";
+    }
+    let MY_NAME = getCookie(NAME_COOKIE) || "";
+
+    /**
+     * Elk onderdeel van de audit.
+     *  - id: stabiel, kort
+     *  - cat: sectie
+     *  - title: korte titel (begrijpelijk)
+     *  - what: wat er nu gebeurt (begrijpelijk)
+     *  - example: voorbeeld van hoe een gebruiker dit ervaart (optioneel)
+     */
+    const DEFAULT_ITEMS = [
+      // ————— HERINNERING & FORMULIER —————
+      {
+        id: "herinnering-food-verplicht",
+        cat: "herinnering",
+        title: "Je kunt alleen opslaan als je 'Eten' een ster geeft — maar dat staat nergens.",
+        what: "Bij een nieuwe herinnering is het verplicht om het onderdeel 'Eten' te beoordelen. Er staat nergens een sterretje of 'verplicht' bij. Pas als je op 'Klaar' tikt, verschijnt een melding dat 'Eten' nodig is.",
+        example: "Voorbeeld: je was bij een restaurant voor de sfeer en wilt alleen 'Sfeer' beoordelen. Gustra blokkeert het opslaan, maar legt niet uit waarom vóórdat je op Klaar tikt.",
+        solution: "Toon bij 'Eten' een klein label 'verplicht' (bijv. een sterretje), zodat je vóór het opslaan ziet wat nodig is."
+      },
+      {
+        id: "herinnering-klare-knop-altijd-actief",
+        cat: "herinnering",
+        title: "De Klaar-knop lijkt altijd actief, maar doet de eerste keer 'niets'.",
+        what: "De knop om op te slaan is altijd aanklikbaar. Alleen op het moment zelf blijkt dat er nog iets ontbreekt (de Eten-beoordeling). Het voelt alsof de knop stuk is.",
+        example: "Voorbeeld: je vult alles in, tikt op Klaar, en krijgt pas dán een foutmelding die je had kunnen zien aankomen.",
+        solution: "Maak de Klaar-knop pas actief als alles verplicht is ingevuld, of toon bij het indrukken meteen welke onderdelen nog ontbreken."
+      },
+      {
+        id: "herinnering-autosave-verwarrend",
+        cat: "herinnering",
+        title: "Een half ingevulde herinnering verschijnt soms al in je lijst.",
+        what: "Terwijl je typt, wordt je herinnering soms al bewaard als 'concept'. Die verschijnt dan in je herinneringenlijst met een rode 'Concept'-aanduiding, ook al ben je nog niet klaar. Wanneer dat precies gebeurt is onvoorspelbaar.",
+        example: "Voorbeeld: je tikt wat in het opmerkingenveld om te testen, en je lijst toont opeens een nieuw restaurant dat je nooit hebt opgeslagen.",
+        solution: "Sla een concept alleen op als de gebruiker het formulier verlaat (en toon dan 'Concept opgeslagen'), of zet in de lijst duidelijk 'Wordt nog bewerkt' met een knop 'Verder bewerken'."
+      },
+      {
+        id: "herinnering-titel-wisselt",
+        cat: "herinnering",
+        title: "De titel verandert vanzelf: 'Nieuwe herinnering' wordt 'Bezoek toevoegen'.",
+        what: "Als je een restaurant bezoekt dat je al eerder bezocht, verandert de titel van het formulier automatisch. Dat is logisch, maar het gebeurt ook halverwege het invullen zonder dat jij iets doet.",
+        example: "Voorbeeld: je begint te typen bij een restaurant dat je eerder bezocht, en terwijl je typt verandert de titel bovenaan vanzelf.",
+        solution: "Laat de titel stabiel ('Nieuwe herinnering') en toon het herbezoek-aspect in een subtiel regeltje eronder: 'Dit restaurant heb je al 3 keer bezocht'."
+      },
+      {
+        id: "herinnering-datum-standaard-vandaag",
+        cat: "herinnering",
+        title: "De datum staat standaard op 'vandaag' — dat is niet altijd wat je bedoelt.",
+        what: "Het bezoek-datumveld is al ingevuld met vandaag, op het halve uur afgerond. Er wordt nergens gezegd dat je dit moet controleren. Wie vorige week ging, slaat per ongeluk 'vandaag' op.",
+        example: "Voorbeeld: je bezocht het restaurant afgelopen dinsdag, maar Gustra slaat de herinnering op voor vandaag om 20:30 — tenzij je de datum zelf aanpast.",
+        solution: "Toon bij het datumveld een hint 'Staat op vandaag - pas aan als je eerder ging', of begin met een leeg veld 'Kies datum'."
+      },
+      {
+        id: "herinnering-verwijderen-bij-nee",
+        cat: "herinnering",
+        title: "'Wijzigingen opslaan? Nee' verwijdert ook je gekozen foto's.",
+        what: "Als je het formulier verlaat met 'Nee', verdwijnen niet alleen je tekstwijzigingen, maar worden ook de foto's die je net gekozen had echt verwijderd. De vraag zegt dat niet.",
+        example: "Voorbeeld: je voegt 2 foto's toe, tikt op terug en kiest 'Nee'. Je foto's zijn dan weg, ook al wilde je ze misschien later opnieuw gebruiken.",
+        solution: "Maak de vraag duidelijker ('Wijzigingen en nieuwe foto's verwijderen?') en bewaar net toegevoegde foto's tijdelijk, zodat 'Nee' ze niet definitief wist."
+      },
+      {
+        id: "herinnering-rating-na-tap",
+        cat: "herinnering",
+        title: "De prullenbak op een beoordeling is verwarrend: 'niet van toepassing' ziet er hetzelfde uit als 'niet ingevuld'.",
+        what: "Bij elk onderdeel (bijv. 'Service') kun je met de prullenbak aangeven dat het niet van toepassing is. Maar dan staan er lege sterren — precies hetzelfde als wanneer je er nooit naar gekeken hebt. Je kunt het verschil niet zien.",
+        example: "Voorbeeld: je zet 'Wijn' op niet-van-toepassing, maar later ziet het eruit alsof je het gewoon overgeslagen hebt.",
+        solution: "Toon bij 'niet van toepassing' een klein label 'n.v.t.' in plaats van lege sterren, zodat het duidelijk verschilt van 'nog niet ingevuld'."
+      },
+      {
+        id: "herinnering-herbezoek-teller",
+        cat: "herinnering",
+        title: "'Meest recente bezoek' klopt niet als je het formulier invult.",
+        what: "Bij een herbezoek toont Gustra 'Meest recente bezoek: …'. Het bezoek dat je nu aan het invullen bent, telt daarin niet mee — en als je een nieuwer bezoek invult, klopt de tekst direct niet meer.",
+        example: "Voorbeeld: je bent vandaag geweest, maar het kaartje zegt 'Meest recente bezoek: 12 juli' omdat je huidige bezoek nog niet opgeslagen is.",
+        solution: "Bereken 'Meest recente bezoek' inclusief het bezoek dat je nu invult, of hernoem de tekst naar 'Laatste opgeslagen bezoek'."
+      },
+      {
+        id: "herinnering-twee-concepten",
+        cat: "herinnering",
+        title: "Je kunt twee losse concepten voor hetzelfde restaurant krijgen.",
+        what: "Als je een concept (half ingevulde herinnering) laat staan en daarna opnieuw een herinnering voor hetzelfde restaurant begint, krijg je twee concepten die niet van elkaar te onderscheiden zijn.",
+        example: "Voorbeeld: je begint maandag een concept, vergeet het, en begint donderdag opnieuw. Nu staan er twee 'Concept'-kaarten voor hetzelfde restaurant.",
+        solution: "Hernoem een concept naar 'Bezig: <restaurant>' en vraag bij een nieuw concept voor hetzelfde restaurant eerst: 'Verder bewerken of nieuw concept?'."
+      },
+
+      // ————— FOTO'S —————
+      {
+        id: "fotos-tap-is-verwijderen",
+        cat: "fotos",
+        title: "Tikken op een foto selecteert hem voor verwijdering — je kunt hem niet eerst bekijken.",
+        what: "In de fotostrip van een herinnering is tikken op een foto gekoppeld aan 'selecteren om te verwijderen'. Er is geen manier om een foto eerst groot te bekijken vanuit het formulier. Wie per ongeluk tikt, zit ineens in een verwijder-modus.",
+        example: "Voorbeeld: je wilt even controleren hoe een foto eruitziet, tikt erop, en krijgt een verwijder-knop te zien in plaats van de foto.",
+        solution: "Maak tikken op een foto = vergroten; verwijderen alleen via een expliciete 'Beheer'-modus of een klein prullenbakje per foto."
+      },
+      {
+        id: "fotos-plus-tegel-verdwijnt",
+        cat: "fotos",
+        title: "Bij 12 foto's verdwijnt de '+' knop zonder uitleg.",
+        what: "Er kunnen maximaal 12 foto's in een herinnering. Bij 12 foto's verdwijnt de toevoeg-knop helemaal — er wordt niet gezegd dat het maximum bereikt is.",
+        example: "Voorbeeld: je wilt een 13e foto toevoegen, maar de '+' knop is gewoon weg.",
+        solution: "Toon bij 12 foto's een uitgeschakelde '+' met de melding 'Maximaal 12 foto's'."
+      },
+      {
+        id: "fotos-cover-slepen",
+        cat: "fotos",
+        title: "De 'omslagfoto' kun je alleen veranderen door te slepen — dat wordt niet uitgelegd.",
+        what: "De eerste foto in de rij is de omslagfoto (er staat 'Omslag' op). Om een andere foto omslag te maken moet je lang drukken en slepen, maar dat staat nergens uitgelegd.",
+        example: "Voorbeeld: je wilt een andere foto bovenaan, maar tikt erop en selecteert hem per ongeluk voor verwijdering.",
+        solution: "Voeg een knop 'Maak omslagfoto' toe (bijv. in een menu bij elke foto), zodat je niet hoeft te slepen."
+      },
+      {
+        id: "fotos-import-niet-annuleerbaar",
+        cat: "fotos",
+        title: "Tijdens het toevoegen van foto's kun je niet annuleren.",
+        what: "Als je meerdere foto's kiest, moet je wachten tot ze allemaal verwerkt zijn. De sluit-knop is dan uitgeschakeld en er is geen annuleren mogelijk.",
+        example: "Voorbeeld: je kiest per ongeluk 8 foto's, maar je kunt het toevoegen niet meer stoppen.",
+        solution: "Toon tijdens het toevoegen een annuleer-knop die de wachtrij stopt, of voeg foto's direct toe zonder wachttijd."
+      },
+
+      // ————— ZOEKEN & FILTEREN —————
+      {
+        id: "zoeken-counter-negeert-zoekterm",
+        cat: "zoeken",
+        title: "De teller 'N van M' negeert je zoekterm.",
+        what: "Boven de herinneringenlijst staat '3 van 42'. Zodra je typt in het zoekveld, klopt die teller niet meer: hij telt alleen de filters, niet je zoekopdracht.",
+        example: "Voorbeeld: je typt 'zzz' (niets gevonden), de lijst is leeg, maar de teller zegt nog steeds '3 van 42'.",
+        solution: "Laat de teller meebewegen met je zoekopdracht, bijv. '12 van 42 passen bij je zoekopdracht'."
+      },
+      {
+        id: "zoeken-waarom-deze-kaart",
+        cat: "zoeken",
+        title: "Bij zoeken verschijnt een restaurant zonder dat je ziet waarom.",
+        what: "Het zoeken kijkt ook in opmerkingen en fototeksten. Een restaurant kan verschijnen omdat er ergens in een opmerking een woord staat — maar op de kaart zelf zie je niet waarom hij gematched is.",
+        example: "Voorbeeld: je zoekt op 'verjaardag', en er verschijnt een restaurant — alleen omdat er in een oude opmerking 'verjaardag' staat.",
+        solution: "Toon in het zoekresultaat een regeltje 'Gevonden in: opmerking van 12 juli'."
+      },
+      {
+        id: "zoeken-geen-feedback",
+        cat: "zoeken",
+        title: "Het zoekveld geeft weinig terug: geen teller, geen annuleren-knop.",
+        what: "Terwijl je typt, verandert de lijst direct, maar er is geen duidelijke 'zoeken actief'-indicator en geen knop om te stoppen met zoeken.",
+        example: "Voorbeeld: je typt 'amster' en de lijst verandert — maar je weet niet of er nog meer resultaten zijn of dat het zoeken 'gelukt' is.",
+        solution: "Toon onder het zoekveld 'N resultaten voor \"...\"' en een duidelijke knop om te stoppen met zoeken."
+      },
+      {
+        id: "filter-locatie-doet-niets",
+        cat: "zoeken",
+        title: "Het filter 'Locatie' of 'Keuken' lijkt soms niets te doen.",
+        what: "Als je op 'Locatie' of 'Keuken' tikt terwijl alles geselecteerd is, gaat er een nieuw scherm open, maar wordt het filter niet echt aangezet. Als je teruggaat zonder iets te veranderen, is er niets gebeurd — terwijl jij dacht dat je het filter aanzette.",
+        example: "Voorbeeld: je tikt 'Locatie', ziet een lijst met steden, veegt terug en tikt 'Klaar'. Er is geen filter toegepast.",
+        solution: "Toon bij het openen van 'Locatie'/'Keuken' meteen welke opties al geselecteerd zijn, en maak zichtbaar dat er een filter actief is zodra je een keuze maakt."
+      },
+      {
+        id: "filter-x-is-reset",
+        cat: "zoeken",
+        title: "De X in het filterscherm is 'alles wissen', niet 'sluiten'.",
+        what: "In het filterscherm lijkt de X op 'sluiten zonder wijzigen', maar hij wist al je filterkeuzes én sluit. Alleen omlaag vegen sluit zonder iets te wissen.",
+        example: "Voorbeeld: je probeert wat filters uit, verandert van gedachte, tikt op X — en al je oude filters zijn weg.",
+        solution: "Maak de X puur 'sluiten zonder wijzigen' en zet 'alles wissen' in een aparte knop 'Filters wissen'."
+      },
+      {
+        id: "sorteren-criterium-verwijdert",
+        cat: "zoeken",
+        title: "Sorteren op een onderdeel laat restaurants stilletjes verdwijnen.",
+        what: "Als je sorteert op bijv. 'Wijn', verdwijnen restaurants die geen wijnbeoordeling hebben uit de lijst — zonder dat dit wordt gemeld. 'Sorteren' zou de lijst moeten ordenen, niet inkorten.",
+        example: "Voorbeeld: je sorteert op 'Wijn' en je lijst krimpt van 20 naar 4 restaurants, zonder uitleg waarom.",
+        solution: "Toon bij sorteren op een criterium de melding 'N restaurants zonder beoordeling worden verborgen', of zet ze onderaan de lijst."
+      },
+      {
+        id: "filter-wissen-wist-ook-zoekterm",
+        cat: "zoeken",
+        title: "'Filters wissen' wist ook je zoekterm.",
+        what: "Als je zoekt en er niets gevonden wordt, verschijnt er een knop 'Filters wissen'. Die knop wist ook je zoekopdracht — twee verschillende dingen in één knop.",
+        example: "Voorbeeld: je zoekt op 'Brussel', vindt niets, tikt 'Filters wissen' — en je zoekterm is ook verdwenen.",
+        solution: "Splits de acties: 'Zoekterm wissen' hoort in het zoekveld, 'Filters wissen' wist alleen de filters."
+      },
+      {
+        id: "filter-favorieten-val",
+        cat: "zoeken",
+        title: "Met 'Favorieten' aan verdwijnt een restaurant als je het hartje uitzet — en je zit vast.",
+        what: "Als je filtert op favorieten en daarna het laatste favoriete restaurant ont-favoriet, verdwijnt het uit de lijst. De enige uitweg is de 'Filters wissen'-knop. Er wordt niet uitgelegd wat er gebeurde.",
+        example: "Voorbeeld: je zet bij het laatste restaurant het hartje uit, en de lijst springt naar 'geen resultaten'.",
+        solution: "Toon als het laatste favoriete restaurant ont-favoriet wordt: 'Geen favorieten meer over' met een duidelijke knop om de filters te wissen."
+      },
+
+      // ————— KAART & IN DE BUURT —————
+      {
+        id: "kaart-pins-per-bezoek",
+        cat: "kaart",
+        title: "Twee bezoeken aan hetzelfde restaurant = twee identieke punten op de kaart.",
+        what: "Op 'Mijn kaart' staat er één punt per bezoek. Wie een restaurant twee keer bezocht heeft, ziet twee dezelfde punten op elkaar. Er is maar één aan te tikken.",
+        example: "Voorbeeld: je ging 3 keer naar je favoriete bistro en ziet drie groene punten op elkaar gestapeld.",
+        solution: "Toon één pin per restaurant (met een aantal-badge '3') en open bij het tikken de lijst van bezoeken."
+      },
+      {
+        id: "kaart-demo-restaurants",
+        cat: "kaart",
+        title: "Op een nieuw toestel staan er al punten op de kaart van restaurants die je nooit bezocht.",
+        what: "De voorbeeld-restaurants die bij een nieuwe installatie in de app zitten, verschijnen op 'Mijn kaart' alsof je ze bezocht hebt. In de buurt-lijst zijn ze juist wél uitgesloten — dat is tegenstrijdig.",
+        example: "Voorbeeld: je installeert Gustra voor het eerst en 'Mijn kaart' toont 6 restaurants die je nooit gezien hebt.",
+        solution: "Toon de voorbeeld-restaurants op de kaart met een duidelijk 'Demo'-label en een knop 'Verberg demo's', net zoals in de buurt-lijst."
+      },
+      {
+        id: "kaart-geen-laadstatus",
+        cat: "kaart",
+        title: "De kaart toont 'leeg' terwijl hij nog aan het laden is.",
+        what: "Bij het openen van de kaart is er geen laadindicatie. Wie op een trage telefoon wacht, ziet een lege kaart op een willekeurige plek en denkt dat er geen herinneringen zijn.",
+        example: "Voorbeeld: je opent 'Mijn kaart' en ziet eerst alleen een lege kaart bij een Belgisch kustdorp — pas later verschijnen je punten.",
+        solution: "Toon een laadindicator ('Kaart laden…') tot de kaart klaar is."
+      },
+      {
+        id: "kaart-locatie-geweigerd-stil",
+        cat: "kaart",
+        title: "Als je locatie uitstaat, springt de kaart stilletjes naar een willekeurige plek.",
+        what: "Bij 'Zoeken op de kaart' wordt niet gevraagd om je locatie aan te zetten. De kaart springt naar een standaardlocatie en toont 'Geen restaurants gevonden' — zonder uit te leggen dat de oorzaak je locatie-instelling is.",
+        example: "Voorbeeld: je woont in Amsterdam, je locatie is uit, en de kaart opent op Middelkerke (België) met nul resultaten.",
+        solution: "Vraag bij het openen van 'Zoeken op de kaart' om locatietoestemming en toon 'Locatie uit - tik hier om in te schakelen' in plaats van een lege kaart."
+      },
+      {
+        id: "kaart-zoeken-negeert-filters",
+        cat: "kaart",
+        title: "Zoeken op de kaart negeert je actieve filters.",
+        what: "Als je in je herinneringen 'Alleen favorieten' hebt aangezet en daarna via de kaart zoekt, krijg je álle restaurants te zien — niet alleen je favorieten. De drie schermen (lijst, kaart-tab, zoek-kaart) passen dus niet dezelfde filters toe.",
+        example: "Voorbeeld: je filtert op favorieten in de lijst, zoekt dan 'pizza' op de kaart — en ziet ook niet-favorieten.",
+        solution: "Pas de actieve filters ook toe op zoekresultaten op de kaart, of toon 'Filters zijn uitgeschakeld tijdens het zoeken'."
+      },
+      {
+        id: "kaart-hertap-deselecteert",
+        cat: "kaart",
+        title: "Een tweede tik op hetzelfde restaurant maakt je keuze ongedaan.",
+        what: "In 'Zoeken op de kaart' zorgt een tweede tik op hetzelfde resultaat ervoor dat je selectie verdwijnt. In 'In de buurt' gebeurt dat niet. De twee schermen gedragen zich anders voor dezelfde handeling.",
+        example: "Voorbeeld: je tikt per ongeluk twee keer op een restaurant en je keuze is weg — je moet opnieuw beginnen.",
+        solution: "Maak het gedrag gelijk aan 'In de buurt': een tweede tik op hetzelfde resultaat verandert niets; deselecteren doe je via de X op de banner."
+      },
+      {
+        id: "kaart-banner-x-stuurt-terug",
+        cat: "kaart",
+        title: "De X op de geselecteerde-restaurant-banner stuurt je óók terug naar het keuzescherm.",
+        what: "Bij 'In de buurt' betekent de X op de banner: selectie wissen én terug naar het keuzescherm. Wie alleen zijn selectie wilde wissen, wordt onverwachts teruggeworpen.",
+        example: "Voorbeeld: je selecteert per ongeluk het verkeerde restaurant, tikt op X — en staat weer in het keuzescherm.",
+        solution: "Maak de X alleen 'selectie wissen' en voeg een aparte terug-knop toe om het scherm te verlaten."
+      },
+      {
+        id: "kaart-nabij-50km",
+        cat: "kaart",
+        title: "'In de buurt' toont restaurants tot 50 km ver.",
+        what: "De knop 'In de buurt' zoekt in een cirkel van 50 km en toont maximaal 20 restaurants, gesorteerd op afstand. Een restaurant op 45 km staat er gewoon tussen — dat voelt niet als 'in de buurt'.",
+        example: "Voorbeeld: je tikt 'In de buurt' in Brussel en het 7e resultaat is een restaurant in Leuven, 30 km verderop.",
+        solution: "Verklein de zoekradius naar bijv. 10-15 km of toon de afstand op elke kaart, zodat 'in de buurt' ook echt dichtbij voelt."
+      },
+      {
+        id: "kaart-blauwe-dot-buiten-beeld",
+        cat: "kaart",
+        title: "Het blauwe stipje (jij) kan buiten beeld vallen als de kaart opent.",
+        what: "De kaart probeert bij het openen alles in beeld te brengen, maar jouw locatie wordt soms te laat geladen. Het blauwe stipje verschijnt dan wél, maar buiten het zichtbare deel van de kaart.",
+        example: "Voorbeeld: je opent de kaart en ziet je herinneringen, maar het blauwe stipje is nergens te bekennen — tot je uitzoomt.",
+        solution: "Her-centreer de kaart op je locatie zodra het blauwe stipje geladen is, of toon een 'Naar mijn locatie'-knop."
+      },
+
+      // ————— MIJN GUSTRA & TERUGBLIK —————
+      {
+        id: "mijn-gustra-scores-lopen-uiteen",
+        cat: "mijn-gustra",
+        title: "Hetzelfde restaurant kan in Mijn Gustra een andere score tonen dan in je lijst.",
+        what: "Mijn Gustra berekent gemiddelden op basis van de onderdelen die jij in Instellingen hebt aangevinkt. Zet je een onderdeel uit, dan kunnen de cijfers in Mijn Gustra afwijken van wat je in de herinneringenlijst en op de detailpagina ziet.",
+        example: "Voorbeeld: je restaurant toont 5/5 in je lijst, maar 2,5/5 op de #1-plek in Mijn Gustra.",
+        solution: "Gebruik overal dezelfde berekening (laat altijd alle criteria meetellen in Mijn Gustra) of toon erbij: 'Berekend met de criteria die je aan hebt staan'."
+      },
+      {
+        id: "mijn-gustra-beste-wijn-1-ster",
+        cat: "mijn-gustra",
+        title: "'Beste wijnen' kan een wijn tonen die je maar 1 ster gaf.",
+        what: "De sectie 'Beste wijnen' rangschikt alle wijnen die je ooit beoordeelde, ook lage scores. Er staat niks over een minimum — een wijn van 1/5 kan gewoon in 'beste wijnen' verschijnen.",
+        example: "Voorbeeld: je gaf twee wijnen een 5 en één wijn een 1 — alle drie verschijnen in 'Beste wijnen'.",
+        solution: "Toon in 'Beste wijnen' alleen wijnen met 4 of 5 sterren, of zet de score prominent zodat een lage score niet als 'beste' leest."
+      },
+      {
+        id: "mijn-gustra-totalen-verschillen",
+        cat: "mijn-gustra",
+        title: "Het totaal in Mijn Gustra kan afwijken van het totaal in Terugblik.",
+        what: "Mijn Gustra telt alle herinneringen, Terugblik telt alleen herinneringen waarvan de datum goed leesbaar is. Bij een onvolledige datum lopen de twee schermen uiteen, zonder uitleg.",
+        example: "Voorbeeld: Mijn Gustra zegt '6 herinneringen', Terugblik zegt '5 bezoeken' — en er is geen verklaring.",
+        solution: "Laat Mijn Gustra en Terugblik dezelfde telling gebruiken; toon bij een ontbrekende datum 'Datum onbekend' in plaats van weg te laten."
+      },
+      {
+        id: "mijn-gustra-leeg-met-concepten",
+        cat: "mijn-gustra",
+        title: "Mijn Gustra kan 'Nog geen herinneringen' tonen terwijl je lijst concepten toont.",
+        what: "Concepten (half ingevulde herinneringen) tellen niet mee in Mijn Gustra. Wie alleen concepten heeft, ziet een leeg Mijn Gustra terwijl de herinneringenlijst wél kaarten toont.",
+        example: "Voorbeeld: je hebt 3 concepten in je lijst, maar Mijn Gustra zegt 'Nog geen herinneringen'.",
+        solution: "Toon in Mijn Gustra ook '3 concepten in bewerking' of een verwijzing 'Verder bewerken in je lijst'."
+      },
+      {
+        id: "mijn-gustra-toggle-cijfers",
+        cat: "mijn-gustra",
+        title: "De 'cijfers of sterren'-keuze in Instellingen is niet herkenbaar als een knop.",
+        what: "De rij 'Toon scores als' toont een voorbeeld (bijv. een sterretje), maar ziet er niet uit als een aanklikbare keuze. Er is geen schuifje en geen duidelijke 'aan/uit'-aanduiding.",
+        example: "Voorbeeld: je tikt op de rij om te wisselen tussen cijfers en sterren, maar er verandert bijna niets zichtbaars.",
+        solution: "Maak de rij een duidelijke schakelaar met twee zichtbare opties 'Cijfers' en 'Sterren' die direct omschakelen."
+      },
+      {
+        id: "mijn-gustra-demo-telt-mee",
+        cat: "mijn-gustra",
+        title: "Voorbeeld-herinneringen tellen mee in je statistieken zonder dat je het ziet.",
+        what: "Als 'Voorbeeldherinneringen' aanstaat (Instellingen), tellen de 6 voorbeeld-restaurants mee in het totaal van Mijn Gustra en Terugblik. In de lijst staat er 'Demo' bij, maar in Mijn Gustra niet.",
+        example: "Voorbeeld: je hebt zelf 6 herinneringen geschreven, maar Mijn Gustra zegt '12' omdat de demo's meetellen.",
+        solution: "Sluit demo-herinneringen uit van de statistieken, of toon 'Inclusief demo's' naast de cijfers."
+      },
+      {
+        id: "terugblik-jaren-vaag",
+        cat: "mijn-gustra",
+        title: "Het cijfer 'Jaren' in Terugblik is vaag.",
+        what: "Het kaartje 'Jaren' toont het aantal jaren waarin je minstens één bezoek had. Wie in één jaar 10 restaurants bezocht, ziet '1' — zonder uitleg dat dit 'aantal jaren met bezoeken' is.",
+        example: "Voorbeeld: je hebt dit jaar 12 restaurants bezocht en Terugblik zegt 'Jaren: 1'.",
+        solution: "Vervang 'Jaren' door 'Aantal jaren met bezoeken' of toon bijv. '3 jaar (2023-2026)'."
+      },
+
+      // ————— RESTAURANT & HERINNERING-DETAIL —————
+      {
+        id: "detail-favoriet-ontbreekt",
+        cat: "restaurant",
+        title: "Het hartje ontbreekt op de restaurantpagina.",
+        what: "Je kunt een restaurant favoriet maken vanuit de lijst en vanaf de herinnering-detailpagina. Op de restaurantpagina (met alle bezoeken) ontbreekt het hartje — daardoor is favoriet maken niet overal hetzelfde.",
+        example: "Voorbeeld: je opent een restaurant met 3 bezoeken en wilt het favoriet maken, maar er is geen hartje te vinden.",
+        solution: "Voeg het hartje ook toe op de restaurantpagina (naast de naam), zodat favoriet maken overal hetzelfde werkt."
+      },
+      {
+        id: "detail-vriendenreview-niet-verwijderbaar",
+        cat: "restaurant",
+        title: "Een gedeelde herinnering van een vriend kun je nergens los verwijderen.",
+        what: "Herinneringen die vrienden met je deelden, kun je niet bewerken. Maar je kunt ze ook niet los verwijderen — alleen door het hele restaurant weg te vegen in de lijst, en dan verdwijnen ook jóúw bezoeken.",
+        example: "Voorbeeld: je wilt één verouderde gedeelde herinnering kwijt, maar elke optie verwijdert ook je eigen bezoeken.",
+        solution: "Geef elke gedeelde herinnering een eigen menu met 'Verwijderen' (alleen die ene), of voeg een knop 'Verberg vrienden-bezoeken' toe."
+      },
+      {
+        id: "detail-bezoek-toevoegen-fab",
+        cat: "restaurant",
+        title: "De 'Bezoek toevoegen'-knop verschijnt en verdwijnt zonder uitleg.",
+        what: "Op de herinnering-pagina staat een knop om nog een bezoek toe te voegen — maar alleen zolang je minder dan 2 bezoeken hebt. Bij 2 of meer bezoeken verdwijnt de knop en moet je de restaurantpagina vinden.",
+        example: "Voorbeeld: je hebt 2 bezoeken en wilt een derde toevoegen, maar de knop is weg.",
+        solution: "Toon de 'Bezoek toevoegen'-knop altijd (ook bij 2 of meer bezoeken) en verwijs dan naar de restaurantpagina."
+      },
+      {
+        id: "detail-gemiddelde-afwijkend",
+        cat: "restaurant",
+        title: "Het gemiddelde bovenaan kan afwijken van de som van de losse bezoeken.",
+        what: "Op de restaurantpagina staat een totaalgemiddelde, maar elk bezoek toont zijn eigen score. Bij geïmporteerde herinneringen kunnen die getallen verschillen — zonder duidelijke reden.",
+        example: "Voorbeeld: de kaarten tonen 4,5 en 4,0, maar het gemiddelde bovenaan is 4,7.",
+        solution: "Toon het gemiddelde als som van de getoonde bezoeken, of leg uit: 'Gemiddelde van alle bezoeken, inclusief gedeelde'."
+      },
+      {
+        id: "detail-concept-telt-in-teller",
+        cat: "restaurant",
+        title: "Het aantal 'jouw bezoeken' kan een concept meetellen.",
+        what: "Op de restaurantpagina telt de kop 'Jouw bezoeken: 3' soms een concept mee dat nog geen score heeft. De lijst ziet er dan voller uit dan de echte bezoeken.",
+        example: "Voorbeeld: je hebt 2 echte bezoeken en 1 concept, en de pagina zegt '3 bezoeken'.",
+        solution: "Laat concepten niet meetellen in 'Jouw bezoeken: N' en toon '1 concept in bewerking' apart."
+      },
+      {
+        id: "detail-wijn-verwijderen-score",
+        cat: "restaurant",
+        title: "Een wijn verwijderen verandert stilletjes je score.",
+        what: "Als je een wijn verwijdert uit een herinnering, wordt je drank-score opnieuw berekend. Blijft er geen beoordeelde wijn over, dan telt de herinnering ineens niet meer mee in je statistieken — zonder melding.",
+        example: "Voorbeeld: je verwijdert een wijn die je 1 ster gaf, en je totaal in Mijn Gustra zakt ongemerkt.",
+        solution: "Toon na het verwijderen van een wijn: 'Je drank-score is herberekend' en bied de mogelijkheid om het ongedaan te maken."
+      },
+      {
+        id: "detail-geen-menu",
+        cat: "restaurant",
+        title: "Op de herinnering-pagina ontbreekt het '⋯'-menu.",
+        what: "Er is een netjes ontworpen menu (⋯) met acties zoals 'Bezoek toevoegen', maar het wordt nergens getoond. Gebruikers die dit verwachten, vinden het niet.",
+        example: "Voorbeeld: je zoekt op de herinnering-pagina naar '⋯' voor meer opties — maar er is alleen een potlood.",
+        solution: "Toon het ⋯-menu op de herinnering-pagina (met 'Bezoek toevoegen', 'Delen', enz.) of verwijder het ongebruikte menu."
+      },
+
+      // ————— DELEN & IMPORTEREN —————
+      {
+        id: "delen-is-bestand",
+        cat: "delen",
+        title: "Delen stuurt een bestand, geen link of bericht — dat wordt niet uitgelegd.",
+        what: "Als je herinneringen deelt, opent het normale deelmenu van je telefoon met een bestand ('.gustrashare'). Voor veel mensen is onduidelijk wat ze met dat bestand moeten doen en hoe de ontvanger het opent.",
+        example: "Voorbeeld: je tikt op 'Delen', kiest E-mail, en stuurt een bestand dat de ontvanger niet kan openen.",
+        solution: "Leg bij het delen uit: 'Dit maakt een deelbestand dat de ontvanger met Gustra kan openen', bijv. als ondertitel bij de deel-knop."
+      },
+      {
+        id: "delen-vrienden-niet-meegestuurd",
+        cat: "delen",
+        title: "Gedeelde herinneringen van vrienden kun je aanvinken, maar ze worden nooit meegestuurd.",
+        what: "In de selectiemodus kun je ook herinneringen van vrienden aanvinken. Bij het delen worden alleen jouw eigen herinneringen meegestuurd — zonder melding dat de aangevinkte vrienden-herinneringen niet meegaan.",
+        example: "Voorbeeld: je vinkt 4 eigen + 2 gedeelde herinneringen aan, maar de ontvanger krijgt alleen de 4 eigen.",
+        solution: "Schakel vrienden-herinneringen uit in de selectiemodus voor delen, of toon 'N gedeelde herinneringen worden niet meegestuurd'."
+      },
+      {
+        id: "delen-naam-mid-flow",
+        cat: "delen",
+        title: "Bij het eerste delen wordt ineens om je naam gevraagd.",
+        what: "Heb je nog geen naam ingesteld, dan onderbreekt een 'Je naam?'-scherm het delen midden in de flow. Er was nergens van tevoren uitgelegd dat je naam nodig is.",
+        example: "Voorbeeld: je selecteert herinneringen, tikt op bevestigen, en moet eerst je naam invullen voordat je verder kunt.",
+        solution: "Vraag de naam al vóór het delen (bijv. in Instellingen → Profiel) zodat het delen niet onderbroken wordt."
+      },
+      {
+        id: "delen-demo-stil",
+        cat: "delen",
+        title: "'Alles selecteren' kan meer aankruisen dan er echt gedeeld wordt.",
+        what: "De voorbeeld-herinneringen worden nooit meegestuurd, maar ze worden wél meegeselecteerd met 'Alles selecteren'. Het aantal geselecteerde items klopt dan niet met wat er verstuurd wordt.",
+        example: "Voorbeeld: '6 geselecteerd' — maar er gaan er maar 4 echt mee.",
+        solution: "Laat 'Alles selecteren' alleen de werkelijk deelbare items selecteren en toon '5 deelbaar, 1 demo overgeslagen'."
+      },
+      {
+        id: "importeren-geen-resultaat",
+        cat: "delen",
+        title: "Na het importeren zie je niet wat er is binnengekomen.",
+        what: "Na het importeren van een pakket van een vriend spring je naar de herinneringenlijst. Er is geen '3 van 5 herinneringen geïmporteerd'-melding; duplicaten en mislukte foto's verdwijnen stil.",
+        example: "Voorbeeld: je importeert een pakket met 5 herinneringen, maar 2 zijn duplicaten — je ziet nergens dat er maar 3 zijn toegevoegd.",
+        solution: "Toon na het importeren een samenvatting: '3 herinneringen toegevoegd, 2 duplicaten overgeslagen, 1 foto mislukt'."
+      },
+
+      // ————— BACK-UP & HERSTEL —————
+      {
+        id: "backup-merge-overschrijft",
+        cat: "backup",
+        title: "'Samenvoegen' bij herstel kan nieuwere herinneringen overschrijven.",
+        what: "De knop 'Samenvoegen' klinkt alsof alles bewaard blijft, maar bij een conflict wint de back-up — ook als jouw huidige herinnering nieuwer is. Dat wordt niet gemeld.",
+        example: "Voorbeeld: je herstelt een back-up van vorige maand met 'Samenvoegen', en je herinnering van gisteren wordt stil overschreven door de oudere versie.",
+        solution: "Maak 'Samenvoegen' echt samenvoegen: bewaar bij een conflict de nieuwste herinnering, of toon de verschillen vóór het herstel."
+      },
+      {
+        id: "backup-overwrite-profielfoto",
+        cat: "backup",
+        title: "'Overschrijven' vervangt ook je naam, profielfoto en instellingen — zonder waarschuwing.",
+        what: "De waarschuwing bij 'Overschrijven' gaat over je herinneringen, maar in werkelijkheid worden ook je reviewer-naam, profielfoto en criteria-instellingen vervangen door die uit de back-up.",
+        example: "Voorbeeld: je herstelt een back-up om je herinneringen terug te krijgen, en je profielfoto en naam zijn ook teruggedraaid naar de oude versie.",
+        solution: "Vraag apart om toestemming: 'Ook je naam, profielfoto en instellingen overschrijven?' of scheid 'Gegevens' en 'Profiel'."
+      },
+      {
+        id: "backup-geen-resultaat",
+        cat: "backup",
+        title: "Na herstel zie je niet direct je herstelde gegevens.",
+        what: "Na een geslaagd herstel verschijnt alleen een tekst 'Hersteld'. Je moet zelf terug naar de herinneringenlijst om te zien of alles klopt.",
+        example: "Voorbeeld: je herstelt je back-up en blijft op hetzelfde scherm staan — je ziet niets van de teruggezette gegevens.",
+        solution: "Toon na het herstel een overzicht: '12 herinneringen teruggezet, 3 nieuwer en niet overschreven' met een knop 'Bekijk'."
+      },
+      {
+        id: "backup-foutmelding-wachtwoord",
+        cat: "backup",
+        title: "Een beschadigd automatisch herstelpunt toont 'Verkeerd wachtwoord' — terwijl er geen wachtwoord is.",
+        what: "De automatische herstelpunten (AutoProtect) hebben geen wachtwoord. Is zo'n bestand beschadigd, dan toont Gustra toch de melding 'Verkeerd wachtwoord', wat nergens op slaat.",
+        example: "Voorbeeld: je tikt op een automatisch herstelpunt dat niet meer leesbaar is, en je krijgt een wachtwoordfout te zien.",
+        solution: "Toon bij een onleesbaar herstelpunt een correcte melding: 'Dit herstelpunt is beschadigd of verouderd' in plaats van een wachtwoordfout."
+      },
+
+      // ————— OVERIG —————
+      {
+        id: "overig-wijnscan-verwerp-bewaart",
+        cat: "overig",
+        title: "'Wil je je wijzigingen verwerpen?' — Ja zorgt er juist voor dat de wijn wordt bewaard.",
+        what: "In de wijnscanner: als je een wijn hebt beoordeeld en weg wilt, vraag Gustra 'Wijzigingen verwerpen?'. Kies je 'Ja', dan wordt de wijn bevestigd en toegevoegd aan je herinnering — precies het tegenovergestelde van verwerpen.",
+        example: "Voorbeeld: je scant een wijn, geeft 2 sterren, wilt hem toch niet toevoegen en kiest 'Ja, verwerpen'. De wijn wordt tóch toegevoegd.",
+        solution: "Draai de logica om: 'Ja' = echt verwerpen (niet toevoegen), 'Nee' = toch toevoegen."
+      },
+      {
+        id: "overig-wijnscan-geen-match-dood",
+        cat: "overig",
+        title: "Bij een wijn zonder match zit je vast: geen handmatige optie.",
+        what: "Als de scanner de wijn niet herkent, toont hij 'Geen match' en kun je alleen terug. Er is geen knop 'Handmatig toevoegen' om de wijn zelf in te vullen.",
+        example: "Voorbeeld: je scant een onbekende huiswijn, krijgt 'Geen match', en kunt de wijn nergens handmatig toevoegen.",
+        solution: "Voeg een knop 'Handmatig invullen' toe wanneer de scanner geen match vindt."
+      },
+      {
+        id: "overig-wijnscan-foutmelding",
+        cat: "overig",
+        title: "Foutmeldingen bij het scannen zijn technisch en soms in het Engels.",
+        what: "Als de scan mislukt, verschijnt de technische foutmelding van de AI-dienst letterlijk op je scherm — bijvoorbeeld 'This IP is not authorized to use this API key'.",
+        example: "Voorbeeld: je scant een wijn en krijgt een Engelse technische melding die je als gebruiker niet kunt plaatsen.",
+        solution: "Vervang technische foutmeldingen door een begrijpelijke tekst: 'Scannen lukte niet. Probeer opnieuw of voer de wijn handmatig in.'"
+      },
+      {
+        id: "overig-criteria-volledig-beheer",
+        cat: "overig",
+        title: "'Volledig beheer' bij de eerste installatie opent met al 5 onderdelen aangevinkt.",
+        what: "Kies je 'Volledig beheer' bij de eerste configuratie, dan staan Eten, Drinken, Service, Sfeer en Prijs al aan. Wie een leeg begin verwacht, ziet ineens een half ingevulde lijst.",
+        example: "Voorbeeld: je kiest 'Volledig beheer' en wilt alleen 'Sfeer' en 'Service' — maar 5 onderdelen zijn al aangevinkt.",
+        solution: "Laat 'Volledig beheer' beginnen met alles uit (of een duidelijke 'Selecteer alles'-knop) zodat het een bewuste keuze blijft."
+      },
+      {
+        id: "overig-bucketlist-knop-onvindbaar",
+        cat: "overig",
+        title: "De bucketlist zegt 'tik op het bookmark-icoon' — maar dat icoon staat niet op deze pagina.",
+        what: "De lege bucketlist in Mijn Gustra verwijst naar een bookmark-icoon op restaurants. Dat icoon zit alleen in het 'Geselecteerd restaurant'-venster bij het toevoegen van een herinnering — niet op de pagina waar de uitleg staat.",
+        example: "Voorbeeld: je ziet 'Tik op het bookmark-icoon' op Mijn Gustra, maar er is geen bookmark te vinden op dat scherm.",
+        solution: "Voeg het bookmark-icoon ook toe op de restaurantpagina, of leg in de uitleg uit waar het icoon wél staat (bij 'Geselecteerd restaurant' bij het toevoegen)."
+      },
+      {
+        id: "overig-profiel-foto-kiezer",
+        cat: "overig",
+        title: "De profielfoto-editor heeft een onverwachte sluit-gedraging.",
+        what: "Heb je al een profielfoto en tik je op de X in de editor, dan moet je soms twee keer tikken om te sluiten: eerst terug uit de fotokiezer, daarna pas de editor. Een nieuwe, niet-opgeslagen foto wordt stil weggegooid.",
+        example: "Voorbeeld: je opent je profielfoto, tikt op X — en er gebeurt niets. Nog een keer tikt: pas dan sluit je.",
+        solution: "Laat één tik op de X de editor en de fotokiezer samen sluiten, en toon 'Verwijder nieuwe foto?' voordat een onbewerkte foto wordt weggegooid."
+      },
+      {
+        id: "overig-fotobibliotheek-stil",
+        cat: "overig",
+        title: "Als 'Opslaan in fotobibliotheek' faalt, merk je daar niets van.",
+        what: "De nieuwe instelling 'Opslaan in fotobibliotheek' staat standaard aan. Weigert je telefoon de toestemming of lukt het opslaan niet, dan blijft de schakelaar gewoon aan en krijg je geen melding.",
+        example: "Voorbeeld: je weigert de fototoestemming, maar de instelling blijft 'aan' — de foto's komen stilletjes niet in je Fotobibliotheek.",
+        solution: "Toon een melding als het opslaan in de fotobibliotheek faalt ('Niet opgeslagen in Foto's - controleer je toestemming') en zet de schakelaar dan automatisch uit."
+      },
+    ];
+
+    /** @type {Record<string, {status: string, remark: string}>} */
+    let state = {};
+    let remoteSubmissions = {};
+    let myRemote = null;
+
+    const CATS = [
+      { id: "herinnering", label: "Herinneringen & formulier" },
+      { id: "fotos", label: "Foto's" },
+      { id: "zoeken", label: "Zoeken & filteren" },
+      { id: "kaart", label: "Kaart & in de buurt" },
+      { id: "mijn-gustra", label: "Mijn Gustra & terugblik" },
+      { id: "restaurant", label: "Restaurant & herinnering-detail" },
+      { id: "delen", label: "Delen & importeren" },
+      { id: "backup", label: "Back-up & herstel" },
+      { id: "overig", label: "Overig" },
+    ];
+
+    const STATUS_LABELS = {
+      agree: "Mag zo blijven",
+      suggest: "Verander volgens AI suggestie",
+      disagree: "Pas aan volgens gebruiker uitleg",
+      fixed: "Is intussen aangepast",
+    };
+    const STATUS_HINTS = {
+      agree: "Gedrag is goed zo",
+      suggest: "De AI-suggestie lijkt goed",
+      disagree: "Zie de uitleg hierboven",
+      fixed: "Is al aangepast in de app",
+    };
+
+    function itemById(id) { return DEFAULT_ITEMS.find((i) => i.id === id); }
+
+    function persist() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ state, updatedAt: new Date().toISOString() }));
+    }
+
+    function loadLocal() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        if (data.state && typeof data.state === "object") state = data.state;
+      } catch { /* ignore */ }
+    }
+
+    let saveTimer = null;
+    function scheduleRemoteSave() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(saveRemote, 600);
+    }
+
+    async function saveRemote() {
+      const msg = document.getElementById("syncMsg");
+      const nameMsg = document.getElementById("nameMsg");
+      const items = {};
+      for (const id of Object.keys(state)) {
+        if (itemById(id)) items[id] = state[id];
+      }
+      const name = MY_NAME.trim();
+      const body = { userId: ME, name, items, updatedAt: new Date().toISOString() };
+      try {
+        const res = await fetch(REMOTE_SAVE, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (res.status === 409) {
+          // Naam is al door iemand anders ingenomen.
+          const data = await res.json().catch(() => ({}));
+          if (data.error === "name_taken" && nameMsg) {
+            nameMsg.textContent = "Deze naam is al door iemand anders gebruikt. Kies een andere naam (bijv. met een toevoeging) — je gegevens zijn wél opgeslagen als anoniem.";
+            nameMsg.className = "name-msg err";
+          }
+          msg.textContent = "Naam is bezet — je reactie is opgeslagen, maar zonder naam.";
+          msg.className = "sync";
+          return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        myRemote = { userId: ME, items, updatedAt: new Date().toISOString() };
+        if (name && nameMsg && !nameMsg.classList.contains("err")) {
+          setCookie(NAME_COOKIE, name, 365);
+          nameMsg.textContent = "Je naam is opgeslagen in een cookie op dit apparaat.";
+          nameMsg.className = "name-msg ok";
+        }
+        msg.textContent = `Gesynchroniseerd met server · ${new Date().toLocaleTimeString("nl-BE")}`;
+        msg.className = "sync ok";
+      } catch {
+        msg.textContent = "Opgeslagen op dit apparaat (server-sync niet beschikbaar).";
+        msg.className = "sync";
+      }
+    }
+
+    async function loadRemote() {
+      try {
+        const res = await fetch(`${REMOTE_STATE}?t=${Date.now()}`, { cache: "no-store" });
+        if (!res.ok) return false;
+        const data = await res.json();
+        remoteSubmissions = {};
+        const subs = data.submissions && typeof data.submissions === "object"
+          ? data.submissions
+          : {};
+        for (const uid of Object.keys(subs)) {
+          const s = subs[uid];
+          if (!s || typeof s !== "object") continue;
+          const entry = {
+            name: (s.name && typeof s.name === "string") ? s.name : "",
+            items: (s.items && typeof s.items === "object") ? s.items : {},
+            updatedAt: s.updatedAt || null,
+          };
+          remoteSubmissions[uid] = entry;
+          if (uid === ME) myRemote = entry;
+        }
+        // If the server knows our name (from an earlier session), adopt it.
+        if (myRemote && myRemote.name && !MY_NAME) {
+          MY_NAME = myRemote.name;
+          setCookie(NAME_COOKIE, MY_NAME, 365);
+        }
+        persist();
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    function othersFor(itemId) {
+      const out = [];
+      for (const uid of Object.keys(remoteSubmissions)) {
+        if (uid === ME) continue;
+        const entry = remoteSubmissions[uid];
+        const v = entry.items[itemId];
+        if (!v || typeof v !== "object") continue;
+        if ((v.status && STATUS_LABELS[v.status]) || (v.remark && String(v.remark).trim())) {
+          out.push({ uid, name: entry.name || "", status: v.status || "", remark: String(v.remark || "").trim() });
+        }
+      }
+      out.sort((a, b) => {
+        const rank = { agree: 0, suggest: 1, disagree: 2, fixed: 3 };
+        return (rank[a.status] ?? 4) - (rank[b.status] ?? 4);
+      });
+      return out;
+    }
+
+    function renderStats() {
+      const total = DEFAULT_ITEMS.length;
+      const done = DEFAULT_ITEMS.filter((i) => state[i.id]?.status).length;
+      const okFixed = DEFAULT_ITEMS.filter((i) => ["agree", "fixed", "suggest"].includes(state[i.id]?.status)).length;
+      const pct = total ? Math.round((okFixed / total) * 100) : 0;
+      document.getElementById("countLabel").textContent = `${done} / ${total} beoordeeld`;
+      document.getElementById("pct").innerHTML = `${pct}%<small>mag zo blijven of aangepast</small>`;
+      document.getElementById("bar").style.width = `${pct}%`;
+      for (const cat of CATS) {
+        const items = DEFAULT_ITEMS.filter((i) => i.cat === cat.id);
+        const doneCat = items.filter((i) => state[i.id]?.status).length;
+        document.getElementById(`count-${cat.id}`).textContent = `${doneCat} / ${items.length}`;
+      }
+    }
+
+    function statusTone(status) {
+      if (status === "agree") return "agree";
+      if (status === "fixed") return "fixed";
+      if (status === "disagree") return "disagree";
+      if (status === "suggest") return "suggest";
+      return "";
+    }
+
+    function render() {
+      for (const cat of CATS) {
+        const list = document.getElementById(`list-${cat.id}`);
+        list.innerHTML = "";
+        const items = DEFAULT_ITEMS.filter((i) => i.cat === cat.id);
+        items.forEach((item, idx) => {
+          const st = state[item.id] || { status: "", remark: "" };
+          const li = document.createElement("li");
+          li.className = "task";
+
+          const head = document.createElement("div");
+          head.className = "head";
+
+          const num = document.createElement("span");
+          num.className = "num";
+          num.textContent = String(idx + 1);
+          head.appendChild(num);
+
+          const title = document.createElement("div");
+          title.className = "title";
+          title.textContent = item.title;
+          head.appendChild(title);
+
+          li.appendChild(head);
+
+          const what = document.createElement("div");
+          what.className = "what";
+          what.textContent = item.what;
+          li.appendChild(what);
+
+          if (item.example) {
+            const ex = document.createElement("div");
+            ex.className = "example";
+            ex.innerHTML = `<b>Voorbeeld:</b> ${item.example}`;
+            li.appendChild(ex);
+          }
+
+          if (item.solution) {
+            const sol = document.createElement("div");
+            sol.className = "solution";
+            sol.innerHTML = `<b>AI suggestie:</b> ${item.solution}`;
+            li.appendChild(sol);
+          }
+
+          const choices = document.createElement("div");
+          choices.className = "choices";
+          for (const status of ["agree", "suggest", "disagree", "fixed"]) {
+            const label = document.createElement("label");
+            label.className = "choice " + statusTone(status);
+
+            const radio = document.createElement("input");
+            radio.type = "radio";
+            radio.name = `choice-${item.id}`;
+            radio.value = status;
+            radio.checked = st.status === status;
+            radio.addEventListener("change", () => {
+              state[item.id] = { ...(state[item.id] || {}), status };
+              persist();
+              renderStats();
+              scheduleRemoteSave();
+            });
+
+            const dot = document.createElement("span");
+            dot.className = "dot " + statusTone(status);
+
+            const textWrap = document.createElement("span");
+            const labelText = document.createElement("span");
+            labelText.textContent = STATUS_LABELS[status];
+            const hint = document.createElement("span");
+            hint.className = "hint";
+            hint.textContent = STATUS_HINTS[status];
+            textWrap.appendChild(labelText);
+            textWrap.appendChild(hint);
+
+            label.appendChild(radio);
+            label.appendChild(dot);
+            label.appendChild(textWrap);
+            choices.appendChild(label);
+          }
+          li.appendChild(choices);
+
+          const others = othersFor(item.id);
+          const othersWrap = document.createElement("div");
+          othersWrap.className = "others";
+          if (others.length > 0) {
+            const summary = document.createElement("div");
+            summary.className = "others-summary";
+            const countAgree = others.filter((o) => o.status === "agree").length;
+            const countFixed = others.filter((o) => o.status === "fixed").length;
+            const countDisagree = others.filter((o) => o.status === "disagree").length;
+            const countSuggest = others.filter((o) => o.status === "suggest").length;
+            const parts = [];
+            if (countAgree) parts.push(`${countAgree} × mag zo blijven`);
+            if (countDisagree) parts.push(`${countDisagree} × pas aan volgens gebruiker uitleg`);
+            if (countFixed) parts.push(`${countFixed} × intussen aangepast`);
+            if (countSuggest) parts.push(`${countSuggest} × volgens AI suggestie`);
+            summary.textContent = `Andere bezoekers: ${parts.join(" · ") || "nog geen keuzes"}`;
+            othersWrap.appendChild(summary);
+            const listEl = document.createElement("div");
+            listEl.className = "others-list";
+            for (const o of others) {
+              const itemEl = document.createElement("div");
+              itemEl.className = "others-item";
+              const who = document.createElement("span");
+              who.className = "who";
+              const label = o.status && STATUS_LABELS[o.status] ? STATUS_LABELS[o.status] : "Opmerking";
+              const whoName = o.name ? o.name : `bezoeker ${o.uid.slice(2, 8)}`;
+              who.innerHTML = `<span class="s-${statusTone(o.status)}">${label}</span> · ${whoName.replace(/</g, "&lt;")}`;
+              itemEl.appendChild(who);
+              if (o.remark) {
+                const remark = document.createElement("span");
+                remark.textContent = o.remark;
+                itemEl.appendChild(document.createElement("br"));
+                itemEl.appendChild(remark);
+              }
+              listEl.appendChild(itemEl);
+            }
+            othersWrap.appendChild(listEl);
+          } else {
+            const none = document.createElement("div");
+            none.className = "others-none";
+            none.textContent = "Nog geen reacties van andere bezoekers.";
+            othersWrap.appendChild(none);
+          }
+          li.appendChild(othersWrap);
+
+          const remarkWrap = document.createElement("div");
+          remarkWrap.className = "remark";
+          const rl = document.createElement("label");
+          rl.htmlFor = `r-${item.id}`;
+          rl.textContent = "Opmerking (zichtbaar voor anderen)";
+          const ta = document.createElement("textarea");
+          ta.id = `r-${item.id}`;
+          ta.placeholder = "Optionele opmerking…";
+          ta.value = st.remark || "";
+          ta.addEventListener("input", () => {
+            state[item.id] = { ...(state[item.id] || { status: "" }), remark: ta.value };
+            persist();
+            scheduleRemoteSave();
+          });
+          remarkWrap.appendChild(rl);
+          remarkWrap.appendChild(ta);
+          li.appendChild(remarkWrap);
+
+          list.appendChild(li);
+        });
+      }
+      renderStats();
+    }
+
+    (async function init() {
+      loadLocal();
+      const remote = await loadRemote();
+      render();
+
+      const nameInput = document.getElementById("editorName");
+      const nameMsg = document.getElementById("nameMsg");
+      if (nameInput) {
+        nameInput.value = MY_NAME;
+        nameInput.addEventListener("input", () => {
+          MY_NAME = nameInput.value.trim();
+          if (MY_NAME) {
+            setCookie(NAME_COOKIE, MY_NAME, 365);
+            if (nameMsg) {
+              nameMsg.textContent = "Je naam wordt opgeslagen in een cookie op dit apparaat.";
+              nameMsg.className = "name-msg ok";
+            }
+          } else if (nameMsg) {
+            nameMsg.textContent = "Laat je naam hier achter; die wordt bewaard in een cookie op dit apparaat.";
+            nameMsg.className = "name-msg";
+          }
+          scheduleRemoteSave();
+        });
+      }
+
+      if (remote) {
+        const msg = document.getElementById("syncMsg");
+        msg.textContent = "Serverstatus geladen.";
+        msg.className = "sync ok";
+      }
+      scheduleRemoteSave();
+    })();
+  </script>
+</body>
+</html>

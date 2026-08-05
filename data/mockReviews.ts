@@ -136,7 +136,9 @@ export const mockRestaurants: Restaurant[] = [
     isFavorite: true,
     isInBucketList: false,
     thumbnailColor: '#3D6B52',
-    photoUrl: photos.greenhouseDish,
+    // Landscape interior (not the portrait dish) so the passport hero crop
+    // stays cinematic instead of zooming into a narrow strip of the photo.
+    photoUrl: photos.greenhouseInterior,
   },
   {
     id: 'demo-r2',

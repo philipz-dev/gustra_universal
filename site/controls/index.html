@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gustra — Controls audit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --forest: #244e39;
+      --forest-deep: #1a3a2a;
+      --cream: #f5eedd;
+      --bubble: #ece3cf;
+      --gold: #d9a227;
+      --ink: #23201a;
+      --ink-soft: rgba(35, 32, 26, 0.55);
+      --ok: #388c56;
+      --danger: #c74742;
+      --shadow: 0 18px 50px rgba(36, 78, 57, 0.12);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "DM Sans", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(217, 162, 39, 0.16), transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, rgba(36, 78, 57, 0.14), transparent 50%),
+        linear-gradient(180deg, #f8f3e7 0%, var(--cream) 45%, #efe6d2 100%);
+    }
+
+    .wrap {
+      width: min(920px, calc(100% - 2rem));
+      margin: 0 auto;
+      padding: 2.25rem 0 4rem;
+    }
+
+    header.hero {
+      background: linear-gradient(145deg, var(--forest) 0%, var(--forest-deep) 100%);
+      color: #f7f1e4;
+      border-radius: calc(var(--radius) + 6px);
+      padding: 1.75rem 1.5rem 1.5rem;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+    header.hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -20% -40% auto;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(217,162,39,.28), transparent 65%);
+      pointer-events: none;
+    }
+    .brand {
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: clamp(2.2rem, 5.5vw, 3rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 0.98;
+      margin: 0 0 0.4rem;
+    }
+    .tagline {
+      margin: 0;
+      max-width: 36rem;
+      color: rgba(247, 241, 228, 0.82);
+      font-size: 1.02rem;
+      line-height: 1.45;
+    }
+    .status-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 1rem;
+      align-items: end;
+      margin-top: 1.4rem;
+    }
+    .progress-block { min-width: 0; }
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      font-size: 0.86rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: rgba(247, 241, 228, 0.72);
+      margin-bottom: 0.45rem;
+    }
+    .bar {
+      height: 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.14);
+      overflow: hidden;
+    }
+    .bar > i {
+      display: block;
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--gold), #f0d58a);
+      transition: width 0.35s ease;
+    }
+    .pct {
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: clamp(2.6rem, 6.5vw, 3.4rem);
+      font-weight: 700;
+      line-height: 1;
+      color: var(--gold);
+      text-align: right;
+    }
+    .pct small {
+      display: block;
+      margin-top: 0.25rem;
+      font-family: "DM Sans", sans-serif;
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgba(247, 241, 228, 0.65);
+    }
+
+    nav.toc {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 1.25rem 0 0.25rem;
+    }
+    nav.toc a {
+      text-decoration: none;
+      color: var(--forest);
+      background: rgba(36, 78, 57, 0.08);
+      border: 1px solid rgba(36, 78, 57, 0.12);
+      border-radius: 999px;
+      padding: 0.45rem 0.85rem;
+      font-weight: 600;
+      font-size: 0.88rem;
+    }
+
+    section.panel {
+      margin-top: 1.15rem;
+      background: rgba(255,255,255,0.55);
+      border: 1px solid rgba(36, 78, 57, 0.1);
+      border-radius: var(--radius);
+      padding: 1.15rem 1.15rem 0.65rem;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 10px 30px rgba(36, 78, 57, 0.06);
+    }
+    section.panel h2 {
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: 1.55rem;
+      margin: 0 0 0.2rem;
+      color: var(--forest);
+      letter-spacing: -0.02em;
+    }
+    section.panel .section-meta {
+      color: var(--ink-soft);
+      font-size: 0.92rem;
+      margin: 0 0 0.9rem;
+    }
+    .section-count {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--forest);
+      background: rgba(36, 78, 57, 0.1);
+      border-radius: 999px;
+      padding: 0.2rem 0.6rem;
+      margin-left: 0.5rem;
+      vertical-align: middle;
+    }
+
+    ul.tasks { list-style: none; margin: 0; padding: 0; }
+    .task {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.6rem;
+      align-items: start;
+      background: rgba(255,255,255,0.5);
+      border: 1px solid rgba(36, 78, 57, 0.1);
+      border-radius: 14px;
+      padding: 0.75rem 0.85rem;
+      margin-bottom: 0.6rem;
+    }
+    .task .main { display: grid; grid-template-columns: 1.35rem 1fr; gap: 0.55rem; align-items: start; }
+    .task input[type="checkbox"] {
+      appearance: none;
+      width: 1.15rem;
+      height: 1.15rem;
+      margin-top: 0.12rem;
+      border-radius: 6px;
+      border: 1.5px solid rgba(36, 78, 57, 0.45);
+      background: #fffdf8;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      transition: background .15s ease, border-color .15s ease;
+    }
+    .task input[type="checkbox"]:checked {
+      background: var(--forest);
+      border-color: var(--forest);
+    }
+    .task input[type="checkbox"]:checked::after {
+      content: "";
+      width: 0.28rem;
+      height: 0.55rem;
+      border: solid #f7f1e4;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg) translateY(-1px);
+    }
+    .task .title { font-size: 0.98rem; line-height: 1.35; cursor: pointer; }
+    .task .file {
+      display: block;
+      font-family: "DM Sans", monospace;
+      font-size: 0.76rem;
+      color: var(--ink-soft);
+      margin-top: 0.15rem;
+    }
+    .task .badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--forest);
+      background: rgba(36, 78, 57, 0.1);
+      border-radius: 999px;
+      padding: 0.22rem 0.5rem;
+      white-space: nowrap;
+      margin-top: 0.1rem;
+    }
+    .task .badge.match { color: #1a3a2a; background: rgba(36, 78, 57, 0.14); }
+    .task .badge.partial { color: #8a4b12; background: rgba(217, 162, 39, 0.22); }
+    .task .badge.mismatch { color: #7d2a26; background: rgba(199, 71, 66, 0.16); }
+
+    .remark {
+      display: grid;
+      grid-column: 1 / -1;
+      gap: 0.35rem;
+      margin-top: 0.1rem;
+    }
+    .remark textarea {
+      width: 100%;
+      border: 1px solid rgba(36, 78, 57, 0.18);
+      background: #fffdf8;
+      border-radius: 12px;
+      padding: 0.6rem 0.75rem;
+      font: inherit;
+      font-size: 0.9rem;
+      color: var(--ink);
+      resize: vertical;
+      min-height: 44px;
+    }
+    .remark textarea:focus { outline: 2px solid rgba(36, 78, 57, 0.25); }
+    .remark label { font-size: 0.78rem; color: var(--ink-soft); font-weight: 600; letter-spacing: 0.03em; }
+
+    .others {
+      display: grid;
+      grid-column: 1 / -1;
+      gap: 0.4rem;
+      margin-top: 0.15rem;
+      padding: 0.55rem 0.7rem;
+      background: rgba(36, 78, 57, 0.05);
+      border: 1px dashed rgba(36, 78, 57, 0.18);
+      border-radius: 12px;
+    }
+    .others .others-summary {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--forest);
+    }
+    .others .others-none {
+      font-size: 0.8rem;
+      color: var(--ink-soft);
+      font-style: italic;
+    }
+    .others .others-list {
+      display: grid;
+      gap: 0.35rem;
+    }
+    .others .others-item {
+      font-size: 0.84rem;
+      line-height: 1.35;
+      color: var(--ink);
+      background: rgba(255,255,255,0.55);
+      border-radius: 10px;
+      padding: 0.45rem 0.6rem;
+    }
+    .others .others-item .who {
+      display: block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      margin-bottom: 0.15rem;
+    }
+    .others .others-item .who b { color: var(--ok); }
+
+    .sync {
+      margin: 1.2rem 0 0;
+      font-size: 0.86rem;
+      color: var(--ink-soft);
+    }
+    .sync.ok { color: var(--ok); }
+
+    @media (max-width: 720px) {
+      .status-row { grid-template-columns: 1fr; }
+      .pct { text-align: left; }
+      .task { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <h1 class="brand">Gustra — Controls audit</h1>
+      <p class="tagline">
+        Drie soorten knoppen in de app: <strong>back</strong> (terug), <strong>close</strong> (sluiten/X) en
+        <strong>confirm</strong> (bevestigen/V). Vink per item af of het gedrag klopt met wat je verwacht,
+        en laat gerust een opmerking achter — de checks en opmerkingen van anderen zijn ook zichtbaar.
+      </p>
+      <div class="status-row">
+        <div class="progress-block">
+          <div class="progress-label">
+            <span id="countLabel">0 / 0 afgevinkt</span>
+            <span>server-sync aan</span>
+          </div>
+          <div class="bar"><i id="bar"></i></div>
+        </div>
+        <div class="pct" id="pct">0%<small>ok bevonden</small></div>
+      </div>
+    </header>
+
+    <nav class="toc">
+      <a href="#back">← Back-knoppen</a>
+      <a href="#close">✕ Close-knoppen</a>
+      <a href="#confirm">✓ Confirm-knoppen</a>
+    </nav>
+
+    <section class="panel" id="back">
+      <h2>Back-knoppen<span class="section-count" id="count-back"></span></h2>
+      <p class="section-meta">De chevron-links / pijl linksboven in de groene balk. Wat moet de gebruiker verwachten?</p>
+      <ul class="tasks" id="list-back"></ul>
+    </section>
+
+    <section class="panel" id="close">
+      <h2>Close-knoppen<span class="section-count" id="count-close"></span></h2>
+      <p class="section-meta">De ✕ (xmark) / "Annuleren" die een overlay, sheet of modus sluit.</p>
+      <ul class="tasks" id="list-close"></ul>
+    </section>
+
+    <section class="panel" id="confirm">
+      <h2>Confirm-knoppen<span class="section-count" id="count-confirm"></span></h2>
+      <p class="section-meta">De ✓ (checkmark) / "Klaar" / "Toepassen" die een keuze bevestigt of opslaat.</p>
+      <ul class="tasks" id="list-confirm"></ul>
+    </section>
+
+    <p class="sync" id="syncMsg">Status wordt op dit apparaat bewaard. Server-sync start zodra save-controls.php bereikbaar is.</p>
+  </div>
+
+  <script>
+    const REMOTE_SAVE = "save-controls.php";
+    const REMOTE_STATE = "controls-state.json";
+    const STORAGE_KEY = "gustra-controls-audit-v1";
+    const ID_KEY = "gustra-controls-audit-id";
+
+    function myId() {
+      let id = localStorage.getItem(ID_KEY);
+      if (!id) {
+        id = "u-" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+        localStorage.setItem(ID_KEY, id);
+      }
+      return id;
+    }
+    const ME = myId();
+
+    /**
+     * Elk item: een controle in de app.
+     *  - id: stabiel, kort
+     *  - cat: "back" | "close" | "confirm"
+     *  - title: wat de knop doet (NL)
+     *  - file: waar het in de code staat
+     *  - expect: wat de gebruiker verwacht (optioneel extra uitleg)
+     *  - match: "match" | "partial" | "mismatch" — verwachting vs. gedrag
+     */
+    const DEFAULT_ITEMS = [
+      // ————— BACK —————
+      { id: "back-add-review", cat: "back", title: "Nieuwe herinnering: back → terug naar Memories-tab.", file: "app/(tabs)/(main)/add-review.tsx", match: "match" },
+      { id: "back-nearby", cat: "back", title: "In de buurt: back → terug naar het keuzescherm.", file: "app/(tabs)/(main)/nearby-restaurants.tsx", match: "match" },
+      { id: "back-map-search", cat: "back", title: "Zoeken op kaart: back → terug naar het keuzescherm.", file: "app/(tabs)/(main)/map-search.tsx", match: "match" },
+      { id: "back-manual", cat: "back", title: "Handmatig toevoegen: back → terug naar het keuzescherm.", file: "app/(tabs)/(main)/manual-entry.tsx", match: "match" },
+      { id: "back-review-detail", cat: "back", title: "Herinnering-detail: back → terug naar feed of Mijn Gustra.", file: "app/(tabs)/(main)/review/[id].tsx", match: "match" },
+      { id: "back-restaurant", cat: "back", title: "Restaurant-bezoeken: back → terug naar feed of Mijn Gustra.", file: "app/(tabs)/(main)/restaurant/[id].tsx", match: "match" },
+      { id: "back-timemachine", cat: "back", title: "Terugblik: back → terug naar Mijn Gustra.", file: "app/(tabs)/passport/timemachine.tsx", match: "match" },
+      { id: "back-share-import", cat: "back", title: "Gedeelde herinneringen: back → indien mogelijk terug, anders naar Memories-tab.", file: "app/share-import.tsx", match: "match" },
+      { id: "back-review-form", cat: "back", title: "Herinnering-formulier: bij nieuw concept terug naar de feed (picker-stack wordt overgeslagen); bij bewerken terug naar waar je vandaan kwam. Onopgeslagen werk → eerst bevestigingsvraag.", file: "app/(tabs)/(main)/review-form.tsx", match: "partial", expect: "Sommigen verwachten bij een nieuw concept 'terug naar de kaart' i.p.v. de feed." },
+      { id: "back-wine-scan", cat: "back", title: "Wijn scannen: stap voor stap terug door de scan-wizard (methode → zoeken → crop → resultaat).", file: "app/(tabs)/(main)/wine-label-scan.tsx", match: "match" },
+      { id: "back-wine-fiche", cat: "back", title: "Wijnfiche: back is simpel router.back(); na 'Verwijder wijn' kom je terug op de herinnering, niet op de wijnlijst.", file: "app/(tabs)/(main)/wine-label-fiche.tsx", match: "partial", expect: "Logisch, maar niet vanzelfsprekend dat je na verwijderen niet op de wijnlijst terugkomt." },
+      { id: "back-restore", cat: "back", title: "Back-up & herstel: back volgt de wizardstappen, niet de navigatiestack.", file: "app/(tabs)/backup-restore.tsx", match: "partial", expect: "Kom je uit Instellingen en tik je direct op 'Herstellen', dan ga je met back naar de home-stap van de wizard, niet terug naar Instellingen." },
+      { id: "back-edit-criteria", cat: "back", title: "Criteria bewerken: back → router.navigate('/settings') i.p.v. router.back().", file: "app/(tabs)/edit-criteria.tsx", match: "partial", expect: "Via de normale route (Instellingen → Criteria) klopt het; via andere ingangen kan de bestemming afwijken." },
+      { id: "back-setup", cat: "back", title: "Eerste configuratie: back alleen op de criteria-stap → terug naar de keuzestap (3 opties).", file: "app/criteria-setup.tsx", match: "match" },
+      { id: "back-restaurant-delete", cat: "back", title: "Restaurant-bezoeken (na verwijderen): springt automatisch terug; bij precies 1 resterende herinnering wordt die geopend i.p.v. de lijst.", file: "app/(tabs)/(main)/restaurant/[id].tsx", match: "partial", expect: "Je verwacht de lijst, maar eindigt soms op een detailpagina." },
+
+      // ————— CLOSE —————
+      { id: "close-filter", cat: "close", title: "Filter-opties (✕ linksboven): reset de filters naar standaard én sluit de sheet. Let op: dit is dus géén gewone 'sluiten' — onbevestigde selecties gaan verloren.", file: "components/feed/FilterOptionsModal.tsx", match: "partial", expect: "Het icoon leest als 'sluiten', maar de ✕ doet ook een reset. Alleen omlaag vegen (iOS) of Android-back sluit zonder reset." },
+      { id: "close-reviews-header", cat: "close", title: "Memories-feed / Mijn kaart, selectiemodus (✕): verlaat de selectiemodus zonder selectie te bewaren.", file: "components/ui/ReviewsHeader.tsx", match: "match" },
+      { id: "close-banner", cat: "close", title: "Geselecteerd restaurant-banner (✕ in gevulde cirkel): wist de restaurant-selectie zonder te bevestigen.", file: "components/review/SelectedRestaurantBanner.tsx", match: "match" },
+      { id: "close-photoviewer", cat: "close", title: "Foto-viewer (✕ in frosted cirkel): sluit de viewer en keert terug naar de herinnering. Ook omlaag vegen sluit.", file: "components/detail/photoViewer/PhotoViewerModal.tsx", match: "match" },
+      { id: "close-photo-source", cat: "close", title: "Foto kiezen (✕ in gevulde cirkel): sluit het keuzescherm zonder foto toe te voegen. Vergrendeld tijdens het importeren.", file: "components/ui/PhotoSourceChooser.tsx", match: "match" },
+      { id: "close-options-sheet", cat: "close", title: "Herinnering-detail, ⋯-menu (✕): sluit het opties-sheet.", file: "components/detail/ReviewOptionsSheet.tsx", match: "match" },
+      { id: "close-alert-card", cat: "close", title: "Huisstijl-alerts (✕ in de kaartkop, o.a. 'Wil je wijzigingen opslaan?'): sluit het bericht zonder Ja of Nee te kiezen.", file: "components/ui/HouseAlert.tsx", match: "match" },
+      { id: "close-language", cat: "close", title: "Taal kiezen (✕): sluit de taal-sheet zonder wijziging.", file: "components/settings/LanguagePickerSheet.tsx", match: "match" },
+      { id: "close-share-email", cat: "close", title: "E-mail delen (✕): sluit het bericht-venster zonder te verzenden. Het ✕ in het invoerveld wist alleen de tekst.", file: "components/share/EmailPersonalMessageModal.tsx", match: "match" },
+      { id: "close-map-viewer", cat: "close", title: "Restaurant op kaart (✕ in gevulde cirkel): sluit de fullscreen-kaart. Let op: rechtsboven i.p.v. links.", file: "components/detail/RestaurantMapViewer.tsx", match: "match" },
+      { id: "close-reviewer-photo", cat: "close", title: "Reviewer-foto (✕ in gevulde cirkel): sluit de editor; een nieuwe crop wordt stilzwijgend weggegooid. Met een eerder opgeslagen foto ga je eerst terug uit de kiezer (2× tikken).", file: "app/(tabs)/reviewer-photo.tsx", match: "match" },
+      { id: "close-share-import", cat: "close", title: "Gedeelde herinneringen (✕): annuleert de import en gooit het binnengekomen deelpakket weg — zonder waarschuwing. De enige close-knop met stil dataverlies.", file: "app/share-import.tsx", match: "partial", expect: "Het ✕-icoon is correct, maar 'X = weg ermee' is niet vanzelfsprekend bij een import." },
+      { id: "close-field-clear", cat: "close", title: "✕ in zoek-/invoervelden (kaart-zoekbalk, handmatig, reviewer-naam, e-mailtekst): leegt het veld, sluit géén scherm.", file: "app/(tabs)/(main)/map-search.tsx", match: "match" },
+
+      // ————— CONFIRM —————
+      { id: "confirm-filter", cat: "confirm", title: "Filter-opties (✓ rechtsboven): past de filters toe en sluit de sheet.", file: "components/feed/FilterOptionsModal.tsx", match: "match" },
+      { id: "confirm-reviews-header", cat: "confirm", title: "Memories-feed, selectiemodus (✓): bevestigt de selectie (bv. delen). Grijst uit tot er minstens één geselecteerd is.", file: "components/ui/ReviewsHeader.tsx", match: "match" },
+      { id: "confirm-multiselect", cat: "confirm", title: "Locatie/keuken kiezen (✓): bevestigt de selectie en keert terug naar de filters (links staat een terug-chevron, geen ✕).", file: "components/feed/MultiSelectFilterPanel.tsx", match: "match" },
+      { id: "confirm-datepicker", cat: "confirm", title: "Datum kiezen (✓): bevestigt de datum en sluit de kiezer. Er is géén ✕ — wegslaan via omlaag vegen of Android-back.", file: "components/review/DatePickerModal.tsx", match: "match" },
+      { id: "confirm-sort", cat: "confirm", title: "Sorteer-opties: ✓ op de gekozen optie is een visuele aanduiding — de rij zelf is de knop, geen aparte bevestigingsknop.", file: "components/feed/SortOptionsPanel.tsx", match: "partial", expect: "Het ✓-teken is selectie-aanduiding, geen bevestigingsactie." },
+      { id: "confirm-email", cat: "confirm", title: "E-mail delen (✓): verstuurt/opent het e-mailbericht.", file: "components/share/EmailPersonalMessageModal.tsx", match: "match" },
+      { id: "confirm-language", cat: "confirm", title: "Taal kiezen: ✓ op de gekozen taal is een selectie-aanduiding; een rij tikken past toe en sluit. De ✕ linksboven sluit zonder wijziging.", file: "components/settings/LanguagePickerSheet.tsx", match: "match" },
+      { id: "confirm-selection-state", cat: "confirm", title: "Geselecteerde rij in In de buurt / Kaart-resultaten (✓ in groene cirkel): puur visuele aanduiding, geen knop.", file: "components/review/SelectionCheckmark.tsx", match: "match" },
+      { id: "confirm-bucketlist", cat: "confirm", title: "Bucket-list (✓-badge): geeft aan dat het restaurant al een (concept)herinnering heeft — decoratief, geen knop.", file: "components/passport/BucketListSection.tsx", match: "match" },
+      { id: "confirm-feed-card", cat: "confirm", title: "Feed-kaart tijdens selectiemodus (✓-cirkel): vinkje om te selecteren (checkbox), geen bevestigingsactie.", file: "components/feed/RestaurantFeedCard.tsx", match: "match" },
+      { id: "confirm-review-form", cat: "confirm", title: "Nieuwe/bewerkte herinnering (✓): valideert en slaat op, daarna terug naar de feed. Altijd actief behalve tijdens het opslaan — validatie gebeurt pas bij drukken.", file: "app/(tabs)/(main)/review-form.tsx", match: "match" },
+      { id: "confirm-edit-criteria", cat: "confirm", title: "Criteria bewerken (✓): slaat de wijzigingen op en gaat naar Instellingen. Alleen zichtbaar als er iets veranderd is.", file: "app/(tabs)/edit-criteria.tsx", match: "match" },
+      { id: "confirm-setup", cat: "confirm", title: "Eerste configuratie, criteria-stap (✓): rondt de setup af en gaat naar de feed. Uitgeschakeld zolang er geen criterium gekozen is.", file: "app/criteria-setup.tsx", match: "match" },
+      { id: "confirm-wine-scan", cat: "confirm", title: "Wijn scan-resultaat (✓): bevestigt de gevonden wijn in het formulier en sluit. Uitgeschakeld tot er een geldige match is.", file: "app/(tabs)/(main)/wine-label-scan.tsx", match: "match" },
+      { id: "confirm-wine-fiche", cat: "confirm", title: "Wijnfiche bewerken (✓): schrijft de bewerking terug en gaat terug.", file: "app/(tabs)/(main)/wine-label-fiche.tsx", match: "match" },
+      { id: "confirm-reviewer-photo", cat: "confirm", title: "Reviewer-foto (✓ in gevulde cirkel): cropt, slaat op en gaat naar Instellingen. Uitgeschakeld tot er een nieuwe foto gekozen is of een verwijdering klaarstaat.", file: "app/(tabs)/reviewer-photo.tsx", match: "match" },
+      { id: "confirm-photo-strip", cat: "confirm", title: "Foto-strip in het formulier (✓-badge op de gekozen foto): duidt de coverfoto aan — de miniatuur zelf is de knop.", file: "components/review/ReorderablePhotoStrip.tsx", match: "match" },
+      { id: "confirm-share-name", cat: "confirm", title: "Naam vragen vóór delen: geen ✓ maar een tekstknop 'Verder' (uitgeschakeld bij lege naam).", file: "components/feed/ShareReviewerNameModal.tsx", match: "partial", expect: "Bewuste afwijking: een tekstknop i.p.v. ✓-icoon." },
+    ];
+
+    /** @type {Record<string, {ok: boolean, remark: string}>} */
+    let state = {};
+    /** Server-side submissions from other visitors: {userId: {items, updatedAt}} */
+    let remoteSubmissions = {};
+    /** Our own submission as last seen on the server (per userId). */
+    let myRemote = null;
+
+    const CATS = [
+      { id: "back", label: "Back-knoppen", icon: "←" },
+      { id: "close", label: "Close-knoppen", icon: "✕" },
+      { id: "confirm", label: "Confirm-knoppen", icon: "✓" },
+    ];
+
+    function itemById(id) { return DEFAULT_ITEMS.find((i) => i.id === id); }
+
+    function persist() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ state, updatedAt: new Date().toISOString() }));
+    }
+
+    function loadLocal() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        if (data.state && typeof data.state === "object") state = data.state;
+      } catch { /* ignore */ }
+    }
+
+    let saveTimer = null;
+    function scheduleRemoteSave() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(saveRemote, 600);
+    }
+
+    async function saveRemote() {
+      const msg = document.getElementById("syncMsg");
+      const items = {};
+      for (const id of Object.keys(state)) {
+        if (itemById(id)) items[id] = state[id];
+      }
+      const body = { userId: ME, items, updatedAt: new Date().toISOString() };
+      try {
+        const res = await fetch(REMOTE_SAVE, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        myRemote = { userId: ME, items, updatedAt: new Date().toISOString() };
+        msg.textContent = `Gesynchroniseerd met server · ${new Date().toLocaleTimeString("nl-BE")}`;
+        msg.className = "sync ok";
+      } catch {
+        msg.textContent = "Opgeslagen op dit apparaat (server-sync niet beschikbaar).";
+        msg.className = "sync";
+      }
+    }
+
+    async function loadRemote() {
+      try {
+        const res = await fetch(`${REMOTE_STATE}?t=${Date.now()}`, { cache: "no-store" });
+        if (!res.ok) return false;
+        const data = await res.json();
+        remoteSubmissions = {};
+        const subs = data.submissions && typeof data.submissions === "object"
+          ? data.submissions
+          : (data.items && typeof data.items === "object" ? { legacy: { items: data.items, updatedAt: null } } : {});
+        for (const uid of Object.keys(subs)) {
+          const s = subs[uid];
+          if (!s || typeof s !== "object") continue;
+          const entry = {
+            items: (s.items && typeof s.items === "object") ? s.items : {},
+            updatedAt: s.updatedAt || null,
+          };
+          remoteSubmissions[uid] = entry;
+          if (uid === ME) myRemote = entry;
+        }
+        // NOTE: we deliberately do NOT merge other visitors' checks into our
+        // own `state` — that would make their checks appear as ours (and get
+        // re-uploaded as our submission). Others' data is shown read-only via
+        // othersFor() below.
+        persist();
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    function othersFor(itemId) {
+      const out = [];
+      for (const uid of Object.keys(remoteSubmissions)) {
+        if (uid === ME) continue;
+        const entry = remoteSubmissions[uid];
+        const v = entry.items[itemId];
+        if (!v || typeof v !== "object") continue;
+        if (v.ok || (v.remark && String(v.remark).trim())) {
+          out.push({ uid, ok: !!v.ok, remark: String(v.remark || "").trim() });
+        }
+      }
+      out.sort((a, b) => (b.ok ? 1 : 0) - (a.ok ? 1 : 0));
+      return out;
+    }
+
+    function renderStats() {
+      const total = DEFAULT_ITEMS.length;
+      const done = DEFAULT_ITEMS.filter((i) => state[i.id]?.ok).length;
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      document.getElementById("countLabel").textContent = `${done} / ${total} afgevinkt`;
+      document.getElementById("pct").innerHTML = `${pct}%<small>ok bevonden</small>`;
+      document.getElementById("bar").style.width = `${pct}%`;
+      for (const cat of CATS) {
+        const items = DEFAULT_ITEMS.filter((i) => i.cat === cat.id);
+        const doneCat = items.filter((i) => state[i.id]?.ok).length;
+        document.getElementById(`count-${cat.id}`).textContent = `${doneCat} / ${items.length}`;
+      }
+    }
+
+    function render() {
+      for (const cat of CATS) {
+        const list = document.getElementById(`list-${cat.id}`);
+        list.innerHTML = "";
+        const items = DEFAULT_ITEMS.filter((i) => i.cat === cat.id);
+        for (const item of items) {
+          const st = state[item.id] || { ok: false, remark: "" };
+          const li = document.createElement("li");
+          li.className = "task";
+
+          const main = document.createElement("div");
+          main.className = "main";
+
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.id = `c-${item.id}`;
+          cb.checked = !!st.ok;
+          cb.addEventListener("change", () => {
+            state[item.id] = { ...(state[item.id] || {}), ok: cb.checked };
+            persist();
+            renderStats();
+            scheduleRemoteSave();
+          });
+
+          const bodyWrap = document.createElement("div");
+          const title = document.createElement("label");
+          title.htmlFor = cb.id;
+          title.className = "title";
+          title.textContent = item.title;
+          bodyWrap.appendChild(title);
+
+          const meta = document.createElement("span");
+          meta.className = "file";
+          meta.textContent = item.file + (item.expect ? " — " + item.expect : "");
+          bodyWrap.appendChild(meta);
+          if (item.expect) {
+            const ex = document.createElement("span");
+            ex.className = "file";
+            ex.textContent = "Verwachting: " + item.expect;
+            bodyWrap.appendChild(ex);
+          }
+
+          main.appendChild(cb);
+          main.appendChild(bodyWrap);
+
+          const badge = document.createElement("span");
+          badge.className = "badge " + item.match;
+          badge.textContent =
+            item.match === "match" ? "Volgens verwachting" :
+            item.match === "partial" ? "Deels volgens verwachting" : "Niet volgens verwachting";
+          main.appendChild(badge);
+
+          li.appendChild(main);
+
+          const others = othersFor(item.id);
+          if (others.length > 0) {
+            const othersWrap = document.createElement("div");
+            othersWrap.className = "others";
+            const summary = document.createElement("div");
+            summary.className = "others-summary";
+            const okCount = others.filter((o) => o.ok).length;
+            summary.textContent = `Anderen: ${okCount} × ok, ${others.length - okCount} met opmerking`;
+            othersWrap.appendChild(summary);
+            const listEl = document.createElement("div");
+            listEl.className = "others-list";
+            for (const o of others) {
+              const itemEl = document.createElement("div");
+              itemEl.className = "others-item";
+              const who = document.createElement("span");
+              who.className = "who";
+              const tag = o.ok ? "✓ ok" : "✓ selectie";
+              who.innerHTML = `${tag} · bezoeker ${o.uid.slice(2, 8)}`;
+              itemEl.appendChild(who);
+              if (o.remark) {
+                const remark = document.createElement("span");
+                remark.textContent = o.remark;
+                itemEl.appendChild(document.createElement("br"));
+                itemEl.appendChild(remark);
+              }
+              listEl.appendChild(itemEl);
+            }
+            othersWrap.appendChild(listEl);
+            li.appendChild(othersWrap);
+          }
+
+          const remarkWrap = document.createElement("div");
+          remarkWrap.className = "remark";
+          const rl = document.createElement("label");
+          rl.htmlFor = `r-${item.id}`;
+          rl.textContent = "Opmerking";
+          const ta = document.createElement("textarea");
+          ta.id = `r-${item.id}`;
+          ta.placeholder = "Optionele opmerking…";
+          ta.value = st.remark || "";
+          ta.addEventListener("input", () => {
+            state[item.id] = { ...(state[item.id] || { ok: false }), remark: ta.value };
+            persist();
+            scheduleRemoteSave();
+          });
+          remarkWrap.appendChild(rl);
+          remarkWrap.appendChild(ta);
+          li.appendChild(remarkWrap);
+
+          list.appendChild(li);
+        }
+      }
+      renderStats();
+    }
+
+    (async function init() {
+      loadLocal();
+      const remote = await loadRemote();
+      render();
+      if (remote) {
+        const msg = document.getElementById("syncMsg");
+        msg.textContent = "Serverstatus geladen.";
+        msg.className = "sync ok";
+      }
+      // On every page load, push our local (possibly unsynced) changes to the
+      // server so a comment made earlier is visible from other browsers too.
+      scheduleRemoteSave();
+    })();
+  </script>
+</body>
+</html>

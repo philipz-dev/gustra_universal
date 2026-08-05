@@ -16,7 +16,7 @@ import { SerifText } from '@/components/ui/SerifText';
 import { FractionalStarRating } from '@/components/ui/StarRating';
 import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
 import { GustraColors } from '@/constants/Colors';
-import { bodyTextStyle, Theme } from '@/constants/Theme';
+import { captionTextStyle, bodyTextStyle, Theme } from '@/constants/Theme';
 import { useReviewsStore } from '@/context/ReviewsStore';
 import type { Review, ReviewOrigin } from '@/data/types';
 import {
@@ -130,6 +130,45 @@ export default function RestaurantVisitsScreen() {
     return scores.reduce((a, b) => a + b, 0) / scores.length;
   }, [reviews]);
 
+  // B: per-source groups. When no explicit `origin` is passed (friend filter
+  // active), visits are grouped by "Jij" / friends so each group shows its own
+  // average — the user's own score stays the prominent headline.
+  const sourceGroups = useMemo(() => {
+    const byOrigin = new Map<ReviewOrigin, Review[]>();
+    for (const review of visibleReviews) {
+      const o = resolveReviewOrigin(review);
+      byOrigin.set(o, [...(byOrigin.get(o) ?? []), review]);
+    }
+    const order: ReviewOrigin[] = ['own', 'imported'];
+    return order
+      .map((o) => {
+        const group = byOrigin.get(o) ?? [];
+        if (group.length === 0) return null;
+        const scores = group
+          .filter((review) => !isReviewDraft(review))
+          .map((review) => {
+            const rated = review.criteria
+              .filter(
+                (c) =>
+                  c.rating !== undefined &&
+                  RatingValue.isStarRating(c.rating),
+              )
+              .map((c) => RatingValue.starValue(c.rating));
+            if (rated.length === 0) return review.overallScore;
+            return rated.reduce((a, b) => a + b, 0) / rated.length;
+          })
+          .filter((score) => score > 0);
+        const avg =
+          scores.length === 0
+            ? 0
+            : scores.reduce((a, b) => a + b, 0) / scores.length;
+        return { origin: o, reviews: group, average: avg };
+      })
+      .filter((g): g is NonNullable<typeof g> => g !== null);
+  }, [visibleReviews]);
+
+  const showSourceGroups = origin === undefined && sourceGroups.length > 1;
+
   const confirmDeleteVisit = useCallback(
     (review: Review) => {
       const reviewId = review.id;
@@ -228,46 +267,151 @@ export default function RestaurantVisitsScreen() {
                     restaurant.country,
                   )}
                 </SerifText>
-                {averageScore > 0 ? (
-                  <View style={styles.avgRow}>
-                    <FractionalStarRating score={averageScore} size={22} />
-                    <SerifText size={17} weight="semibold" style={styles.avgText}>
-                      {formatScoreOutOfFive(averageScore)}
-                    </SerifText>
-                  </View>
-                ) : null}
-                {reviews.length > 1 ? (
-                  <Text style={styles.visitCount}>
-                    {t('detail.restaurant.visitCount', {
-                      count: reviews.length,
+                {showSourceGroups ? (
+                  <>
+                    {sourceGroups.map((group) => {
+                      const isOwn = group.origin === 'own';
+                      const label = isOwn
+                        ? t('detail.restaurant.myVisits')
+                        : t('detail.restaurant.friendsVisits');
+                      return (
+                        <View key={group.origin} style={styles.sourceRow}>
+                          <Text style={styles.sourceLabel}>{label}</Text>
+                          <View style={styles.sourceAvgRow}>
+                            {group.average > 0 ? (
+                              <>
+                                <FractionalStarRating
+                                  score={group.average}
+                                  size={isOwn ? 18 : 15}
+                                />
+                                <SerifText
+                                  size={isOwn ? 17 : 14}
+                                  weight={isOwn ? 'semibold' : 'regular'}
+                                  style={[
+                                    styles.avgText,
+                                    !isOwn && styles.sourceAvgMuted,
+                                  ]}>
+                                  {formatScoreOutOfFive(group.average)}
+                                </SerifText>
+                              </>
+                            ) : (
+                              <Text style={styles.sourceAvgMuted}>
+                                {t('reviews.notRated')}
+                              </Text>
+                            )}
+                            <Text style={styles.sourceCount}>
+                              {group.reviews.length}
+                            </Text>
+                          </View>
+                        </View>
+                      );
                     })}
-                  </Text>
-                ) : null}
+                    {reviews.length > 1 ? (
+                      <Text style={styles.visitCount}>
+                        {t('detail.restaurant.visitCount', {
+                          count: reviews.length,
+                        })}
+                      </Text>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    {averageScore > 0 ? (
+                      <View style={styles.avgRow}>
+                        <FractionalStarRating score={averageScore} size={22} />
+                        <SerifText
+                          size={17}
+                          weight="semibold"
+                          style={styles.avgText}>
+                          {formatScoreOutOfFive(averageScore)}
+                        </SerifText>
+                      </View>
+                    ) : null}
+                    {reviews.length > 1 ? (
+                      <Text style={styles.visitCount}>
+                        {t('detail.restaurant.visitCount', {
+                          count: reviews.length,
+                        })}
+                      </Text>
+                    ) : null}
+                  </>
+                )}
               </View>
             </View>
 
             {/* ——— Visit timeline (identical to Time Travel) ——— */}
-            <VisitTimeline
-              entries={entries}
-              showCounts={false}
-              renderCard={(entry) => {
-                const review = visibleReviews.find(
-                  (r) => r.id === entry.reviewId,
-                );
-                if (!review) return null;
-                const deletable = resolveReviewOrigin(review) === 'own';
-                return (
-                  <VisitTimelineCard
-                    key={entry.reviewId}
-                    entry={entry}
-                    onPress={() => openReview(review)}
-                    onDelete={
-                      deletable ? () => confirmDeleteVisit(review) : undefined
-                    }
+            {showSourceGroups ? (
+              sourceGroups.map((group) => (
+                <View key={group.origin} style={styles.groupBlock}>
+                  <View style={styles.groupHeader}>
+                    <Text style={styles.groupTitle}>
+                      {group.origin === 'own'
+                        ? t('detail.restaurant.myVisits')
+                        : t('detail.restaurant.friendsVisits')}
+                    </Text>
+                    {group.average > 0 ? (
+                      <Text style={styles.groupAvg}>
+                        {group.origin === 'own'
+                          ? t('detail.restaurant.myAverage')
+                          : t('detail.restaurant.friendsAverage')}
+                        {' · '}
+                        {formatScoreOutOfFive(group.average)}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <VisitTimeline
+                    entries={entries.filter((e) =>
+                      group.reviews.some((r) => r.id === e.reviewId),
+                    )}
+                    showCounts={false}
+                    renderCard={(entry) => {
+                      const review = group.reviews.find(
+                        (r) => r.id === entry.reviewId,
+                      );
+                      if (!review) return null;
+                      const deletable =
+                        resolveReviewOrigin(review) === 'own';
+                      return (
+                        <VisitTimelineCard
+                          key={entry.reviewId}
+                          entry={entry}
+                          onPress={() => openReview(review)}
+                          onDelete={
+                            deletable
+                              ? () => confirmDeleteVisit(review)
+                              : undefined
+                          }
+                        />
+                      );
+                    }}
                   />
-                );
-              }}
-            />
+                </View>
+              ))
+            ) : (
+              <VisitTimeline
+                entries={entries}
+                showCounts={false}
+                renderCard={(entry) => {
+                  const review = visibleReviews.find(
+                    (r) => r.id === entry.reviewId,
+                  );
+                  if (!review) return null;
+                  const deletable = resolveReviewOrigin(review) === 'own';
+                  return (
+                    <VisitTimelineCard
+                      key={entry.reviewId}
+                      entry={entry}
+                      onPress={() => openReview(review)}
+                      onDelete={
+                        deletable
+                          ? () => confirmDeleteVisit(review)
+                          : undefined
+                      }
+                    />
+                  );
+                }}
+              />
+            )}
           </ScrollView>
 
           <TabBarBottomFade />
@@ -327,5 +471,49 @@ const styles = StyleSheet.create({
     ...bodyTextStyle,
     fontSize: 15,
     color: 'rgba(35, 32, 26, 0.65)',
+  },
+  sourceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sourceLabel: {
+    ...bodyTextStyle,
+    fontSize: 15,
+    color: 'rgba(35, 32, 26, 0.65)',
+  },
+  sourceAvgRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sourceAvgMuted: {
+    ...bodyTextStyle,
+    fontSize: 14,
+    color: 'rgba(35, 32, 26, 0.45)',
+  },
+  sourceCount: {
+    ...captionTextStyle,
+    fontSize: 13,
+    color: 'rgba(35, 32, 26, 0.45)',
+  },
+  groupBlock: {
+    gap: 14,
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  groupTitle: {
+    ...bodyTextStyle,
+    fontSize: 16,
+    fontWeight: '600',
+    color: GustraColors.forestGreen,
+  },
+  groupAvg: {
+    ...captionTextStyle,
+    fontSize: 13,
+    color: 'rgba(35, 32, 26, 0.5)',
   },
 });

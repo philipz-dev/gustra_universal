@@ -266,6 +266,19 @@ export type RestaurantVisitSummary = {
   isDraft?: boolean;
   /** Newest draft review id when `isDraft` (for open-in-edit). */
   draftReviewId?: string;
+  /**
+   * Average score of the owner's own visits only (excludes friend reviews).
+   * Additive — older clients ignore; falls back to `averageScore`.
+   */
+  ownScore?: number;
+  /** Count of the owner's own visits only (excludes friend reviews). */
+  ownVisitCount?: number;
+  /** Review ids of the owner's own visits only (for criterion scoring). */
+  ownReviewIds?: string[];
+  /** Average score of friend/imported visits only (excludes own). */
+  friendScore?: number;
+  /** Count of friend/imported visits only. */
+  friendVisitCount?: number;
 };
 
 export function satisfactionFromScore(score: number): SatisfactionLevel {

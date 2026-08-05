@@ -405,14 +405,6 @@ export default function CriteriaSetupScreen() {
             );
           })}
         </View>
-
-        <View style={styles.hints}>
-          <Text style={styles.hint}>{t('setup.criteria.minOne')}</Text>
-          <Text style={styles.hint}>
-            <Text style={styles.hintTip}>{t('setup.criteria.tip')}</Text>
-            {t('setup.criteria.idealThree')}
-          </Text>
-        </View>
       </ScrollView>
     </View>
   );
@@ -524,19 +516,6 @@ const styles = StyleSheet.create({
   requiredLabel: {
     ...captionTextStyle,
     color: GustraColors.ratingAvoid,
-  },
-  hints: {
-    gap: 4,
-  },
-  hint: {
-    ...captionTextStyle,
-    fontSize: 13,
-    lineHeight: 18,
-    color: 'rgba(35, 32, 26, 0.55)',
-    paddingHorizontal: 4,
-  },
-  hintTip: {
-    textDecorationLine: 'underline',
   },
   choiceRow: {
     flexDirection: 'row',

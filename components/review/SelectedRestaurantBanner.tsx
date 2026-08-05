@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 
@@ -39,19 +40,42 @@ export function SelectedRestaurantBanner({
 }: SelectedRestaurantBannerProps) {
   const { t } = useAppTranslation();
   const addressLine = draftAddressLine(draft);
+  /**
+   * Optimistic bucket-list state while the confirm dialog is open: tapping the
+   * bookmark flips the icon immediately, and cancelling rolls it back. Only a
+   * confirmed press actually toggles the restaurant (via onToggleBucketList).
+   */
+  const [pendingToggle, setPendingToggle] = useState<boolean | null>(null);
+  const displayInBucketList = pendingToggle ?? inBucketList;
+
+  const rollback = () => setPendingToggle(null);
+
+  /** Confirmed press: keep the optimistic icon in the new state, then let the
+   *  incoming `inBucketList` prop take over seamlessly. */
+  const commit = () => {
+    setPendingToggle(!inBucketList);
+    onToggleBucketList?.();
+  };
 
   const handleBookmarkPress = () => {
     if (!onToggleBucketList) return;
+    const next = !inBucketList;
+    // Flip the icon before the dialog appears (cancelling restores it).
+    setPendingToggle(next);
     if (inBucketList) {
       houseAlert(
         t('bucketList.removeTitle'),
         t('bucketList.removeBody', { name: draft.name }),
         [
-          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('common.cancel'),
+            style: 'cancel',
+            onPress: rollback,
+          },
           {
             text: t('bucketList.removeConfirm'),
             style: 'default',
-            onPress: () => onToggleBucketList(),
+            onPress: commit,
           },
         ] satisfies HouseAlertButton[],
       );
@@ -61,11 +85,15 @@ export function SelectedRestaurantBanner({
       t('bucketList.addTitle'),
       t('bucketList.addBody', { name: draft.name }),
       [
-        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.cancel'),
+          style: 'cancel',
+          onPress: rollback,
+        },
         {
           text: t('bucketList.addConfirm'),
           style: 'default',
-          onPress: () => onToggleBucketList(),
+          onPress: commit,
         },
       ] satisfies HouseAlertButton[],
     );
@@ -119,11 +147,11 @@ export function SelectedRestaurantBanner({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={
-              inBucketList
+              displayInBucketList
                 ? t('bucketList.removeTitle')
                 : t('bucketList.addTitle')
             }
-            accessibilityState={{ selected: inBucketList }}
+            accessibilityState={{ selected: displayInBucketList }}
             hitSlop={8}
             onPress={handleBookmarkPress}
             style={({ pressed }) => [
@@ -132,16 +160,18 @@ export function SelectedRestaurantBanner({
             ]}>
             <SymbolView
               name={{
-                ios: inBucketList ? 'bookmark.fill' : 'bookmark',
-                android: inBucketList ? 'bookmark' : 'bookmark_border',
-                web: inBucketList ? 'bookmark' : 'bookmark_border',
+                ios: displayInBucketList ? 'bookmark.fill' : 'bookmark',
+                android: displayInBucketList
+                  ? 'bookmark'
+                  : 'bookmark_border',
+                web: displayInBucketList ? 'bookmark' : 'bookmark_border',
               }}
               tintColor={
-                inBucketList
+                displayInBucketList
                   ? GustraColors.gold
                   : 'rgba(35, 32, 26, 0.45)'
               }
-              size={30}
+              size={28}
             />
           </Pressable>
         ) : null}
@@ -171,10 +201,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 12,
   },
-  /** Bookmark peeks over the card's top edge; horizontal position unchanged. */
+  /** Bookmark sits on the same row as the X, vertically aligned with it. */
   bookmarkButton: {
-    marginTop: -16,
-    zIndex: 2,
+    alignSelf: 'flex-start',
   },
   copy: {
     flex: 1,

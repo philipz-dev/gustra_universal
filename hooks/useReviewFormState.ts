@@ -7,6 +7,7 @@ import { useCriteriaSettings } from '@/context/CriteriaSettings';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { usePhotoManager } from '@/hooks/usePhotoManager';
 import { houseAlert, houseSaveChangesAlert } from '@/components/ui/HouseAlert';
+import { showHouseUndoSnackbar } from '@/components/ui/HouseUndoSnackbar';
 import { Haptics } from '@/services/haptics';
 
 import type { CriterionRating, WineLabelFiche } from '@/data/types';
@@ -19,7 +20,6 @@ import { deleteReviewPhotoFiles } from '@/services/reviews/photoStorage';
 import { RatingValue } from '@/services/reviews/ratings';
 import {
   formDraftReason,
-  hasRequiredFoodRating,
   isFormDraft,
   isReviewDraft,
 } from '@/services/reviews/draftReview';
@@ -135,7 +135,6 @@ export function useReviewFormState() {
 
   const photoSetKey = useMemo(() => [...photoUrls].sort().join('\0'), [photoUrls]);
 
-  const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didHydrate = useRef(false);
   const ocrIndexedTextRef = useRef(ocrIndexedText);
   ocrIndexedTextRef.current = ocrIndexedText;
@@ -144,7 +143,6 @@ export function useReviewFormState() {
   const didDeleteRef = useRef(false);
   const initialLoadCompleteRef = useRef(false);
   const persistNowRef = useRef<(markBusy?: boolean) => Promise<boolean>>(async () => false);
-  const schedulePersistRef = useRef<() => void>(() => undefined);
   const persistChainRef = useRef(Promise.resolve());
   const editBaselineRef = useRef<EditBaseline | null>(null);
   /** Prefilled state of a brand-new form (restaurant favorite etc.). */
@@ -320,7 +318,9 @@ export function useReviewFormState() {
   const showsDone = Boolean(draft);
   const draftReason = formDraftReason(criteriaList, wineLabels);
   const isDraftForm = isFormDraft(criteriaList, wineLabels);
-  const foodRatingRequired = !hasRequiredFoodRating(criteriaList);
+  const hasRatedCriterion = criteriaList.some((c) =>
+    RatingValue.isStarRating(c.rating),
+  );
 
   const customCriterionNames = useMemo(
     () => customCriteria.map((c) => c.name.trim()).filter(Boolean),
@@ -406,25 +406,14 @@ export function useReviewFormState() {
     [buildInput, existingReview, hasPersistableContent, upsertReviewFromForm],
   );
 
-  const schedulePersist = useCallback(() => {}, []);
-
-  const persistPhotosNow = useCallback(() => {
-    if (!initialLoadCompleteRef.current) return;
-    if (!isEditRef.current) return;
-    void persistNowRef.current(false);
-  }, []);
-
-  const afterPhotoChange = useCallback(() => {
-    if (isEditRef.current) {
-      persistPhotosNow();
-      return;
-    }
-    schedulePersist();
-  }, [persistPhotosNow, schedulePersist]);
+  // Drafts are only persisted when the user leaves the form (onDone, or
+  // "save & leave" via onBack/beforeRemove). In-form changes must never be
+  // written to the list while the user is still editing, so photo/wine/OCR/
+  // criterion changes are intentionally NOT persisted here.
+  const afterPhotoChange = useCallback(() => {}, [afterPhotoChangeRef]);
 
   afterPhotoChangeRef.current = afterPhotoChange;
   persistNowRef.current = persistNow;
-  schedulePersistRef.current = schedulePersist;
 
   const isEditDirty = useMemo(() => {
     if (!isEdit || !editBaselineRef.current || !initialLoadComplete) {
@@ -479,11 +468,6 @@ export function useReviewFormState() {
         if (ocrIndexedTextRef.current) {
           setOcrIndexedText('');
           ocrIndexedTextRef.current = '';
-          if (isEditRef.current) {
-            void persistNowRef.current(false);
-          } else {
-            schedulePersistRef.current();
-          }
         }
         setIsIndexingPhotos(false);
         return;
@@ -496,11 +480,6 @@ export function useReviewFormState() {
       if (next !== ocrIndexedTextRef.current) {
         setOcrIndexedText(next);
         ocrIndexedTextRef.current = next;
-        if (isEditRef.current) {
-          void persistNowRef.current(false);
-        } else {
-          schedulePersistRef.current();
-        }
       }
       setIsIndexingPhotos(false);
     };
@@ -513,7 +492,6 @@ export function useReviewFormState() {
 
   useEffect(() => {
     return () => {
-      if (persistTimer.current) clearTimeout(persistTimer.current);
       if (isEditRef.current) {
         if (!allowLeaveRef.current && !didDeleteRef.current && editBaselineRef.current) {
           const baselinePhotos = new Set(editBaselineRef.current.photoUrls);
@@ -607,7 +585,6 @@ export function useReviewFormState() {
         title: t('alerts.reviewForm.discardEdits.title'),
         onYes: () => {
           void (async () => {
-            if (persistTimer.current) clearTimeout(persistTimer.current);
             const ok = await persistNow(true);
             if (!ok) {
               Haptics.warning();
@@ -653,15 +630,54 @@ export function useReviewFormState() {
 
   const onDone = useCallback(async () => {
     if (isSaving || !showsDone) return;
-    if (foodRatingRequired) {
+    // A memory without any rated criterion stays a draft. Ask the user first
+    // so they can consciously save it as a draft or keep editing.
+    if (!hasRatedCriterion) {
       Haptics.warning();
       houseAlert(
-        t('alerts.reviewForm.foodRequiredTitle'),
-        t('alerts.reviewForm.foodRequiredBody'),
+        t('alerts.reviewForm.draftNoticeTitle'),
+        t('alerts.reviewForm.draftNoticeBody'),
+        [
+          {
+            text: t('alerts.reviewForm.continueEditing'),
+            style: 'default',
+            onPress: () => undefined,
+          },
+          {
+            text: t('alerts.reviewForm.saveDraft'),
+            style: 'destructive',
+            onPress: () => {
+              void (async () => {
+                const ok = await persistNow(true);
+                if (!ok) {
+                  Haptics.warning();
+                  houseAlert(
+                    t('forms.review.title'),
+                    t('alerts.reviewForm.saveFailed'),
+                  );
+                  return;
+                }
+                Haptics.success();
+                if (draft) {
+                  showHouseUndoSnackbar({
+                    message:
+                      revisitCount > 0
+                        ? t('reviews.visitSaved', { name: draft.name })
+                        : t('reviews.memorySaved', { name: draft.name }),
+                    durationMs: 3000,
+                    onUndo: () => undefined,
+                    onCommit: () => undefined,
+                  });
+                }
+                allowLeaveRef.current = true;
+                leaveToReviews();
+              })();
+            },
+          },
+        ],
       );
       return;
     }
-    if (persistTimer.current) clearTimeout(persistTimer.current);
     const ok = await persistNow(true);
     if (!ok) {
       Haptics.warning();
@@ -669,12 +685,33 @@ export function useReviewFormState() {
       return;
     }
     Haptics.success();
+    // Informative, non-intrusive confirmation (no Undo button — purely
+    // informational). First visit reads as "herinnering vastgelegd", a repeat
+    // visit as "bezoek vastgelegd".
+    if (draft) {
+      showHouseUndoSnackbar({
+        message:
+          revisitCount > 0
+            ? t('reviews.visitSaved', { name: draft.name })
+            : t('reviews.memorySaved', { name: draft.name }),
+        durationMs: 3000,
+        onUndo: () => undefined,
+        onCommit: () => undefined,
+      });
+    }
     allowLeaveRef.current = true;
     leaveToReviews();
-  }, [foodRatingRequired, isSaving, leaveToReviews, persistNow, showsDone, t]);
+  }, [
+    hasRatedCriterion,
+    isSaving,
+    leaveToReviews,
+    persistNow,
+    revisitCount,
+    showsDone,
+    t,
+  ]);
 
   const onBack = useCallback(() => {
-    if (persistTimer.current) clearTimeout(persistTimer.current);
     // Bucket-list drafts are pushed directly on top of My Gustra; backing out
     // pops the form so the passport screen restores at its previous scroll
     // offset, exactly where the user tapped.
@@ -758,11 +795,6 @@ export function useReviewFormState() {
         return cleaned;
       });
     }
-    if (isEditRef.current) {
-      void persistNowRef.current(false);
-    } else {
-      schedulePersistRef.current();
-    }
   }, []);
 
   const setCriterionRating = (id: string, rating: number) => {
@@ -774,7 +806,6 @@ export function useReviewFormState() {
           comment: RatingValue.isStarRating(rating) ? (prev[id]?.comment ?? '') : '',
         },
       }));
-      schedulePersist();
     };
 
     if (id === 'drinks' && !RatingValue.isStarRating(rating) && wineLabelsRef.current.length > 0) {
@@ -803,7 +834,6 @@ export function useReviewFormState() {
         comment,
       },
     }));
-    schedulePersist();
   };
 
   const syncWinesRatingFromWines = useCallback((wines: WineLabelFiche[]) => {
@@ -924,11 +954,6 @@ export function useReviewFormState() {
           ocrIndexedTextRef.current = next;
           return next;
         });
-      }
-      if (isEditRef.current) {
-        void persistNowRef.current(false);
-      } else {
-        schedulePersistRef.current();
       }
       Haptics.success();
     }, [buildInput, router, syncWinesRatingFromWines, upsertReviewFromForm]),

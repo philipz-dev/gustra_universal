@@ -9,11 +9,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle, Theme } from '@/constants/Theme';
-import { i18n } from '@/i18n';
 import { Haptics } from '@/services/haptics';
 
 export type HouseUndoSnackbarRequest = {
   message: string;
+  /**
+   * Optional action button label. When omitted the snackbar is purely
+   * informational (no Undo button) — used for save confirmations.
+   */
   actionLabel?: string;
   /** Auto-commit after this many ms (default 4500). */
   durationMs?: number;
@@ -103,7 +106,7 @@ export function HouseUndoSnackbarHost() {
 
   if (!request) return null;
 
-  const actionLabel = request.actionLabel ?? i18n.t('common.undo');
+  const actionLabel = request.actionLabel ?? null;
   const bottom =
     Theme.spacing.floatingTabBarClearance + Math.max(insets.bottom, 8);
 
@@ -115,23 +118,25 @@ export function HouseUndoSnackbarHost() {
         <Text style={styles.message} numberOfLines={2}>
           {request.message}
         </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={actionLabel}
-          onPress={() => {
-            clearTimer();
-            const current = active;
-            active = null;
-            setRequest(null);
-            Haptics.light();
-            current?.onUndo();
-          }}
-          style={({ pressed }) => [
-            styles.action,
-            pressed && styles.actionPressed,
-          ]}>
-          <Text style={styles.actionLabel}>{actionLabel}</Text>
-        </Pressable>
+        {actionLabel ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={actionLabel}
+            onPress={() => {
+              clearTimer();
+              const current = active;
+              active = null;
+              setRequest(null);
+              Haptics.light();
+              current?.onUndo();
+            }}
+            style={({ pressed }) => [
+              styles.action,
+              pressed && styles.actionPressed,
+            ]}>
+            <Text style={styles.actionLabel}>{actionLabel}</Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );

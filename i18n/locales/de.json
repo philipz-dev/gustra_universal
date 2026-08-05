@@ -74,6 +74,8 @@
     "searchPlaceholder": "Restaurants, Kommentare, Fotos suchen…",
     "visitCount_one": "{{count}} Besuch · {{date}}",
     "visitCount_other": "{{count}} Besuche · {{date}}",
+    "friendScoreLabel": "Freunde: {{score}} ({{count}} Besuch)",
+    "friendScoreLabel_other": "Freunde: {{score}} ({{count}} Besuche)",
     "source": {
       "mine": "Meine Erinnerungen",
       "friends": "Mit dir geteilt"
@@ -95,7 +97,9 @@
     "draftLabel": "Draft",
     "demoLabel": "Demo",
     "visitedBefore_one": "Bereits 1 Mal besucht",
-    "visitedBefore_other": "Bereits {{count}} Mal besucht"
+    "visitedBefore_other": "Bereits {{count}} Mal besucht",
+    "memorySaved": "Erinnerung an {{name}} gespeichert",
+    "visitSaved": "Besuch bei {{name}} gespeichert"
   },
   "filters": {
     "title": "Filteroptionen",
@@ -154,8 +158,13 @@
     "emptyBody": "Dein Verkostungspass füllt sich, wenn du Restaurant-Erinnerungen hinzufügst.",
     "addReview": "Erinnerung hinzufügen",
     "overview": "Übersicht",
+    "overviewKicker": "deine Geschichte bisher",
     "totalReviews": "Erinnerungen gesamt",
     "averageOverall": "Gesamtdurchschnitt",
+    "averageBasedOnAllRated": "Basierend auf all deinen bewerteten Kriterien",
+    "bestKicker": "deine Favoriten",
+    "winesKicker": "ein Prost darauf",
+    "citiesKicker": "wo du gegessen hast",
     "bestRestaurant": "Bestes Restaurant",
     "bestRestaurants": "Beste Restaurants",
     "bestWines": "Beste Weine",
@@ -178,6 +187,7 @@
   },
   "bucketList": {
     "title": "Wunschliste",
+    "kicker": "noch zu entdecken",
     "emptyTitle": "Noch keine Wunschliste",
     "emptyBody": "Tippe auf das Lesezeichen bei einem Restaurant, das du besuchen möchtest, um es hier zu speichern.",
     "addTitle": "Zur Wunschliste hinzufügen",
@@ -219,6 +229,9 @@
     "dataSavings": "Datensparmodus für Fotos",
     "dataSavingsOn": "Niedrigere Auflösung",
     "dataSavingsOff": "Höhere Auflösung",
+    "saveToLibrary": "In der Fotomediathek speichern",
+    "saveToLibraryOn": "Fotos von Erinnerungen werden auch in Fotos / Google Fotos gespeichert",
+    "saveToLibraryOff": "Fotos von Erinnerungen bleiben nur in Gustra",
     "photos": "Fotos",
     "recoverPrevious": "Frühere Gustra-Daten wiederherstellen",
     "recoverScanSubtitle": "Dieses iPhone nach der alten Swift-Datenbank und Fotos durchsuchen",
@@ -401,7 +414,7 @@
       "draftBannerCriteria": "Bewerte mindestens ein Kriterium, um diese Erinnerung abzuschließen.",
       "draftBannerFood": "Bewerte das Essen, um diese Erinnerung abzuschließen.",
       "draftBannerWine": "Ein Wein braucht noch eine Sternebewertung.",
-      "showMoreCriteria": "{{count}} weitere anzeigen",
+      "showMoreCriteria": "{{count}} weitere Kriterien anzeigen",
       "hideMoreCriteria": "Weniger anzeigen"
     },
     "photos": {
@@ -439,7 +452,11 @@
       "noReviews": "Dieses Restaurant hat noch keine Erinnerungen.",
       "visitCount_one": "{{count}} Besuch",
       "visitCount_other": "{{count}} Besuche",
-      "visits": "Besuche"
+      "visits": "Besuche",
+      "myVisits": "Meine Besuche",
+      "friendsVisits": "Geteilte Besuche",
+      "myAverage": "Mein Durchschnitt",
+      "friendsAverage": "Durchschnitt der Freunde"
     },
     "location": {
       "title": "Ort",
@@ -583,8 +600,10 @@
     },
     "reviewForm": {
       "needStars": "Füge mindestens eine Sternebewertung hinzu, um diese Erinnerung zu speichern.",
-      "foodRequiredTitle": "Essensbewertung erforderlich",
-      "foodRequiredBody": "Bewerte das Essen, bevor du diese Erinnerung abschließt.",
+      "draftNoticeTitle": "Erinnerung bleibt ein Entwurf",
+      "draftNoticeBody": "Bewerte mindestens ein Kriterium mit Sternen (z. B. Essen, Service oder Ambiente), um diese Erinnerung abzuschließen. Du kannst sie auch als Entwurf speichern und später fertigstellen.",
+      "saveDraft": "Entwurf speichern",
+      "continueEditing": "Weiter bearbeiten",
       "removePhotosTitle": "Fotos entfernen?",
       "removePhotosBody": "Ausgewählte Fotos werden aus dieser Erinnerung entfernt.",
       "photosSaveFailed": "Fotos konnten nicht gespeichert werden.",
@@ -664,7 +683,7 @@
     "deleteWineTitle": "Wein entfernen?",
     "deleteWineBody": "„{{name}}“ wird aus dieser Erinnerung entfernt.",
     "deleteWineA11y": "Wein löschen",
-    "drinksCommentPlaceholder": "Deine Notizen zum Wein…",
+    "drinksCommentPlaceholder": "Deine Notizen zum Getränk…",
     "discardUnsaved": {
       "title": "Änderungen speichern?"
     },
@@ -785,8 +804,6 @@
       "headline": "Personalisieren Sie Ihre Erfahrung",
       "body": "Wählen Sie, welche Kriterien für Ihre Erinnerungen wichtig sind. Später änderbar unter Einstellungen.",
       "minOne": "Wählen Sie mindestens ein Kriterium.",
-      "tip": "Tipp",
-      "idealThree": ": 3 Kriterien sind ideal",
       "footer": "Hinzugefügte Kriterien erscheinen in neuen Erinnerungen."
     }
   }

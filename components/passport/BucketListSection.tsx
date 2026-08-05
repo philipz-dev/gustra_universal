@@ -63,7 +63,9 @@ export function BucketListSection({
 
   if (restaurants.length === 0) {
     return (
-      <PassportSection title={t('bucketList.title')}>
+      <PassportSection
+        title={t('bucketList.title')}
+        kicker={t('bucketList.kicker')}>
         <View style={styles.empty}>
           <SymbolView
             name={{
@@ -81,7 +83,9 @@ export function BucketListSection({
   }
 
   return (
-    <PassportSection title={t('bucketList.title')}>
+    <PassportSection
+      title={t('bucketList.title')}
+      kicker={t('bucketList.kicker')}>
       {restaurants.map((restaurant) => (
         <View key={restaurant.id} style={styles.rowWrap}>
           <FeedSwipeDelete
@@ -172,12 +176,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: GustraColors.bubble,
+    backgroundColor: 'rgba(236, 227, 207, 0.55)',
     borderRadius: Theme.radius.lg,
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(217, 162, 39, 0.35)',
+    borderColor: 'rgba(35, 32, 26, 0.08)',
+    shadowColor: '#000000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
   rowPressed: {
     opacity: 0.85,
@@ -186,7 +195,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: 'rgba(217, 162, 39, 0.14)',
+    backgroundColor: 'rgba(36, 78, 57, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -214,12 +223,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: GustraColors.bubble,
+    backgroundColor: 'rgba(236, 227, 207, 0.45)',
     borderRadius: Theme.radius.lg,
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(217, 162, 39, 0.2)',
+    borderColor: 'rgba(35, 32, 26, 0.08)',
   },
   emptyText: {
     ...bodyTextStyle,
