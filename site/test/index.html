@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gustra — Testplan voor gebruikers</title>
+  <meta name="description" content="Volledig maar kort testplan: wat moet er in de Gustra-app getest worden om alle functionaliteit te valideren? Vink per onderdeel af of het werkt." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://gustra.net/test/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://gustra.net/test/" />
+  <meta property="og:title" content="Gustra — Testplan voor gebruikers" />
+  <meta property="og:description" content="Volledig maar kort testplan voor de Gustra-app: vink per onderdeel af of het werkt, zodat alle functionaliteit gevalideerd wordt." />
+  <link rel="icon" href="/assets/logo.png?v=19" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --forest: #244e39;
+      --forest-deep: #1a3a2a;
+      --cream: #f5eedd;
+      --bubble: #ece3cf;
+      --gold: #d9a227;
+      --ink: #23201a;
+      --ink-soft: rgba(35, 32, 26, 0.55);
+      --ok: #388c56;
+      --danger: #c74742;
+      --blue: #2f6f9f;
+      --shadow: 0 18px 50px rgba(36, 78, 57, 0.12);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "DM Sans", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(217, 162, 39, 0.16), transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, rgba(36, 78, 57, 0.14), transparent 50%),
+        linear-gradient(180deg, #f8f3e7 0%, var(--cream) 45%, #efe6d2 100%);
+      line-height: 1.55;
+    }
+
+    .wrap { width: min(920px, calc(100% - 2rem)); margin: 0 auto; padding: 2.25rem 0 4rem; }
+
+    header.hero {
+      background: linear-gradient(145deg, var(--forest) 0%, var(--forest-deep) 100%);
+      color: #f7f1e4;
+      border-radius: calc(var(--radius) + 6px);
+      padding: 1.75rem 1.5rem 1.5rem;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+    header.hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -20% -40% auto;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(217,162,39,.28), transparent 65%);
+      pointer-events: none;
+    }
+    .brand {
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: clamp(2.2rem, 5.5vw, 3rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 0.98;
+      margin: 0 0 0.4rem;
+    }
+    .tagline { margin: 0; max-width: 44rem; color: rgba(247, 241, 228, 0.85); font-size: 1.02rem; line-height: 1.5; }
+
+    .hero-grid { display: grid; grid-template-columns: 1fr minmax(220px, 300px); gap: 1.2rem; align-items: end; margin-top: 1.3rem; }
+    @media (max-width: 720px) { .hero-grid { grid-template-columns: 1fr; } }
+
+    .progress-card {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(247,241,228,0.2);
+      border-radius: 16px;
+      padding: 0.9rem 1rem;
+    }
+    .progress-card .pct-label { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+    .progress-card .count-label { font-size: 0.82rem; font-weight: 600; color: rgba(247,241,228,0.75); }
+    .progress-card .pct { font-family: "Source Serif 4", Georgia, serif; font-size: 1.6rem; font-weight: 700; line-height: 1; }
+    .progress-card .pct small { font-family: "DM Sans", sans-serif; font-size: 0.72rem; font-weight: 600; color: rgba(247,241,228,0.65); margin-left: 0.3rem; }
+    .progress-track { height: 8px; border-radius: 999px; background: rgba(247,241,228,0.18); margin-top: 0.55rem; overflow: hidden; }
+    .progress-fill { height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, var(--gold), #f0c35a); transition: width .3s ease; }
+
+    .name-box {
+      margin-top: 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.7rem;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(247,241,228,0.22);
+      border-radius: 14px;
+      padding: 0.7rem 0.9rem;
+    }
+    .name-box .name-label { font-size: 0.86rem; font-weight: 600; color: rgba(247, 241, 228, 0.85); }
+    .name-box input[type="text"] {
+      flex: 1;
+      min-width: 10rem;
+      font: inherit;
+      font-size: 0.95rem;
+      color: var(--ink);
+      background: #fffdf8;
+      border: 1.5px solid rgba(36, 78, 57, 0.3);
+      border-radius: 10px;
+      padding: 0.5rem 0.7rem;
+    }
+    .name-box input[type="text"]:focus { outline: 2px solid rgba(217, 162, 39, 0.5); border-color: var(--gold); }
+    .name-box .name-msg { flex-basis: 100%; font-size: 0.82rem; color: rgba(247, 241, 228, 0.9); }
+    .name-box .name-msg.err { color: #ffd9d4; font-weight: 600; }
+    .name-box .name-msg.ok { color: #d9f2e3; }
+
+    nav.toc { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1.25rem 0 0.25rem; }
+    nav.toc a {
+      text-decoration: none;
+      color: var(--forest);
+      background: rgba(36, 78, 57, 0.08);
+      border: 1px solid rgba(36, 78, 57, 0.12);
+      border-radius: 999px;
+      padding: 0.45rem 0.85rem;
+      font-weight: 600;
+      font-size: 0.88rem;
+    }
+
+    section.panel {
+      margin-top: 1.15rem;
+      background: rgba(255,255,255,0.55);
+      border: 1px solid rgba(36, 78, 57, 0.1);
+      border-radius: var(--radius);
+      padding: 1.15rem 1.15rem 0.65rem;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 10px 30px rgba(36, 78, 57, 0.06);
+    }
+    section.panel h2 { font-family: "Source Serif 4", Georgia, serif; font-size: 1.45rem; margin: 0 0 0.2rem; color: var(--forest); letter-spacing: -0.02em; }
+    section.panel .section-meta { color: var(--ink-soft); font-size: 0.92rem; margin: 0 0 0.9rem; }
+    .section-count { font-size: 0.78rem; font-weight: 600; color: var(--forest); background: rgba(36, 78, 57, 0.1); border-radius: 999px; padding: 0.2rem 0.6rem; margin-left: 0.5rem; vertical-align: middle; white-space: nowrap; }
+
+    ul.tasks { list-style: none; margin: 0; padding: 0; }
+    .task {
+      background: rgba(255,255,255,0.72);
+      border: 1.5px solid rgba(36, 78, 57, 0.32);
+      border-radius: 14px;
+      padding: 0.75rem 0.9rem;
+      margin-bottom: 0.7rem;
+      box-shadow: 0 4px 16px rgba(36, 78, 57, 0.08);
+      transition: background .2s ease, border-color .2s ease;
+    }
+    .task.done { background: rgba(56, 140, 86, 0.1); border-color: rgba(56, 140, 86, 0.45); }
+    .task .main { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.7rem; align-items: start; }
+    .task input[type="checkbox"] {
+      width: 1.35rem;
+      height: 1.35rem;
+      margin-top: 0.1rem;
+      accent-color: var(--forest);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .task .title { font-size: 0.97rem; font-weight: 600; line-height: 1.4; }
+    .task .do { font-size: 0.9rem; color: var(--ink); margin-top: 0.2rem; line-height: 1.5; }
+    .task .expect { font-size: 0.88rem; color: var(--blue); margin-top: 0.25rem; line-height: 1.45; }
+    .task .expect b { color: var(--forest); }
+
+    .others { margin-top: 0.55rem; font-size: 0.84rem; line-height: 1.4; }
+    .others .others-summary { font-size: 0.8rem; font-weight: 600; color: var(--forest); }
+    .others .others-none { font-size: 0.8rem; color: var(--ink-soft); font-style: italic; }
+    .others .others-list { display: grid; gap: 0.35rem; }
+    .others .others-item { font-size: 0.84rem; line-height: 1.4; color: var(--ink); background: rgba(255,255,255,0.55); border-radius: 10px; padding: 0.45rem 0.6rem; }
+    .others .others-item .who { display: block; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 0.15rem; }
+    .others .others-item .who .s-ok { color: var(--ok); }
+    .others .others-item .admin-actions { display: flex; gap: 0.5rem; margin-top: 0.4rem; }
+    .others .others-item .admin-actions button {
+      font: inherit;
+      font-size: 0.76rem;
+      font-weight: 600;
+      border-radius: 8px;
+      padding: 0.25rem 0.55rem;
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+    .others .others-item .admin-actions button:hover { transform: translateY(-1px); }
+    .others .others-item .admin-edit { background: rgba(36, 78, 57, 0.12); color: var(--forest); }
+    .others .others-item .admin-delete { background: rgba(199, 71, 66, 0.12); color: var(--danger); }
+    .admin-form { margin-top: 0.4rem; display: grid; gap: 0.4rem; }
+    .admin-form textarea {
+      width: 100%;
+      min-height: 56px;
+      font: inherit;
+      font-size: 0.88rem;
+      color: var(--ink);
+      background: #fffdf8;
+      border: 1.5px solid rgba(36, 78, 57, 0.25);
+      border-radius: 10px;
+      padding: 0.5rem 0.65rem;
+      resize: vertical;
+    }
+    .admin-form .row { display: flex; gap: 0.5rem; }
+    .admin-form .row button {
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border-radius: 8px;
+      padding: 0.3rem 0.65rem;
+      cursor: pointer;
+    }
+    .admin-form .row .ok { background: rgba(36, 78, 57, 0.14); color: var(--forest); border: 1px solid rgba(36, 78, 57, 0.3); }
+    .admin-form .row .cancel { background: rgba(35, 32, 26, 0.08); color: var(--ink-soft); border: 1px solid rgba(35, 32, 26, 0.2); }
+    .admin-status.err { font-size: 0.8rem; color: var(--danger); }
+
+    .remark { margin-top: 0.5rem; }
+    .remark label { display: block; font-size: 0.78rem; font-weight: 600; color: var(--ink-soft); margin-bottom: 0.3rem; }
+    .remark textarea {
+      width: 100%;
+      min-height: 52px;
+      font: inherit;
+      font-size: 0.88rem;
+      color: var(--ink);
+      background: #fffdf8;
+      border: 1.5px solid rgba(36, 78, 57, 0.25);
+      border-radius: 10px;
+      padding: 0.5rem 0.65rem;
+      resize: vertical;
+    }
+    .remark textarea:focus { outline: 2px solid rgba(217, 162, 39, 0.5); border-color: var(--gold); }
+
+    .sync { font-size: 0.82rem; color: var(--ink-soft); margin: 1rem 0 0; }
+    .sync.ok { color: var(--ok); }
+
+    footer { margin-top: 1.5rem; color: var(--ink-soft); font-size: 0.85rem; text-align: center; }
+    footer a { color: var(--forest); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <h1 class="brand">Gustra — testplan</h1>
+      <p class="tagline">Volledig maar kort: dit is wat je moet testen om álle functionaliteit van de app te valideren. Doorloop de onderdelen, vink af wat werkt en laat een opmerking achter waar iets niet klopt. Je voortgang wordt opgeslagen.</p>
+
+      <div class="hero-grid">
+        <div class="name-box">
+          <span class="name-label">Je naam</span>
+          <input type="text" id="editorName" autocomplete="name" placeholder="Laat je naam achter (optioneel)" aria-label="Je naam" />
+          <div class="name-msg" id="nameMsg">Laat je naam hier achter; die wordt bewaard in een cookie op dit apparaat.</div>
+        </div>
+        <div class="progress-card">
+          <div class="pct-label">
+            <span class="count-label" id="countLabel">0 / 0 afgevinkt</span>
+            <span class="pct" id="pct">0%<small>werkt</small></span>
+          </div>
+          <div class="progress-track"><div class="progress-fill" id="bar"></div></div>
+        </div>
+      </div>
+    </header>
+
+    <nav class="toc">
+      <a href="#eerste-start">Eerste start</a>
+      <a href="#herinnering">Herinnering toevoegen</a>
+      <a href="#feed">Feed</a>
+      <a href="#detail">Detail</a>
+      <a href="#kaart">Mijn kaart</a>
+      <a href="#passport">Mijn Gustra</a>
+      <a href="#delen">Delen &amp; importeren</a>
+      <a href="#instellingen">Instellingen</a>
+      <a href="#backup">Back-up &amp; herstel</a>
+      <a href="#stabiliteit">Stabiliteit</a>
+    </nav>
+
+    <section class="panel" id="eerste-start">
+      <h2>Eerste start<span class="section-count" id="count-eerste-start"></span></h2>
+      <p class="section-meta">Alleen relevant op een nieuw toestel of na een herinstallatie.</p>
+      <ul class="tasks" id="list-eerste-start"></ul>
+    </section>
+
+    <section class="panel" id="herinnering">
+      <h2>Herinnering toevoegen<span class="section-count" id="count-herinnering"></span></h2>
+      <p class="section-meta">Via de +-knop onderaan de feed: drie manieren om een restaurant te kiezen + het formulier zelf.</p>
+      <ul class="tasks" id="list-herinnering"></ul>
+    </section>
+
+    <section class="panel" id="feed">
+      <h2>Feed<span class="section-count" id="count-feed"></span></h2>
+      <p class="section-meta">Het Herinneringen-scherm: zoeken, filteren, sorteren, favorieten en verwijderen.</p>
+      <ul class="tasks" id="list-feed"></ul>
+    </section>
+
+    <section class="panel" id="detail">
+      <h2>Detail<span class="section-count" id="count-detail"></span></h2>
+      <p class="section-meta">Eén herinnering bekijken: foto's, scores, kaart, routes en bewerken.</p>
+      <ul class="tasks" id="list-detail"></ul>
+    </section>
+
+    <section class="panel" id="kaart">
+      <h2>Mijn kaart<span class="section-count" id="count-kaart"></span></h2>
+      <p class="section-meta">Het kaart-tabblad met alle herinneringen als pinnen.</p>
+      <ul class="tasks" id="list-kaart"></ul>
+    </section>
+
+    <section class="panel" id="passport">
+      <h2>Mijn Gustra<span class="section-count" id="count-passport"></span></h2>
+      <p class="section-meta">Je restaurant-paspoort: statistieken, top 3, steden, bucket-list en terugblik.</p>
+      <ul class="tasks" id="list-passport"></ul>
+    </section>
+
+    <section class="panel" id="delen">
+      <h2>Delen &amp; importeren<span class="section-count" id="count-delen"></span></h2>
+      <p class="section-meta">Herinneringen met vrienden delen en gedeelde herinneringen importeren.</p>
+      <ul class="tasks" id="list-delen"></ul>
+    </section>
+
+    <section class="panel" id="instellingen">
+      <h2>Instellingen<span class="section-count" id="count-instellingen"></span></h2>
+      <p class="section-meta">Profiel, taal, criteria, weergave en opslagvoorkeuren.</p>
+      <ul class="tasks" id="list-instellingen"></ul>
+    </section>
+
+    <section class="panel" id="backup">
+      <h2>Back-up &amp; herstel<span class="section-count" id="count-backup"></span></h2>
+      <p class="section-meta">Versleutelde back-ups maken en terugzetten — de levensader van je gegevens.</p>
+      <ul class="tasks" id="list-backup"></ul>
+    </section>
+
+    <section class="panel" id="stabiliteit">
+      <h2>Stabiliteit<span class="section-count" id="count-stabiliteit"></span></h2>
+      <p class="section-meta">Geen crashes en geen gegevensverlies, ook niet na afsluiten of bij snel bladeren.</p>
+      <ul class="tasks" id="list-stabiliteit"></ul>
+    </section>
+
+    <p class="sync" id="syncMsg">Je voortgang wordt op dit apparaat bewaard. Server-sync start zodra save-test.php bereikbaar is.</p>
+  </div>
+
+  <footer>
+    <a href="https://gustra.net/">Gustra</a> · <a href="https://gustra.net/master/">master</a> · <a href="https://gustra.net/plan/">plan</a>
+  </footer>
+
+  <script>
+    const REMOTE_SAVE = "save-test.php";
+    const REMOTE_STATE = "test-state.json";
+    const STORAGE_KEY = "gustra-testplan-v1";
+    const ID_KEY = "gustra-testplan-id";
+    const ADMIN_NAME = "Philipz";
+    function isAdmin() {
+      return lowercase(MY_NAME) === lowercase(ADMIN_NAME);
+    }
+    function lowercase(s) {
+      return String(s || "").toLocaleLowerCase("nl");
+    }
+
+    function myId() {
+      let id = localStorage.getItem(ID_KEY);
+      if (!id) {
+        id = "u-" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+        localStorage.setItem(ID_KEY, id);
+      }
+      return id;
+    }
+    const ME = myId();
+
+    const NAME_COOKIE = "gustra-testplan-name";
+
+    function getCookie(name) {
+      const m = document.cookie.match(new RegExp("(?:^|; )" + name.replace(/([.$?*|{}()[\]\\/+^])/g, "\\$1") + "=([^;]*)"));
+      return m ? decodeURIComponent(m[1]) : "";
+    }
+    function setCookie(name, value, days) {
+      const expires = new Date(Date.now() + days * 864e5).toUTCString();
+      document.cookie = name + "=" + encodeURIComponent(value) + "; expires=" + expires + "; path=/; SameSite=Lax";
+    }
+    let MY_NAME = getCookie(NAME_COOKIE) || "";
+
+    const CATS = [
+      { id: "eerste-start", label: "Eerste start" },
+      { id: "herinnering", label: "Herinnering toevoegen" },
+      { id: "feed", label: "Feed" },
+      { id: "detail", label: "Detail" },
+      { id: "kaart", label: "Mijn kaart" },
+      { id: "passport", label: "Mijn Gustra" },
+      { id: "delen", label: "Delen & importeren" },
+      { id: "instellingen", label: "Instellingen" },
+      { id: "backup", label: "Back-up & herstel" },
+      { id: "stabiliteit", label: "Stabiliteit" },
+    ];
+
+    const DEFAULT_ITEMS = [
+      // ——— Eerste start ———
+      { id: "setup-keuze", cat: "eerste-start", title: "Eerste configuratie", do: "Start de app voor het eerst. Doorloop de welkomstpagina en kies een van de drie methodes (Snel / Standaard / Volledige controle).", expect: "Je komt in de feed terecht en de gekozen criteria verschijnen in het formulier." },
+      { id: "setup-criteria", cat: "eerste-start", title: "Criteria instellen", do: "Zet een criterium uit of aan en voltooi de setup.", expect: "Het formulier toont alleen de aangevinkte criteria; de kerncriteria (eten, drank, service, sfeer, prijs-kwaliteit) blijven altijd zichtbaar." },
+      // ——— Herinnering toevoegen ———
+      { id: "add-nearby", cat: "herinnering", title: "In de buurt", do: "Tik op + → In de buurt. Sta locatietoegang toe indien gevraagd.", expect: "Restaurants in de buurt verschijnen met afstand; een rij selecteren opent het formulier met dat restaurant." },
+      { id: "add-mapsearch", cat: "herinnering", title: "Zoeken op kaart", do: "Tik op + → Zoeken op kaart. Zoek een restaurant bij naam.", expect: "Zoekresultaten verschijnen; selecteren opent het formulier met dat restaurant." },
+      { id: "add-manual", cat: "herinnering", title: "Handmatig toevoegen", do: "Tik op + → Handmatig. Vul een naam (en eventueel stad) in.", expect: "Het formulier opent zonder gekoppeld restaurant; de handmatige naam blijft bewaard." },
+      { id: "form-criteria", cat: "herinnering", title: "Beoordelen", do: "Geef per criterium een score (1–5, halve sterren mogelijk) en vul de algemene notitie in.", expect: "Elke score wordt direct vastgelegd; de totale score is het gemiddelde over alle criteria." },
+      { id: "form-fotos", cat: "herinnering", title: "Foto's toevoegen", do: "Voeg via de fotostrip 1 of meer foto's toe (camera of bibliotheek). Kies een coverfoto en herschik de volgorde (lang indrukken en slepen).", expect: "Foto's verschijnen in de strip, de cover is gemarkeerd, en de volgorde klopt na het slepen." },
+      { id: "form-datum", cat: "herinnering", title: "Datum wijzigen", do: "Open de datumkiezer en kies een andere datum.", expect: "De gekozen datum verschijnt op de herinnering; bij een bezoek aan een bekend restaurant telt het bezoek correct mee." },
+      { id: "form-wijn", cat: "herinnering", title: "Wijn toevoegen (indien beschikbaar)", do: "Voeg een wijn toe via de wijnknop (scannen of handmatig) en vul eventueel een waardering in.", expect: "De wijn verschijnt in het formulier en later op de detailpagina." },
+      { id: "form-opslaan", cat: "herinnering", title: "Opslaan", do: "Tik op de bevestigingsknop om de herinnering op te slaan.", expect: "Je keert terug naar de feed; de herinnering staat bovenaan en de kaart toont een nieuwe pin." },
+      { id: "form-concept", cat: "herinnering", title: "Concept bewaren", do: "Begin een herinnering, vul iets in en ga terug.", expect: "De app vraagt of je het als concept wilt bewaren; het concept verschijnt in de feed met het label 'Concept' en is later af te ronden." },
+      // ——— Feed ———
+      { id: "feed-zoeken", cat: "feed", title: "Zoeken", do: "Typ in de zoekbalk een restaurantnaam of stad.", expect: "De lijst filtert live; ook tekst uit reacties en foto's wordt gevonden." },
+      { id: "feed-filters", cat: "feed", title: "Filters", do: "Open de filteropties en combineer locatie, type keuken en favorieten.", expect: "De feed toont alleen restaurants die aan alle gekozen filters voldoen; de actieve filters zijn zichtbaar en weg te vegen." },
+      { id: "feed-vriendenfilter", cat: "feed", title: "Vrienden-filter", do: "Schakel in de filteropties 'Herinneringen van vrienden tonen' in (na een import).", expect: "Gedeelde herinneringen verschijnen in de feed, herkenbaar als van een vriend." },
+      { id: "feed-sorteren", cat: "feed", title: "Sorteren", do: "Sorteer op datum, totaalscore of een specifiek criterium.", expect: "De volgorde in de feed klopt en blijft stabiel bij terugkeren." },
+      { id: "feed-favoriet", cat: "feed", title: "Favoriet maken", do: "Tik op het hartje op een kaart.", expect: "Het hartje vult zich; de filter 'Favorieten' toont alleen favoriete restaurants." },
+      { id: "feed-verwijderen", cat: "feed", title: "Verwijderen (swipe)", do: "Veeg een kaart naar links en bevestig.", expect: "Er verschijnt een 'Ongedaan maken'-melding; zonder ongedaan maken verdwijnt de herinnering definitief na de teller." },
+      { id: "feed-meerdere-bezoeken", cat: "feed", title: "Meerdere bezoeken", do: "Tik op een kaart met 2 of meer bezoeken.", expect: "Je krijgt een overzicht van alle bezoeken van dat restaurant, niet slechts één herinnering." },
+      // ——— Detail ———
+      { id: "detail-weergave", cat: "detail", title: "Detail weergeven", do: "Tik op een herinnering in de feed.", expect: "De detailpagina toont foto's, scores per criterium, notitie, datum, restaurantgegevens en eventuele wijnen." },
+      { id: "detail-fotoviewer", cat: "detail", title: "Foto's bekijken", do: "Tik op een foto en bekijk de fullscreen-viewer.", expect: "De viewer opent, in-/uitzoomen werkt en sluiten kan via ✕ of omlaag vegen." },
+      { id: "detail-kaart", cat: "detail", title: "Restaurant op kaart", do: "Tik op de kaartminiatuur bij het restaurant.", expect: "De fullscreen-kaart toont de pin op de juiste plek." },
+      { id: "detail-routes", cat: "detail", title: "Route starten", do: "Tik op de routeknop en kies een navigatie-app (Google Maps, Waze, …).", expect: "De gekozen app opent met het restaurant als bestemming." },
+      { id: "detail-menu", cat: "detail", title: "Bewerken & verwijderen", do: "Open het ⋯-menu op de detailpagina en kies Bewerken; controleer daarna ook Verwijderen met bevestiging.", expect: "Bewerken opent het formulier met de huidige gegevens; verwijderen vraagt eerst bevestiging en verwijdert pas daarna." },
+      // ——— Mijn kaart ———
+      { id: "kaart-pinnen", cat: "kaart", title: "Pinnen", do: "Open het tabblad Mijn kaart.", expect: "Alle herinneringen staan als pinnen op de juiste plek; eigen pinnen en vrienden-pinnen hebben een verschillende kleur met legende." },
+      { id: "kaart-locatiefilter", cat: "kaart", title: "Locatiefilter", do: "Gebruik de locatiefilter (cirkel of zoek) op de kaart.", expect: "Alleen herinneringen binnen de gekozen zone blijven zichtbaar." },
+      { id: "kaart-mijnlocatie", cat: "kaart", title: "Mijn locatie", do: "Tik op de mijn-locatie-knop.", expect: "De kaart centreert op je huidige locatie (met toestemming)." },
+      { id: "kaart-pin-detail", cat: "kaart", title: "Pin → detail", do: "Tik op een pin.", expect: "De bijbehorende herinnering opent; terugkeren brengt je terug naar dezelfde kaartpositie." },
+      // ——— Mijn Gustra ———
+      { id: "passport-stats", cat: "passport", title: "Statistieken", do: "Open Mijn Gustra.", expect: "Aantal bezoeken, gemiddelde score en andere tellingen kloppen met je herinneringen." },
+      { id: "passport-top3", cat: "passport", title: "Top 3", do: "Bekijk de top 3 van beste restaurants.", expect: "De rangschikking klopt met de scores; tikken op een podiumkaart opent het restaurant." },
+      { id: "passport-steden", cat: "passport", title: "Steden", do: "Tik op een stad-chip in het stedenblok.", expect: "De lijst filtert op die stad of toont de bezoeken in die stad." },
+      { id: "passport-bucketlist", cat: "passport", title: "Bucket-list", do: "Open de bucket-list en voeg een restaurant toe dat je nog wilt bezoeken.", expect: "Het restaurant verschijnt op de bucket-list en is weer te verwijderen." },
+      { id: "passport-terugblik", cat: "passport", title: "Terugblik (Time Machine)", do: "Open Terugblik en doorloop de tijdlijn.", expect: "Bezoeken worden per periode getoond met het juiste aantal en de juiste foto's." },
+      // ——— Delen & importeren ———
+      { id: "deel-profiel", cat: "delen", title: "Profiel instellen", do: "Vul in Instellingen je naam in en voeg een profielfoto toe (rond bijsnijden).", expect: "Naam en foto worden meegestuurd wanneer je herinneringen deelt." },
+      { id: "deel-verzenden", cat: "delen", title: "Herinneringen delen", do: "Tik in de feed op de deelknop, selecteer een of meer herinneringen en kies een deelmethode.", expect: "Er wordt een deelpakket aangemaakt; alleen je eigen herinneringen zijn selecteerbaar, geen concepten." },
+      { id: "deel-import", cat: "delen", title: "Importeren", do: "Open een deelpakket dat iemand je stuurde (via bestand of de app).", expect: "De gedeelde herinneringen verschijnen ter controle; je kiest welke je importeert en ze komen in je feed onder 'Met je gedeeld'." },
+      { id: "deel-email", cat: "delen", title: "E-mail met persoonlijk bericht", do: "Deel via e-mail en voeg een persoonlijk bericht toe.", expect: "Het bericht verschijnt in de e-mail samen met de gedeelde herinneringen." },
+      // ——— Instellingen ———
+      { id: "inst-taal", cat: "instellingen", title: "Taal wisselen", do: "Instellingen → Taal. Kies een andere taal.", expect: "De hele app vertaalt onmiddellijk; je keuze wordt onthouden." },
+      { id: "inst-profielfoto", cat: "instellingen", title: "Profielfoto", do: "Instellingen → tik op de avatar, kies een foto en pas het bijsnijden aan.", expect: "De foto wordt rond bijgesneden, opgeslagen en zichtbaar bij je profiel." },
+      { id: "inst-criteria", cat: "instellingen", title: "Criteria bewerken", do: "Instellingen → Criteria bewerken. Schakel een criterium uit.", expect: "Het formulier toont het uitgeschakelde criterium niet meer; bestaande beoordelingen blijven bewaard." },
+      { id: "inst-weergave", cat: "instellingen", title: "Weergave gemiddelden", do: "Wissel in Instellingen tussen sterren en cijfers voor de categorie-gemiddelden.", expect: "Mijn Gustra toont de gemiddelden in de gekozen stijl." },
+      { id: "inst-opslag", cat: "instellingen", title: "Opslagvoorkeuren", do: "Schakel 'Opslaan naar fotobibliotheek' en 'Databesparing' aan en uit.", expect: "De instellingen worden onthouden; bij nieuw opgeslagen foto's geldt de gekozen voorkeur." },
+      { id: "inst-demo", cat: "instellingen", title: "Demo-voorbeeld", do: "Schakel 'Demo-voorbeeld' in en weer uit.", expect: "Demo-herinneringen verschijnen in de feed en verdwijnen weer wanneer je het uitzet." },
+      // ——— Back-up & herstel ———
+      { id: "backup-maken", cat: "backup", title: "Back-up maken", do: "Instellingen → Back-up / Herstellen → Back-up maken. Kies een wachtwoord (voldoet aan de eisen) en bevestig.", expect: "Het deelpakket wordt versleuteld; je kunt het lokaal opslaan of delen (e-mail, schijf, …)." },
+      { id: "backup-herstellen", cat: "backup", title: "Herstellen (samenvoegen)", do: "Herstel een back-upbestand met het juiste wachtwoord en kies 'Samenvoegen'.", expect: "De herinneringen uit de back-up worden samengevoegd met de huidige — niets gaat verloren." },
+      { id: "backup-overschrijven", cat: "backup", title: "Herstellen (overschrijven)", do: "Herstel een back-up en kies 'Overschrijven'.", expect: "Er verschijnt een duidelijke waarschuwing; alleen na bevestiging wordt de huidige data vervangen door de back-up." },
+      { id: "backup-snapshot", cat: "backup", title: "AutoProtect-snapshot", do: "Herstel een AutoProtect-snapshot (zonder wachtwoord, samenvoegen).", expect: "De automatische momentopname wordt samengevoegd met je gegevens." },
+      { id: "backup-verkeerd", cat: "backup", title: "Fout wachtwoord", do: "Probeer een back-up te herstellen met een fout wachtwoord.", expect: "De app meldt dat het wachtwoord onjuist is en verwijdert niets." },
+      // ——— Stabiliteit ———
+      { id: "stab-herstart", cat: "stabiliteit", title: "Herstarten", do: "Sluit de app volledig af en open hem opnieuw.", expect: "Al je herinneringen, foto's en instellingen zijn er nog; geen foutmeldingen." },
+      { id: "stab-android-feed", cat: "stabiliteit", title: "Android: feed bladeren", do: "Op Android: open de feed en blader snel door de kaarten (ook met veel foto's).", expect: "Geen crash of vastloper — alle kaarten blijven zichtbaar." },
+      { id: "stab-foutscherm", cat: "stabiliteit", title: "Geen leeg foutscherm", do: "Open elk tabblad (Herinneringen, Mijn kaart, Mijn Gustra, Instellingen).", expect: "Geen enkel scherm toont 'We konden je herinneringen niet laden'; elk tabblad laadt normaal." },
+    ];
+
+    /** @type {Record<string, {ok: boolean, remark: string}>} */
+    let state = {};
+    /** Server-side submissions from other visitors: {userId: {items, updatedAt}} */
+    let remoteSubmissions = {};
+    /** Our own submission as last seen on the server (per userId). */
+    let myRemote = null;
+
+    function itemById(id) { return DEFAULT_ITEMS.find((i) => i.id === id); }
+
+    function persist() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ state, updatedAt: new Date().toISOString() }));
+    }
+
+    function loadLocal() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        if (data.state && typeof data.state === "object") state = data.state;
+      } catch { /* ignore */ }
+    }
+
+    let saveTimer = null;
+    function scheduleRemoteSave() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(saveRemote, 600);
+    }
+
+    async function saveRemote() {
+      const msg = document.getElementById("syncMsg");
+      const nameMsg = document.getElementById("nameMsg");
+      const items = {};
+      for (const id of Object.keys(state)) {
+        if (itemById(id)) items[id] = state[id];
+      }
+      const name = MY_NAME.trim();
+      const body = { userId: ME, name, items, updatedAt: new Date().toISOString() };
+      try {
+        const res = await fetch(REMOTE_SAVE, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (res.status === 409) {
+          const data = await res.json().catch(() => ({}));
+          if (data.error === "name_taken" && nameMsg) {
+            nameMsg.textContent = "Deze naam is al door iemand anders gebruikt. Kies een andere naam (bijv. met een toevoeging) — je voortgang is wél opgeslagen als anoniem.";
+            nameMsg.className = "name-msg err";
+          }
+          msg.textContent = "Naam is bezet — je voortgang is opgeslagen, maar zonder naam.";
+          msg.className = "sync";
+          return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        myRemote = { userId: ME, items, updatedAt: new Date().toISOString() };
+        if (name && nameMsg && !nameMsg.classList.contains("err")) {
+          setCookie(NAME_COOKIE, name, 365);
+          nameMsg.textContent = "Je naam is opgeslagen in een cookie op dit apparaat.";
+          nameMsg.className = "name-msg ok";
+        }
+        msg.textContent = `Gesynchroniseerd met server · ${new Date().toLocaleTimeString("nl-BE")}`;
+        msg.className = "sync ok";
+      } catch {
+        msg.textContent = "Opgeslagen op dit apparaat (server-sync niet beschikbaar).";
+        msg.className = "sync";
+      }
+    }
+
+    async function loadRemote() {
+      try {
+        const res = await fetch(`${REMOTE_STATE}?t=${Date.now()}`, { cache: "no-store" });
+        if (!res.ok) return false;
+        const data = await res.json();
+        remoteSubmissions = {};
+        const subs = data.submissions && typeof data.submissions === "object"
+          ? data.submissions
+          : (data.items && typeof data.items === "object" ? { legacy: { items: data.items, updatedAt: null } } : {});
+        for (const uid of Object.keys(subs)) {
+          const s = subs[uid];
+          if (!s || typeof s !== "object") continue;
+          const entry = {
+            name: (s.name && typeof s.name === "string") ? s.name : "",
+            items: (s.items && typeof s.items === "object") ? s.items : {},
+            updatedAt: s.updatedAt || null,
+          };
+          remoteSubmissions[uid] = entry;
+          if (uid === ME) myRemote = entry;
+        }
+        if (myRemote && myRemote.name && !MY_NAME) {
+          MY_NAME = myRemote.name;
+          setCookie(NAME_COOKIE, MY_NAME, 365);
+        }
+        persist();
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    function othersFor(itemId) {
+      const out = [];
+      for (const uid of Object.keys(remoteSubmissions)) {
+        if (uid === ME) continue;
+        const entry = remoteSubmissions[uid];
+        const v = entry.items[itemId];
+        if (!v || typeof v !== "object") continue;
+        if (v.ok || (v.remark && String(v.remark).trim())) {
+          out.push({ uid, name: entry.name || "", ok: !!v.ok, remark: String(v.remark || "").trim() });
+        }
+      }
+      out.sort((a, b) => (b.ok ? 1 : 0) - (a.ok ? 1 : 0));
+      return out;
+    }
+
+    async function adminEdit(uid, itemId, newRemark) {
+      const res = await fetch(REMOTE_SAVE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "adminEdit", targetUid: uid, itemId, remark: newRemark, name: MY_NAME.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      return res.json();
+    }
+
+    function showAdminEdit(itemEl, o, itemId) {
+      if (itemEl.querySelector(".admin-form")) return;
+      const form = document.createElement("div");
+      form.className = "admin-form";
+      const ta = document.createElement("textarea");
+      ta.value = o.remark || "";
+      const row = document.createElement("div");
+      row.className = "row";
+      const ok = document.createElement("button");
+      ok.type = "button";
+      ok.className = "ok";
+      ok.textContent = "Opslaan";
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.className = "cancel";
+      cancel.textContent = "Annuleren";
+      cancel.addEventListener("click", () => form.remove());
+      ok.addEventListener("click", async () => {
+        try {
+          await adminEdit(o.uid, itemId, ta.value);
+          await loadRemote();
+          render();
+        } catch (err) {
+          const st = document.createElement("div");
+          st.className = "admin-status err";
+          st.textContent = `Opslaan mislukt: ${err.message}`;
+          form.appendChild(st);
+        }
+      });
+      row.appendChild(ok);
+      row.appendChild(cancel);
+      form.appendChild(ta);
+      form.appendChild(row);
+      itemEl.appendChild(form);
+      ta.focus();
+    }
+
+    async function adminDelete(uid, itemId) {
+      const res = await fetch(REMOTE_SAVE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "adminDelete", targetUid: uid, itemId, name: MY_NAME.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      return res.json();
+    }
+
+    function renderStats() {
+      const total = DEFAULT_ITEMS.length;
+      const done = DEFAULT_ITEMS.filter((i) => state[i.id]?.ok).length;
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      document.getElementById("countLabel").textContent = `${done} / ${total} afgevinkt`;
+      document.getElementById("pct").innerHTML = `${pct}%<small>werkt</small>`;
+      document.getElementById("bar").style.width = `${pct}%`;
+      for (const cat of CATS) {
+        const items = DEFAULT_ITEMS.filter((i) => i.cat === cat.id);
+        const doneCat = items.filter((i) => state[i.id]?.ok).length;
+        document.getElementById(`count-${cat.id}`).textContent = `${doneCat} / ${items.length}`;
+      }
+    }
+
+    function render() {
+      for (const cat of CATS) {
+        const list = document.getElementById(`list-${cat.id}`);
+        list.innerHTML = "";
+        const items = DEFAULT_ITEMS.filter((i) => i.cat === cat.id);
+        for (const item of items) {
+          const st = state[item.id] || { ok: false, remark: "" };
+          const li = document.createElement("li");
+          li.className = "task" + (st.ok ? " done" : "");
+
+          const main = document.createElement("div");
+          main.className = "main";
+
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.id = `c-${item.id}`;
+          cb.checked = !!st.ok;
+          cb.setAttribute("aria-label", item.title + (st.ok ? " — afgevinkt" : " — nog niet afgevinkt"));
+          cb.addEventListener("change", () => {
+            state[item.id] = { ...(state[item.id] || {}), ok: cb.checked };
+            persist();
+            renderStats();
+            scheduleRemoteSave();
+            li.classList.toggle("done", cb.checked);
+          });
+
+          const bodyWrap = document.createElement("div");
+          const title = document.createElement("label");
+          title.htmlFor = cb.id;
+          title.className = "title";
+          title.textContent = item.title;
+          bodyWrap.appendChild(title);
+
+          const doEl = document.createElement("div");
+          doEl.className = "do";
+          doEl.textContent = item.do;
+          bodyWrap.appendChild(doEl);
+
+          if (item.expect) {
+            const ex = document.createElement("div");
+            ex.className = "expect";
+            ex.innerHTML = `<b>Verwacht:</b> ` + item.expect.replace(/</g, "&lt;");
+            bodyWrap.appendChild(ex);
+          }
+
+          main.appendChild(cb);
+          main.appendChild(bodyWrap);
+          li.appendChild(main);
+
+          const others = othersFor(item.id);
+          if (others.length > 0) {
+            const othersWrap = document.createElement("div");
+            othersWrap.className = "others";
+            const summary = document.createElement("div");
+            summary.className = "others-summary";
+            const okCount = others.filter((o) => o.ok).length;
+            summary.textContent = `Anderen: ${okCount} × werkt, ${others.length - okCount} met opmerking`;
+            othersWrap.appendChild(summary);
+            const listEl = document.createElement("div");
+            listEl.className = "others-list";
+            for (const o of others) {
+              const itemEl = document.createElement("div");
+              itemEl.className = "others-item";
+              const who = document.createElement("span");
+              who.className = "who";
+              const tag = o.ok ? "✓ werkt" : "met opmerking";
+              const whoName = o.name ? o.name : `bezoeker ${o.uid.slice(2, 8)}`;
+              who.innerHTML = `<span class="s-${o.ok ? "ok" : ""}">${tag}</span> · <b>${whoName.replace(/</g, "&lt;")}</b>`;
+              itemEl.appendChild(who);
+              if (o.remark) {
+                const remark = document.createElement("span");
+                remark.textContent = o.remark;
+                itemEl.appendChild(document.createElement("br"));
+                itemEl.appendChild(remark);
+              }
+              if (isAdmin()) {
+                const adminRow = document.createElement("div");
+                adminRow.className = "admin-actions";
+                const btnEdit = document.createElement("button");
+                btnEdit.type = "button";
+                btnEdit.className = "admin-edit";
+                btnEdit.textContent = "Bewerken";
+                const btnDel = document.createElement("button");
+                btnDel.type = "button";
+                btnDel.className = "admin-delete";
+                btnDel.textContent = "Verwijderen";
+                btnEdit.addEventListener("click", () => showAdminEdit(itemEl, o, item.id));
+                btnDel.addEventListener("click", async () => {
+                  if (!confirm(`Reactie van ${whoName} verwijderen?`)) return;
+                  try {
+                    await adminDelete(o.uid, item.id);
+                    await loadRemote();
+                    render();
+                  } catch (err) {
+                    const st = document.createElement("div");
+                    st.className = "admin-status err";
+                    st.textContent = `Verwijderen mislukt: ${err.message}`;
+                    itemEl.appendChild(st);
+                  }
+                });
+                adminRow.appendChild(btnEdit);
+                adminRow.appendChild(btnDel);
+                itemEl.appendChild(adminRow);
+              }
+              listEl.appendChild(itemEl);
+            }
+            othersWrap.appendChild(listEl);
+            li.appendChild(othersWrap);
+          }
+
+          const remarkWrap = document.createElement("div");
+          remarkWrap.className = "remark";
+          const rl = document.createElement("label");
+          rl.htmlFor = `r-${item.id}`;
+          rl.textContent = "Opmerking";
+          const ta = document.createElement("textarea");
+          ta.id = `r-${item.id}`;
+          ta.placeholder = "Wat werkte niet of anders dan verwacht?";
+          ta.value = st.remark || "";
+          ta.addEventListener("input", () => {
+            state[item.id] = { ...(state[item.id] || { ok: false }), remark: ta.value };
+            persist();
+            scheduleRemoteSave();
+          });
+          remarkWrap.appendChild(rl);
+          remarkWrap.appendChild(ta);
+          li.appendChild(remarkWrap);
+
+          list.appendChild(li);
+        }
+      }
+      renderStats();
+    }
+
+    (async function init() {
+      loadLocal();
+      const remote = await loadRemote();
+      render();
+
+      const nameInput = document.getElementById("editorName");
+      const nameMsg = document.getElementById("nameMsg");
+      if (nameInput) {
+        nameInput.value = MY_NAME;
+        nameInput.addEventListener("input", () => {
+          const wasAdmin = isAdmin();
+          MY_NAME = nameInput.value.trim();
+          if (MY_NAME) {
+            setCookie(NAME_COOKIE, MY_NAME, 365);
+            if (nameMsg) {
+              nameMsg.textContent = "Je naam wordt opgeslagen in een cookie op dit apparaat.";
+              nameMsg.className = "name-msg ok";
+            }
+          } else if (nameMsg) {
+            nameMsg.textContent = "Laat je naam hier achter; die wordt bewaard in een cookie op dit apparaat.";
+            nameMsg.className = "name-msg";
+          }
+          if (isAdmin() !== wasAdmin) render();
+          scheduleRemoteSave();
+        });
+      }
+
+      if (remote) {
+        const msg = document.getElementById("syncMsg");
+        msg.textContent = "Serverstatus geladen.";
+        msg.className = "sync ok";
+      }
+      scheduleRemoteSave();
+    })();
+  </script>
+</body>
+</html>
