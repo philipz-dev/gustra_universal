@@ -97,14 +97,32 @@ export function MountNode({
  * keeps the fully-expanded restaurant name clear of it. No fixed height — the
  * card wraps exactly its text content, so short names stay compact.
  */
-export function StoryFallbackCard({ entry }: { entry: VisitTimelineEntry }) {
+export function StoryFallbackCard({
+  entry,
+  hideRestaurantTitle = false,
+}: {
+  entry: VisitTimelineEntry;
+  hideRestaurantTitle?: boolean;
+}) {
   return (
     <View style={[styles.storyFallback, styles.storyFallbackGreen]}>
-      <View style={styles.storyFallbackText}>
-        <SerifText size={24} weight="bold" style={styles.storyTitle}>
-          {entry.restaurantTitle}
-        </SerifText>
-        <Text style={styles.storyDate}>{formatLongDate(entry.date)}</Text>
+      <View
+        style={[
+          styles.storyFallbackText,
+          hideRestaurantTitle && styles.storyFallbackTextTitleless,
+        ]}>
+        {!hideRestaurantTitle ? (
+          <SerifText size={24} weight="bold" style={styles.storyTitle}>
+            {entry.restaurantTitle}
+          </SerifText>
+        ) : null}
+        <Text
+          style={[
+            styles.storyDate,
+            hideRestaurantTitle && styles.storyFallbackDateTitleless,
+          ]}>
+          {formatLongDate(entry.date)}
+        </Text>
       </View>
       <View style={styles.scoreBadge} pointerEvents="none">
         <HouseGlyph
@@ -122,14 +140,32 @@ export function StoryFallbackCard({ entry }: { entry: VisitTimelineEntry }) {
 }
 
 /** Bottom-overlay copy block sitting on the cinematic gradient. */
-export function StoryOverlay({ entry }: { entry: VisitTimelineEntry }) {
+export function StoryOverlay({
+  entry,
+  hideRestaurantTitle = false,
+}: {
+  entry: VisitTimelineEntry;
+  hideRestaurantTitle?: boolean;
+}) {
   return (
-    <View style={styles.storyCopy}>
-      <SerifText size={24} weight="bold" style={styles.storyTitle}>
-        {entry.restaurantTitle}
-      </SerifText>
+    <View
+      style={[
+        styles.storyCopy,
+        hideRestaurantTitle && styles.storyCopyTitleless,
+      ]}>
+      {!hideRestaurantTitle ? (
+        <SerifText size={24} weight="bold" style={styles.storyTitle}>
+          {entry.restaurantTitle}
+        </SerifText>
+      ) : null}
       <View style={styles.storyMetaRow}>
-        <Text style={styles.storyDate}>{formatLongDate(entry.date)}</Text>
+        <Text
+          style={[
+            styles.storyDate,
+            hideRestaurantTitle && styles.storyDateTitleless,
+          ]}>
+          {formatLongDate(entry.date)}
+        </Text>
       </View>
 
       {/* Floating glassmorphism rating badge, bottom-right. */}
@@ -162,10 +198,12 @@ export function VisitTimelineCard({
   entry,
   onPress,
   onDelete,
+  hideRestaurantTitle = false,
 }: {
   entry: VisitTimelineEntry;
   onPress: () => void;
   onDelete?: () => void;
+  hideRestaurantTitle?: boolean;
 }) {
   const [photoFailed, setPhotoFailed] = useState(false);
   // A non-empty uri that fails to load (e.g. an orphaned local path after a
@@ -201,10 +239,13 @@ export function VisitTimelineCard({
             locations={[0, 0.45, 1]}
             style={StyleSheet.absoluteFill}
           />
-          <StoryOverlay entry={entry} />
+          <StoryOverlay entry={entry} hideRestaurantTitle={hideRestaurantTitle} />
         </ImageBackground>
       ) : (
-        <StoryFallbackCard entry={entry} />
+        <StoryFallbackCard
+          entry={entry}
+          hideRestaurantTitle={hideRestaurantTitle}
+        />
       )}
     </Pressable>
   );
@@ -348,6 +389,15 @@ const styles = StyleSheet.create({
     paddingRight: 92,
     gap: 6,
   },
+  /** Titleless fallback: the date is the only line — drop the extra right pad. */
+  storyFallbackTextTitleless: {
+    paddingRight: 92,
+  },
+  storyFallbackDateTitleless: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
   storyCopy: {
     position: 'absolute',
     left: 0,
@@ -360,6 +410,11 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     paddingTop: 48,
     gap: 4,
+  },
+  /** Without the restaurant title the date is the only copy — bump it up. */
+  storyCopyTitleless: {
+    paddingTop: 12,
+    paddingRight: 120,
   },
   storyTitle: {
     color: '#FFFFFF',
@@ -380,6 +435,12 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.35)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+  },
+  /** Titleless overlay: the date is the primary line — make it larger. */
+  storyDateTitleless: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   /** Floating glassmorphism rating badge, bottom-right. */
   scoreBadge: {

@@ -76,6 +76,9 @@
     "visitCount_other": "{{count}} Besuche · {{date}}",
     "friendScoreLabel": "Freunde: {{score}} ({{count}} Besuch)",
     "friendScoreLabel_other": "Freunde: {{score}} ({{count}} Besuche)",
+    "criterionScoreLabel": "Sortiert nach {{criterion}}",
+    "noCriterionRatingLabel": "Keine {{criterion}}-Bewertung",
+    "noRatingLabel": "Keine Bewertung",
     "source": {
       "mine": "Meine Erinnerungen",
       "friends": "Mit dir geteilt"
@@ -94,7 +97,7 @@
       "importReviews": "Erinnerungen importieren",
       "addReview": "Erinnerung hinzufügen"
     },
-    "draftLabel": "Draft",
+    "draftLabel": "Entwurf",
     "demoLabel": "Demo",
     "visitedBefore_one": "Bereits 1 Mal besucht",
     "visitedBefore_other": "Bereits {{count}} Mal besucht",
@@ -158,13 +161,9 @@
     "emptyBody": "Dein Verkostungspass füllt sich, wenn du Restaurant-Erinnerungen hinzufügst.",
     "addReview": "Erinnerung hinzufügen",
     "overview": "Übersicht",
-    "overviewKicker": "deine Geschichte bisher",
     "totalReviews": "Erinnerungen gesamt",
     "averageOverall": "Gesamtdurchschnitt",
     "averageBasedOnAllRated": "Basierend auf all deinen bewerteten Kriterien",
-    "bestKicker": "deine Favoriten",
-    "winesKicker": "ein Prost darauf",
-    "citiesKicker": "wo du gegessen hast",
     "bestRestaurant": "Bestes Restaurant",
     "bestRestaurants": "Beste Restaurants",
     "bestWines": "Beste Weine",
@@ -187,7 +186,6 @@
   },
   "bucketList": {
     "title": "Wunschliste",
-    "kicker": "noch zu entdecken",
     "emptyTitle": "Noch keine Wunschliste",
     "emptyBody": "Tippe auf das Lesezeichen bei einem Restaurant, das du besuchen möchtest, um es hier zu speichern.",
     "addTitle": "Zur Wunschliste hinzufügen",
@@ -343,9 +341,6 @@
       "manual": "Manuell",
       "manualSubtitle": "Gib Name und Details selbst ein"
     },
-    "addVisit": {
-      "title": "Besuch hinzufügen"
-    },
     "nearby": {
       "startReview": "Erinnerung hinzufügen",
       "loadFailed": "Restaurants in der Nähe konnten nicht geladen werden.",
@@ -395,6 +390,8 @@
       "optionalComment": "Optionaler Kommentar",
       "otherVisits_one": "{{count}} weiterer Besuch in diesem Restaurant",
       "otherVisits_other": "{{count}} weitere Besuche in diesem Restaurant",
+      "visitedBefore_one": "Dieses Restaurant hast du schon {{count}} Mal besucht",
+      "visitedBefore_other": "Dieses Restaurant hast du schon {{count}} Mal besucht",
       "mostRecent": "Zuletzt {{date}}",
       "addPhotos": "Fotos hinzufügen",
       "delete": "Löschen",
@@ -403,6 +400,7 @@
       "avg": "{{score}} Ø",
       "time": "Uhrzeit",
       "setTime": "Uhrzeit festlegen · {{time}}",
+      "changeDate": "Datum ändern",
       "noMapPinHint": "Dieses Restaurant hat keine Kartenposition und erscheint daher nicht auf deiner Karte.",
       "photoStrip": {
         "hintReorder": "Tippen zum Auswählen · gedrückt halten zum Sortieren",
@@ -421,6 +419,20 @@
       "takePhoto": "Foto aufnehmen",
       "importPhoto": "Foto importieren",
       "adding": "Fotos werden hinzugefügt…"
+    },
+    "photoPicker": {
+      "title": "Fotos auswählen",
+      "remaining_one": "Noch {{count}} Foto erlaubt",
+      "remaining_other": "Noch {{count}} Fotos erlaubt",
+      "limitReached": "Fotolimit erreicht",
+      "clearSelection": "Auswahl löschen",
+      "addSelected_one": "{{count}} Foto hinzufügen",
+      "addSelected_other": "{{count}} Fotos hinzufügen",
+      "addPhotos": "Fotos hinzufügen",
+      "loadFailed": "Deine Fotos konnten nicht geladen werden.",
+      "retry": "Erneut versuchen",
+      "a11ySelect": "Foto auswählen",
+      "a11yDeselect": "Fotoauswahl aufheben"
     }
   },
   "detail": {
@@ -568,6 +580,11 @@
       "hardMessage": "Die Karte wurde heute die maximale Anzahl an Malen geladen. Morgen kannst du die Karte wieder öffnen."
     }
   },
+  "map": {
+    "loadFailedTitle": "Die Karte konnte nicht geladen werden",
+    "loadFailedBody": "Die Karte kann derzeit nicht geladen werden. Überprüfe deine Verbindung und versuche es erneut.",
+    "reload": "Erneut versuchen"
+  },
   "alerts": {
     "deleteRestaurant": {
       "title": "Restaurant löschen?",
@@ -607,12 +624,14 @@
       "removePhotosTitle": "Fotos entfernen?",
       "removePhotosBody": "Ausgewählte Fotos werden aus dieser Erinnerung entfernt.",
       "photosSaveFailed": "Fotos konnten nicht gespeichert werden.",
+      "photosAdded_one": "{{count}} Foto hinzugefügt",
+      "photosAdded_other": "{{count}} Fotos hinzugefügt",
       "photoLimitTitle": "Fotolimit",
       "photoLimitBody": "Du kannst bis zu {{max}} Fotos zu einer Erinnerung hinzufügen.",
       "deleteTitle": "Löschen?",
       "deleteBody": "Diese Erinnerung wird gelöscht.",
       "discardEdits": {
-        "title": "Änderungen speichern?"
+        "title": "Änderungen und neue Fotos verwerfen?"
       },
       "saveFailed": "Diese Erinnerung konnte nicht gespeichert werden."
     },

@@ -4,6 +4,7 @@ import {
   draftReviewReason,
   isFormDraft,
   formDraftReason,
+  mostRecentVisitIso,
   wineNeedsRating,
 } from '@/services/reviews/draftReview';
 import type { CriterionRating, Review, WineLabelFiche } from '@/data/types';
@@ -120,5 +121,43 @@ describe('wineNeedsRating', () => {
     expect(wineNeedsRating(fiche())).toBe(true);
     expect(wineNeedsRating(fiche({ userRating: 0 }))).toBe(true);
     expect(wineNeedsRating(fiche({ userRating: 6 }))).toBe(false);
+  });
+});
+
+describe('mostRecentVisitIso', () => {
+  it('returns the current visit when there are no prior visits', () => {
+    expect(mostRecentVisitIso([], '2026-08-07T12:00:00.000Z')).toBe(
+      '2026-08-07T12:00:00.000Z',
+    );
+  });
+
+  it('keeps the stored newest visit when the current date is older', () => {
+    const prior = [{ date: '2026-08-01T12:00:00.000Z' }];
+    expect(mostRecentVisitIso(prior, '2026-07-20T12:00:00.000Z')).toBe(
+      '2026-08-01T12:00:00.000Z',
+    );
+  });
+
+  it('uses the visit being filled in when it is newer than every stored visit', () => {
+    const prior = [{ date: '2026-08-01T12:00:00.000Z' }];
+    const current = '2026-08-10T12:00:00.000Z';
+    expect(mostRecentVisitIso(prior, current)).toBe(current);
+  });
+
+  it('uses the newest of many prior visits (list is newest-first)', () => {
+    const prior = [
+      { date: '2026-08-01T12:00:00.000Z' },
+      { date: '2026-06-01T12:00:00.000Z' },
+    ];
+    expect(mostRecentVisitIso(prior, '2026-07-01T12:00:00.000Z')).toBe(
+      '2026-08-01T12:00:00.000Z',
+    );
+  });
+
+  it('keeps the stored visit when the current date is exactly equal', () => {
+    const prior = [{ date: '2026-08-01T12:00:00.000Z' }];
+    expect(mostRecentVisitIso(prior, '2026-08-01T12:00:00.000Z')).toBe(
+      '2026-08-01T12:00:00.000Z',
+    );
   });
 });

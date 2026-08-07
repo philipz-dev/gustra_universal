@@ -147,10 +147,14 @@ export const QUICK_PRESET_STANDARD_IDS: readonly StandardCriterionId[] = [
 export const ESSENTIALS_PRESET_STANDARD_IDS: readonly StandardCriterionId[] =
   FIRST_START_ENABLED_STANDARD_IDS;
 
-/** Required to complete every review; users cannot disable it. */
-export const MANDATORY_STANDARD_CRITERION_IDS: readonly StandardCriterionId[] = [
-  'food',
-] as const;
+/**
+ * No criterion is required to complete a review anymore — any single rated
+ * criterion finishes a draft (see `hasAnyRatedCriterion`). The list stays as
+ * an empty, documented constant so callers keep working and historic data
+ * round-trips untouched.
+ */
+export const MANDATORY_STANDARD_CRITERION_IDS: readonly StandardCriterionId[] =
+  [] as const;
 
 /**
  * Historic "full control" starting point (Food + Drinks preselected). Kept as

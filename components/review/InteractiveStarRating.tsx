@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -13,7 +13,7 @@ import { runOnJS } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 
 import { GustraColors } from '@/constants/Colors';
-import { SERIF_FONT, Theme } from '@/constants/Theme';
+import { captionTextStyle, SERIF_FONT, Theme } from '@/constants/Theme';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { Haptics } from '@/services/haptics';
 import {
@@ -81,7 +81,7 @@ function stepsFromLocalX(x: number): number {
 /**
  * Interactive half-star rating (Swift `StarRatingView`).
  * Tap or horizontal scrub; vertical movement fails to ScrollView.
- * Trash clears to N/A (`-1`).
+ * Trash clears to unrated (0); N/A (`-1`) is set explicitly where supported.
  */
 export function InteractiveStarRating({
   rating,
@@ -91,6 +91,7 @@ export function InteractiveStarRating({
   const { t } = useAppTranslation();
   const lastSteps = useRef(rating);
   const scrubbingRef = useRef(false);
+  const [touched, setTouched] = useState(false);
   const ratingRef = useRef(rating);
   ratingRef.current = rating;
   const onChangeRef = useRef(onChange);
@@ -109,6 +110,7 @@ export function InteractiveStarRating({
   }, []);
 
   const applyFromX = useCallback((x: number) => {
+    setTouched(true);
     const steps = stepsFromLocalX(x);
     if (
       steps === lastSteps.current &&
@@ -163,7 +165,11 @@ export function InteractiveStarRating({
       <View style={styles.row}>
         <GestureDetector gesture={gesture}>
           <View
-            style={[styles.stars, { width: STARS_WIDTH, height: STAR_SIZE }]}
+            style={[
+              styles.stars,
+              { width: STARS_WIDTH, height: STAR_SIZE },
+              touched && styles.stateLayer,
+            ]}
             accessibilityRole="adjustable"
             accessibilityLabel={t('rating.a11y.rating')}
             accessibilityValue={{
@@ -191,13 +197,14 @@ export function InteractiveStarRating({
             accessibilityLabel={t('rating.a11y.clear')}
             hitSlop={8}
             onPress={() => {
-              lastSteps.current = RatingValue.notApplicable;
+              lastSteps.current = RatingValue.unrated;
+              setTouched(false);
               Haptics.light();
-              onChange(RatingValue.notApplicable);
+              onChange(RatingValue.unrated);
             }}
             style={({ pressed }) => [
               styles.clearHit,
-              pressed && styles.pressed,
+              pressed && styles.clearPressed,
             ]}>
             {Platform.OS === 'ios' ? (
               <SymbolView
@@ -220,7 +227,12 @@ export function InteractiveStarRating({
       </View>
 
       {RatingValue.isStarRating(rating) ? (
-        <Text style={styles.label}>{ratingLabel(rating)}</Text>
+        <View style={styles.labelRow}>
+          <Text style={styles.label}>{ratingLabel(rating)}</Text>
+          <Text style={styles.labelScore}>
+            {formatHalfStarOutOfFive(rating)}
+          </Text>
+        </View>
       ) : null}
     </View>
   );
@@ -239,6 +251,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  /** M3/HIG state layer — subtle wash behind stars while actively rating. */
+  stateLayer: {
+    backgroundColor: 'rgba(36, 78, 57, 0.07)',
+    borderRadius: 10,
+  },
   starBase: {
     position: 'absolute',
     top: 0,
@@ -253,12 +270,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pressed: {
-    opacity: 0.65,
+  clearPressed: {
+    backgroundColor: 'rgba(35, 32, 26, 0.08)',
+    borderRadius: 10,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
   },
   label: {
     fontFamily: SERIF_FONT,
     fontSize: 15,
     color: 'rgba(35, 32, 26, 0.7)',
+  },
+  labelScore: {
+    ...captionTextStyle,
+    fontSize: 13,
+    color: GustraColors.forestGreen,
   },
 });

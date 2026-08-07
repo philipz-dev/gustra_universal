@@ -317,4 +317,19 @@ describe('buildTimeMachineEntries', () => {
     );
     expect(entries[0]!.photoUrl).toBe('');
   });
+
+  it('scores each visit from its criteria, not the stored overallScore', () => {
+    const restaurants = [restaurant('r1', 'Het Huis', 'Gent')];
+    const reviews = [
+      // Stored overallScore is stale (4.0) but the criteria average to 4.5
+      // (food 10 + service 8 → 9 → 4.5). Terugblik must use the live criteria
+      // score so Mijn Gustra (same rule) and Terugblik can never diverge.
+      review('a', 'r1', '2024-06-01', { food: 10, service: 8 }, {
+        overallScore: 4,
+      }),
+    ];
+    const entries = buildTimeMachineEntries(reviews, restaurants);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.score).toBeCloseTo(4.5, 3);
+  });
 });

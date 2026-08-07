@@ -101,7 +101,7 @@ export default function RestaurantVisitsScreen() {
     Haptics.selectionChanged();
     router.push({
       pathname: '/review-form',
-      params: { restaurantId: id },
+      params: { restaurantId: id, from: 'restaurant' },
     });
   }, [id, router]);
 
@@ -220,7 +220,7 @@ export default function RestaurantVisitsScreen() {
       if (isReviewDraft(review)) {
         router.push({
           pathname: '/review-form',
-          params: { reviewId: review.id },
+          params: { reviewId: review.id, from: 'restaurant' },
         });
         return;
       }
@@ -250,96 +250,96 @@ export default function RestaurantVisitsScreen() {
         />
       ) : (
         <View style={styles.body} collapsable={false}>
+          {/* ——— Summary header (fixed — does not scroll) ——— */}
+          <View style={styles.headerBlock}>
+            <View style={styles.summaryCard}>
+              <SerifText size={20} weight="semibold" style={styles.location}>
+                {displayLocation(
+                  restaurant.name,
+                  restaurant.city,
+                  restaurant.country,
+                )}
+              </SerifText>
+              {showSourceGroups ? (
+                <>
+                  {sourceGroups.map((group) => {
+                    const isOwn = group.origin === 'own';
+                    const label = isOwn
+                      ? t('detail.restaurant.myVisits')
+                      : t('detail.restaurant.friendsVisits');
+                    return (
+                      <View key={group.origin} style={styles.sourceRow}>
+                        <Text style={styles.sourceLabel}>{label}</Text>
+                        <View style={styles.sourceAvgRow}>
+                          {group.average > 0 ? (
+                            <>
+                              <FractionalStarRating
+                                score={group.average}
+                                size={isOwn ? 18 : 15}
+                              />
+                              <SerifText
+                                size={isOwn ? 17 : 14}
+                                weight={isOwn ? 'semibold' : 'regular'}
+                                style={[
+                                  styles.avgText,
+                                  !isOwn && styles.sourceAvgMuted,
+                                ]}>
+                                {formatScoreOutOfFive(group.average)}
+                              </SerifText>
+                            </>
+                          ) : (
+                            <Text style={styles.sourceAvgMuted}>
+                              {t('reviews.notRated')}
+                            </Text>
+                          )}
+                          <Text style={styles.sourceCount}>
+                            {group.reviews.length}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                  {reviews.length > 1 ? (
+                    <Text style={styles.visitCount}>
+                      {t('detail.restaurant.visitCount', {
+                        count: reviews.length,
+                      })}
+                    </Text>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  {averageScore > 0 ? (
+                    <View style={styles.avgRow}>
+                      <FractionalStarRating score={averageScore} size={22} />
+                      <SerifText
+                        size={17}
+                        weight="semibold"
+                        style={styles.avgText}>
+                        {formatScoreOutOfFive(averageScore)}
+                      </SerifText>
+                    </View>
+                  ) : null}
+                  {reviews.length > 1 ? (
+                    <Text style={styles.visitCount}>
+                      {t('detail.restaurant.visitCount', {
+                        count: reviews.length,
+                      })}
+                    </Text>
+                  ) : null}
+                </>
+              )}
+            </View>
+          </View>
+
+          {/* ——— Visit timeline (scrolling; identical to Time Travel) ——— */}
           <ScrollView
             style={styles.scroll}
-            contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
+            contentContainerStyle={[styles.timelineContent, { paddingBottom: bottomPad }]}
             overScrollMode="never"
             onScrollBeginDrag={dismissOpenSwipeable}
             scrollEventThrottle={16}
             showsVerticalScrollIndicator={false}>
-            {/* ——— Summary header ——— */}
-            <View style={styles.headerBlock}>
-              <View style={styles.summaryCard}>
-                <SerifText size={20} weight="semibold" style={styles.location}>
-                  {displayLocation(
-                    restaurant.name,
-                    restaurant.city,
-                    restaurant.country,
-                  )}
-                </SerifText>
-                {showSourceGroups ? (
-                  <>
-                    {sourceGroups.map((group) => {
-                      const isOwn = group.origin === 'own';
-                      const label = isOwn
-                        ? t('detail.restaurant.myVisits')
-                        : t('detail.restaurant.friendsVisits');
-                      return (
-                        <View key={group.origin} style={styles.sourceRow}>
-                          <Text style={styles.sourceLabel}>{label}</Text>
-                          <View style={styles.sourceAvgRow}>
-                            {group.average > 0 ? (
-                              <>
-                                <FractionalStarRating
-                                  score={group.average}
-                                  size={isOwn ? 18 : 15}
-                                />
-                                <SerifText
-                                  size={isOwn ? 17 : 14}
-                                  weight={isOwn ? 'semibold' : 'regular'}
-                                  style={[
-                                    styles.avgText,
-                                    !isOwn && styles.sourceAvgMuted,
-                                  ]}>
-                                  {formatScoreOutOfFive(group.average)}
-                                </SerifText>
-                              </>
-                            ) : (
-                              <Text style={styles.sourceAvgMuted}>
-                                {t('reviews.notRated')}
-                              </Text>
-                            )}
-                            <Text style={styles.sourceCount}>
-                              {group.reviews.length}
-                            </Text>
-                          </View>
-                        </View>
-                      );
-                    })}
-                    {reviews.length > 1 ? (
-                      <Text style={styles.visitCount}>
-                        {t('detail.restaurant.visitCount', {
-                          count: reviews.length,
-                        })}
-                      </Text>
-                    ) : null}
-                  </>
-                ) : (
-                  <>
-                    {averageScore > 0 ? (
-                      <View style={styles.avgRow}>
-                        <FractionalStarRating score={averageScore} size={22} />
-                        <SerifText
-                          size={17}
-                          weight="semibold"
-                          style={styles.avgText}>
-                          {formatScoreOutOfFive(averageScore)}
-                        </SerifText>
-                      </View>
-                    ) : null}
-                    {reviews.length > 1 ? (
-                      <Text style={styles.visitCount}>
-                        {t('detail.restaurant.visitCount', {
-                          count: reviews.length,
-                        })}
-                      </Text>
-                    ) : null}
-                  </>
-                )}
-              </View>
-            </View>
-
-            {/* ——— Visit timeline (identical to Time Travel) ——— */}
             {showSourceGroups ? (
               sourceGroups.map((group) => (
                 <View key={group.origin} style={styles.groupBlock}>
@@ -381,6 +381,7 @@ export default function RestaurantVisitsScreen() {
                               ? () => confirmDeleteVisit(review)
                               : undefined
                           }
+                          hideRestaurantTitle
                         />
                       );
                     }}
@@ -407,6 +408,7 @@ export default function RestaurantVisitsScreen() {
                           ? () => confirmDeleteVisit(review)
                           : undefined
                       }
+                      hideRestaurantTitle
                     />
                   );
                 }}
@@ -442,13 +444,17 @@ const styles = StyleSheet.create({
   scroll: {
     flex: 1,
   },
-  content: {
+  timelineContent: {
     paddingHorizontal: Theme.spacing.listRowHorizontal,
-    paddingTop: 24,
+    paddingTop: 14,
     gap: 22,
   },
   headerBlock: {
     gap: 14,
+    paddingHorizontal: Theme.spacing.listRowHorizontal,
+    paddingTop: 14,
+    paddingBottom: 4,
+    backgroundColor: GustraColors.cream,
   },
   summaryCard: {
     padding: Theme.spacing.cardPadding,

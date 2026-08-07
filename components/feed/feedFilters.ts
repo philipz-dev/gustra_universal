@@ -246,13 +246,12 @@ function rankByCriterion(
     .map((summary) => ({
       summary,
       score: criterionAverageFor(summary, criterionId),
-    }))
+    }));
+  const ranked = withScores
     .filter(
       (row): row is { summary: RestaurantVisitSummary; score: number } =>
         row.score != null,
-    );
-
-  const ranked = withScores
+    )
     .sort((a, b) => {
       if (a.score !== b.score) return b.score - a.score;
       return a.summary.name.localeCompare(b.summary.name, undefined, {
@@ -260,11 +259,18 @@ function rankByCriterion(
       });
     })
     .map((row) => row.summary);
+  // Restaurants without a rating on this criterion stay visible but move to
+  // the bottom (sorted by recency) instead of disappearing entirely.
+  const unscored = withScores
+    .filter((row) => row.score == null)
+    .map((row) => row.summary);
 
-  // Drafts stay on top even when sorting by criterion.
+  // Drafts stay on top even when sorting by criterion; unscored restaurants
+  // sink below the ranked ones so sorting never removes a restaurant.
   return [
     ...rankByDate(drafts),
     ...ranked,
+    ...rankByDate(unscored),
   ];
 }
 

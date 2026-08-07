@@ -34,12 +34,11 @@ describe('criteria presets', () => {
     expectValidPreset(ESSENTIALS_PRESET_STANDARD_IDS);
   });
 
-  it('every preset keeps the mandatory criterion (food)', () => {
-    for (const ids of [QUICK_PRESET_STANDARD_IDS, ESSENTIALS_PRESET_STANDARD_IDS]) {
-      for (const mandatory of MANDATORY_STANDARD_CRITERION_IDS) {
-        expect(ids).toContain(mandatory);
-      }
-    }
+  it('no criterion is mandatory anymore (reviews complete with any rated criterion)', () => {
+    expect(MANDATORY_STANDARD_CRITERION_IDS).toEqual([]);
+    // Presets stay as-is — nothing forces 'food' to stay enabled.
+    expectValidPreset(QUICK_PRESET_STANDARD_IDS);
+    expectValidPreset(ESSENTIALS_PRESET_STANDARD_IDS);
   });
 
   it('Quick/Essentials complete setup; Full control opens the screen', () => {
@@ -57,14 +56,11 @@ describe('criteria presets', () => {
     // Full control no longer resets criteria to a fixed preset — the screen
     // keeps whatever selection is already loaded (first-start defaults for a
     // new install, or the user's own earlier choices). The historic preset is
-    // kept as a valid, mandatory-containing reference.
+    // kept as a valid reference.
     expectValidPreset(FULL_CONTROL_INITIAL_STANDARD_IDS);
-    for (const mandatory of MANDATORY_STANDARD_CRITERION_IDS) {
-      expect(FULL_CONTROL_INITIAL_STANDARD_IDS).toContain(mandatory);
-    }
   });
 
-  it('first-start defaults only disable non-mandatory criteria', () => {
+  it('first-start defaults enable the core five', () => {
     const disabled = firstStartDisabledStandardIds();
     expect(disabled.has('food')).toBe(false);
     expect(disabled.has('drinks')).toBe(false);

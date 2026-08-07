@@ -82,6 +82,9 @@
     "visitCount_other": "{{count}} visits · {{date}}",
     "friendScoreLabel": "Friends: {{score}} ({{count}} visit)",
     "friendScoreLabel_other": "Friends: {{score}} ({{count}} visits)",
+    "criterionScoreLabel": "Sorted by {{criterion}}",
+    "noCriterionRatingLabel": "No {{criterion}} rating",
+    "noRatingLabel": "No rating",
     "source": {
       "mine": "My memories",
       "friends": "Shared with you"
@@ -158,13 +161,9 @@
     "emptyBody": "Your tasting passport fills in as you add restaurant memories.",
     "addReview": "Add Memory",
     "overview": "Overview",
-    "overviewKicker": "your story so far",
     "totalReviews": "Total Memories",
     "averageOverall": "Average Overall",
     "averageBasedOnAllRated": "Based on all your rated criteria",
-    "bestKicker": "your favourites",
-    "winesKicker": "cheers to these",
-    "citiesKicker": "where you dined",
     "bestRestaurant": "Best restaurant",
     "bestRestaurants": "Best restaurants",
     "bestWines": "Best wines",
@@ -187,7 +186,6 @@
   },
   "bucketList": {
     "title": "Bucket List",
-    "kicker": "still to explore",
     "emptyTitle": "No bucket list yet",
     "emptyBody": "Tap the bookmark on a restaurant you want to visit to save it here.",
     "addTitle": "Add to bucket list",
@@ -343,9 +341,6 @@
       "manual": "Manual",
       "manualSubtitle": "Enter the name and details yourself"
     },
-    "addVisit": {
-      "title": "Add visit"
-    },
     "nearby": {
       "startReview": "Add Memory",
       "loadFailed": "Couldn't load nearby restaurants.",
@@ -397,6 +392,8 @@
       "optionalComment": "Optional comment",
       "otherVisits_one": "{{count}} other visit at this restaurant",
       "otherVisits_other": "{{count}} other visits at this restaurant",
+      "visitedBefore_one": "You've visited this restaurant {{count}} time before",
+      "visitedBefore_other": "You've visited this restaurant {{count}} times before",
       "mostRecent": "Most recent {{date}}",
       "draftBannerCriteria": "Rate at least one criterion to finish this memory.",
       "draftBannerFood": "Rate Food to complete this memory.",
@@ -408,6 +405,7 @@
       "avg": "{{score}} avg",
       "time": "Time",
       "setTime": "Set time · {{time}}",
+      "changeDate": "Change date",
       "noMapPinHint": "This restaurant has no map location, so it won't appear on your map.",
       "photoStrip": {
         "hintReorder": "Tap to select · long-press to reorder",
@@ -421,6 +419,20 @@
       "takePhoto": "Take Photo",
       "importPhoto": "Import Photo",
       "adding": "Adding photos…"
+    },
+    "photoPicker": {
+      "title": "Choose Photos",
+      "remaining_one": "{{count}} photo left",
+      "remaining_other": "{{count}} photos left",
+      "limitReached": "Photo limit reached",
+      "clearSelection": "Clear selection",
+      "addSelected_one": "Add {{count}} photo",
+      "addSelected_other": "Add {{count}} photos",
+      "addPhotos": "Add photos",
+      "loadFailed": "Couldn't load your photos.",
+      "retry": "Try again",
+      "a11ySelect": "Select photo",
+      "a11yDeselect": "Deselect photo"
     }
   },
   "detail": {
@@ -568,6 +580,11 @@
       "hardMessage": "The map has been loaded the maximum number of times today. Tomorrow you can open the map again."
     }
   },
+  "map": {
+    "loadFailedTitle": "Couldn't load the map",
+    "loadFailedBody": "The map couldn't be loaded right now. Check your connection and try again.",
+    "reload": "Try again"
+  },
   "alerts": {
     "deleteRestaurant": {
       "title": "Delete restaurant?",
@@ -608,12 +625,14 @@
       "removePhotosTitle": "Remove Photos?",
       "removePhotosBody": "Selected photos will be removed from this memory.",
       "photosSaveFailed": "Could not save photos.",
+      "photosAdded_one": "{{count}} photo added",
+      "photosAdded_other": "{{count}} photos added",
       "photoLimitTitle": "Photo limit",
       "photoLimitBody": "You can add up to {{max}} photos to a memory.",
       "deleteTitle": "Delete?",
       "deleteBody": "This memory will be deleted.",
       "discardEdits": {
-        "title": "Save changes?"
+        "title": "Delete changes and new photos?"
       }
     },
     "recovery": {

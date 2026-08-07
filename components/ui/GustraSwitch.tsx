@@ -3,21 +3,42 @@ import {
   Switch,
   type SwitchProps,
   StyleSheet,
+  View,
 } from 'react-native';
+import { Switch as PaperSwitch } from 'react-native-paper';
 
 import { GustraColors } from '@/constants/Colors';
 import { Haptics } from '@/services/haptics';
-
-/** Android Material switches render smaller than iOS UISwitch; scale to match. */
-const ANDROID_SCALE = 1.28;
 
 type GustraSwitchProps = Omit<
   SwitchProps,
   'trackColor' | 'thumbColor' | 'ios_backgroundColor'
 >;
 
-/** House-styled toggle; enlarged on Android so it reads like the iOS control. */
+/**
+ * House-styled toggle.
+ * - iOS: native UISwitch with the Gustra track colors + selection haptic.
+ * - Android: M3 Switch (react-native-paper) — correct 52dp touch target and
+ *   state layer, colored via the Gustra MD3 theme instead of a scaled native
+ *   switch. The M3 switch is smaller, so wrap it in a centered hit-area box.
+ */
 export function GustraSwitch({ onValueChange, ...props }: GustraSwitchProps) {
+  if (Platform.OS === 'android') {
+    return (
+      <View style={styles.androidHitArea} pointerEvents="box-none">
+        <PaperSwitch
+          value={props.value}
+          onValueChange={(value) => {
+            Haptics.selectionChanged();
+            onValueChange?.(value);
+          }}
+          disabled={props.disabled}
+          style={[styles.androidSwitch, props.style]}
+        />
+      </View>
+    );
+  }
+
   return (
     <Switch
       {...props}
@@ -31,16 +52,18 @@ export function GustraSwitch({ onValueChange, ...props }: GustraSwitchProps) {
         Haptics.selectionChanged();
         onValueChange?.(value);
       }}
-      style={[
-        Platform.OS === 'android' ? styles.androidScale : null,
-        props.style,
-      ]}
     />
   );
 }
 
 const styles = StyleSheet.create({
-  androidScale: {
-    transform: [{ scale: ANDROID_SCALE }],
+  androidHitArea: {
+    minWidth: 52,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  androidSwitch: {
+    transform: [{ scale: 1.05 }],
   },
 });

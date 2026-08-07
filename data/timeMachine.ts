@@ -1,6 +1,7 @@
 import type { Restaurant, Review } from '@/data/types';
 import { resolveReviewOrigin } from '@/data/types';
 import { isReviewDraft } from '@/services/reviews/draftReview';
+import { overallScoreFromCriteria } from '@/services/reviews/ratings';
 
 /** One visit on the Time Travel timeline. */
 export type TimeMachineEntry = {
@@ -64,7 +65,7 @@ export function buildTimeMachineEntries(
         ? displayLocation(restaurant.name, restaurant.city)
         : '—',
       date: review.date,
-      score: review.overallScore,
+      score: overallScoreFromCriteria(review.criteria),
       photoUrl: firstPhotoUrl(review.photoUrls),
       thumbnailColor: restaurant?.thumbnailColor || '#3D6B52',
     };

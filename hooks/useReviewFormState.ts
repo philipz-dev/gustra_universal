@@ -22,6 +22,7 @@ import {
   formDraftReason,
   isFormDraft,
   isReviewDraft,
+  mostRecentVisitIso,
 } from '@/services/reviews/draftReview';
 import { takePendingWineLabelResult } from '@/services/wine/pendingWineLabelResult';
 import {
@@ -65,13 +66,18 @@ export function useReviewFormState() {
     draft?: string;
     reviewId?: string;
     restaurantId?: string;
-    /** 'bucket' when opened from the My Gustra bucket list (back → passport). */
+    /**
+     * 'bucket' when opened from the My Gustra bucket list (back → passport);
+     * 'restaurant' when opened from a restaurant/review detail (back → that
+     * detail, e.g. "Bezoek toevoegen" on a restaurant with multiple visits).
+     */
     from?: string;
   }>();
   const router = useRouter();
   const navigation = useNavigation();
 
   const fromBucket = params.from === 'bucket';
+  const fromRestaurant = params.from === 'restaurant';
 
   const { enabledCriteria, customCriteria } = useCriteriaSettings();
   const {
@@ -160,6 +166,8 @@ export function useReviewFormState() {
   const allowLeaveRef = useRef(false);
   const fromBucketRef = useRef(fromBucket);
   fromBucketRef.current = fromBucket;
+  const fromRestaurantRef = useRef(fromRestaurant);
+  fromRestaurantRef.current = fromRestaurant;
   didDeleteRef.current = didDelete;
 
   // Hydrate once store + route params are ready.
@@ -313,7 +321,16 @@ export function useReviewFormState() {
     scoredPriorVisits.length > 0
       ? scoredPriorVisits.reduce((s, r) => s + r.overallScore, 0) / scoredPriorVisits.length
       : 0;
-  const lastVisitIso = priorVisits[0]?.date;
+  /**
+   * Most recent visit INCLUDING the one being filled in right now. `priorVisits`
+   * is newest-first but excludes the current review (by id); if the visit date
+   * being entered is newer than the stored most recent one, the label would be
+   * wrong the moment a newer visit is saved — so compare and pick the newer.
+   */
+  const lastVisitIso = mostRecentVisitIso(
+    priorVisits,
+    visitDate.toISOString(),
+  );
 
   const showsDone = Boolean(draft);
   const draftReason = formDraftReason(criteriaList, wineLabels);
@@ -520,10 +537,28 @@ export function useReviewFormState() {
       router.back();
       return;
     }
-    if (router.canDismiss()) {
-      router.dismissAll();
+    // New visits opened from a restaurant or review detail: the form sits
+    // directly on top of the detail, so back restores exactly where the user
+    // tapped "Bezoek toevoegen" — never jump to the feed.
+    if (fromRestaurantRef.current) {
+      router.back();
+      return;
     }
-    router.navigate('/(tabs)/(main)');
+    // Editing an existing review (bewerk-knop on the review detail, or a
+    // draft card on the feed): keep the historic behavior of collapsing the
+    // stack onto the feed.
+    if (isEditRef.current) {
+      if (router.canDismiss()) {
+        router.dismissAll();
+      }
+      router.navigate('/(tabs)/(main)');
+      return;
+    }
+    // New memories started through the picker stack (add-review → nearby /
+    // map-search / manual-entry → form). Dismiss back to the "Nieuwe
+    // herinnering" chooser so the user lands where they started, instead of
+    // collapsing the whole stack onto the feed.
+    router.dismissTo('/add-review');
   }, [router]);
   const discardEditPhotos = useCallback(() => {
     const baseline = editBaselineRef.current;
@@ -727,10 +762,26 @@ export function useReviewFormState() {
       leaveToReviews();
       return;
     }
+    // New visits opened from a restaurant / review detail ("Bezoek toevoegen")
+    // are pushed directly on top of that detail; back restores the detail, not
+    // the feed.
+    if (fromRestaurantRef.current && !isEditRef.current) {
+      if (isFormDirty) {
+        promptDiscardEdits(() => {
+          allowLeaveRef.current = true;
+          leaveToReviews();
+        });
+        return;
+      }
+      allowLeaveRef.current = true;
+      leaveToReviews();
+      return;
+    }
     // New reviews are pushed from a picker stack (nearby / map-search /
     // manual entry). Backing out of a brand-new draft should land on the
-    // feed — not step back through the picker — so the user never clicks
-    // through a long stack. Edits keep the normal back-to-origin behavior.
+    // "Nieuwe herinnering" chooser (add-review) — not step back through the
+    // whole picker — so the user never clicks through a long stack. Edits
+    // keep the normal back-to-origin behavior.
     if (!isEditRef.current) {
       if (isFormDirty) {
         // Only ask when something was actually entered. A fresh form with

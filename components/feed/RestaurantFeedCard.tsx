@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Card as PaperCard } from 'react-native-paper';
 import { SymbolView } from 'expo-symbols';
 
 import { FeedSwipeDelete } from '@/components/feed/FeedSwipeDelete';
@@ -33,6 +35,10 @@ type RestaurantFeedCardProps = {
    * instead of overall average — Swift `RestaurantFeedCardView.scoreOverride`.
    */
   scoreOverride?: number | null;
+  /** Title of the criterion used for sorting (e.g. "Drinks"), shown as label. */
+  scoreOverrideCriterionTitle?: string | null;
+  /** True when the sort criterion has no rating for this restaurant. */
+  scoreMissing?: boolean;
   shareSelecting?: boolean;
   selected?: boolean;
   onSelectToggle?: () => void;
@@ -44,47 +50,39 @@ export function RestaurantFeedCard({
   onDelete,
   onFavoriteToggle,
   scoreOverride,
+  scoreOverrideCriterionTitle,
+  scoreMissing = false,
   shareSelecting = false,
   selected = false,
   onSelectToggle,
 }: RestaurantFeedCardProps) {
   const { t } = useAppTranslation();
   const { showDemoLabel } = useDemoLabelSettings();
+  /** M3 state-layer wash on Android (paper Card has no ripple of its own). */
+  const [androidCardPressed, setAndroidCardPressed] = useState(false);
   const isDraft = Boolean(summary.isDraft);
   const isDemo = isDemoRestaurantId(summary.restaurantId);
+  // When the sort criterion is missing, do not fall back to the overall
+  // average — the card must look "not rated on this criterion".
   const displayScore =
-    typeof scoreOverride === 'number'
+    !scoreMissing && typeof scoreOverride === 'number'
       ? scoreOverride
       : summary.ownScore ?? summary.averageScore;
   // Friend score as context below the own main score (only when merged).
   const friendScore =
     summary.friendScore && summary.friendVisitCount ? summary.friendScore : null;
 
-  const card = (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={
-        isDraft
-          ? `${summary.name}, ${t('reviews.draftLabel')}`
-          : undefined
-      }
-      onPress={() => {
-        Haptics.light();
-        if (shareSelecting) {
-          onSelectToggle?.();
-        } else {
-          onPress();
-        }
-      }}
-      android_ripple={
-        Platform.OS === 'android'
-          ? { color: Theme.list.androidRipple, borderless: false }
-          : undefined
-      }
-      style={({ pressed }) => [
-        styles.card,
-        Platform.OS === 'ios' && pressed ? listPressedStyle : null,
-      ]}>
+  const handlePress = () => {
+    Haptics.light();
+    if (shareSelecting) {
+      onSelectToggle?.();
+    } else {
+      onPress();
+    }
+  };
+
+  const cardBody = (
+    <>
       <RestaurantThumb uri={summary.photoUrl} />
 
       <View style={styles.main}>
@@ -92,8 +90,24 @@ export function RestaurantFeedCard({
           {summary.name}
         </SerifText>
         {summary.city ? <Text style={styles.city}>{summary.city}</Text> : null}
-        {!isDraft && displayScore > 0 ? (
+        {!isDraft && !scoreMissing && displayScore > 0 ? (
           <FractionalStarRating score={displayScore} size={24} />
+        ) : null}
+        {!isDraft && scoreMissing ? (
+          <Text style={styles.missingCriterion}>
+            {scoreOverrideCriterionTitle
+              ? t('reviews.noCriterionRatingLabel', {
+                  criterion: scoreOverrideCriterionTitle,
+                })
+              : t('reviews.noRatingLabel')}
+          </Text>
+        ) : null}
+        {!isDraft && !scoreMissing && scoreOverrideCriterionTitle ? (
+          <Text style={styles.criterionLabel}>
+            {t('reviews.criterionScoreLabel', {
+              criterion: scoreOverrideCriterionTitle,
+            })}
+          </Text>
         ) : null}
         <Text style={styles.meta}>
           {summary.visitCount <= 1
@@ -125,7 +139,7 @@ export function RestaurantFeedCard({
           </View>
         ) : (
           <>
-            {displayScore > 0 ? (
+            {!scoreMissing && displayScore > 0 ? (
               <SerifText size={20} weight="bold" style={styles.score}>
                 {formatScoreOutOfFive(displayScore)}
               </SerifText>
@@ -146,8 +160,46 @@ export function RestaurantFeedCard({
           </>
         )}
       </View>
-    </Pressable>
+    </>
   );
+
+  // Android: M3 Elevated Card (react-native-paper) — tonal surface, elevation
+  // 1→2 state animation on press, and a subtle ink state-layer wash since the
+  // paper Card's inner Pressable has no ripple. iOS keeps the HIG pressable.
+  // (No a11y props on the paper Card: they'd land on the outer Surface and
+  // cause a TalkBack double-focus; the inner Pressable reads the card content.)
+  const card =
+    Platform.OS === 'android' ? (
+      <PaperCard
+        mode="elevated"
+        elevation={1}
+        onPress={handlePress}
+        onPressIn={() => setAndroidCardPressed(true)}
+        onPressOut={() => setAndroidCardPressed(false)}
+        style={styles.card}
+        contentStyle={styles.cardRow}>
+        {androidCardPressed ? (
+          <View pointerEvents="none" style={styles.androidStateLayer} />
+        ) : null}
+        {cardBody}
+      </PaperCard>
+    ) : (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={
+          isDraft
+            ? `${summary.name}, ${t('reviews.draftLabel')}`
+            : undefined
+        }
+        onPress={handlePress}
+        style={({ pressed }) => [
+          styles.card,
+          styles.cardRow,
+          pressed ? listPressedStyle : null,
+        ]}>
+        {cardBody}
+      </Pressable>
+    );
 
   if (shareSelecting) {
     return (
@@ -187,17 +239,38 @@ export function RestaurantFeedCard({
 
 const styles = StyleSheet.create({
   card: {
+    // Paper Card (Android) owns surface/elevation/borderRadius here; the row
+    // layout + padding live on Card.contentStyle (see cardRow below).
+    borderRadius: Theme.radius.xl,
+    ...(Platform.OS === 'ios'
+      ? {
+          backgroundColor: Theme.list.cardBackground,
+          // Avoid iOS blanking: overflow+radius without elevation hides Text.
+          overflow: 'hidden' as const,
+          ...Surface.raised,
+        }
+      : {
+          overflow: 'visible' as const,
+        }),
+  },
+  /** Row layout — on Android it lives on Card.contentStyle (inner container). */
+  cardRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
     padding: Theme.spacing.cardPadding,
     minHeight: Theme.size.hitTarget + Theme.spacing.cardPadding,
-    backgroundColor: Theme.list.cardBackground,
+  },
+  /** M3 state layer on Android — subtle ink wash while the card is pressed. */
+  androidStateLayer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: 'rgba(35, 32, 26, 0.05)',
     borderRadius: Theme.radius.xl,
-    // Avoid Android blanking: overflow+radius without elevation hides Text.
-    ...(Platform.OS === 'ios'
-      ? { overflow: 'hidden' as const, ...Surface.raised }
-      : { overflow: 'visible' as const, ...Surface.flat }),
+    zIndex: 1,
   },
   main: {
     flex: 1,
@@ -217,6 +290,19 @@ const styles = StyleSheet.create({
     ...captionTextStyle,
     fontSize: Type.label,
     color: 'rgba(35, 32, 26, 0.5)',
+  },
+  criterionLabel: {
+    ...captionTextStyle,
+    fontSize: Type.label,
+    fontWeight: '600',
+    color: GustraColors.forestGreen,
+  },
+  missingCriterion: {
+    ...captionTextStyle,
+    fontSize: Type.label,
+    fontWeight: '600',
+    color: 'rgba(35, 32, 26, 0.4)',
+    fontStyle: 'italic',
   },
   reviewer: {
     ...captionTextStyle,

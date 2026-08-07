@@ -20,6 +20,18 @@
 #                        Apple via API (that fails with “Cannot add internal group”).
 #   --help               Show usage
 #
+# `--platform both` builds iOS **then** Android **sequentially** (default):
+# iOS build+submit runs to completion first, then Android build+submit runs.
+# The shared build-number bump is applied to app.config.ts before either build
+# starts, the git commit happens only after BOTH platforms finished
+# successfully, and each platform's output is logged separately. Any failure
+# aborts the deploy without committing the bump (see the recovery message).
+# Sequential (not parallel) on purpose: parallel `eas build --local` runs raced
+# on the same eas.json (Sentry env inject) and on shared local tooling
+# (npx cache / Xcode / CocoaPods) — that produced the build-65/66
+# `json.decoder.JSONDecodeError` and `package.json does not exist in …/build`
+# failures.
+#
 # Build numbers: ios.buildNumber and android.versionCode stay equal.
 # Each upload bumps max(ios, android) + 1 and writes both fields (even if only
 # one platform is built), so TestFlight and Play show the same 1.0 (N).
@@ -48,6 +60,35 @@ ROOT="$(cd "$(dirname "$0")" && pwd)/.."
 ROOT="$(cd "$ROOT" && pwd)"
 CONFIG="$ROOT/app.config.ts"
 cd "$ROOT"
+
+# ── Build-temp naar externe HD (voorkomt volle interne schijf) ──────────────
+# Lokale builds (Gradle/Android, Xcode/iOS, EAS-werkmap) kunnen 10-20GB+
+# op de interne schijf gebruiken. Als "External HD" aanwezig is, wijzen we
+# ALLE temp-paden naar "$EXTERNAL_BUILD_ROOT" zodat de interne schijf niet
+# vol loopt. Zonder het volume vallen we terug op de default-paden.
+EXTERNAL_BUILD_ROOT="/Volumes/External HD/temp_build"
+if [[ -d "/Volumes/External HD" ]]; then
+  mkdir -p "$EXTERNAL_BUILD_ROOT"/gradle \
+           "$EXTERNAL_BUILD_ROOT"/eas-workspace \
+           "$EXTERNAL_BUILD_ROOT"/derived-data \
+           "$EXTERNAL_BUILD_ROOT"/cocoapods \
+           "$EXTERNAL_BUILD_ROOT"/tmp
+  export GRADLE_USER_HOME="$EXTERNAL_BUILD_ROOT/gradle"
+  export DERIVED_DATA_PATH="$EXTERNAL_BUILD_ROOT/derived-data"
+  export TMPDIR="$EXTERNAL_BUILD_ROOT/tmp"
+  # CocoaPods: pods/caches naar extern (kan alleen via ~/.cocoapods symlink
+  # of via Xcode build-instellingen; we zetten de omgeving alvast).
+  export CP_HOME="$EXTERNAL_BUILD_ROOT/cocoapods"
+  # EAS-local-build-plugin kiest workingdir uit EAS_LOCAL_BUILD_WORKINGDIR.
+  # De plugin vereist dat die map leeg is en verwijdert hem na de build —
+  # dus géén mkdir hier, en een unieke map per run via mktemp -d.
+  EAS_LOCAL_WORKDIR="$(mktemp -d "$EXTERNAL_BUILD_ROOT/eas-workspace/run.XXXXXX")"
+  export EAS_LOCAL_BUILD_WORKINGDIR="$EAS_LOCAL_WORKDIR"
+  echo "Build-temp → $EXTERNAL_BUILD_ROOT (externe HD)"
+  echo "  EAS werkmap: $EAS_LOCAL_WORKDIR (wordt na build opgeruimd door de plugin)"
+else
+  echo "Waarschuwing: /Volumes/External HD niet gevonden — build-temp blijft op de interne schijf."
+fi
 
 # Export Sentry vars into the EAS/Xcode build env (local --local does not auto-load .env.local).
 load_sentry_deploy_env() {
@@ -480,9 +521,9 @@ deploy_ios() {
     fi
   }
   trap cleanup_on_fail ERR
-
-  # Inject Sentry env into eas.json for this build (local Xcode only sees profile env).
-  inject_eas_sentry_env
+  if [[ "$PLATFORM" == "ios" || "$PLATFORM" == "both" ]]; then
+    inject_eas_sentry_env
+  fi
 
   # No --what-to-test (EAS changelog / Enterprise only).
   # Local builds cannot use --auto-submit*; write artifact then submit --path
@@ -543,8 +584,9 @@ deploy_android() {
     fi
   }
   trap cleanup_on_fail ERR
-
-  inject_eas_sentry_env
+  if [[ "$PLATFORM" == "android" || "$PLATFORM" == "both" ]]; then
+    inject_eas_sentry_env
+  fi
 
   # Local builds cannot use --auto-submit; write AAB then submit --path
   # (--latest only sees finished *cloud* builds).
@@ -600,6 +642,20 @@ PY
 
 bump_shared_build
 
+# ── Sequentieel deploy (both) ───────────────────────────────────────────────
+# iOS build+submit eerst volledig, daarna Android build+submit volledig — géén
+# parallelle branches meer. De eerdere parallelle `&`-branches (build-65/66)
+# veroorzaakten twee problemen die sequentieel niet kunnen optreden:
+#   • beide branches injecteerden/restoreerden hetzelfde eas.json → race →
+#     python `json.decoder.JSONDecodeError` vóór Xcode ook maar startte;
+#   • twee `eas build --local` tegelijk deelden de lokale tooling (npx cache,
+#     Xcode build dir, CocoaPods) → `package.json does not exist in …/build`.
+# Daarom: injectie/restore blijft per platformfunctie (zie deploy_ios/
+# deploy_android) maar dan SEQUENTIEEL, zodat er nooit twee mutaties tegelijk
+# op eas.json draaien. De shared buildnumber-bump staat vóór beide builds in
+# app.config.ts en wordt pas gecommit als BEIDE platformen geslaagd zijn.
+# Elke platform-fout stopt de run meteen (geen halve deploys, geen commit).
+
 if [[ "$PLATFORM" == "ios" || "$PLATFORM" == "both" ]]; then
   deploy_ios
 fi
@@ -607,7 +663,7 @@ if [[ "$PLATFORM" == "android" || "$PLATFORM" == "both" ]]; then
   deploy_android
 fi
 
-commit_bump "Bump shared store build to ${SHARED_NEXT} (${PLATFORM}, ${BUILD_MODE})."
+commit_bump "Bump shared store build to ${SHARED_NEXT} (${PLATFORM}, ${BUILD_MODE}, sequential)."
 
 echo ""
 echo "Alles klaar — beide platforms op build ${SHARED_NEXT}."

@@ -323,9 +323,7 @@ function CulinaryPassportContent() {
           ]}
           overScrollMode="never"
           showsVerticalScrollIndicator={false}>
-          <PassportSection
-            title={t('passport.overview')}
-            kicker={t('passport.overviewKicker')}>
+          <PassportSection title={t('passport.overview')}>
             <PassportStatCards
               totalReviews={stats.totalReviews}
               averageOverall={formatScoreOutOfFive(stats.averageOverall)}
@@ -336,9 +334,7 @@ function CulinaryPassportContent() {
           </PassportSection>
 
           {stats.bestRestaurants.length > 0 ? (
-            <PassportSection
-              title={bestSectionTitle}
-              kicker={t('passport.bestKicker')}>
+            <PassportSection title={bestSectionTitle}>
               <BestRestaurantPodium
                 entries={stats.bestRestaurants}
                 style={categoryAveragesStyle}
@@ -348,9 +344,7 @@ function CulinaryPassportContent() {
           ) : null}
 
           {bestWines.length > 0 ? (
-            <PassportSection
-              title={t('passport.bestWines')}
-              kicker={t('passport.winesKicker')}>
+            <PassportSection title={t('passport.bestWines')}>
               {bestWines.map((entry, index) => (
                 <RankedWineRow
                   key={`${entry.reviewId}-${index}`}
@@ -365,9 +359,7 @@ function CulinaryPassportContent() {
             </PassportSection>
           ) : null}
 
-          <PassportSection
-            title={t('passport.topCities')}
-            kicker={t('passport.citiesKicker')}>
+          <PassportSection title={t('passport.topCities')}>
             <CityChips
               cities={stats.cityAverages}
               emptyLabel={t('passport.noCityData')}

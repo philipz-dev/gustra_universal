@@ -76,6 +76,9 @@
     "visitCount_other": "{{count}} visites · {{date}}",
     "friendScoreLabel": "Amis : {{score}} ({{count}} visite)",
     "friendScoreLabel_other": "Amis : {{score}} ({{count}} visites)",
+    "criterionScoreLabel": "Trié par {{criterion}}",
+    "noCriterionRatingLabel": "Aucune note pour {{criterion}}",
+    "noRatingLabel": "Aucune note",
     "source": {
       "mine": "Mes souvenirs",
       "friends": "Partagés avec vous"
@@ -94,7 +97,7 @@
       "importReviews": "Importer des souvenirs",
       "addReview": "Ajouter un souvenir"
     },
-    "draftLabel": "Draft",
+    "draftLabel": "Brouillon",
     "demoLabel": "Demo",
     "visitedBefore_one": "Déjà visité 1 fois",
     "visitedBefore_other": "Déjà visité {{count}} fois",
@@ -158,13 +161,9 @@
     "emptyBody": "Votre passeport de dégustation se remplit au fur et à mesure de vos souvenirs de restaurant.",
     "addReview": "Ajouter un souvenir",
     "overview": "Aperçu",
-    "overviewKicker": "votre histoire jusqu’ici",
     "totalReviews": "Total de souvenirs",
     "averageOverall": "Moyenne générale",
     "averageBasedOnAllRated": "Basée sur tous tes critères notés",
-    "bestKicker": "vos préférés",
-    "winesKicker": "un toast à ceux-ci",
-    "citiesKicker": "où vous avez dîné",
     "bestRestaurant": "Meilleur restaurant",
     "bestRestaurants": "Meilleurs restaurants",
     "bestWines": "Meilleurs vins",
@@ -187,7 +186,6 @@
   },
   "bucketList": {
     "title": "Liste de souhaits",
-    "kicker": "encore à découvrir",
     "emptyTitle": "Pas encore de liste de souhaits",
     "emptyBody": "Touchez le signet d’un restaurant que vous voulez visiter pour l’enregistrer ici.",
     "addTitle": "Ajouter à la liste de souhaits",
@@ -343,9 +341,6 @@
       "manual": "Manuel",
       "manualSubtitle": "Saisissez vous-même le nom et les détails"
     },
-    "addVisit": {
-      "title": "Ajouter une visite"
-    },
     "nearby": {
       "startReview": "Ajouter un souvenir",
       "loadFailed": "Impossible de charger les restaurants à proximité.",
@@ -395,6 +390,8 @@
       "optionalComment": "Commentaire facultatif",
       "otherVisits_one": "{{count}} autre visite dans ce restaurant",
       "otherVisits_other": "{{count}} autres visites dans ce restaurant",
+      "visitedBefore_one": "Vous avez déjà visité ce restaurant {{count}} fois",
+      "visitedBefore_other": "Vous avez déjà visité ce restaurant {{count}} fois",
       "mostRecent": "Plus récente {{date}}",
       "addPhotos": "Ajouter des photos",
       "delete": "Supprimer",
@@ -403,6 +400,7 @@
       "avg": "{{score}} moy.",
       "time": "Heure",
       "setTime": "Choisir l’heure · {{time}}",
+      "changeDate": "Modifier la date",
       "noMapPinHint": "Ce restaurant n’a pas de position sur la carte et n’apparaîtra donc pas sur votre carte.",
       "photoStrip": {
         "hintReorder": "Touchez pour sélectionner · appui long pour réordonner",
@@ -421,6 +419,20 @@
       "takePhoto": "Prendre une photo",
       "importPhoto": "Importer une photo",
       "adding": "Ajout des photos…"
+    },
+    "photoPicker": {
+      "title": "Choisir des photos",
+      "remaining_one": "Encore {{count}} photo autorisée",
+      "remaining_other": "Encore {{count}} photos autorisées",
+      "limitReached": "Limite de photos atteinte",
+      "clearSelection": "Effacer la sélection",
+      "addSelected_one": "Ajouter {{count}} photo",
+      "addSelected_other": "Ajouter {{count}} photos",
+      "addPhotos": "Ajouter des photos",
+      "loadFailed": "Impossible de charger vos photos.",
+      "retry": "Réessayer",
+      "a11ySelect": "Sélectionner la photo",
+      "a11yDeselect": "Désélectionner la photo"
     }
   },
   "detail": {
@@ -568,6 +580,11 @@
       "hardMessage": "La carte a été chargée le nombre maximal de fois aujourd’hui. Demain, vous pourrez à nouveau ouvrir la carte."
     }
   },
+  "map": {
+    "loadFailedTitle": "Impossible de charger la carte",
+    "loadFailedBody": "La carte n’a pas pu être chargée pour le moment. Vérifiez votre connexion et réessayez.",
+    "reload": "Réessayer"
+  },
   "alerts": {
     "deleteRestaurant": {
       "title": "Supprimer le restaurant ?",
@@ -607,12 +624,14 @@
       "removePhotosTitle": "Retirer les photos ?",
       "removePhotosBody": "Les photos sélectionnées seront retirées de ce souvenir.",
       "photosSaveFailed": "Impossible d’enregistrer les photos.",
+      "photosAdded_one": "{{count}} photo ajoutée",
+      "photosAdded_other": "{{count}} photos ajoutées",
       "photoLimitTitle": "Limite de photos",
       "photoLimitBody": "Vous pouvez ajouter jusqu’à {{max}} photos à un souvenir.",
       "deleteTitle": "Supprimer ?",
       "deleteBody": "Ce souvenir sera supprimé.",
       "discardEdits": {
-        "title": "Enregistrer les modifications ?"
+        "title": "Supprimer les modifications et les nouvelles photos ?"
       },
       "saveFailed": "Impossible d’enregistrer ce souvenir."
     },

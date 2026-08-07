@@ -23,6 +23,12 @@ npm run i18n:check
 
 (or `python3 scripts/check-i18n.py`)
 
-A successful check also regenerates `localization/index.html` (English + all locales table for https://gustra.net/localization/). Publish with `npm run deploy:localization` when the live site should update.
+A successful check also regenerates `localization/index.html` (English + all locales table for https://gustra.net/localization/). To also publish the table to the live site in one go, run:
+
+```bash
+npm run i18n:deploy
+```
+
+(or `python3 scripts/i18n-check-deploy.py`) — this runs the check first and only uploads when it passes.
 
 If the check fails, fix the locales before considering the task done.

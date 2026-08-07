@@ -51,4 +51,7 @@ build-*-android.aab
 build-*.ipa
 build-*.aab
 
+# Parallel-deploy logs (deploy-store.sh --platform both)
+.deploy-logs/
+
 .env.local

@@ -76,6 +76,9 @@
     "visitCount_other": "{{count}} bezoeken · {{date}}",
     "friendScoreLabel": "Vrienden: {{score}} ({{count}} bezoek)",
     "friendScoreLabel_other": "Vrienden: {{score}} ({{count}} bezoeken)",
+    "criterionScoreLabel": "Gesorteerd op {{criterion}}",
+    "noCriterionRatingLabel": "Geen {{criterion}}-beoordeling",
+    "noRatingLabel": "Geen beoordeling",
     "source": {
       "mine": "Mijn herinneringen",
       "friends": "Met je gedeeld"
@@ -94,7 +97,7 @@
       "importReviews": "Herinneringen importeren",
       "addReview": "Herinnering toevoegen"
     },
-    "draftLabel": "Draft",
+    "draftLabel": "Concept",
     "demoLabel": "Demo",
     "visitedBefore_one": "Al 1 keer bezocht",
     "visitedBefore_other": "Al {{count}} keer bezocht",
@@ -158,13 +161,9 @@
     "emptyBody": "Je proefpaspoort vult zich naarmate je restaurantherinneringen toevoegt.",
     "addReview": "Herinnering toevoegen",
     "overview": "Overzicht",
-    "overviewKicker": "jouw verhaal tot nu toe",
     "totalReviews": "Totaal herinneringen",
     "averageOverall": "Gemiddelde totaal",
     "averageBasedOnAllRated": "Op basis van al je beoordeelde criteria",
-    "bestKicker": "jouw favorieten",
-    "winesKicker": "proost op deze",
-    "citiesKicker": "waar jij at",
     "bestRestaurant": "Beste restaurant",
     "bestRestaurants": "Beste restaurants",
     "bestWines": "Beste wijnen",
@@ -187,7 +186,6 @@
   },
   "bucketList": {
     "title": "Bucket list",
-    "kicker": "nog te ontdekken",
     "emptyTitle": "Nog geen bucket list",
     "emptyBody": "Tik op het bladwijzer-icoon bij een restaurant dat je wilt bezoeken om het hier op te slaan.",
     "addTitle": "Toevoegen aan bucket list",
@@ -343,9 +341,6 @@
       "manual": "Handmatig",
       "manualSubtitle": "Voer zelf de naam en gegevens in"
     },
-    "addVisit": {
-      "title": "Bezoek toevoegen"
-    },
     "nearby": {
       "startReview": "Herinnering toevoegen",
       "loadFailed": "Kon restaurants in de buurt niet laden.",
@@ -395,6 +390,8 @@
       "optionalComment": "Optionele opmerking",
       "otherVisits_one": "{{count}} ander bezoek bij dit restaurant",
       "otherVisits_other": "{{count}} andere bezoeken bij dit restaurant",
+      "visitedBefore_one": "Dit restaurant heb je al {{count}} keer bezocht",
+      "visitedBefore_other": "Dit restaurant heb je al {{count}} keer bezocht",
       "mostRecent": "Meest recent {{date}}",
       "addPhotos": "Foto’s toevoegen",
       "delete": "Verwijderen",
@@ -403,6 +400,7 @@
       "avg": "{{score}} gem.",
       "time": "Tijd",
       "setTime": "Tijd instellen · {{time}}",
+      "changeDate": "Datum wijzigen",
       "noMapPinHint": "Dit restaurant heeft geen kaartpositie en verschijnt daarom niet op je kaart.",
       "photoStrip": {
         "hintReorder": "Tik om te selecteren · lang indrukken om te herschikken",
@@ -421,6 +419,20 @@
       "takePhoto": "Foto maken",
       "importPhoto": "Foto importeren",
       "adding": "Foto’s toevoegen…"
+    },
+    "photoPicker": {
+      "title": "Foto’s kiezen",
+      "remaining_one": "Nog {{count}} foto toegestaan",
+      "remaining_other": "Nog {{count}} foto’s toegestaan",
+      "limitReached": "Fotolimiet bereikt",
+      "clearSelection": "Selectie wissen",
+      "addSelected_one": "{{count}} foto toevoegen",
+      "addSelected_other": "{{count}} foto’s toevoegen",
+      "addPhotos": "Foto’s toevoegen",
+      "loadFailed": "We konden je foto’s niet laden.",
+      "retry": "Opnieuw proberen",
+      "a11ySelect": "Foto selecteren",
+      "a11yDeselect": "Selectie foto ongedaan maken"
     }
   },
   "detail": {
@@ -568,6 +580,11 @@
       "hardMessage": "De kaart is vandaag het maximale aantal keren geladen. Morgen kun je de kaart weer openen."
     }
   },
+  "map": {
+    "loadFailedTitle": "De kaart kon niet worden geladen",
+    "loadFailedBody": "De kaart kan op dit moment niet worden geladen. Controleer je verbinding en probeer het opnieuw.",
+    "reload": "Opnieuw proberen"
+  },
   "alerts": {
     "deleteRestaurant": {
       "title": "Restaurant verwijderen?",
@@ -607,12 +624,14 @@
       "removePhotosTitle": "Foto’s verwijderen?",
       "removePhotosBody": "Geselecteerde foto’s worden uit deze herinnering verwijderd.",
       "photosSaveFailed": "Kon foto’s niet opslaan.",
+      "photosAdded_one": "{{count}} foto toegevoegd",
+      "photosAdded_other": "{{count}} foto’s toegevoegd",
       "photoLimitTitle": "Fotolimiet",
       "photoLimitBody": "Je kunt maximaal {{max}} foto’s toevoegen aan een herinnering.",
       "deleteTitle": "Verwijderen?",
       "deleteBody": "Deze herinnering wordt verwijderd.",
       "discardEdits": {
-        "title": "Wijzigingen opslaan?"
+        "title": "Wijzigingen en nieuwe foto’s verwijderen?"
       },
       "saveFailed": "Deze herinnering kon niet worden opgeslagen."
     },

@@ -27,6 +27,7 @@ import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { AppState, Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { MD3LightTheme, PaperProvider } from 'react-native-paper';
 import 'react-native-reanimated';
 
 import { SwipeDismissOverlay } from '@/components/feed/SwipeDismissOverlay';
@@ -81,6 +82,53 @@ const GustraNavigationTheme = {
     notification: GustraColors.gold,
   },
 };
+
+/**
+ * MD3 theme for react-native-paper components, mapped onto the Gustra house
+ * style. Same tonal cream + forest-green palette as the rest of the app, so
+ * M3 components (Switch, Card) read as native Gustra instead of stock Material.
+ */
+const GustraMD3Theme = {
+  ...MD3LightTheme,
+  roundness: 2,
+  colors: {
+    ...MD3LightTheme.colors,
+    primary: GustraColors.forestGreen,
+    onPrimary: '#FFFFFF',
+    primaryContainer: 'rgba(36, 78, 57, 0.14)',
+    onPrimaryContainer: '#1B3D2B',
+    secondary: 'rgba(36, 78, 57, 0.75)',
+    onSecondary: '#FFFFFF',
+    secondaryContainer: 'rgba(36, 78, 57, 0.12)',
+    onSecondaryContainer: '#1B3D2B',
+    background: GustraColors.cream,
+    onBackground: GustraColors.ink,
+    surface: GustraColors.bubble,
+    onSurface: GustraColors.ink,
+    surfaceVariant: 'rgba(236, 227, 207, 0.7)',
+    onSurfaceVariant: 'rgba(35, 32, 26, 0.72)',
+    outline: 'rgba(35, 32, 26, 0.18)',
+    outlineVariant: 'rgba(35, 32, 26, 0.12)',
+    elevation: {
+      level0: 'transparent',
+      level1: 'rgba(236, 227, 207, 0.75)',
+      level2: 'rgba(236, 227, 207, 0.9)',
+      level3: GustraColors.bubble,
+      // Surface interpolates over levels 0–5 (inputRange [0..5]); omitting
+      // level4/level5 made the range contain undefined → Invariant Violation
+      // "outputRange must contain color or value with numeric component"
+      // on Android feed cards (REACT-NATIVE-Q). Extend the cream trap.
+      level4: 'rgba(233, 221, 197, 0.95)',
+      level5: 'rgba(230, 216, 189, 0.98)',
+    },
+    error: GustraColors.ratingAvoid,
+    onError: '#FFFFFF',
+  },
+  fonts: {
+    ...MD3LightTheme.fonts,
+    bodyLarge: { ...MD3LightTheme.fonts.bodyLarge, fontFamily: undefined },
+  },
+} as const;
 
 /**
  * Cream UI → dark 3-button icons.
@@ -157,57 +205,59 @@ function RootLayout() {
       <LanguageSettingsProvider>
         <CriteriaSettingsProvider>
           <DemoLabelSettingsProvider>
-          <PassportDisplaySettingsProvider>
-            <PhotoQualitySettingsProvider>
-              <PhotoLibrarySettingsProvider>
-                <GoogleApiTrackerProvider>
-                  <ReviewerProfileProvider>
-                    <ReviewsStoreProvider>
-                      <FeedFilterProvider>
-                        <ShareImportLaunchProvider>
-                          <ThemeProvider value={GustraNavigationTheme}>
-                            <GlobalKeyboardDismiss>
-                              <View style={styles.root}>
-                                {/*
-                                  Prefer imperative setStyle only. The declarative
-                                  <NavigationBar /> unmount path calls setHidden via
-                                  setImmediate and races activity teardown on Android.
-                                */}
-                                <StatusBar style="light" />
-                                <Stack screenOptions={{ headerShown: false }}>
-                                  <Stack.Screen name="(tabs)" />
-                                  <Stack.Screen
-                                    name="criteria-setup"
-                                    options={{
-                                      presentation: 'fullScreenModal',
-                                      animation: 'fade',
-                                      gestureEnabled: false,
-                                    }}
-                                  />
-                                  <Stack.Screen
-                                    name="share-import"
-                                    options={{
-                                      presentation: 'modal',
-                                      animation: 'slide_from_bottom',
-                                    }}
-                                  />
-                                </Stack>
-                                <CriteriaSetupGate />
-                                <SwipeDismissOverlay />
-                                <ReviewEmailSnapshotHost />
-                                <HouseAlertHost />
-                                <HouseUndoSnackbarHost />
-                              </View>
-                            </GlobalKeyboardDismiss>
-                          </ThemeProvider>
-                        </ShareImportLaunchProvider>
-                      </FeedFilterProvider>
-                    </ReviewsStoreProvider>
-                  </ReviewerProfileProvider>
-                </GoogleApiTrackerProvider>
-              </PhotoLibrarySettingsProvider>
-            </PhotoQualitySettingsProvider>
-          </PassportDisplaySettingsProvider>
+            <PassportDisplaySettingsProvider>
+              <PhotoQualitySettingsProvider>
+                <PhotoLibrarySettingsProvider>
+                  <GoogleApiTrackerProvider>
+                    <ReviewerProfileProvider>
+                      <ReviewsStoreProvider>
+                        <FeedFilterProvider>
+                          <ShareImportLaunchProvider>
+                            <ThemeProvider value={GustraNavigationTheme}>
+                              <PaperProvider theme={GustraMD3Theme}>
+                                <GlobalKeyboardDismiss>
+                                  <View style={styles.root}>
+                                    {/*
+                                      Prefer imperative setStyle only. The declarative
+                                      <NavigationBar /> unmount path calls setHidden via
+                                      setImmediate and races activity teardown on Android.
+                                    */}
+                                    <StatusBar style="light" />
+                                    <Stack screenOptions={{ headerShown: false }}>
+                                      <Stack.Screen name="(tabs)" />
+                                      <Stack.Screen
+                                        name="criteria-setup"
+                                        options={{
+                                          presentation: 'fullScreenModal',
+                                          animation: 'fade',
+                                          gestureEnabled: false,
+                                        }}
+                                      />
+                                      <Stack.Screen
+                                        name="share-import"
+                                        options={{
+                                          presentation: 'modal',
+                                          animation: 'slide_from_bottom',
+                                        }}
+                                      />
+                                    </Stack>
+                                    <CriteriaSetupGate />
+                                    <SwipeDismissOverlay />
+                                    <ReviewEmailSnapshotHost />
+                                    <HouseAlertHost />
+                                    <HouseUndoSnackbarHost />
+                                  </View>
+                                </GlobalKeyboardDismiss>
+                              </PaperProvider>
+                            </ThemeProvider>
+                          </ShareImportLaunchProvider>
+                        </FeedFilterProvider>
+                      </ReviewsStoreProvider>
+                    </ReviewerProfileProvider>
+                  </GoogleApiTrackerProvider>
+                </PhotoLibrarySettingsProvider>
+              </PhotoQualitySettingsProvider>
+            </PassportDisplaySettingsProvider>
           </DemoLabelSettingsProvider>
         </CriteriaSettingsProvider>
       </LanguageSettingsProvider>

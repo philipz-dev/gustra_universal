@@ -130,7 +130,7 @@ export default function ReviewDetailScreen() {
     Haptics.selectionChanged();
     router.push({
       pathname: '/review-form',
-      params: { restaurantId: restaurant.id },
+      params: { restaurantId: restaurant.id, from: 'restaurant' },
     });
   }, [restaurant, router]);
 
@@ -254,7 +254,7 @@ export default function ReviewDetailScreen() {
                 Haptics.selectionChanged();
                 router.push({
                   pathname: '/review-form',
-                  params: { reviewId: review.id },
+                  params: { reviewId: review.id, from: 'restaurant' },
                 });
               }}
             />

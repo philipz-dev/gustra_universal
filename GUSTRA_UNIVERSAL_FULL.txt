@@ -1,8 +1,8 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-08-07T08:20:04Z
+Generated: 2026-08-07T22:03:28Z
 Root: /Users/philipzvar/gustra_universal
-Files: 270
+Files: 275
 ================================================================================
 
 ================================================================================
@@ -524,12 +524,11 @@ describe('criteria presets', () => {
     expectValidPreset(ESSENTIALS_PRESET_STANDARD_IDS);
   });
 
-  it('every preset keeps the mandatory criterion (food)', () => {
-    for (const ids of [QUICK_PRESET_STANDARD_IDS, ESSENTIALS_PRESET_STANDARD_IDS]) {
-      for (const mandatory of MANDATORY_STANDARD_CRITERION_IDS) {
-        expect(ids).toContain(mandatory);
-      }
-    }
+  it('no criterion is mandatory anymore (reviews complete with any rated criterion)', () => {
+    expect(MANDATORY_STANDARD_CRITERION_IDS).toEqual([]);
+    // Presets stay as-is — nothing forces 'food' to stay enabled.
+    expectValidPreset(QUICK_PRESET_STANDARD_IDS);
+    expectValidPreset(ESSENTIALS_PRESET_STANDARD_IDS);
   });
 
   it('Quick/Essentials complete setup; Full control opens the screen', () => {
@@ -547,14 +546,11 @@ describe('criteria presets', () => {
     // Full control no longer resets criteria to a fixed preset — the screen
     // keeps whatever selection is already loaded (first-start defaults for a
     // new install, or the user's own earlier choices). The historic preset is
-    // kept as a valid, mandatory-containing reference.
+    // kept as a valid reference.
     expectValidPreset(FULL_CONTROL_INITIAL_STANDARD_IDS);
-    for (const mandatory of MANDATORY_STANDARD_CRITERION_IDS) {
-      expect(FULL_CONTROL_INITIAL_STANDARD_IDS).toContain(mandatory);
-    }
   });
 
-  it('first-start defaults only disable non-mandatory criteria', () => {
+  it('first-start defaults enable the core five', () => {
     const disabled = firstStartDisabledStandardIds();
     expect(disabled.has('food')).toBe(false);
     expect(disabled.has('drinks')).toBe(false);
@@ -831,6 +827,7 @@ import {
   draftReviewReason,
   isFormDraft,
   formDraftReason,
+  mostRecentVisitIso,
   wineNeedsRating,
 } from '@/services/reviews/draftReview';
 import type { CriterionRating, Review, WineLabelFiche } from '@/data/types';
@@ -950,6 +947,44 @@ describe('wineNeedsRating', () => {
   });
 });
 
+describe('mostRecentVisitIso', () => {
+  it('returns the current visit when there are no prior visits', () => {
+    expect(mostRecentVisitIso([], '2026-08-07T12:00:00.000Z')).toBe(
+      '2026-08-07T12:00:00.000Z',
+    );
+  });
+
+  it('keeps the stored newest visit when the current date is older', () => {
+    const prior = [{ date: '2026-08-01T12:00:00.000Z' }];
+    expect(mostRecentVisitIso(prior, '2026-07-20T12:00:00.000Z')).toBe(
+      '2026-08-01T12:00:00.000Z',
+    );
+  });
+
+  it('uses the visit being filled in when it is newer than every stored visit', () => {
+    const prior = [{ date: '2026-08-01T12:00:00.000Z' }];
+    const current = '2026-08-10T12:00:00.000Z';
+    expect(mostRecentVisitIso(prior, current)).toBe(current);
+  });
+
+  it('uses the newest of many prior visits (list is newest-first)', () => {
+    const prior = [
+      { date: '2026-08-01T12:00:00.000Z' },
+      { date: '2026-06-01T12:00:00.000Z' },
+    ];
+    expect(mostRecentVisitIso(prior, '2026-07-01T12:00:00.000Z')).toBe(
+      '2026-08-01T12:00:00.000Z',
+    );
+  });
+
+  it('keeps the stored visit when the current date is exactly equal', () => {
+    const prior = [{ date: '2026-08-01T12:00:00.000Z' }];
+    expect(mostRecentVisitIso(prior, '2026-08-01T12:00:00.000Z')).toBe(
+      '2026-08-01T12:00:00.000Z',
+    );
+  });
+});
+
 
 ================================================================================
 FILE: __tests__/expo-file-system-legacy.d.ts
@@ -985,6 +1020,87 @@ declare module 'expo-file-system/legacy' {
   export function __mockFile(path: string): void;
   export function __resetMockFiles(): void;
 }
+
+
+================================================================================
+FILE: __tests__/feedCriterionSort.test.ts
+================================================================================
+import { applyFeedFilters, type FeedFilterState } from '@/components/feed/feedFilters';
+import type { RestaurantVisitSummary } from '@/data/types';
+
+function summary(
+  restaurantId: string,
+  averageScore: number,
+  extra: Partial<RestaurantVisitSummary> & { drinksRating?: number } = {},
+): RestaurantVisitSummary {
+  return {
+    restaurantId,
+    name: `Resto ${restaurantId}`,
+    city: 'Gent',
+    primaryType: 'restaurant',
+    averageScore,
+    visitCount: 1,
+    lastVisitDate: '1 aug',
+    lastVisitAt: +new Date('2026-08-01'),
+    thumbnailColor: '#3D6B52',
+    photoUrl: '',
+    isFavorite: false,
+    reviewIds: [`${restaurantId}-1`],
+    ...extra,
+  };
+}
+
+const criterionState: FeedFilterState = {
+  filters: [],
+  sortKind: { type: 'criterion', criterionId: 'drinks' },
+  locationCities: [],
+  primaryTypes: [],
+};
+
+const criterionAverageFor = (s: RestaurantVisitSummary) => {
+  const rating = (s as { drinksRating?: number }).drinksRating;
+  return typeof rating === 'number' ? rating : null;
+};
+
+describe('applyFeedFilters — sort by criterion', () => {
+  it('keeps restaurants without a rating on the criterion (moves them to the bottom)', () => {
+    const scored = summary('r1', 4.0, { drinksRating: 4.5 });
+    const unscored = summary('r2', 3.0);
+
+    const result = applyFeedFilters([unscored, scored], criterionState, {
+      criterionAverageFor,
+    });
+
+    // Both remain visible — sorting no longer removes restaurants.
+    expect(result).toHaveLength(2);
+    // Scored restaurant first, unscored last.
+    expect(result[0]!.restaurantId).toBe('r1');
+    expect(result[1]!.restaurantId).toBe('r2');
+  });
+
+  it('sorts scored restaurants by the criterion score descending', () => {
+    const low = summary('r1', 4.0, { drinksRating: 3.0 });
+    const high = summary('r2', 3.0, { drinksRating: 4.5 });
+    const medium = summary('r3', 2.0, { drinksRating: 4.0 });
+
+    const result = applyFeedFilters([low, high, medium], criterionState, {
+      criterionAverageFor,
+    });
+
+    expect(result.map((s) => s.restaurantId)).toEqual(['r2', 'r3', 'r1']);
+  });
+
+  it('keeps drafts on top even when sorting by criterion', () => {
+    const draft = summary('r1', 0, { isDraft: true });
+    const scored = summary('r2', 4.5, { drinksRating: 5.0 });
+
+    const result = applyFeedFilters([scored, draft], criterionState, {
+      criterionAverageFor,
+    });
+
+    expect(result.map((s) => s.restaurantId)).toEqual(['r1', 'r2']);
+  });
+});
 
 
 ================================================================================
@@ -1152,6 +1268,57 @@ describe('floorToHalfHour', () => {
   it('floors across hour/day boundaries', () => {
     const d = new Date('2026-08-03T23:59:00.000Z');
     expect(iso(floorToHalfHour(d))).toBe('2026-08-03T23:30:00.000Z');
+  });
+});
+
+
+================================================================================
+FILE: __tests__/googleMapsView.test.ts
+================================================================================
+import { buildMapHtml } from '@/services/map/mapHtml';
+
+describe('buildMapHtml', () => {
+  const base = {
+    apiKey: 'test-key',
+    center: { latitude: 51.2194, longitude: 4.4025 },
+    zoom: 14,
+    forestGreen: '#388C57',
+    mapPaddingBottom: 0,
+  };
+
+  it('embeds the API key and init callback', () => {
+    const html = buildMapHtml(base);
+    expect(html).toContain('maps.googleapis.com/maps/api/js?key=test-key');
+    expect(html).toContain('callback=initMap');
+  });
+
+  it('posts a ready message after the map is created', () => {
+    const html = buildMapHtml(base);
+    expect(html).toContain("post({ type: 'ready' })");
+  });
+
+  it('posts an error message when initMap throws', () => {
+    const html = buildMapHtml(base);
+    expect(html).toContain("post({ type: 'error', message:");
+  });
+
+  it('exposes the marker and fit-bounds bridges used to re-apply pins', () => {
+    const html = buildMapHtml(base);
+    expect(html).toContain('window.__gustraSetMarkers');
+    expect(html).toContain('window.__gustraFitBounds');
+    expect(html).toContain('window.__gustraSetUser');
+  });
+
+  it('posts an auth-failure error on gm_authFailure (white-map path)', () => {
+    const html = buildMapHtml(base);
+    expect(html).toContain('window.gm_authFailure = function ()');
+    expect(html).toContain("type: 'error'");
+  });
+
+  it('exposes the ping/pong heartbeat used to detect a stale white map', () => {
+    const html = buildMapHtml(base);
+    expect(html).toContain('window.__gustraPing = function ()');
+    expect(html).toContain("post({ type: 'pong' })");
   });
 });
 
@@ -1630,6 +1797,21 @@ describe('buildTimeMachineEntries', () => {
       restaurants,
     );
     expect(entries[0]!.photoUrl).toBe('');
+  });
+
+  it('scores each visit from its criteria, not the stored overallScore', () => {
+    const restaurants = [restaurant('r1', 'Het Huis', 'Gent')];
+    const reviews = [
+      // Stored overallScore is stale (4.0) but the criteria average to 4.5
+      // (food 10 + service 8 → 9 → 4.5). Terugblik must use the live criteria
+      // score so Mijn Gustra (same rule) and Terugblik can never diverge.
+      review('a', 'r1', '2024-06-01', { food: 10, service: 8 }, {
+        overallScore: 4,
+      }),
+    ];
+    const entries = buildTimeMachineEntries(reviews, restaurants);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.score).toBeCloseTo(4.5, 3);
   });
 });
 
@@ -2950,6 +3132,19 @@ function ReviewsFeedContent() {
                   filterState.sortKind.type === 'criterion'
                     ? criterionAverageFor(item, filterState.sortKind.criterionId)
                     : null
+                }
+                scoreOverrideCriterionTitle={
+                  filterState.sortKind.type === 'criterion'
+                    ? criterionTitleFor(filterState.sortKind.criterionId)
+                    : null
+                }
+                scoreMissing={
+                  filterState.sortKind.type === 'criterion'
+                    ? criterionAverageFor(
+                        item,
+                        filterState.sortKind.criterionId,
+                      ) == null
+                    : false
                 }
                 onFavoriteToggle={(favorite) => {
                   void setRestaurantFavorite(item.restaurantId, favorite);
@@ -5037,7 +5232,7 @@ export default function RestaurantVisitsScreen() {
     Haptics.selectionChanged();
     router.push({
       pathname: '/review-form',
-      params: { restaurantId: id },
+      params: { restaurantId: id, from: 'restaurant' },
     });
   }, [id, router]);
 
@@ -5156,7 +5351,7 @@ export default function RestaurantVisitsScreen() {
       if (isReviewDraft(review)) {
         router.push({
           pathname: '/review-form',
-          params: { reviewId: review.id },
+          params: { reviewId: review.id, from: 'restaurant' },
         });
         return;
       }
@@ -5186,96 +5381,96 @@ export default function RestaurantVisitsScreen() {
         />
       ) : (
         <View style={styles.body} collapsable={false}>
+          {/* ——— Summary header (fixed — does not scroll) ——— */}
+          <View style={styles.headerBlock}>
+            <View style={styles.summaryCard}>
+              <SerifText size={20} weight="semibold" style={styles.location}>
+                {displayLocation(
+                  restaurant.name,
+                  restaurant.city,
+                  restaurant.country,
+                )}
+              </SerifText>
+              {showSourceGroups ? (
+                <>
+                  {sourceGroups.map((group) => {
+                    const isOwn = group.origin === 'own';
+                    const label = isOwn
+                      ? t('detail.restaurant.myVisits')
+                      : t('detail.restaurant.friendsVisits');
+                    return (
+                      <View key={group.origin} style={styles.sourceRow}>
+                        <Text style={styles.sourceLabel}>{label}</Text>
+                        <View style={styles.sourceAvgRow}>
+                          {group.average > 0 ? (
+                            <>
+                              <FractionalStarRating
+                                score={group.average}
+                                size={isOwn ? 18 : 15}
+                              />
+                              <SerifText
+                                size={isOwn ? 17 : 14}
+                                weight={isOwn ? 'semibold' : 'regular'}
+                                style={[
+                                  styles.avgText,
+                                  !isOwn && styles.sourceAvgMuted,
+                                ]}>
+                                {formatScoreOutOfFive(group.average)}
+                              </SerifText>
+                            </>
+                          ) : (
+                            <Text style={styles.sourceAvgMuted}>
+                              {t('reviews.notRated')}
+                            </Text>
+                          )}
+                          <Text style={styles.sourceCount}>
+                            {group.reviews.length}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                  {reviews.length > 1 ? (
+                    <Text style={styles.visitCount}>
+                      {t('detail.restaurant.visitCount', {
+                        count: reviews.length,
+                      })}
+                    </Text>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  {averageScore > 0 ? (
+                    <View style={styles.avgRow}>
+                      <FractionalStarRating score={averageScore} size={22} />
+                      <SerifText
+                        size={17}
+                        weight="semibold"
+                        style={styles.avgText}>
+                        {formatScoreOutOfFive(averageScore)}
+                      </SerifText>
+                    </View>
+                  ) : null}
+                  {reviews.length > 1 ? (
+                    <Text style={styles.visitCount}>
+                      {t('detail.restaurant.visitCount', {
+                        count: reviews.length,
+                      })}
+                    </Text>
+                  ) : null}
+                </>
+              )}
+            </View>
+          </View>
+
+          {/* ——— Visit timeline (scrolling; identical to Time Travel) ——— */}
           <ScrollView
             style={styles.scroll}
-            contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
+            contentContainerStyle={[styles.timelineContent, { paddingBottom: bottomPad }]}
             overScrollMode="never"
             onScrollBeginDrag={dismissOpenSwipeable}
             scrollEventThrottle={16}
             showsVerticalScrollIndicator={false}>
-            {/* ——— Summary header ——— */}
-            <View style={styles.headerBlock}>
-              <View style={styles.summaryCard}>
-                <SerifText size={20} weight="semibold" style={styles.location}>
-                  {displayLocation(
-                    restaurant.name,
-                    restaurant.city,
-                    restaurant.country,
-                  )}
-                </SerifText>
-                {showSourceGroups ? (
-                  <>
-                    {sourceGroups.map((group) => {
-                      const isOwn = group.origin === 'own';
-                      const label = isOwn
-                        ? t('detail.restaurant.myVisits')
-                        : t('detail.restaurant.friendsVisits');
-                      return (
-                        <View key={group.origin} style={styles.sourceRow}>
-                          <Text style={styles.sourceLabel}>{label}</Text>
-                          <View style={styles.sourceAvgRow}>
-                            {group.average > 0 ? (
-                              <>
-                                <FractionalStarRating
-                                  score={group.average}
-                                  size={isOwn ? 18 : 15}
-                                />
-                                <SerifText
-                                  size={isOwn ? 17 : 14}
-                                  weight={isOwn ? 'semibold' : 'regular'}
-                                  style={[
-                                    styles.avgText,
-                                    !isOwn && styles.sourceAvgMuted,
-                                  ]}>
-                                  {formatScoreOutOfFive(group.average)}
-                                </SerifText>
-                              </>
-                            ) : (
-                              <Text style={styles.sourceAvgMuted}>
-                                {t('reviews.notRated')}
-                              </Text>
-                            )}
-                            <Text style={styles.sourceCount}>
-                              {group.reviews.length}
-                            </Text>
-                          </View>
-                        </View>
-                      );
-                    })}
-                    {reviews.length > 1 ? (
-                      <Text style={styles.visitCount}>
-                        {t('detail.restaurant.visitCount', {
-                          count: reviews.length,
-                        })}
-                      </Text>
-                    ) : null}
-                  </>
-                ) : (
-                  <>
-                    {averageScore > 0 ? (
-                      <View style={styles.avgRow}>
-                        <FractionalStarRating score={averageScore} size={22} />
-                        <SerifText
-                          size={17}
-                          weight="semibold"
-                          style={styles.avgText}>
-                          {formatScoreOutOfFive(averageScore)}
-                        </SerifText>
-                      </View>
-                    ) : null}
-                    {reviews.length > 1 ? (
-                      <Text style={styles.visitCount}>
-                        {t('detail.restaurant.visitCount', {
-                          count: reviews.length,
-                        })}
-                      </Text>
-                    ) : null}
-                  </>
-                )}
-              </View>
-            </View>
-
-            {/* ——— Visit timeline (identical to Time Travel) ——— */}
             {showSourceGroups ? (
               sourceGroups.map((group) => (
                 <View key={group.origin} style={styles.groupBlock}>
@@ -5317,6 +5512,7 @@ export default function RestaurantVisitsScreen() {
                               ? () => confirmDeleteVisit(review)
                               : undefined
                           }
+                          hideRestaurantTitle
                         />
                       );
                     }}
@@ -5343,6 +5539,7 @@ export default function RestaurantVisitsScreen() {
                           ? () => confirmDeleteVisit(review)
                           : undefined
                       }
+                      hideRestaurantTitle
                     />
                   );
                 }}
@@ -5378,13 +5575,17 @@ const styles = StyleSheet.create({
   scroll: {
     flex: 1,
   },
-  content: {
+  timelineContent: {
     paddingHorizontal: Theme.spacing.listRowHorizontal,
-    paddingTop: 24,
+    paddingTop: 14,
     gap: 22,
   },
   headerBlock: {
     gap: 14,
+    paddingHorizontal: Theme.spacing.listRowHorizontal,
+    paddingTop: 14,
+    paddingBottom: 4,
+    backgroundColor: GustraColors.cream,
   },
   summaryCard: {
     padding: Theme.spacing.cardPadding,
@@ -5590,7 +5791,7 @@ export default function ReviewDetailScreen() {
     Haptics.selectionChanged();
     router.push({
       pathname: '/review-form',
-      params: { restaurantId: restaurant.id },
+      params: { restaurantId: restaurant.id, from: 'restaurant' },
     });
   }, [restaurant, router]);
 
@@ -5714,7 +5915,7 @@ export default function ReviewDetailScreen() {
                 Haptics.selectionChanged();
                 router.push({
                   pathname: '/review-form',
-                  params: { reviewId: review.id },
+                  params: { reviewId: review.id, from: 'restaurant' },
                 });
               }}
             />
@@ -6042,6 +6243,7 @@ FILE: app/(tabs)/(main)/review-form.tsx
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -6058,6 +6260,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FeedSwipeDelete } from '@/components/feed/FeedSwipeDelete';
 import { InteractiveStarRating } from '@/components/review/InteractiveStarRating';
+import { PhotoLibraryPickerModal } from '@/components/review/PhotoLibraryPickerModal';
 import { ReorderablePhotoStrip } from '@/components/review/ReorderablePhotoStrip';
 import { RestaurantHeaderCard } from '@/components/review/RestaurantHeaderCard';
 import { DatePickerModal } from '@/components/review/DatePickerModal';
@@ -6210,24 +6413,27 @@ export default function ReviewFormScreen() {
     isImportingPhotos,
     showPhotoSourceChooser,
     setShowPhotoSourceChooser,
+    showPhotoLibraryPicker,
+    setShowPhotoLibraryPicker,
     importFromLibrary,
     takePhoto,
     showPhotoSourcePicker,
     confirmRemoveSelectedPhotos,
     togglePhotoSelection,
+    confirmLibraryAssets,
   } = photoManager;
 
   const bottomPad =
-    keyboardHeight > 0
-      ? keyboardHeight + 24
-      : Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
+    Platform.OS === 'ios'
+      ? Theme.spacing.floatingTabBarClearance + insets.bottom + 24
+      : keyboardHeight > 0
+        ? keyboardHeight + 24
+        : Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
   const addressLine = draft ? draftAddressLine(draft) : null;
 
   const bannerTitle = isEdit
     ? t('forms.review.editTitle')
-    : revisitCount > 0
-      ? t('forms.addVisit.title')
-      : t('forms.addReview.title');
+    : t('forms.addReview.title');
 
   if (!ready || !draft) {
     return (
@@ -6266,15 +6472,22 @@ export default function ReviewFormScreen() {
         }
       />
 
-      <ScrollView
-        ref={scrollRef}
-        scrollEnabled={!photoDragging && !ratingScrubbing}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
-        overScrollMode="never">
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}>
+        <ScrollView
+          ref={scrollRef}
+          scrollEnabled={!photoDragging && !ratingScrubbing}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: bottomPad },
+          ]}
+          overScrollMode="never">
         <RestaurantHeaderCard
           name={draft.name}
           addressLine={addressLine}
@@ -6282,6 +6495,7 @@ export default function ReviewFormScreen() {
           setIsFavorite={setIsFavorite}
           isDraftForm={isDraftForm}
           draftLabel={t('reviews.draftLabel')}
+          revisitCount={revisitCount}
         />
 
         {!hasCoordinates(draft.latitude, draft.longitude) ? (
@@ -6703,7 +6917,8 @@ export default function ReviewFormScreen() {
             )}
           </Pressable>
         ) : null}
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <TabBarBottomFade />
 
@@ -6726,6 +6941,15 @@ export default function ReviewFormScreen() {
             void importFromLibrary();
           });
         }}
+      />
+
+      <PhotoLibraryPickerModal
+        visible={showPhotoLibraryPicker}
+        selectionLimit={MAX_REVIEW_PHOTOS - photoUrls.length}
+        onCancel={() => {
+          if (!isImportingPhotos) setShowPhotoLibraryPicker(false);
+        }}
+        onConfirm={confirmLibraryAssets}
       />
 
       <DatePickerModal
@@ -6755,6 +6979,9 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: GustraColors.cream,
+  },
+  flex: {
+    flex: 1,
   },
   loading: {
     flex: 1,
@@ -8987,7 +9214,6 @@ import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import {
   STANDARD_CRITERIA,
-  isMandatoryStandardCriterion,
   standardCriterionDisplayTitle,
   useCriteriaSettings,
   type CriteriaSettingsSnapshot,
@@ -9051,7 +9277,6 @@ export default function EditCriteriaScreen() {
 
   const toggleStandard = useCallback(
     (id: string, enabled: boolean) => {
-      if (!enabled && isMandatoryStandardCriterion(id)) return;
       if (!enabled && enabledCount <= 1 && isStandardOn(id)) {
         Haptics.warning();
         houseAlert(t('tabs.editCriteria'), t('setup.criteria.minOne'));
@@ -9162,7 +9387,6 @@ export default function EditCriteriaScreen() {
         showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
           {STANDARD_CRITERIA.map((criterion, index) => {
-            const mandatory = isMandatoryStandardCriterion(criterion.id);
             return (
               <View
                 key={criterion.id}
@@ -9175,17 +9399,9 @@ export default function EditCriteriaScreen() {
                 <Text style={styles.rowTitle}>
                   {standardCriterionDisplayTitle(criterion.id)}
                 </Text>
-                {mandatory ? (
-                  <Text style={styles.requiredLabel}>{t('common.required')}</Text>
-                ) : null}
                 <GustraSwitch
                   value={isStandardOn(criterion.id)}
-                  disabled={mandatory}
-                  accessibilityLabel={
-                    mandatory
-                      ? `${standardCriterionDisplayTitle(criterion.id)}, ${t('common.required')}`
-                      : standardCriterionDisplayTitle(criterion.id)
-                  }
+                  accessibilityLabel={standardCriterionDisplayTitle(criterion.id)}
                   onValueChange={(value) => toggleStandard(criterion.id, value)}
                 />
               </View>
@@ -9231,10 +9447,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: GustraColors.ink,
-  },
-  requiredLabel: {
-    ...captionTextStyle,
-    color: GustraColors.ratingAvoid,
   },
   footer: {
     ...captionTextStyle,
@@ -9325,7 +9537,7 @@ import {
 } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolView } from 'expo-symbols';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 
@@ -9507,6 +9719,27 @@ function MemoriesMapContent() {
     }, 80);
     return () => clearTimeout(timer);
   }, [pins]);
+
+  // A WebView left in a broken/white state (transient Maps script failure,
+  // missed marker injection after remount) never recovers on its own. On
+  // focus: reload when an error is shown; otherwise ping the WebView and
+  // reload only when it is silent/stale (white map without an error message).
+  // A healthy map keeps its preserved camera.
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setTimeout(() => {
+        const handle = mapRef.current;
+        if (!handle) return;
+        if (handle.hasError()) {
+          handle.refresh();
+          return;
+        }
+        void handle.reloadIfStale();
+      }, 120);
+      return () => clearTimeout(timer);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []),
+  );
 
   const applyFiltersAndFit = useCallback(
     (next: FeedFilterState) => {
@@ -10338,9 +10571,7 @@ function CulinaryPassportContent() {
           ]}
           overScrollMode="never"
           showsVerticalScrollIndicator={false}>
-          <PassportSection
-            title={t('passport.overview')}
-            kicker={t('passport.overviewKicker')}>
+          <PassportSection title={t('passport.overview')}>
             <PassportStatCards
               totalReviews={stats.totalReviews}
               averageOverall={formatScoreOutOfFive(stats.averageOverall)}
@@ -10351,9 +10582,7 @@ function CulinaryPassportContent() {
           </PassportSection>
 
           {stats.bestRestaurants.length > 0 ? (
-            <PassportSection
-              title={bestSectionTitle}
-              kicker={t('passport.bestKicker')}>
+            <PassportSection title={bestSectionTitle}>
               <BestRestaurantPodium
                 entries={stats.bestRestaurants}
                 style={categoryAveragesStyle}
@@ -10363,9 +10592,7 @@ function CulinaryPassportContent() {
           ) : null}
 
           {bestWines.length > 0 ? (
-            <PassportSection
-              title={t('passport.bestWines')}
-              kicker={t('passport.winesKicker')}>
+            <PassportSection title={t('passport.bestWines')}>
               {bestWines.map((entry, index) => (
                 <RankedWineRow
                   key={`${entry.reviewId}-${index}`}
@@ -10380,9 +10607,7 @@ function CulinaryPassportContent() {
             </PassportSection>
           ) : null}
 
-          <PassportSection
-            title={t('passport.topCities')}
-            kicker={t('passport.citiesKicker')}>
+          <PassportSection title={t('passport.topCities')}>
             <CityChips
               cities={stats.cityAverages}
               emptyLabel={t('passport.noCityData')}
@@ -12362,6 +12587,7 @@ import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { AppState, Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { MD3LightTheme, PaperProvider } from 'react-native-paper';
 import 'react-native-reanimated';
 
 import { SwipeDismissOverlay } from '@/components/feed/SwipeDismissOverlay';
@@ -12416,6 +12642,53 @@ const GustraNavigationTheme = {
     notification: GustraColors.gold,
   },
 };
+
+/**
+ * MD3 theme for react-native-paper components, mapped onto the Gustra house
+ * style. Same tonal cream + forest-green palette as the rest of the app, so
+ * M3 components (Switch, Card) read as native Gustra instead of stock Material.
+ */
+const GustraMD3Theme = {
+  ...MD3LightTheme,
+  roundness: 2,
+  colors: {
+    ...MD3LightTheme.colors,
+    primary: GustraColors.forestGreen,
+    onPrimary: '#FFFFFF',
+    primaryContainer: 'rgba(36, 78, 57, 0.14)',
+    onPrimaryContainer: '#1B3D2B',
+    secondary: 'rgba(36, 78, 57, 0.75)',
+    onSecondary: '#FFFFFF',
+    secondaryContainer: 'rgba(36, 78, 57, 0.12)',
+    onSecondaryContainer: '#1B3D2B',
+    background: GustraColors.cream,
+    onBackground: GustraColors.ink,
+    surface: GustraColors.bubble,
+    onSurface: GustraColors.ink,
+    surfaceVariant: 'rgba(236, 227, 207, 0.7)',
+    onSurfaceVariant: 'rgba(35, 32, 26, 0.72)',
+    outline: 'rgba(35, 32, 26, 0.18)',
+    outlineVariant: 'rgba(35, 32, 26, 0.12)',
+    elevation: {
+      level0: 'transparent',
+      level1: 'rgba(236, 227, 207, 0.75)',
+      level2: 'rgba(236, 227, 207, 0.9)',
+      level3: GustraColors.bubble,
+      // Surface interpolates over levels 0–5 (inputRange [0..5]); omitting
+      // level4/level5 made the range contain undefined → Invariant Violation
+      // "outputRange must contain color or value with numeric component"
+      // on Android feed cards (REACT-NATIVE-Q). Extend the cream trap.
+      level4: 'rgba(233, 221, 197, 0.95)',
+      level5: 'rgba(230, 216, 189, 0.98)',
+    },
+    error: GustraColors.ratingAvoid,
+    onError: '#FFFFFF',
+  },
+  fonts: {
+    ...MD3LightTheme.fonts,
+    bodyLarge: { ...MD3LightTheme.fonts.bodyLarge, fontFamily: undefined },
+  },
+} as const;
 
 /**
  * Cream UI → dark 3-button icons.
@@ -12492,57 +12765,59 @@ function RootLayout() {
       <LanguageSettingsProvider>
         <CriteriaSettingsProvider>
           <DemoLabelSettingsProvider>
-          <PassportDisplaySettingsProvider>
-            <PhotoQualitySettingsProvider>
-              <PhotoLibrarySettingsProvider>
-                <GoogleApiTrackerProvider>
-                  <ReviewerProfileProvider>
-                    <ReviewsStoreProvider>
-                      <FeedFilterProvider>
-                        <ShareImportLaunchProvider>
-                          <ThemeProvider value={GustraNavigationTheme}>
-                            <GlobalKeyboardDismiss>
-                              <View style={styles.root}>
-                                {/*
-                                  Prefer imperative setStyle only. The declarative
-                                  <NavigationBar /> unmount path calls setHidden via
-                                  setImmediate and races activity teardown on Android.
-                                */}
-                                <StatusBar style="light" />
-                                <Stack screenOptions={{ headerShown: false }}>
-                                  <Stack.Screen name="(tabs)" />
-                                  <Stack.Screen
-                                    name="criteria-setup"
-                                    options={{
-                                      presentation: 'fullScreenModal',
-                                      animation: 'fade',
-                                      gestureEnabled: false,
-                                    }}
-                                  />
-                                  <Stack.Screen
-                                    name="share-import"
-                                    options={{
-                                      presentation: 'modal',
-                                      animation: 'slide_from_bottom',
-                                    }}
-                                  />
-                                </Stack>
-                                <CriteriaSetupGate />
-                                <SwipeDismissOverlay />
-                                <ReviewEmailSnapshotHost />
-                                <HouseAlertHost />
-                                <HouseUndoSnackbarHost />
-                              </View>
-                            </GlobalKeyboardDismiss>
-                          </ThemeProvider>
-                        </ShareImportLaunchProvider>
-                      </FeedFilterProvider>
-                    </ReviewsStoreProvider>
-                  </ReviewerProfileProvider>
-                </GoogleApiTrackerProvider>
-              </PhotoLibrarySettingsProvider>
-            </PhotoQualitySettingsProvider>
-          </PassportDisplaySettingsProvider>
+            <PassportDisplaySettingsProvider>
+              <PhotoQualitySettingsProvider>
+                <PhotoLibrarySettingsProvider>
+                  <GoogleApiTrackerProvider>
+                    <ReviewerProfileProvider>
+                      <ReviewsStoreProvider>
+                        <FeedFilterProvider>
+                          <ShareImportLaunchProvider>
+                            <ThemeProvider value={GustraNavigationTheme}>
+                              <PaperProvider theme={GustraMD3Theme}>
+                                <GlobalKeyboardDismiss>
+                                  <View style={styles.root}>
+                                    {/*
+                                      Prefer imperative setStyle only. The declarative
+                                      <NavigationBar /> unmount path calls setHidden via
+                                      setImmediate and races activity teardown on Android.
+                                    */}
+                                    <StatusBar style="light" />
+                                    <Stack screenOptions={{ headerShown: false }}>
+                                      <Stack.Screen name="(tabs)" />
+                                      <Stack.Screen
+                                        name="criteria-setup"
+                                        options={{
+                                          presentation: 'fullScreenModal',
+                                          animation: 'fade',
+                                          gestureEnabled: false,
+                                        }}
+                                      />
+                                      <Stack.Screen
+                                        name="share-import"
+                                        options={{
+                                          presentation: 'modal',
+                                          animation: 'slide_from_bottom',
+                                        }}
+                                      />
+                                    </Stack>
+                                    <CriteriaSetupGate />
+                                    <SwipeDismissOverlay />
+                                    <ReviewEmailSnapshotHost />
+                                    <HouseAlertHost />
+                                    <HouseUndoSnackbarHost />
+                                  </View>
+                                </GlobalKeyboardDismiss>
+                              </PaperProvider>
+                            </ThemeProvider>
+                          </ShareImportLaunchProvider>
+                        </FeedFilterProvider>
+                      </ReviewsStoreProvider>
+                    </ReviewerProfileProvider>
+                  </GoogleApiTrackerProvider>
+                </PhotoLibrarySettingsProvider>
+              </PhotoQualitySettingsProvider>
+            </PassportDisplaySettingsProvider>
           </DemoLabelSettingsProvider>
         </CriteriaSettingsProvider>
       </LanguageSettingsProvider>
@@ -12593,7 +12868,6 @@ import {
 } from '@/constants/Theme';
 import {
   STANDARD_CRITERIA,
-  isMandatoryStandardCriterion,
   standardCriterionDisplayTitle,
   useCriteriaSettings,
   QUICK_SETUP_CHOICE,
@@ -12932,18 +13206,12 @@ export default function CriteriaSetupScreen() {
         <View style={styles.card}>
           {STANDARD_CRITERIA.map((criterion) => {
             const enabled = isStandardEnabled(criterion.id);
-            const mandatory = isMandatoryStandardCriterion(criterion.id);
             return (
               <Pressable
                 key={criterion.id}
                 accessibilityRole="switch"
-                accessibilityLabel={
-                  mandatory
-                    ? `${standardCriterionDisplayTitle(criterion.id)}, ${t('common.required')}`
-                    : standardCriterionDisplayTitle(criterion.id)
-                }
-                accessibilityState={{ checked: enabled, disabled: mandatory }}
-                disabled={mandatory}
+                accessibilityLabel={standardCriterionDisplayTitle(criterion.id)}
+                accessibilityState={{ checked: enabled }}
                 onPress={() => {
                   Haptics.selectionChanged();
                   setStandardEnabled(criterion.id, !enabled);
@@ -12955,12 +13223,8 @@ export default function CriteriaSetupScreen() {
                   numberOfLines={1}>
                   {standardCriterionDisplayTitle(criterion.id)}
                 </Text>
-                {mandatory ? (
-                  <Text style={styles.requiredLabel}>{t('common.required')}</Text>
-                ) : null}
                 <GustraSwitch
                   value={enabled}
-                  disabled={mandatory}
                   onValueChange={(value) =>
                     setStandardEnabled(criterion.id, value)
                   }
@@ -13076,10 +13340,6 @@ const styles = StyleSheet.create({
   rowTitleOn: {
     color: GustraColors.ink,
     fontWeight: '600',
-  },
-  requiredLabel: {
-    ...captionTextStyle,
-    color: GustraColors.ratingAvoid,
   },
   choiceRow: {
     flexDirection: 'row',
@@ -13640,7 +13900,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       supportsTablet: true,
       // Must match the existing App Store Connect / Swift app.
       bundleIdentifier: 'com.philip.gustra',
-      buildNumber: '63',
+      buildNumber: '67',
       // Keep in sync with android.versionCode — deploy-store.sh bumps both together.
       entitlements: {
         'com.apple.security.application-groups': ['group.com.philip.gustra'],
@@ -13699,7 +13959,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
       package: 'net.gustra.app',
       // Keep in sync with ios.buildNumber — deploy-store.sh bumps both together.
-      versionCode: 63,
+      versionCode: 67,
       // Material / gesture navigation — cream surfaces bleed under system bars.
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: true,
@@ -17662,7 +17922,7 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: components/feed/FilterSearchBar.tsx
 ================================================================================
-import { StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 
 import { GustraColors } from '@/constants/Colors';
@@ -17700,8 +17960,22 @@ export function FilterSearchBar({
           selectionColor={GustraColors.forestGreen}
           keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
           autoCorrect={false}
-          clearButtonMode="while-editing"
+          returnKeyType="search"
         />
+        {value.length > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('common.clear')}
+            hitSlop={8}
+            onPress={() => onChangeText('')}
+            style={({ pressed }) => pressed && styles.clearPressed}>
+            <SymbolView
+              name={{ ios: 'xmark.circle.fill', android: 'cancel', web: 'cancel' }}
+              tintColor="rgba(35, 32, 26, 0.35)"
+              size={18}
+            />
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -17727,6 +18001,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: GustraColors.ink,
     padding: 0,
+  },
+  clearPressed: {
+    opacity: 0.5,
   },
 });
 
@@ -17954,7 +18231,9 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: components/feed/RestaurantFeedCard.tsx
 ================================================================================
+import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Card as PaperCard } from 'react-native-paper';
 import { SymbolView } from 'expo-symbols';
 
 import { FeedSwipeDelete } from '@/components/feed/FeedSwipeDelete';
@@ -17989,6 +18268,10 @@ type RestaurantFeedCardProps = {
    * instead of overall average — Swift `RestaurantFeedCardView.scoreOverride`.
    */
   scoreOverride?: number | null;
+  /** Title of the criterion used for sorting (e.g. "Drinks"), shown as label. */
+  scoreOverrideCriterionTitle?: string | null;
+  /** True when the sort criterion has no rating for this restaurant. */
+  scoreMissing?: boolean;
   shareSelecting?: boolean;
   selected?: boolean;
   onSelectToggle?: () => void;
@@ -18000,47 +18283,39 @@ export function RestaurantFeedCard({
   onDelete,
   onFavoriteToggle,
   scoreOverride,
+  scoreOverrideCriterionTitle,
+  scoreMissing = false,
   shareSelecting = false,
   selected = false,
   onSelectToggle,
 }: RestaurantFeedCardProps) {
   const { t } = useAppTranslation();
   const { showDemoLabel } = useDemoLabelSettings();
+  /** M3 state-layer wash on Android (paper Card has no ripple of its own). */
+  const [androidCardPressed, setAndroidCardPressed] = useState(false);
   const isDraft = Boolean(summary.isDraft);
   const isDemo = isDemoRestaurantId(summary.restaurantId);
+  // When the sort criterion is missing, do not fall back to the overall
+  // average — the card must look "not rated on this criterion".
   const displayScore =
-    typeof scoreOverride === 'number'
+    !scoreMissing && typeof scoreOverride === 'number'
       ? scoreOverride
       : summary.ownScore ?? summary.averageScore;
   // Friend score as context below the own main score (only when merged).
   const friendScore =
     summary.friendScore && summary.friendVisitCount ? summary.friendScore : null;
 
-  const card = (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={
-        isDraft
-          ? `${summary.name}, ${t('reviews.draftLabel')}`
-          : undefined
-      }
-      onPress={() => {
-        Haptics.light();
-        if (shareSelecting) {
-          onSelectToggle?.();
-        } else {
-          onPress();
-        }
-      }}
-      android_ripple={
-        Platform.OS === 'android'
-          ? { color: Theme.list.androidRipple, borderless: false }
-          : undefined
-      }
-      style={({ pressed }) => [
-        styles.card,
-        Platform.OS === 'ios' && pressed ? listPressedStyle : null,
-      ]}>
+  const handlePress = () => {
+    Haptics.light();
+    if (shareSelecting) {
+      onSelectToggle?.();
+    } else {
+      onPress();
+    }
+  };
+
+  const cardBody = (
+    <>
       <RestaurantThumb uri={summary.photoUrl} />
 
       <View style={styles.main}>
@@ -18048,8 +18323,24 @@ export function RestaurantFeedCard({
           {summary.name}
         </SerifText>
         {summary.city ? <Text style={styles.city}>{summary.city}</Text> : null}
-        {!isDraft && displayScore > 0 ? (
+        {!isDraft && !scoreMissing && displayScore > 0 ? (
           <FractionalStarRating score={displayScore} size={24} />
+        ) : null}
+        {!isDraft && scoreMissing ? (
+          <Text style={styles.missingCriterion}>
+            {scoreOverrideCriterionTitle
+              ? t('reviews.noCriterionRatingLabel', {
+                  criterion: scoreOverrideCriterionTitle,
+                })
+              : t('reviews.noRatingLabel')}
+          </Text>
+        ) : null}
+        {!isDraft && !scoreMissing && scoreOverrideCriterionTitle ? (
+          <Text style={styles.criterionLabel}>
+            {t('reviews.criterionScoreLabel', {
+              criterion: scoreOverrideCriterionTitle,
+            })}
+          </Text>
         ) : null}
         <Text style={styles.meta}>
           {summary.visitCount <= 1
@@ -18081,7 +18372,7 @@ export function RestaurantFeedCard({
           </View>
         ) : (
           <>
-            {displayScore > 0 ? (
+            {!scoreMissing && displayScore > 0 ? (
               <SerifText size={20} weight="bold" style={styles.score}>
                 {formatScoreOutOfFive(displayScore)}
               </SerifText>
@@ -18102,8 +18393,46 @@ export function RestaurantFeedCard({
           </>
         )}
       </View>
-    </Pressable>
+    </>
   );
+
+  // Android: M3 Elevated Card (react-native-paper) — tonal surface, elevation
+  // 1→2 state animation on press, and a subtle ink state-layer wash since the
+  // paper Card's inner Pressable has no ripple. iOS keeps the HIG pressable.
+  // (No a11y props on the paper Card: they'd land on the outer Surface and
+  // cause a TalkBack double-focus; the inner Pressable reads the card content.)
+  const card =
+    Platform.OS === 'android' ? (
+      <PaperCard
+        mode="elevated"
+        elevation={1}
+        onPress={handlePress}
+        onPressIn={() => setAndroidCardPressed(true)}
+        onPressOut={() => setAndroidCardPressed(false)}
+        style={styles.card}
+        contentStyle={styles.cardRow}>
+        {androidCardPressed ? (
+          <View pointerEvents="none" style={styles.androidStateLayer} />
+        ) : null}
+        {cardBody}
+      </PaperCard>
+    ) : (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={
+          isDraft
+            ? `${summary.name}, ${t('reviews.draftLabel')}`
+            : undefined
+        }
+        onPress={handlePress}
+        style={({ pressed }) => [
+          styles.card,
+          styles.cardRow,
+          pressed ? listPressedStyle : null,
+        ]}>
+        {cardBody}
+      </Pressable>
+    );
 
   if (shareSelecting) {
     return (
@@ -18143,17 +18472,38 @@ export function RestaurantFeedCard({
 
 const styles = StyleSheet.create({
   card: {
+    // Paper Card (Android) owns surface/elevation/borderRadius here; the row
+    // layout + padding live on Card.contentStyle (see cardRow below).
+    borderRadius: Theme.radius.xl,
+    ...(Platform.OS === 'ios'
+      ? {
+          backgroundColor: Theme.list.cardBackground,
+          // Avoid iOS blanking: overflow+radius without elevation hides Text.
+          overflow: 'hidden' as const,
+          ...Surface.raised,
+        }
+      : {
+          overflow: 'visible' as const,
+        }),
+  },
+  /** Row layout — on Android it lives on Card.contentStyle (inner container). */
+  cardRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
     padding: Theme.spacing.cardPadding,
     minHeight: Theme.size.hitTarget + Theme.spacing.cardPadding,
-    backgroundColor: Theme.list.cardBackground,
+  },
+  /** M3 state layer on Android — subtle ink wash while the card is pressed. */
+  androidStateLayer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: 'rgba(35, 32, 26, 0.05)',
     borderRadius: Theme.radius.xl,
-    // Avoid Android blanking: overflow+radius without elevation hides Text.
-    ...(Platform.OS === 'ios'
-      ? { overflow: 'hidden' as const, ...Surface.raised }
-      : { overflow: 'visible' as const, ...Surface.flat }),
+    zIndex: 1,
   },
   main: {
     flex: 1,
@@ -18173,6 +18523,19 @@ const styles = StyleSheet.create({
     ...captionTextStyle,
     fontSize: Type.label,
     color: 'rgba(35, 32, 26, 0.5)',
+  },
+  criterionLabel: {
+    ...captionTextStyle,
+    fontSize: Type.label,
+    fontWeight: '600',
+    color: GustraColors.forestGreen,
+  },
+  missingCriterion: {
+    ...captionTextStyle,
+    fontSize: Type.label,
+    fontWeight: '600',
+    color: 'rgba(35, 32, 26, 0.4)',
+    fontStyle: 'italic',
   },
   reviewer: {
     ...captionTextStyle,
@@ -19278,13 +19641,12 @@ function rankByCriterion(
     .map((summary) => ({
       summary,
       score: criterionAverageFor(summary, criterionId),
-    }))
+    }));
+  const ranked = withScores
     .filter(
       (row): row is { summary: RestaurantVisitSummary; score: number } =>
         row.score != null,
-    );
-
-  const ranked = withScores
+    )
     .sort((a, b) => {
       if (a.score !== b.score) return b.score - a.score;
       return a.summary.name.localeCompare(b.summary.name, undefined, {
@@ -19292,11 +19654,18 @@ function rankByCriterion(
       });
     })
     .map((row) => row.summary);
+  // Restaurants without a rating on this criterion stay visible but move to
+  // the bottom (sorted by recency) instead of disappearing entirely.
+  const unscored = withScores
+    .filter((row) => row.score == null)
+    .map((row) => row.summary);
 
-  // Drafts stay on top even when sorting by criterion.
+  // Drafts stay on top even when sorting by criterion; unscored restaurants
+  // sink below the ranked ones so sorting never removes a restaurant.
   return [
     ...rankByDate(drafts),
     ...ranked,
+    ...rankByDate(unscored),
   ];
 }
 
@@ -19479,23 +19848,26 @@ FILE: components/map/GoogleMapsView.tsx
 ================================================================================
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
   useState,
 } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import WebView, { type WebViewMessageEvent } from 'react-native-webview';
 
 import { GoogleAPIConfig } from '@/constants/GoogleAPIConfig';
 import { GustraColors } from '@/constants/Colors';
 import { bodyTextStyle } from '@/constants/Theme';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { incrementGoogleApi } from '@/services/google/GoogleApiTracker';
 import {
   assertGoogleApiAllowed,
   isGoogleApiQuotaExceededError,
 } from '@/services/google/GoogleApiQuota';
+import { buildMapHtml } from '@/services/map/mapHtml';
 import type { LatLng } from '@/services/places';
 
 export type GoogleMapMarker = {
@@ -19510,6 +19882,12 @@ export type GoogleMapMarker = {
 export type GoogleMapsViewHandle = {
   animateTo: (center: LatLng, zoom?: number) => void;
   fitToMarkers: (padding?: number) => void;
+  /** Reload the WebView and re-apply markers/fit (used on tab focus / retry). */
+  refresh: () => void;
+  /** True when the map is currently in an error state (white map). */
+  hasError: () => boolean;
+  /** Reload only when the WebView is stale (no pong within timeout). */
+  reloadIfStale: () => Promise<void>;
 };
 
 type GoogleMapsViewProps = {
@@ -19558,10 +19936,16 @@ export const GoogleMapsView = forwardRef<
   },
   ref,
 ) {
+  const { t } = useAppTranslation();
   const webRef = useRef<WebView>(null);
   const readyRef = useRef(false);
   /** One-shot auto-fit so returning from a review does not reset the camera. */
   const didAutoFitRef = useRef(false);
+  /** Set after a manual reload so the fresh WebView re-applies markers/fit. */
+  const refreshedRef = useRef(false);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pongTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pongResolverRef = useRef<((alive: boolean) => void) | null>(null);
   const [error, setError] = useState<string | null>(null);
   const markersRef = useRef(markers);
   markersRef.current = markers;
@@ -19585,6 +19969,13 @@ export const GoogleMapsView = forwardRef<
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
+
+  useEffect(() => {
+    return () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      if (pongTimerRef.current) clearTimeout(pongTimerRef.current);
+    };
+  }, []);
 
   const inject = (js: string) => {
     try {
@@ -19623,6 +20014,55 @@ export const GoogleMapsView = forwardRef<
     applyFit();
   };
 
+  /**
+   * Full reload of the WebView. Clears the error state and resets the
+   * one-shot auto-fit so a fresh WebView re-fits the markers. Used by the
+   * retry timer, the error overlay's "Opnieuw laden" button, and the map
+   * screen's focus refresh.
+   */
+  const reloadWebView = useCallback(() => {
+    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    if (pongTimerRef.current) clearTimeout(pongTimerRef.current);
+    readyRef.current = false;
+    didAutoFitRef.current = false;
+    refreshedRef.current = true;
+    setError(null);
+    // Reloading may silently fail if the WebView is still initializing;
+    // guard against a permanently white map by retrying a few times.
+    retryTimerRef.current = setTimeout(() => {
+      try {
+        webRef.current?.reload();
+      } catch {
+        // WebView may be unmounted — ignore.
+      }
+    }, 0);
+  }, []);
+
+  /**
+   * Ping the WebView to verify the map runtime is still alive. Resolves true
+   * when the map replies within the timeout. A silent WebView (reloaded but
+   * never ready again) never answers — that is the "white map" case.
+   */
+  const ping = useCallback((): Promise<boolean> => {
+    if (pongTimerRef.current) clearTimeout(pongTimerRef.current);
+    return new Promise((resolve) => {
+      pongResolverRef.current = resolve;
+      pongTimerRef.current = setTimeout(() => {
+        pongResolverRef.current = null;
+        resolve(false);
+      }, 1500);
+      try {
+        webRef.current?.injectJavaScript(
+          'window.__gustraPing && window.__gustraPing(); true;',
+        );
+      } catch {
+        if (pongTimerRef.current) clearTimeout(pongTimerRef.current);
+        pongResolverRef.current = null;
+        resolve(false);
+      }
+    });
+  }, []);
+
   useImperativeHandle(ref, () => ({
     animateTo(center, zoom = 15) {
       inject(
@@ -19642,6 +20082,17 @@ export const GoogleMapsView = forwardRef<
         `window.__gustraFitBounds(${JSON.stringify(points)}, ${JSON.stringify(padding)})`,
       );
       didAutoFitRef.current = true;
+    },
+    refresh() {
+      reloadWebView();
+    },
+    hasError() {
+      return error != null;
+    },
+    /** Reload only when the WebView is stale (no pong within timeout). */
+    async reloadIfStale() {
+      const alive = await ping();
+      if (!alive) reloadWebView();
     },
   }));
 
@@ -19679,9 +20130,17 @@ export const GoogleMapsView = forwardRef<
         zoom?: number;
         message?: string;
       };
+      if (payload.type === 'pong') {
+        if (pongTimerRef.current) clearTimeout(pongTimerRef.current);
+        pongTimerRef.current = null;
+        pongResolverRef.current?.(true);
+        pongResolverRef.current = null;
+        return;
+      }
       if (payload.type === 'error') {
         setError(
           payload.message ??
+            t('map.loadFailedBody') ??
             'Google Maps failed to load. Enable Maps JavaScript API for this key.',
         );
         return;
@@ -19700,9 +20159,13 @@ export const GoogleMapsView = forwardRef<
             throw error;
           }
           void incrementGoogleApi('maps');
-          inject(
-            `window.__gustraSetMarkers(${JSON.stringify(markersRef.current)})`,
-          );
+          // A fresh WebView (after reload) needs the markers re-applied; the
+          // ready callback may otherwise run before the markers effect.
+          if (refreshedRef.current || markersRef.current.length > 0) {
+            inject(
+              `window.__gustraSetMarkers(${JSON.stringify(markersRef.current)})`,
+            );
+          }
           if (showsUserLocation && userLocation) {
             inject(
               `window.__gustraSetUser(${JSON.stringify({
@@ -19751,214 +20214,28 @@ export const GoogleMapsView = forwardRef<
         setSupportMultipleWindows={false}
         androidLayerType="hardware"
         onError={() =>
-          setError('Could not load the Google Maps WebView.')
+          setError(t('map.loadFailedBody'))
         }
       />
       {error ? (
-        <View style={styles.errorOverlay} pointerEvents="none">
-          <Text style={styles.errorTitle}>Couldn't load Google Maps</Text>
+        <View style={styles.errorOverlay}>
+          <Text style={styles.errorTitle}>{t('map.loadFailedTitle')}</Text>
           <Text style={styles.errorBody}>{error}</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('map.reload')}
+            onPress={reloadWebView}
+            style={({ pressed }) => [
+              styles.errorButton,
+              pressed && styles.errorButtonPressed,
+            ]}>
+            <Text style={styles.errorButtonLabel}>{t('map.reload')}</Text>
+          </Pressable>
         </View>
       ) : null}
     </View>
   );
 });
-
-function buildMapHtml(options: {
-  apiKey: string;
-  center: LatLng;
-  zoom: number;
-  forestGreen: string;
-  mapPaddingBottom: number;
-}): string {
-  const { apiKey, center, zoom, forestGreen, mapPaddingBottom } = options;
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <style>
-    html, body, #map { margin: 0; padding: 0; width: 100%; height: 100%; background: #F5EEDD; }
-  </style>
-</head>
-<body>
-  <div id="map"></div>
-  <script>
-    var map = null;
-    var markerById = {};
-    var userMarker = null;
-    var FOREST = ${JSON.stringify(forestGreen)};
-    var MAP_PADDING_BOTTOM = ${JSON.stringify(mapPaddingBottom)};
-
-    function post(payload) {
-      if (window.ReactNativeWebView) {
-        window.ReactNativeWebView.postMessage(JSON.stringify(payload));
-      }
-    }
-
-    window.gm_authFailure = function () {
-      post({
-        type: 'error',
-        message: 'Google Maps authentication failed. In Google Cloud, enable “Maps JavaScript API” for this key (and allow HTTP referrers, or leave key unrestricted for development).',
-      });
-    };
-
-    function visibleRadiusMeters() {
-      if (!map || !map.getBounds()) return 2000;
-      var c = map.getCenter();
-      var ne = map.getBounds().getNorthEast();
-      var R = 6371000;
-      var toRad = function (d) { return d * Math.PI / 180; };
-      var dLat = toRad(ne.lat() - c.lat());
-      var dLng = toRad(ne.lng() - c.lng());
-      var a = Math.sin(dLat/2)*Math.sin(dLat/2) +
-        Math.cos(toRad(c.lat()))*Math.cos(toRad(ne.lat()))*
-        Math.sin(dLng/2)*Math.sin(dLng/2);
-      var dist = 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
-      return Math.max(200, Math.min(dist, 50000));
-    }
-
-    function pinIcon(color, selected) {
-      // Match Swift GMSMarker.markerImage(with:) — teardrop “flag” pin, not a circle.
-      var scale = selected ? 1.55 : 1;
-      var w = Math.round(28 * scale);
-      var h = Math.round(40 * scale);
-      var fill = (color || FOREST).replace(/"/g, '');
-      var svg =
-        '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 28 40">' +
-        '<path fill="' + fill + '" stroke="#FFFFFF" stroke-width="1.75" ' +
-        'd="M14 1.25C7.55 1.25 2.25 6.55 2.25 13c0 8.6 10.35 21.05 11.15 21.95a1.1 1.1 0 0 0 1.6 0C15.8 34.05 25.75 21.6 25.75 13c0-6.45-5.3-11.75-11.75-11.75z"/>' +
-        '<circle fill="#FFFFFF" cx="14" cy="13" r="4.75"/>' +
-        '</svg>';
-      return {
-        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
-        scaledSize: new google.maps.Size(w, h),
-        anchor: new google.maps.Point(w / 2, h),
-      };
-    }
-
-    window.__gustraAnimate = function (lat, lng, zoom) {
-      if (!map) return;
-      map.panTo({ lat: lat, lng: lng });
-      if (typeof zoom === 'number') map.setZoom(zoom);
-    };
-
-    window.__gustraFitBounds = function (points, bottomPad) {
-      if (!map || !points || !points.length) return;
-      var pad = typeof bottomPad === 'number' ? bottomPad : MAP_PADDING_BOTTOM;
-      if (points.length === 1) {
-        map.panTo(points[0]);
-        map.setZoom(13);
-        return;
-      }
-      var bounds = new google.maps.LatLngBounds();
-      points.forEach(function (p) { bounds.extend(p); });
-      map.fitBounds(bounds, {
-        top: 64,
-        right: 48,
-        bottom: Math.max(64, pad || 0) + 24,
-        left: 48,
-      });
-    };
-
-    window.__gustraSetMarkers = function (markers) {
-      if (!map || !markers) return;
-      var keep = {};
-      var hasSelection = markers.some(function (m) { return m.isSelected; });
-      markers.forEach(function (m) {
-        keep[m.id] = true;
-        var pos = { lat: m.coordinate.latitude, lng: m.coordinate.longitude };
-        var existing = markerById[m.id];
-        if (!existing) {
-          existing = new google.maps.Marker({
-            map: map,
-            position: pos,
-            title: m.title || '',
-          });
-          existing.addListener('click', function () {
-            post({ type: 'marker', id: m.id });
-          });
-          markerById[m.id] = existing;
-        } else {
-          existing.setPosition(pos);
-          existing.setTitle(m.title || '');
-        }
-        existing.setIcon(pinIcon(m.color, !!m.isSelected));
-        existing.setOpacity(hasSelection && !m.isSelected ? 0.35 : 1);
-        existing.setZIndex(m.isSelected ? 1000 : 0);
-      });
-      Object.keys(markerById).forEach(function (id) {
-        if (!keep[id]) {
-          markerById[id].setMap(null);
-          delete markerById[id];
-        }
-      });
-    };
-
-    window.__gustraSetUser = function (coords) {
-      if (!map) return;
-      if (!coords) {
-        if (userMarker) { userMarker.setMap(null); userMarker = null; }
-        return;
-      }
-      var pos = { lat: coords.lat, lng: coords.lng };
-      if (!userMarker) {
-        userMarker = new google.maps.Marker({
-          map: map,
-          position: pos,
-          zIndex: 2000,
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            scale: 8,
-            fillColor: '#4285F4',
-            fillOpacity: 1,
-            strokeColor: '#FFFFFF',
-            strokeWeight: 2,
-          },
-        });
-      } else {
-        userMarker.setPosition(pos);
-      }
-    };
-
-    function initMap() {
-      try {
-        map = new google.maps.Map(document.getElementById('map'), {
-          center: { lat: ${center.latitude}, lng: ${center.longitude} },
-          zoom: ${zoom},
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: false,
-          clickableIcons: false,
-          gestureHandling: 'greedy',
-          padding: { top: 0, right: 0, bottom: MAP_PADDING_BOTTOM, left: 0 },
-        });
-        map.addListener('idle', function () {
-          var c = map.getCenter();
-          post({
-            type: 'idle',
-            lat: c.lat(),
-            lng: c.lng(),
-            zoom: map.getZoom(),
-            radius: visibleRadiusMeters(),
-          });
-        });
-        map.addListener('click', function () {
-          post({ type: 'mapTap' });
-        });
-        post({ type: 'ready' });
-      } catch (e) {
-        post({ type: 'error', message: String(e && e.message ? e.message : e) });
-      }
-    }
-  </script>
-  <script async defer
-    src="https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&callback=initMap"
-    onerror="window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({type:'error',message:'Failed to download Google Maps JavaScript API.'}))">
-  </script>
-</body>
-</html>`;
-}
 
 const styles = StyleSheet.create({
   fill: {
@@ -19984,6 +20261,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(35, 32, 26, 0.65)',
     textAlign: 'center',
+  },
+  errorButton: {
+    marginTop: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: GustraColors.forestGreen,
+  },
+  errorButtonPressed: {
+    opacity: 0.85,
+  },
+  errorButtonLabel: {
+    ...bodyTextStyle,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
 
@@ -20108,9 +20401,7 @@ export function BucketListSection({
 
   if (restaurants.length === 0) {
     return (
-      <PassportSection
-        title={t('bucketList.title')}
-        kicker={t('bucketList.kicker')}>
+      <PassportSection title={t('bucketList.title')}>
         <View style={styles.empty}>
           <SymbolView
             name={{
@@ -20128,9 +20419,7 @@ export function BucketListSection({
   }
 
   return (
-    <PassportSection
-      title={t('bucketList.title')}
-      kicker={t('bucketList.kicker')}>
+    <PassportSection title={t('bucketList.title')}>
       {restaurants.map((restaurant) => (
         <View key={restaurant.id} style={styles.rowWrap}>
           <FeedSwipeDelete
@@ -20426,19 +20715,16 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
-import { Theme, SERIF_FONT_REGULAR_ITALIC } from '@/constants/Theme';
+import { Theme } from '@/constants/Theme';
 
 type PassportSectionProps = {
   title: string;
-  /** Optional cursive kicker above the title (e.g. "your favourites"). */
-  kicker?: string;
   trailing?: string;
   children: ReactNode;
 };
 
 export function PassportSection({
   title,
-  kicker,
   trailing,
   children,
 }: PassportSectionProps) {
@@ -20446,7 +20732,6 @@ export function PassportSection({
     <View style={styles.section}>
       <View style={styles.header}>
         <View style={styles.headerCopy}>
-          {kicker ? <Text style={styles.kicker}>{kicker}</Text> : null}
           <Text style={styles.headerTitle}>{title}</Text>
         </View>
         {trailing ? (
@@ -20477,12 +20762,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: 8,
-  },
-  kicker: {
-    fontFamily: SERIF_FONT_REGULAR_ITALIC,
-    fontSize: 13,
-    color: 'rgba(35, 32, 26, 0.5)',
-    letterSpacing: -0.2,
   },
   headerTitle: {
     fontSize: Theme.typography.sectionHeader,
@@ -20752,7 +21031,7 @@ const styles = StyleSheet.create({
 ================================================================================
 FILE: components/review/InteractiveStarRating.tsx
 ================================================================================
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -20767,7 +21046,7 @@ import { runOnJS } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 
 import { GustraColors } from '@/constants/Colors';
-import { SERIF_FONT, Theme } from '@/constants/Theme';
+import { captionTextStyle, SERIF_FONT, Theme } from '@/constants/Theme';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 import { Haptics } from '@/services/haptics';
 import {
@@ -20835,7 +21114,7 @@ function stepsFromLocalX(x: number): number {
 /**
  * Interactive half-star rating (Swift `StarRatingView`).
  * Tap or horizontal scrub; vertical movement fails to ScrollView.
- * Trash clears to N/A (`-1`).
+ * Trash clears to unrated (0); N/A (`-1`) is set explicitly where supported.
  */
 export function InteractiveStarRating({
   rating,
@@ -20845,6 +21124,7 @@ export function InteractiveStarRating({
   const { t } = useAppTranslation();
   const lastSteps = useRef(rating);
   const scrubbingRef = useRef(false);
+  const [touched, setTouched] = useState(false);
   const ratingRef = useRef(rating);
   ratingRef.current = rating;
   const onChangeRef = useRef(onChange);
@@ -20863,6 +21143,7 @@ export function InteractiveStarRating({
   }, []);
 
   const applyFromX = useCallback((x: number) => {
+    setTouched(true);
     const steps = stepsFromLocalX(x);
     if (
       steps === lastSteps.current &&
@@ -20917,7 +21198,11 @@ export function InteractiveStarRating({
       <View style={styles.row}>
         <GestureDetector gesture={gesture}>
           <View
-            style={[styles.stars, { width: STARS_WIDTH, height: STAR_SIZE }]}
+            style={[
+              styles.stars,
+              { width: STARS_WIDTH, height: STAR_SIZE },
+              touched && styles.stateLayer,
+            ]}
             accessibilityRole="adjustable"
             accessibilityLabel={t('rating.a11y.rating')}
             accessibilityValue={{
@@ -20945,13 +21230,14 @@ export function InteractiveStarRating({
             accessibilityLabel={t('rating.a11y.clear')}
             hitSlop={8}
             onPress={() => {
-              lastSteps.current = RatingValue.notApplicable;
+              lastSteps.current = RatingValue.unrated;
+              setTouched(false);
               Haptics.light();
-              onChange(RatingValue.notApplicable);
+              onChange(RatingValue.unrated);
             }}
             style={({ pressed }) => [
               styles.clearHit,
-              pressed && styles.pressed,
+              pressed && styles.clearPressed,
             ]}>
             {Platform.OS === 'ios' ? (
               <SymbolView
@@ -20974,7 +21260,12 @@ export function InteractiveStarRating({
       </View>
 
       {RatingValue.isStarRating(rating) ? (
-        <Text style={styles.label}>{ratingLabel(rating)}</Text>
+        <View style={styles.labelRow}>
+          <Text style={styles.label}>{ratingLabel(rating)}</Text>
+          <Text style={styles.labelScore}>
+            {formatHalfStarOutOfFive(rating)}
+          </Text>
+        </View>
       ) : null}
     </View>
   );
@@ -20993,6 +21284,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  /** M3/HIG state layer — subtle wash behind stars while actively rating. */
+  stateLayer: {
+    backgroundColor: 'rgba(36, 78, 57, 0.07)',
+    borderRadius: 10,
+  },
   starBase: {
     position: 'absolute',
     top: 0,
@@ -21007,13 +21303,475 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pressed: {
-    opacity: 0.65,
+  clearPressed: {
+    backgroundColor: 'rgba(35, 32, 26, 0.08)',
+    borderRadius: 10,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
   },
   label: {
     fontFamily: SERIF_FONT,
     fontSize: 15,
     color: 'rgba(35, 32, 26, 0.7)',
+  },
+  labelScore: {
+    ...captionTextStyle,
+    fontSize: 13,
+    color: GustraColors.forestGreen,
+  },
+});
+
+
+================================================================================
+FILE: components/review/PhotoLibraryPickerModal.tsx
+================================================================================
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';import {
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
+import { HousePrimaryButton, HousePrimaryButtonRow } from '@/components/ui/HousePrimaryButton';
+import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
+import { GustraColors } from '@/constants/Colors';
+import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
+import type { LibraryAsset } from '@/services/reviews/photoLibrary';
+import { Haptics } from '@/services/haptics';
+
+const PAGE_SIZE = 60;
+/** Number of tiles per row — matches the iOS system picker. */
+const COLUMNS = 4;
+const TILE_GAP = 2;
+
+type PhotoLibraryPickerModalProps = {
+  visible: boolean;
+  /** How many photos can still be added to the review. */
+  selectionLimit: number;
+  onCancel: () => void;
+  /** Called with the selected asset refs (lightweight `ph://`/content refs). */
+  onConfirm: (assets: LibraryAsset[]) => void;
+};
+
+/**
+ * In-app photo library grid picker (replaces the iOS system picker for
+ * multi-select). The system PHPicker interprets drag-while-scrolling as
+ * "select every cell your finger passes" — with our own grid, tapping and
+ * scrolling are strictly separate gestures (`Pressable` cells in a `FlatList`),
+ * so a scroll can never corrupt the selection.
+ *
+ * Reads assets with `expo-media-library` (legacy `getAssetsAsync`, paged).
+ * The returned URIs are lightweight refs (`ph://` on iOS) that React Native's
+ * PhotoKit image loader renders as fast, size-limited thumbnails — the full
+ * photo is only downloaded when the user confirms and `saveReviewPhoto` runs.
+ */
+export function PhotoLibraryPickerModal({
+  visible,
+  selectionLimit,
+  onCancel,
+  onConfirm,
+}: PhotoLibraryPickerModalProps) {
+  const { t } = useAppTranslation();
+  const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+
+  const [assets, setAssets] = useState<LibraryAsset[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [nextCursor, setNextCursor] = useState<string | undefined>();
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingInitial, setLoadingInitial] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [importing, setImporting] = useState(false);
+
+  const loadingMoreRef = useRef(false);
+  loadingMoreRef.current = loadingMore;
+  const limitRef = useRef(selectionLimit);
+  limitRef.current = selectionLimit;
+
+  // Reset state whenever the picker opens (fresh page, fresh selection).
+  useEffect(() => {
+    if (!visible) return;
+    setAssets([]);
+    setSelected(new Set());
+    setNextCursor(undefined);
+    setHasMore(true);
+    setLoadingInitial(true);
+    setLoadFailed(false);
+  }, [visible]);
+
+  const loadPage = useCallback(async (after?: string) => {
+    const MediaLibrary = await import('expo-media-library/legacy');
+    const page = await MediaLibrary.getAssetsAsync({
+      first: PAGE_SIZE,
+      after,
+      mediaType: [MediaLibrary.MediaType.photo],
+      sortBy: [[MediaLibrary.SortBy.creationTime, false]],
+    });
+    return page;
+  }, []);
+
+  const fetchFirstPage = useCallback(async () => {
+    setLoadingInitial(true);
+    setLoadFailed(false);
+    setAssets([]);
+    setNextCursor(undefined);
+    setHasMore(true);
+    try {
+      const page = await loadPage();
+      setAssets(page.assets);
+      setNextCursor(page.endCursor || undefined);
+      setHasMore(page.hasNextPage);
+    } catch {
+      setLoadFailed(true);
+    } finally {
+      setLoadingInitial(false);
+    }
+  }, [loadPage]);
+
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const page = await loadPage();
+        if (cancelled) return;
+        setAssets(page.assets);
+        setNextCursor(page.endCursor || undefined);
+        setHasMore(page.hasNextPage);
+      } catch {
+        if (cancelled) return;
+        setLoadFailed(true);
+      } finally {
+        if (!cancelled) setLoadingInitial(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadPage, visible]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current || !nextCursor || !hasMore) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    try {
+      const page = await loadPage(nextCursor);
+      setAssets((prev) => {
+        const seen = new Set(prev.map((a) => a.id));
+        const fresh = page.assets.filter((a) => !seen.has(a.id));
+        return [...prev, ...fresh];
+      });
+      setNextCursor(page.endCursor || undefined);
+      setHasMore(page.hasNextPage);
+    } catch {
+      setHasMore(false);
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [hasMore, loadPage, nextCursor]);
+
+  const remaining = Math.max(0, selectionLimit - selected.size);
+  const selectedCount = selected.size;
+
+  const toggleSelect = useCallback(
+    (id: string) => {
+      Haptics.selectionChanged();
+      setSelected((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) {
+          next.delete(id);
+        } else if (remaining > 0) {
+          next.add(id);
+        } else {
+          return prev;
+        }
+        return next;
+      });
+    },
+    [remaining],
+  );
+
+  const clearSelection = useCallback(() => {
+    Haptics.light();
+    setSelected(new Set());
+  }, []);
+
+  const handleConfirm = useCallback(async () => {
+    if (selected.size === 0 || importing) return;
+    setImporting(true);
+    try {
+      const picked = assets.filter((a) => selected.has(a.id)).slice(0, limitRef.current);
+      onConfirm(picked);
+    } finally {
+      setImporting(false);
+    }
+  }, [assets, importing, onConfirm, selected]);
+
+  const handleCancel = useCallback(() => {
+    if (importing) return;
+    onCancel();
+  }, [importing, onCancel]);
+
+  const gridColumns = COLUMNS;
+  const tileSize = Math.floor((windowWidth - TILE_GAP * (COLUMNS + 1)) / COLUMNS);
+
+  const renderItem = useCallback(
+    ({ item }: { item: LibraryAsset }) => {
+      const isSelected = selected.has(item.id);
+      return (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: isSelected }}
+          accessibilityLabel={
+            isSelected
+              ? t('forms.photoPicker.a11yDeselect')
+              : t('forms.photoPicker.a11ySelect')
+          }
+          disabled={importing}
+          onPress={() => toggleSelect(item.id)}
+          style={({ pressed }) => [
+            styles.tile,
+            { width: tileSize, height: tileSize },
+            pressed && styles.tilePressed,
+          ]}>
+          <Image source={{ uri: item.uri }} style={styles.tileImage} resizeMode="cover" />
+          {isSelected ? (
+            <View style={styles.selectedOverlay} pointerEvents="none" />
+          ) : null}
+          {isSelected ? (
+            <View style={styles.checkBadge} pointerEvents="none">
+              <Text style={styles.checkBadgeText}>✓</Text>
+            </View>
+          ) : null}
+        </Pressable>
+      );
+    },
+    [importing, selected, t, tileSize, toggleSelect],
+  );
+
+  const header = useMemo(
+    () => (
+      <View style={styles.limitRow}>
+        <Text style={styles.limitLabel}>
+          {remaining > 0
+            ? t('forms.photoPicker.remaining', { count: remaining })
+            : t('forms.photoPicker.limitReached')}
+        </Text>
+        {selectedCount > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('forms.photoPicker.clearSelection')}
+            hitSlop={8}
+            onPress={clearSelection}
+            style={({ pressed }) => [
+              styles.clearBtn,
+              pressed && styles.pressed,
+            ]}>
+            <Text style={styles.clearLabel}>{t('forms.photoPicker.clearSelection')}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    ),
+    [clearSelection, remaining, selectedCount, t],
+  );
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="fullScreen"
+      onRequestClose={handleCancel}>
+      <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <HouseNavHeader
+          title={t('forms.photoPicker.title')}
+          titlePaddingHorizontal={96}
+          left={
+            <HouseToolbarIconButton
+              iosName="xmark"
+              androidName="close"
+              accessibilityLabel={t('common.close')}
+              onPress={handleCancel}
+            />
+          }
+          right={
+            <HouseToolbarIconButton
+              iosName="checkmark"
+              androidName="check"
+              accessibilityLabel={t('forms.review.done')}
+              disabled={selectedCount === 0 || importing}
+              onPress={() => void handleConfirm()}
+            />
+          }
+        />
+
+        {loadingInitial ? (
+          <View style={styles.center}>
+            <ActivityIndicator color={GustraColors.forestGreen} size="large" />
+          </View>
+        ) : loadFailed ? (
+          <View style={styles.center}>
+            <Text style={styles.errorText}>{t('forms.photoPicker.loadFailed')}</Text>
+            <HousePrimaryButton
+              title={t('forms.photoPicker.retry')}
+              onPress={() => void fetchFirstPage()}
+            />
+          </View>
+        ) : (
+          <>
+            {header}
+            <FlatList
+              data={assets}
+              renderItem={renderItem}
+              keyExtractor={(item) => item.id}
+              numColumns={gridColumns}
+              columnWrapperStyle={styles.row}
+              contentContainerStyle={styles.gridContent}
+              showsVerticalScrollIndicator={false}
+              onEndReachedThreshold={0.4}
+              onEndReached={() => void loadMore()}
+              ListFooterComponent={
+                loadingMore ? (
+                  <View style={styles.footer}>
+                    <ActivityIndicator color={GustraColors.forestGreen} />
+                  </View>
+                ) : null
+              }
+            />
+            <View style={styles.footerBar}>
+              <HousePrimaryButtonRow>
+                <HousePrimaryButton
+                  title={t('forms.photoPicker.clearSelection')}
+                  flex
+                  disabled={selectedCount === 0 || importing}
+                  onPress={clearSelection}
+                />
+                <HousePrimaryButton
+                  title={
+                    selectedCount > 0
+                      ? t('forms.photoPicker.addSelected', { count: selectedCount })
+                      : t('forms.photoPicker.addPhotos')
+                  }
+                  flex
+                  disabled={selectedCount === 0 || importing}
+                  onPress={() => void handleConfirm()}
+                />
+              </HousePrimaryButtonRow>
+            </View>
+          </>
+        )}
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: GustraColors.cream,
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    padding: 24,
+  },
+  errorText: {
+    ...bodyTextStyle,
+    fontSize: 15,
+    color: 'rgba(35, 32, 26, 0.6)',
+    textAlign: 'center',
+  },
+  limitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 8,
+  },
+  limitLabel: {
+    ...captionTextStyle,
+    fontSize: 13,
+    fontWeight: '600',
+    color: GustraColors.forestGreen,
+  },
+  clearBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  clearLabel: {
+    ...captionTextStyle,
+    fontSize: 13,
+    fontWeight: '600',
+    color: GustraColors.ratingAvoid,
+  },
+  pressed: {
+    opacity: 0.6,
+  },
+  gridContent: {
+    paddingHorizontal: TILE_GAP,
+    paddingBottom: 8,
+  },
+  row: {
+    gap: TILE_GAP,
+    marginBottom: TILE_GAP,
+  },
+  tile: {
+    overflow: 'hidden',
+    borderRadius: Theme.radius.sm,
+    backgroundColor: 'rgba(36, 78, 57, 0.08)',
+  },
+  tilePressed: {
+    opacity: 0.85,
+  },
+  tileImage: {
+    width: '100%',
+    height: '100%',
+  },
+  selectedOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(36, 78, 57, 0.25)',
+    borderWidth: 2,
+    borderColor: GustraColors.forestGreen,
+  },
+  checkBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: GustraColors.forestGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 16,
+  },
+  footer: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  footerBar: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
 });
 
@@ -21162,6 +21920,9 @@ export function ReorderablePhotoStrip({
                   )}
                 </View>
               )}
+              {isActive && Platform.OS === 'android' ? (
+                <View style={styles.dragStateLayer} pointerEvents="none" />
+              ) : null}
               {isSelected ? (
                 <View style={styles.selectedRing} pointerEvents="none" />
               ) : null}
@@ -21307,6 +22068,16 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
   },
+  /** M3 drag state layer on Android — primary-tint wash while dragging. */
+  dragStateLayer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderRadius: Theme.radius.sm,
+    backgroundColor: 'rgba(36, 78, 57, 0.22)',
+  },
   thumb: {
     width: PHOTO_SIZE,
     height: PHOTO_SIZE,
@@ -21375,6 +22146,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { FavoriteHeartButton } from '@/components/ui/FavoriteHeartButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 type RestaurantHeaderCardProps = {
   name: string;
@@ -21383,6 +22155,8 @@ type RestaurantHeaderCardProps = {
   setIsFavorite: (favorite: boolean) => void;
   isDraftForm: boolean;
   draftLabel: string; // t('reviews.draftLabel')
+  /** Number of earlier visits to this restaurant (revisit subtitle). */
+  revisitCount?: number;
 };
 
 export const RestaurantHeaderCard = React.memo(function RestaurantHeaderCard({
@@ -21392,7 +22166,9 @@ export const RestaurantHeaderCard = React.memo(function RestaurantHeaderCard({
   setIsFavorite,
   isDraftForm,
   draftLabel,
+  revisitCount = 0,
 }: RestaurantHeaderCardProps) {
+  const { t } = useAppTranslation();
   return (
     <View style={styles.card}>
       <View style={styles.restaurantRow}>
@@ -21406,6 +22182,11 @@ export const RestaurantHeaderCard = React.memo(function RestaurantHeaderCard({
             )}
           </View>
           {addressLine ? <Text style={styles.address}>{addressLine}</Text> : null}
+          {revisitCount > 0 ? (
+            <Text style={styles.revisitNote}>
+              {t('forms.review.visitedBefore', { count: revisitCount })}
+            </Text>
+          ) : null}
         </View>
         <FavoriteHeartButton favorite={isFavorite} onToggle={setIsFavorite} />
       </View>
@@ -21462,6 +22243,11 @@ const styles = StyleSheet.create({
   address: {
     fontSize: 14,
     color: 'rgba(35, 32, 26, 0.5)',
+  },
+  revisitNote: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    color: 'rgba(36, 78, 57, 0.75)',
   },
 });
 
@@ -24004,14 +24790,32 @@ export function MountNode({
  * keeps the fully-expanded restaurant name clear of it. No fixed height — the
  * card wraps exactly its text content, so short names stay compact.
  */
-export function StoryFallbackCard({ entry }: { entry: VisitTimelineEntry }) {
+export function StoryFallbackCard({
+  entry,
+  hideRestaurantTitle = false,
+}: {
+  entry: VisitTimelineEntry;
+  hideRestaurantTitle?: boolean;
+}) {
   return (
     <View style={[styles.storyFallback, styles.storyFallbackGreen]}>
-      <View style={styles.storyFallbackText}>
-        <SerifText size={24} weight="bold" style={styles.storyTitle}>
-          {entry.restaurantTitle}
-        </SerifText>
-        <Text style={styles.storyDate}>{formatLongDate(entry.date)}</Text>
+      <View
+        style={[
+          styles.storyFallbackText,
+          hideRestaurantTitle && styles.storyFallbackTextTitleless,
+        ]}>
+        {!hideRestaurantTitle ? (
+          <SerifText size={24} weight="bold" style={styles.storyTitle}>
+            {entry.restaurantTitle}
+          </SerifText>
+        ) : null}
+        <Text
+          style={[
+            styles.storyDate,
+            hideRestaurantTitle && styles.storyFallbackDateTitleless,
+          ]}>
+          {formatLongDate(entry.date)}
+        </Text>
       </View>
       <View style={styles.scoreBadge} pointerEvents="none">
         <HouseGlyph
@@ -24029,14 +24833,32 @@ export function StoryFallbackCard({ entry }: { entry: VisitTimelineEntry }) {
 }
 
 /** Bottom-overlay copy block sitting on the cinematic gradient. */
-export function StoryOverlay({ entry }: { entry: VisitTimelineEntry }) {
+export function StoryOverlay({
+  entry,
+  hideRestaurantTitle = false,
+}: {
+  entry: VisitTimelineEntry;
+  hideRestaurantTitle?: boolean;
+}) {
   return (
-    <View style={styles.storyCopy}>
-      <SerifText size={24} weight="bold" style={styles.storyTitle}>
-        {entry.restaurantTitle}
-      </SerifText>
+    <View
+      style={[
+        styles.storyCopy,
+        hideRestaurantTitle && styles.storyCopyTitleless,
+      ]}>
+      {!hideRestaurantTitle ? (
+        <SerifText size={24} weight="bold" style={styles.storyTitle}>
+          {entry.restaurantTitle}
+        </SerifText>
+      ) : null}
       <View style={styles.storyMetaRow}>
-        <Text style={styles.storyDate}>{formatLongDate(entry.date)}</Text>
+        <Text
+          style={[
+            styles.storyDate,
+            hideRestaurantTitle && styles.storyDateTitleless,
+          ]}>
+          {formatLongDate(entry.date)}
+        </Text>
       </View>
 
       {/* Floating glassmorphism rating badge, bottom-right. */}
@@ -24069,10 +24891,12 @@ export function VisitTimelineCard({
   entry,
   onPress,
   onDelete,
+  hideRestaurantTitle = false,
 }: {
   entry: VisitTimelineEntry;
   onPress: () => void;
   onDelete?: () => void;
+  hideRestaurantTitle?: boolean;
 }) {
   const [photoFailed, setPhotoFailed] = useState(false);
   // A non-empty uri that fails to load (e.g. an orphaned local path after a
@@ -24108,10 +24932,13 @@ export function VisitTimelineCard({
             locations={[0, 0.45, 1]}
             style={StyleSheet.absoluteFill}
           />
-          <StoryOverlay entry={entry} />
+          <StoryOverlay entry={entry} hideRestaurantTitle={hideRestaurantTitle} />
         </ImageBackground>
       ) : (
-        <StoryFallbackCard entry={entry} />
+        <StoryFallbackCard
+          entry={entry}
+          hideRestaurantTitle={hideRestaurantTitle}
+        />
       )}
     </Pressable>
   );
@@ -24255,6 +25082,15 @@ const styles = StyleSheet.create({
     paddingRight: 92,
     gap: 6,
   },
+  /** Titleless fallback: the date is the only line — drop the extra right pad. */
+  storyFallbackTextTitleless: {
+    paddingRight: 92,
+  },
+  storyFallbackDateTitleless: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
   storyCopy: {
     position: 'absolute',
     left: 0,
@@ -24267,6 +25103,11 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     paddingTop: 48,
     gap: 4,
+  },
+  /** Without the restaurant title the date is the only copy — bump it up. */
+  storyCopyTitleless: {
+    paddingTop: 12,
+    paddingRight: 120,
   },
   storyTitle: {
     color: '#FFFFFF',
@@ -24287,6 +25128,12 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.35)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
+  },
+  /** Titleless overlay: the date is the primary line — make it larger. */
+  storyDateTitleless: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   /** Floating glassmorphism rating badge, bottom-right. */
   scoreBadge: {
@@ -24534,21 +25381,42 @@ import {
   Switch,
   type SwitchProps,
   StyleSheet,
+  View,
 } from 'react-native';
+import { Switch as PaperSwitch } from 'react-native-paper';
 
 import { GustraColors } from '@/constants/Colors';
 import { Haptics } from '@/services/haptics';
-
-/** Android Material switches render smaller than iOS UISwitch; scale to match. */
-const ANDROID_SCALE = 1.28;
 
 type GustraSwitchProps = Omit<
   SwitchProps,
   'trackColor' | 'thumbColor' | 'ios_backgroundColor'
 >;
 
-/** House-styled toggle; enlarged on Android so it reads like the iOS control. */
+/**
+ * House-styled toggle.
+ * - iOS: native UISwitch with the Gustra track colors + selection haptic.
+ * - Android: M3 Switch (react-native-paper) — correct 52dp touch target and
+ *   state layer, colored via the Gustra MD3 theme instead of a scaled native
+ *   switch. The M3 switch is smaller, so wrap it in a centered hit-area box.
+ */
 export function GustraSwitch({ onValueChange, ...props }: GustraSwitchProps) {
+  if (Platform.OS === 'android') {
+    return (
+      <View style={styles.androidHitArea} pointerEvents="box-none">
+        <PaperSwitch
+          value={props.value}
+          onValueChange={(value) => {
+            Haptics.selectionChanged();
+            onValueChange?.(value);
+          }}
+          disabled={props.disabled}
+          style={[styles.androidSwitch, props.style]}
+        />
+      </View>
+    );
+  }
+
   return (
     <Switch
       {...props}
@@ -24562,17 +25430,19 @@ export function GustraSwitch({ onValueChange, ...props }: GustraSwitchProps) {
         Haptics.selectionChanged();
         onValueChange?.(value);
       }}
-      style={[
-        Platform.OS === 'android' ? styles.androidScale : null,
-        props.style,
-      ]}
     />
   );
 }
 
 const styles = StyleSheet.create({
-  androidScale: {
-    transform: [{ scale: ANDROID_SCALE }],
+  androidHitArea: {
+    minWidth: 52,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  androidSwitch: {
+    transform: [{ scale: 1.05 }],
   },
 });
 
@@ -29107,10 +29977,14 @@ export const QUICK_PRESET_STANDARD_IDS: readonly StandardCriterionId[] = [
 export const ESSENTIALS_PRESET_STANDARD_IDS: readonly StandardCriterionId[] =
   FIRST_START_ENABLED_STANDARD_IDS;
 
-/** Required to complete every review; users cannot disable it. */
-export const MANDATORY_STANDARD_CRITERION_IDS: readonly StandardCriterionId[] = [
-  'food',
-] as const;
+/**
+ * No criterion is required to complete a review anymore — any single rated
+ * criterion finishes a draft (see `hasAnyRatedCriterion`). The list stays as
+ * an empty, documented constant so callers keep working and historic data
+ * round-trips untouched.
+ */
+export const MANDATORY_STANDARD_CRITERION_IDS: readonly StandardCriterionId[] =
+  [] as const;
 
 /**
  * Historic "full control" starting point (Food + Drinks preselected). Kept as
@@ -33375,6 +34249,7 @@ FILE: data/timeMachine.ts
 import type { Restaurant, Review } from '@/data/types';
 import { resolveReviewOrigin } from '@/data/types';
 import { isReviewDraft } from '@/services/reviews/draftReview';
+import { overallScoreFromCriteria } from '@/services/reviews/ratings';
 
 /** One visit on the Time Travel timeline. */
 export type TimeMachineEntry = {
@@ -33438,7 +34313,7 @@ export function buildTimeMachineEntries(
         ? displayLocation(restaurant.name, restaurant.city)
         : '—',
       date: review.date,
-      score: review.overallScore,
+      score: overallScoreFromCriteria(review.criteria),
       photoUrl: firstPhotoUrl(review.photoUrls),
       thumbnailColor: restaurant?.thumbnailColor || '#3D6B52',
     };
@@ -33878,6 +34753,7 @@ import { Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 import { houseAlert } from '@/components/ui/HouseAlert';
+import { showHouseUndoSnackbar } from '@/components/ui/HouseUndoSnackbar';
 import { Haptics } from '@/services/haptics';
 import { safeOpenSettings } from '@/services/linking/safeLinking';
 import {
@@ -33885,6 +34761,7 @@ import {
   remainingReviewPhotoSlots,
 } from '@/services/reviews/photoLimits';
 import { saveReviewPhoto, deleteReviewPhotoFiles } from '@/services/reviews/photoStorage';
+import type { LibraryAsset } from '@/services/reviews/photoLibrary';
 import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 type UsePhotoManagerOptions = {
@@ -33897,6 +34774,7 @@ export function usePhotoManager({ afterPhotoChange }: UsePhotoManagerOptions) {
   const [selectedPhotosForRemoval, setSelectedPhotosForRemoval] = useState<string[]>([]);
   const [isImportingPhotos, setIsImportingPhotos] = useState(false);
   const [showPhotoSourceChooser, setShowPhotoSourceChooser] = useState(false);
+  const [showPhotoLibraryPicker, setShowPhotoLibraryPicker] = useState(false);
 
   const photoUrlsRef = useRef<string[]>(photoUrls);
   photoUrlsRef.current = photoUrls;
@@ -33915,10 +34793,117 @@ export function usePhotoManager({ afterPhotoChange }: UsePhotoManagerOptions) {
     );
   }, [t]);
 
+  /**
+   * Persist a set of library asset refs into the app Photos folder (compressed
+   * copies) and append them to the form. Shared by the in-app photo grid (iOS)
+   * and the system picker path (Android).
+   *
+   * Safety net: after import, an Undo snackbar lets the user remove exactly the
+   * photos that were just added — so even if the grid selection contained
+   * something unintended, one tap restores the previous state.
+   */
+  const saveLibraryAssets = useCallback(
+    async (assets: { uri: string }[]) => {
+      const slots = remainingReviewPhotoSlots(photoUrlsRef.current.length);
+      if (slots <= 0) {
+        warnPhotoLimit();
+        return;
+      }
+      const picked = assets
+        .map((a) => a.uri)
+        .filter((uri) => uri && uri.trim())
+        .slice(0, slots);
+      if (picked.length === 0) return;
+      setIsImportingPhotos(true);
+      try {
+        const saved: string[] = [];
+        for (const uri of picked) {
+          try {
+            saved.push(await saveReviewPhoto(uri));
+          } catch {
+            // Skip individual failures so one broken photo doesn't abort the batch.
+          }
+        }
+        if (saved.length) {
+          Haptics.light();
+          // Only the photos that actually fit the remaining slots are appended;
+          // the undo snackbar removes exactly those (and only those).
+          const room = remainingReviewPhotoSlots(photoUrlsRef.current.length);
+          const added = saved.slice(0, room);
+          setPhotoUrls((prev) => {
+            const cleaned = prev.map((u) => u.trim()).filter(Boolean);
+            const next = [...cleaned, ...added];
+            photoUrlsRef.current = next;
+            return next;
+          });
+          afterPhotoChange();
+          showHouseUndoSnackbar({
+            message: t('alerts.reviewForm.photosAdded', { count: added.length }),
+            actionLabel: t('common.undo'),
+            durationMs: 4500,
+            onUndo: () => {
+              Haptics.light();
+              setPhotoUrls((prev) => {
+                const removeSet = new Set(added);
+                const next = prev.filter((u) => !removeSet.has(u));
+                photoUrlsRef.current = next;
+                return next;
+              });
+              void deleteReviewPhotoFiles(added);
+              afterPhotoChange();
+            },
+            onCommit: () => undefined,
+          });
+        }
+      } catch {
+        Haptics.error();
+        houseAlert(t('forms.review.photos'), t('alerts.reviewForm.photosSaveFailed'));
+      } finally {
+        setIsImportingPhotos(false);
+      }
+    },
+    [afterPhotoChange, t, warnPhotoLimit],
+  );
+
+  /**
+   * The user confirmed a selection in the in-app photo grid (iOS). The grid
+   * closes and the picked photos are imported into the form.
+   */
+  const confirmLibraryAssets = useCallback(
+    async (assets: LibraryAsset[]) => {
+      setShowPhotoLibraryPicker(false);
+      requestAnimationFrame(() => {
+        void saveLibraryAssets(assets);
+      });
+    },
+    [saveLibraryAssets],
+  );
+
   const importFromLibrary = async () => {
     const slots = remainingReviewPhotoSlots(photoUrlsRef.current.length);
     if (slots <= 0) {
       warnPhotoLimit();
+      return;
+    }
+    // iOS: use the in-app grid instead of the system PHPicker. Scrolling the
+    // system picker can drag-select photos and wipe the selection; our own
+    // grid keeps tap and scroll strictly separate. The grid reads assets via
+    // expo-media-library, so request that permission (same PHPhotoLibrary
+    // prompt as the image picker on iOS).
+    if (Platform.OS === 'ios') {
+      let MediaLibrary: typeof import('expo-media-library/legacy');
+      try {
+        MediaLibrary = await import('expo-media-library/legacy');
+      } catch {
+        openSettingsAlert(t('alerts.permission.photos'));
+        return;
+      }
+      const permission = await MediaLibrary.requestPermissionsAsync();
+      if (!permission.granted) {
+        openSettingsAlert(t('alerts.permission.photos'));
+        return;
+      }
+      setShowPhotoLibraryPicker(true);
       return;
     }
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -33937,30 +34922,7 @@ export function usePhotoManager({ afterPhotoChange }: UsePhotoManagerOptions) {
     if (result.assets.length > slots) {
       warnPhotoLimit();
     }
-    setIsImportingPhotos(true);
-    try {
-      const saved: string[] = [];
-      for (const asset of assets) {
-        if (!asset.uri) continue;
-        saved.push(await saveReviewPhoto(asset.uri));
-      }
-      if (saved.length) {
-        Haptics.light();
-        setPhotoUrls((prev) => {
-          const cleaned = prev.map((u) => u.trim()).filter(Boolean);
-          const room = remainingReviewPhotoSlots(cleaned.length);
-          const next = [...cleaned, ...saved.slice(0, room)];
-          photoUrlsRef.current = next;
-          return next;
-        });
-        afterPhotoChange();
-      }
-    } catch {
-      Haptics.error();
-      houseAlert(t('forms.review.photos'), t('alerts.reviewForm.photosSaveFailed'));
-    } finally {
-      setIsImportingPhotos(false);
-    }
+    await saveLibraryAssets(assets);
   };
 
   const takePhoto = async () => {
@@ -34053,11 +35015,14 @@ export function usePhotoManager({ afterPhotoChange }: UsePhotoManagerOptions) {
     setIsImportingPhotos,
     showPhotoSourceChooser,
     setShowPhotoSourceChooser,
+    showPhotoLibraryPicker,
+    setShowPhotoLibraryPicker,
     importFromLibrary,
     takePhoto,
     showPhotoSourcePicker,
     confirmRemoveSelectedPhotos,
     togglePhotoSelection,
+    confirmLibraryAssets,
   };
 }
 
@@ -34089,6 +35054,7 @@ import {
   formDraftReason,
   isFormDraft,
   isReviewDraft,
+  mostRecentVisitIso,
 } from '@/services/reviews/draftReview';
 import { takePendingWineLabelResult } from '@/services/wine/pendingWineLabelResult';
 import {
@@ -34132,13 +35098,18 @@ export function useReviewFormState() {
     draft?: string;
     reviewId?: string;
     restaurantId?: string;
-    /** 'bucket' when opened from the My Gustra bucket list (back → passport). */
+    /**
+     * 'bucket' when opened from the My Gustra bucket list (back → passport);
+     * 'restaurant' when opened from a restaurant/review detail (back → that
+     * detail, e.g. "Bezoek toevoegen" on a restaurant with multiple visits).
+     */
     from?: string;
   }>();
   const router = useRouter();
   const navigation = useNavigation();
 
   const fromBucket = params.from === 'bucket';
+  const fromRestaurant = params.from === 'restaurant';
 
   const { enabledCriteria, customCriteria } = useCriteriaSettings();
   const {
@@ -34227,6 +35198,8 @@ export function useReviewFormState() {
   const allowLeaveRef = useRef(false);
   const fromBucketRef = useRef(fromBucket);
   fromBucketRef.current = fromBucket;
+  const fromRestaurantRef = useRef(fromRestaurant);
+  fromRestaurantRef.current = fromRestaurant;
   didDeleteRef.current = didDelete;
 
   // Hydrate once store + route params are ready.
@@ -34380,7 +35353,16 @@ export function useReviewFormState() {
     scoredPriorVisits.length > 0
       ? scoredPriorVisits.reduce((s, r) => s + r.overallScore, 0) / scoredPriorVisits.length
       : 0;
-  const lastVisitIso = priorVisits[0]?.date;
+  /**
+   * Most recent visit INCLUDING the one being filled in right now. `priorVisits`
+   * is newest-first but excludes the current review (by id); if the visit date
+   * being entered is newer than the stored most recent one, the label would be
+   * wrong the moment a newer visit is saved — so compare and pick the newer.
+   */
+  const lastVisitIso = mostRecentVisitIso(
+    priorVisits,
+    visitDate.toISOString(),
+  );
 
   const showsDone = Boolean(draft);
   const draftReason = formDraftReason(criteriaList, wineLabels);
@@ -34587,10 +35569,28 @@ export function useReviewFormState() {
       router.back();
       return;
     }
-    if (router.canDismiss()) {
-      router.dismissAll();
+    // New visits opened from a restaurant or review detail: the form sits
+    // directly on top of the detail, so back restores exactly where the user
+    // tapped "Bezoek toevoegen" — never jump to the feed.
+    if (fromRestaurantRef.current) {
+      router.back();
+      return;
     }
-    router.navigate('/(tabs)/(main)');
+    // Editing an existing review (bewerk-knop on the review detail, or a
+    // draft card on the feed): keep the historic behavior of collapsing the
+    // stack onto the feed.
+    if (isEditRef.current) {
+      if (router.canDismiss()) {
+        router.dismissAll();
+      }
+      router.navigate('/(tabs)/(main)');
+      return;
+    }
+    // New memories started through the picker stack (add-review → nearby /
+    // map-search / manual-entry → form). Dismiss back to the "Nieuwe
+    // herinnering" chooser so the user lands where they started, instead of
+    // collapsing the whole stack onto the feed.
+    router.dismissTo('/add-review');
   }, [router]);
   const discardEditPhotos = useCallback(() => {
     const baseline = editBaselineRef.current;
@@ -34794,10 +35794,26 @@ export function useReviewFormState() {
       leaveToReviews();
       return;
     }
+    // New visits opened from a restaurant / review detail ("Bezoek toevoegen")
+    // are pushed directly on top of that detail; back restores the detail, not
+    // the feed.
+    if (fromRestaurantRef.current && !isEditRef.current) {
+      if (isFormDirty) {
+        promptDiscardEdits(() => {
+          allowLeaveRef.current = true;
+          leaveToReviews();
+        });
+        return;
+      }
+      allowLeaveRef.current = true;
+      leaveToReviews();
+      return;
+    }
     // New reviews are pushed from a picker stack (nearby / map-search /
     // manual entry). Backing out of a brand-new draft should land on the
-    // feed — not step back through the picker — so the user never clicks
-    // through a long stack. Edits keep the normal back-to-origin behavior.
+    // "Nieuwe herinnering" chooser (add-review) — not step back through the
+    // whole picker — so the user never clicks through a long stack. Edits
+    // keep the normal back-to-origin behavior.
     if (!isEditRef.current) {
       if (isFormDirty) {
         // Only ask when something was actually entered. A fresh form with
@@ -35111,7 +36127,7 @@ import {
 /** Match Swift `scrollCommentIntoView` delay after focus (keyboard animation). */
 const FOCUS_DELAY_MS = Platform.OS === 'ios' ? 300 : 140;
 /** Gap between input bottom and keyboard top. */
-const KEYBOARD_GAP = 36;
+const KEYBOARD_GAP = 48;
 
 /**
  * Keeps the focused TextInput visible above the keyboard inside a ScrollView
@@ -35584,6 +36600,9 @@ FILE: i18n/locales/de.json
     "visitCount_other": "{{count}} Besuche · {{date}}",
     "friendScoreLabel": "Freunde: {{score}} ({{count}} Besuch)",
     "friendScoreLabel_other": "Freunde: {{score}} ({{count}} Besuche)",
+    "criterionScoreLabel": "Sortiert nach {{criterion}}",
+    "noCriterionRatingLabel": "Keine {{criterion}}-Bewertung",
+    "noRatingLabel": "Keine Bewertung",
     "source": {
       "mine": "Meine Erinnerungen",
       "friends": "Mit dir geteilt"
@@ -35602,7 +36621,7 @@ FILE: i18n/locales/de.json
       "importReviews": "Erinnerungen importieren",
       "addReview": "Erinnerung hinzufügen"
     },
-    "draftLabel": "Draft",
+    "draftLabel": "Entwurf",
     "demoLabel": "Demo",
     "visitedBefore_one": "Bereits 1 Mal besucht",
     "visitedBefore_other": "Bereits {{count}} Mal besucht",
@@ -35666,13 +36685,9 @@ FILE: i18n/locales/de.json
     "emptyBody": "Dein Verkostungspass füllt sich, wenn du Restaurant-Erinnerungen hinzufügst.",
     "addReview": "Erinnerung hinzufügen",
     "overview": "Übersicht",
-    "overviewKicker": "deine Geschichte bisher",
     "totalReviews": "Erinnerungen gesamt",
     "averageOverall": "Gesamtdurchschnitt",
     "averageBasedOnAllRated": "Basierend auf all deinen bewerteten Kriterien",
-    "bestKicker": "deine Favoriten",
-    "winesKicker": "ein Prost darauf",
-    "citiesKicker": "wo du gegessen hast",
     "bestRestaurant": "Bestes Restaurant",
     "bestRestaurants": "Beste Restaurants",
     "bestWines": "Beste Weine",
@@ -35695,7 +36710,6 @@ FILE: i18n/locales/de.json
   },
   "bucketList": {
     "title": "Wunschliste",
-    "kicker": "noch zu entdecken",
     "emptyTitle": "Noch keine Wunschliste",
     "emptyBody": "Tippe auf das Lesezeichen bei einem Restaurant, das du besuchen möchtest, um es hier zu speichern.",
     "addTitle": "Zur Wunschliste hinzufügen",
@@ -35851,9 +36865,6 @@ FILE: i18n/locales/de.json
       "manual": "Manuell",
       "manualSubtitle": "Gib Name und Details selbst ein"
     },
-    "addVisit": {
-      "title": "Besuch hinzufügen"
-    },
     "nearby": {
       "startReview": "Erinnerung hinzufügen",
       "loadFailed": "Restaurants in der Nähe konnten nicht geladen werden.",
@@ -35903,6 +36914,8 @@ FILE: i18n/locales/de.json
       "optionalComment": "Optionaler Kommentar",
       "otherVisits_one": "{{count}} weiterer Besuch in diesem Restaurant",
       "otherVisits_other": "{{count}} weitere Besuche in diesem Restaurant",
+      "visitedBefore_one": "Dieses Restaurant hast du schon {{count}} Mal besucht",
+      "visitedBefore_other": "Dieses Restaurant hast du schon {{count}} Mal besucht",
       "mostRecent": "Zuletzt {{date}}",
       "addPhotos": "Fotos hinzufügen",
       "delete": "Löschen",
@@ -35911,6 +36924,7 @@ FILE: i18n/locales/de.json
       "avg": "{{score}} Ø",
       "time": "Uhrzeit",
       "setTime": "Uhrzeit festlegen · {{time}}",
+      "changeDate": "Datum ändern",
       "noMapPinHint": "Dieses Restaurant hat keine Kartenposition und erscheint daher nicht auf deiner Karte.",
       "photoStrip": {
         "hintReorder": "Tippen zum Auswählen · gedrückt halten zum Sortieren",
@@ -35929,6 +36943,20 @@ FILE: i18n/locales/de.json
       "takePhoto": "Foto aufnehmen",
       "importPhoto": "Foto importieren",
       "adding": "Fotos werden hinzugefügt…"
+    },
+    "photoPicker": {
+      "title": "Fotos auswählen",
+      "remaining_one": "Noch {{count}} Foto erlaubt",
+      "remaining_other": "Noch {{count}} Fotos erlaubt",
+      "limitReached": "Fotolimit erreicht",
+      "clearSelection": "Auswahl löschen",
+      "addSelected_one": "{{count}} Foto hinzufügen",
+      "addSelected_other": "{{count}} Fotos hinzufügen",
+      "addPhotos": "Fotos hinzufügen",
+      "loadFailed": "Deine Fotos konnten nicht geladen werden.",
+      "retry": "Erneut versuchen",
+      "a11ySelect": "Foto auswählen",
+      "a11yDeselect": "Fotoauswahl aufheben"
     }
   },
   "detail": {
@@ -36076,6 +37104,11 @@ FILE: i18n/locales/de.json
       "hardMessage": "Die Karte wurde heute die maximale Anzahl an Malen geladen. Morgen kannst du die Karte wieder öffnen."
     }
   },
+  "map": {
+    "loadFailedTitle": "Die Karte konnte nicht geladen werden",
+    "loadFailedBody": "Die Karte kann derzeit nicht geladen werden. Überprüfe deine Verbindung und versuche es erneut.",
+    "reload": "Erneut versuchen"
+  },
   "alerts": {
     "deleteRestaurant": {
       "title": "Restaurant löschen?",
@@ -36115,12 +37148,14 @@ FILE: i18n/locales/de.json
       "removePhotosTitle": "Fotos entfernen?",
       "removePhotosBody": "Ausgewählte Fotos werden aus dieser Erinnerung entfernt.",
       "photosSaveFailed": "Fotos konnten nicht gespeichert werden.",
+      "photosAdded_one": "{{count}} Foto hinzugefügt",
+      "photosAdded_other": "{{count}} Fotos hinzugefügt",
       "photoLimitTitle": "Fotolimit",
       "photoLimitBody": "Du kannst bis zu {{max}} Fotos zu einer Erinnerung hinzufügen.",
       "deleteTitle": "Löschen?",
       "deleteBody": "Diese Erinnerung wird gelöscht.",
       "discardEdits": {
-        "title": "Änderungen speichern?"
+        "title": "Änderungen und neue Fotos verwerfen?"
       },
       "saveFailed": "Diese Erinnerung konnte nicht gespeichert werden."
     },
@@ -36405,6 +37440,9 @@ FILE: i18n/locales/en.json
     "visitCount_other": "{{count}} visits · {{date}}",
     "friendScoreLabel": "Friends: {{score}} ({{count}} visit)",
     "friendScoreLabel_other": "Friends: {{score}} ({{count}} visits)",
+    "criterionScoreLabel": "Sorted by {{criterion}}",
+    "noCriterionRatingLabel": "No {{criterion}} rating",
+    "noRatingLabel": "No rating",
     "source": {
       "mine": "My memories",
       "friends": "Shared with you"
@@ -36481,13 +37519,9 @@ FILE: i18n/locales/en.json
     "emptyBody": "Your tasting passport fills in as you add restaurant memories.",
     "addReview": "Add Memory",
     "overview": "Overview",
-    "overviewKicker": "your story so far",
     "totalReviews": "Total Memories",
     "averageOverall": "Average Overall",
     "averageBasedOnAllRated": "Based on all your rated criteria",
-    "bestKicker": "your favourites",
-    "winesKicker": "cheers to these",
-    "citiesKicker": "where you dined",
     "bestRestaurant": "Best restaurant",
     "bestRestaurants": "Best restaurants",
     "bestWines": "Best wines",
@@ -36510,7 +37544,6 @@ FILE: i18n/locales/en.json
   },
   "bucketList": {
     "title": "Bucket List",
-    "kicker": "still to explore",
     "emptyTitle": "No bucket list yet",
     "emptyBody": "Tap the bookmark on a restaurant you want to visit to save it here.",
     "addTitle": "Add to bucket list",
@@ -36666,9 +37699,6 @@ FILE: i18n/locales/en.json
       "manual": "Manual",
       "manualSubtitle": "Enter the name and details yourself"
     },
-    "addVisit": {
-      "title": "Add visit"
-    },
     "nearby": {
       "startReview": "Add Memory",
       "loadFailed": "Couldn't load nearby restaurants.",
@@ -36720,6 +37750,8 @@ FILE: i18n/locales/en.json
       "optionalComment": "Optional comment",
       "otherVisits_one": "{{count}} other visit at this restaurant",
       "otherVisits_other": "{{count}} other visits at this restaurant",
+      "visitedBefore_one": "You've visited this restaurant {{count}} time before",
+      "visitedBefore_other": "You've visited this restaurant {{count}} times before",
       "mostRecent": "Most recent {{date}}",
       "draftBannerCriteria": "Rate at least one criterion to finish this memory.",
       "draftBannerFood": "Rate Food to complete this memory.",
@@ -36731,6 +37763,7 @@ FILE: i18n/locales/en.json
       "avg": "{{score}} avg",
       "time": "Time",
       "setTime": "Set time · {{time}}",
+      "changeDate": "Change date",
       "noMapPinHint": "This restaurant has no map location, so it won't appear on your map.",
       "photoStrip": {
         "hintReorder": "Tap to select · long-press to reorder",
@@ -36744,6 +37777,20 @@ FILE: i18n/locales/en.json
       "takePhoto": "Take Photo",
       "importPhoto": "Import Photo",
       "adding": "Adding photos…"
+    },
+    "photoPicker": {
+      "title": "Choose Photos",
+      "remaining_one": "{{count}} photo left",
+      "remaining_other": "{{count}} photos left",
+      "limitReached": "Photo limit reached",
+      "clearSelection": "Clear selection",
+      "addSelected_one": "Add {{count}} photo",
+      "addSelected_other": "Add {{count}} photos",
+      "addPhotos": "Add photos",
+      "loadFailed": "Couldn't load your photos.",
+      "retry": "Try again",
+      "a11ySelect": "Select photo",
+      "a11yDeselect": "Deselect photo"
     }
   },
   "detail": {
@@ -36891,6 +37938,11 @@ FILE: i18n/locales/en.json
       "hardMessage": "The map has been loaded the maximum number of times today. Tomorrow you can open the map again."
     }
   },
+  "map": {
+    "loadFailedTitle": "Couldn't load the map",
+    "loadFailedBody": "The map couldn't be loaded right now. Check your connection and try again.",
+    "reload": "Try again"
+  },
   "alerts": {
     "deleteRestaurant": {
       "title": "Delete restaurant?",
@@ -36931,12 +37983,14 @@ FILE: i18n/locales/en.json
       "removePhotosTitle": "Remove Photos?",
       "removePhotosBody": "Selected photos will be removed from this memory.",
       "photosSaveFailed": "Could not save photos.",
+      "photosAdded_one": "{{count}} photo added",
+      "photosAdded_other": "{{count}} photos added",
       "photoLimitTitle": "Photo limit",
       "photoLimitBody": "You can add up to {{max}} photos to a memory.",
       "deleteTitle": "Delete?",
       "deleteBody": "This memory will be deleted.",
       "discardEdits": {
-        "title": "Save changes?"
+        "title": "Delete changes and new photos?"
       }
     },
     "recovery": {
@@ -37214,6 +38268,9 @@ FILE: i18n/locales/es.json
     "visitCount_other": "{{count}} visitas · {{date}}",
     "friendScoreLabel": "Amigos: {{score}} ({{count}} visita)",
     "friendScoreLabel_other": "Amigos: {{score}} ({{count}} visitas)",
+    "criterionScoreLabel": "Ordenado por {{criterion}}",
+    "noCriterionRatingLabel": "Sin valoración de {{criterion}}",
+    "noRatingLabel": "Sin valoración",
     "source": {
       "mine": "Mis recuerdos",
       "friends": "Compartidos contigo"
@@ -37232,7 +38289,7 @@ FILE: i18n/locales/es.json
       "importReviews": "Importar recuerdos",
       "addReview": "Añadir recuerdo"
     },
-    "draftLabel": "Draft",
+    "draftLabel": "Borrador",
     "demoLabel": "Demo",
     "visitedBefore_one": "Visitado 1 vez",
     "visitedBefore_other": "Visitado {{count}} veces",
@@ -37296,13 +38353,9 @@ FILE: i18n/locales/es.json
     "emptyBody": "Tu pasaporte gastronómico se completa a medida que añades recuerdos de restaurantes.",
     "addReview": "Añadir recuerdo",
     "overview": "Resumen",
-    "overviewKicker": "tu historia hasta ahora",
     "totalReviews": "Recuerdos totales",
     "averageOverall": "Media general",
     "averageBasedOnAllRated": "Basada en todos tus criterios puntuados",
-    "bestKicker": "tus favoritos",
-    "winesKicker": "un brindis por estos",
-    "citiesKicker": "dónde comiste",
     "bestRestaurant": "Mejor restaurante",
     "bestRestaurants": "Mejores restaurantes",
     "bestWines": "Mejores vinos",
@@ -37325,7 +38378,6 @@ FILE: i18n/locales/es.json
   },
   "bucketList": {
     "title": "Lista de deseos",
-    "kicker": "aún por explorar",
     "emptyTitle": "Aún no hay lista de deseos",
     "emptyBody": "Toca el marcador de un restaurante que quieras visitar para guardarlo aquí.",
     "addTitle": "Añadir a la lista de deseos",
@@ -37481,9 +38533,6 @@ FILE: i18n/locales/es.json
       "manual": "A mano",
       "manualSubtitle": "Introduce tú el nombre y los datos"
     },
-    "addVisit": {
-      "title": "Añadir visita"
-    },
     "nearby": {
       "startReview": "Añadir recuerdo",
       "loadFailed": "No se pudieron cargar los restaurantes cercanos.",
@@ -37533,6 +38582,8 @@ FILE: i18n/locales/es.json
       "optionalComment": "Comentario opcional",
       "otherVisits_one": "{{count}} otra visita a este restaurante",
       "otherVisits_other": "{{count}} otras visitas a este restaurante",
+      "visitedBefore_one": "Ya has visitado este restaurante {{count}} vez",
+      "visitedBefore_other": "Ya has visitado este restaurante {{count}} veces",
       "mostRecent": "Más reciente: {{date}}",
       "addPhotos": "Añadir fotos",
       "delete": "Eliminar",
@@ -37541,6 +38592,7 @@ FILE: i18n/locales/es.json
       "avg": "{{score}} de media",
       "time": "Hora",
       "setTime": "Elegir hora · {{time}}",
+      "changeDate": "Cambiar la fecha",
       "noMapPinHint": "Este restaurante no tiene posición en el mapa, por lo que no aparecerá en tu mapa.",
       "photoStrip": {
         "hintReorder": "Toca para seleccionar · mantén pulsado para reordenar",
@@ -37559,6 +38611,20 @@ FILE: i18n/locales/es.json
       "takePhoto": "Hacer foto",
       "importPhoto": "Importar foto",
       "adding": "Añadiendo fotos…"
+    },
+    "photoPicker": {
+      "title": "Elegir fotos",
+      "remaining_one": "Queda {{count}} foto permitida",
+      "remaining_other": "Quedan {{count}} fotos permitidas",
+      "limitReached": "Límite de fotos alcanzado",
+      "clearSelection": "Borrar selección",
+      "addSelected_one": "Añadir {{count}} foto",
+      "addSelected_other": "Añadir {{count}} fotos",
+      "addPhotos": "Añadir fotos",
+      "loadFailed": "No se pudieron cargar tus fotos.",
+      "retry": "Reintentar",
+      "a11ySelect": "Seleccionar foto",
+      "a11yDeselect": "Anular selección de foto"
     }
   },
   "detail": {
@@ -37706,6 +38772,11 @@ FILE: i18n/locales/es.json
       "hardMessage": "El mapa se ha cargado el número máximo de veces hoy. Mañana podrás abrir el mapa de nuevo."
     }
   },
+  "map": {
+    "loadFailedTitle": "No se pudo cargar el mapa",
+    "loadFailedBody": "El mapa no se ha podido cargar en este momento. Comprueba tu conexión e inténtalo de nuevo.",
+    "reload": "Reintentar"
+  },
   "alerts": {
     "deleteRestaurant": {
       "title": "¿Eliminar restaurante?",
@@ -37745,12 +38816,14 @@ FILE: i18n/locales/es.json
       "removePhotosTitle": "¿Quitar fotos?",
       "removePhotosBody": "Las fotos seleccionadas se eliminarán de este recuerdo.",
       "photosSaveFailed": "No se pudieron guardar las fotos.",
+      "photosAdded_one": "{{count}} foto añadida",
+      "photosAdded_other": "{{count}} fotos añadidas",
       "photoLimitTitle": "Límite de fotos",
       "photoLimitBody": "Puedes añadir hasta {{max}} fotos a un recuerdo.",
       "deleteTitle": "¿Borrar?",
       "deleteBody": "Este recuerdo será eliminado.",
       "discardEdits": {
-        "title": "¿Guardar cambios?"
+        "title": "¿Eliminar cambios y fotos nuevas?"
       },
       "saveFailed": "No se pudo guardar este recuerdo."
     },
@@ -38029,6 +39102,9 @@ FILE: i18n/locales/fr.json
     "visitCount_other": "{{count}} visites · {{date}}",
     "friendScoreLabel": "Amis : {{score}} ({{count}} visite)",
     "friendScoreLabel_other": "Amis : {{score}} ({{count}} visites)",
+    "criterionScoreLabel": "Trié par {{criterion}}",
+    "noCriterionRatingLabel": "Aucune note pour {{criterion}}",
+    "noRatingLabel": "Aucune note",
     "source": {
       "mine": "Mes souvenirs",
       "friends": "Partagés avec vous"
@@ -38047,7 +39123,7 @@ FILE: i18n/locales/fr.json
       "importReviews": "Importer des souvenirs",
       "addReview": "Ajouter un souvenir"
     },
-    "draftLabel": "Draft",
+    "draftLabel": "Brouillon",
     "demoLabel": "Demo",
     "visitedBefore_one": "Déjà visité 1 fois",
     "visitedBefore_other": "Déjà visité {{count}} fois",
@@ -38111,13 +39187,9 @@ FILE: i18n/locales/fr.json
     "emptyBody": "Votre passeport de dégustation se remplit au fur et à mesure de vos souvenirs de restaurant.",
     "addReview": "Ajouter un souvenir",
     "overview": "Aperçu",
-    "overviewKicker": "votre histoire jusqu’ici",
     "totalReviews": "Total de souvenirs",
     "averageOverall": "Moyenne générale",
     "averageBasedOnAllRated": "Basée sur tous tes critères notés",
-    "bestKicker": "vos préférés",
-    "winesKicker": "un toast à ceux-ci",
-    "citiesKicker": "où vous avez dîné",
     "bestRestaurant": "Meilleur restaurant",
     "bestRestaurants": "Meilleurs restaurants",
     "bestWines": "Meilleurs vins",
@@ -38140,7 +39212,6 @@ FILE: i18n/locales/fr.json
   },
   "bucketList": {
     "title": "Liste de souhaits",
-    "kicker": "encore à découvrir",
     "emptyTitle": "Pas encore de liste de souhaits",
     "emptyBody": "Touchez le signet d’un restaurant que vous voulez visiter pour l’enregistrer ici.",
     "addTitle": "Ajouter à la liste de souhaits",
@@ -38296,9 +39367,6 @@ FILE: i18n/locales/fr.json
       "manual": "Manuel",
       "manualSubtitle": "Saisissez vous-même le nom et les détails"
     },
-    "addVisit": {
-      "title": "Ajouter une visite"
-    },
     "nearby": {
       "startReview": "Ajouter un souvenir",
       "loadFailed": "Impossible de charger les restaurants à proximité.",
@@ -38348,6 +39416,8 @@ FILE: i18n/locales/fr.json
       "optionalComment": "Commentaire facultatif",
       "otherVisits_one": "{{count}} autre visite dans ce restaurant",
       "otherVisits_other": "{{count}} autres visites dans ce restaurant",
+      "visitedBefore_one": "Vous avez déjà visité ce restaurant {{count}} fois",
+      "visitedBefore_other": "Vous avez déjà visité ce restaurant {{count}} fois",
       "mostRecent": "Plus récente {{date}}",
       "addPhotos": "Ajouter des photos",
       "delete": "Supprimer",
@@ -38356,6 +39426,7 @@ FILE: i18n/locales/fr.json
       "avg": "{{score}} moy.",
       "time": "Heure",
       "setTime": "Choisir l’heure · {{time}}",
+      "changeDate": "Modifier la date",
       "noMapPinHint": "Ce restaurant n’a pas de position sur la carte et n’apparaîtra donc pas sur votre carte.",
       "photoStrip": {
         "hintReorder": "Touchez pour sélectionner · appui long pour réordonner",
@@ -38374,6 +39445,20 @@ FILE: i18n/locales/fr.json
       "takePhoto": "Prendre une photo",
       "importPhoto": "Importer une photo",
       "adding": "Ajout des photos…"
+    },
+    "photoPicker": {
+      "title": "Choisir des photos",
+      "remaining_one": "Encore {{count}} photo autorisée",
+      "remaining_other": "Encore {{count}} photos autorisées",
+      "limitReached": "Limite de photos atteinte",
+      "clearSelection": "Effacer la sélection",
+      "addSelected_one": "Ajouter {{count}} photo",
+      "addSelected_other": "Ajouter {{count}} photos",
+      "addPhotos": "Ajouter des photos",
+      "loadFailed": "Impossible de charger vos photos.",
+      "retry": "Réessayer",
+      "a11ySelect": "Sélectionner la photo",
+      "a11yDeselect": "Désélectionner la photo"
     }
   },
   "detail": {
@@ -38521,6 +39606,11 @@ FILE: i18n/locales/fr.json
       "hardMessage": "La carte a été chargée le nombre maximal de fois aujourd’hui. Demain, vous pourrez à nouveau ouvrir la carte."
     }
   },
+  "map": {
+    "loadFailedTitle": "Impossible de charger la carte",
+    "loadFailedBody": "La carte n’a pas pu être chargée pour le moment. Vérifiez votre connexion et réessayez.",
+    "reload": "Réessayer"
+  },
   "alerts": {
     "deleteRestaurant": {
       "title": "Supprimer le restaurant ?",
@@ -38560,12 +39650,14 @@ FILE: i18n/locales/fr.json
       "removePhotosTitle": "Retirer les photos ?",
       "removePhotosBody": "Les photos sélectionnées seront retirées de ce souvenir.",
       "photosSaveFailed": "Impossible d’enregistrer les photos.",
+      "photosAdded_one": "{{count}} photo ajoutée",
+      "photosAdded_other": "{{count}} photos ajoutées",
       "photoLimitTitle": "Limite de photos",
       "photoLimitBody": "Vous pouvez ajouter jusqu’à {{max}} photos à un souvenir.",
       "deleteTitle": "Supprimer ?",
       "deleteBody": "Ce souvenir sera supprimé.",
       "discardEdits": {
-        "title": "Enregistrer les modifications ?"
+        "title": "Supprimer les modifications et les nouvelles photos ?"
       },
       "saveFailed": "Impossible d’enregistrer ce souvenir."
     },
@@ -38844,6 +39936,9 @@ FILE: i18n/locales/it.json
     "visitCount_other": "{{count}} visite · {{date}}",
     "friendScoreLabel": "Amici: {{score}} ({{count}} visita)",
     "friendScoreLabel_other": "Amici: {{score}} ({{count}} visite)",
+    "criterionScoreLabel": "Ordinato per {{criterion}}",
+    "noCriterionRatingLabel": "Nessuna valutazione per {{criterion}}",
+    "noRatingLabel": "Nessuna valutazione",
     "source": {
       "mine": "I miei ricordi",
       "friends": "Condivisi con te"
@@ -38862,7 +39957,7 @@ FILE: i18n/locales/it.json
       "importReviews": "Importa ricordi",
       "addReview": "Aggiungi ricordo"
     },
-    "draftLabel": "Draft",
+    "draftLabel": "Bozza",
     "demoLabel": "Demo",
     "visitedBefore_one": "Già visitato 1 volta",
     "visitedBefore_other": "Già visitato {{count}} volte",
@@ -38926,13 +40021,9 @@ FILE: i18n/locales/it.json
     "emptyBody": "Il tuo passaporto del gusto si compila man mano che aggiungi ricordi di ristoranti.",
     "addReview": "Aggiungi ricordo",
     "overview": "Panoramica",
-    "overviewKicker": "la tua storia finora",
     "totalReviews": "Ricordi totali",
     "averageOverall": "Media complessiva",
     "averageBasedOnAllRated": "Basata su tutti i tuoi criteri valutati",
-    "bestKicker": "i tuoi preferiti",
-    "winesKicker": "un brindisi a questi",
-    "citiesKicker": "dove hai cenato",
     "bestRestaurant": "Miglior ristorante",
     "bestRestaurants": "Migliori ristoranti",
     "bestWines": "Migliori vini",
@@ -38955,7 +40046,6 @@ FILE: i18n/locales/it.json
   },
   "bucketList": {
     "title": "Lista dei desideri",
-    "kicker": "ancora da esplorare",
     "emptyTitle": "Ancora nessuna lista dei desideri",
     "emptyBody": "Tocca il segnalibro di un ristorante che vuoi visitare per salvarlo qui.",
     "addTitle": "Aggiungi alla lista dei desideri",
@@ -39111,9 +40201,6 @@ FILE: i18n/locales/it.json
       "manual": "Manuale",
       "manualSubtitle": "Inserisci tu il nome e i dettagli"
     },
-    "addVisit": {
-      "title": "Aggiungi visita"
-    },
     "nearby": {
       "startReview": "Aggiungi ricordo",
       "loadFailed": "Impossibile caricare i ristoranti vicini.",
@@ -39163,6 +40250,8 @@ FILE: i18n/locales/it.json
       "optionalComment": "Commento facoltativo",
       "otherVisits_one": "{{count}} altra visita in questo ristorante",
       "otherVisits_other": "{{count}} altre visite in questo ristorante",
+      "visitedBefore_one": "Hai già visitato questo ristorante {{count}} volta",
+      "visitedBefore_other": "Hai già visitato questo ristorante {{count}} volte",
       "mostRecent": "Più recente {{date}}",
       "addPhotos": "Aggiungi foto",
       "delete": "Elimina",
@@ -39171,6 +40260,7 @@ FILE: i18n/locales/it.json
       "avg": "{{score}} media",
       "time": "Ora",
       "setTime": "Imposta ora · {{time}}",
+      "changeDate": "Cambia data",
       "noMapPinHint": "Questo ristorante non ha una posizione sulla mappa, quindi non apparirà sulla tua mappa.",
       "photoStrip": {
         "hintReorder": "Tocca per selezionare · tieni premuto per riordinare",
@@ -39189,6 +40279,20 @@ FILE: i18n/locales/it.json
       "takePhoto": "Scatta foto",
       "importPhoto": "Importa foto",
       "adding": "Aggiunta foto…"
+    },
+    "photoPicker": {
+      "title": "Scegli foto",
+      "remaining_one": "Ancora {{count}} foto consentita",
+      "remaining_other": "Ancora {{count}} foto consentite",
+      "limitReached": "Limite foto raggiunto",
+      "clearSelection": "Cancella selezione",
+      "addSelected_one": "Aggiungi {{count}} foto",
+      "addSelected_other": "Aggiungi {{count}} foto",
+      "addPhotos": "Aggiungi foto",
+      "loadFailed": "Impossibile caricare le tue foto.",
+      "retry": "Riprova",
+      "a11ySelect": "Seleziona foto",
+      "a11yDeselect": "Deseleziona foto"
     }
   },
   "detail": {
@@ -39336,6 +40440,11 @@ FILE: i18n/locales/it.json
       "hardMessage": "La mappa è stata caricata il numero massimo di volte oggi. Domani potrai di nuovo aprire la mappa."
     }
   },
+  "map": {
+    "loadFailedTitle": "Impossibile caricare la mappa",
+    "loadFailedBody": "La mappa non può essere caricata in questo momento. Controlla la connessione e riprova.",
+    "reload": "Riprova"
+  },
   "alerts": {
     "deleteRestaurant": {
       "title": "Eliminare il ristorante?",
@@ -39375,12 +40484,14 @@ FILE: i18n/locales/it.json
       "removePhotosTitle": "Rimuovere le foto?",
       "removePhotosBody": "Le foto selezionate verranno rimosse da questo ricordo.",
       "photosSaveFailed": "Impossibile salvare le foto.",
+      "photosAdded_one": "{{count}} foto aggiunta",
+      "photosAdded_other": "{{count}} foto aggiunte",
       "photoLimitTitle": "Limite foto",
       "photoLimitBody": "Puoi aggiungere fino a {{max}} foto a un ricordo.",
       "deleteTitle": "Eliminare?",
       "deleteBody": "Questo ricordo verrà eliminato.",
       "discardEdits": {
-        "title": "Salvare le modifiche?"
+        "title": "Eliminare modifiche e nuove foto?"
       },
       "saveFailed": "Impossibile salvare questo ricordo."
     },
@@ -39659,6 +40770,9 @@ FILE: i18n/locales/nl.json
     "visitCount_other": "{{count}} bezoeken · {{date}}",
     "friendScoreLabel": "Vrienden: {{score}} ({{count}} bezoek)",
     "friendScoreLabel_other": "Vrienden: {{score}} ({{count}} bezoeken)",
+    "criterionScoreLabel": "Gesorteerd op {{criterion}}",
+    "noCriterionRatingLabel": "Geen {{criterion}}-beoordeling",
+    "noRatingLabel": "Geen beoordeling",
     "source": {
       "mine": "Mijn herinneringen",
       "friends": "Met je gedeeld"
@@ -39677,7 +40791,7 @@ FILE: i18n/locales/nl.json
       "importReviews": "Herinneringen importeren",
       "addReview": "Herinnering toevoegen"
     },
-    "draftLabel": "Draft",
+    "draftLabel": "Concept",
     "demoLabel": "Demo",
     "visitedBefore_one": "Al 1 keer bezocht",
     "visitedBefore_other": "Al {{count}} keer bezocht",
@@ -39741,13 +40855,9 @@ FILE: i18n/locales/nl.json
     "emptyBody": "Je proefpaspoort vult zich naarmate je restaurantherinneringen toevoegt.",
     "addReview": "Herinnering toevoegen",
     "overview": "Overzicht",
-    "overviewKicker": "jouw verhaal tot nu toe",
     "totalReviews": "Totaal herinneringen",
     "averageOverall": "Gemiddelde totaal",
     "averageBasedOnAllRated": "Op basis van al je beoordeelde criteria",
-    "bestKicker": "jouw favorieten",
-    "winesKicker": "proost op deze",
-    "citiesKicker": "waar jij at",
     "bestRestaurant": "Beste restaurant",
     "bestRestaurants": "Beste restaurants",
     "bestWines": "Beste wijnen",
@@ -39770,7 +40880,6 @@ FILE: i18n/locales/nl.json
   },
   "bucketList": {
     "title": "Bucket list",
-    "kicker": "nog te ontdekken",
     "emptyTitle": "Nog geen bucket list",
     "emptyBody": "Tik op het bladwijzer-icoon bij een restaurant dat je wilt bezoeken om het hier op te slaan.",
     "addTitle": "Toevoegen aan bucket list",
@@ -39926,9 +41035,6 @@ FILE: i18n/locales/nl.json
       "manual": "Handmatig",
       "manualSubtitle": "Voer zelf de naam en gegevens in"
     },
-    "addVisit": {
-      "title": "Bezoek toevoegen"
-    },
     "nearby": {
       "startReview": "Herinnering toevoegen",
       "loadFailed": "Kon restaurants in de buurt niet laden.",
@@ -39978,6 +41084,8 @@ FILE: i18n/locales/nl.json
       "optionalComment": "Optionele opmerking",
       "otherVisits_one": "{{count}} ander bezoek bij dit restaurant",
       "otherVisits_other": "{{count}} andere bezoeken bij dit restaurant",
+      "visitedBefore_one": "Dit restaurant heb je al {{count}} keer bezocht",
+      "visitedBefore_other": "Dit restaurant heb je al {{count}} keer bezocht",
       "mostRecent": "Meest recent {{date}}",
       "addPhotos": "Foto’s toevoegen",
       "delete": "Verwijderen",
@@ -39986,6 +41094,7 @@ FILE: i18n/locales/nl.json
       "avg": "{{score}} gem.",
       "time": "Tijd",
       "setTime": "Tijd instellen · {{time}}",
+      "changeDate": "Datum wijzigen",
       "noMapPinHint": "Dit restaurant heeft geen kaartpositie en verschijnt daarom niet op je kaart.",
       "photoStrip": {
         "hintReorder": "Tik om te selecteren · lang indrukken om te herschikken",
@@ -40004,6 +41113,20 @@ FILE: i18n/locales/nl.json
       "takePhoto": "Foto maken",
       "importPhoto": "Foto importeren",
       "adding": "Foto’s toevoegen…"
+    },
+    "photoPicker": {
+      "title": "Foto’s kiezen",
+      "remaining_one": "Nog {{count}} foto toegestaan",
+      "remaining_other": "Nog {{count}} foto’s toegestaan",
+      "limitReached": "Fotolimiet bereikt",
+      "clearSelection": "Selectie wissen",
+      "addSelected_one": "{{count}} foto toevoegen",
+      "addSelected_other": "{{count}} foto’s toevoegen",
+      "addPhotos": "Foto’s toevoegen",
+      "loadFailed": "We konden je foto’s niet laden.",
+      "retry": "Opnieuw proberen",
+      "a11ySelect": "Foto selecteren",
+      "a11yDeselect": "Selectie foto ongedaan maken"
     }
   },
   "detail": {
@@ -40151,6 +41274,11 @@ FILE: i18n/locales/nl.json
       "hardMessage": "De kaart is vandaag het maximale aantal keren geladen. Morgen kun je de kaart weer openen."
     }
   },
+  "map": {
+    "loadFailedTitle": "De kaart kon niet worden geladen",
+    "loadFailedBody": "De kaart kan op dit moment niet worden geladen. Controleer je verbinding en probeer het opnieuw.",
+    "reload": "Opnieuw proberen"
+  },
   "alerts": {
     "deleteRestaurant": {
       "title": "Restaurant verwijderen?",
@@ -40190,12 +41318,14 @@ FILE: i18n/locales/nl.json
       "removePhotosTitle": "Foto’s verwijderen?",
       "removePhotosBody": "Geselecteerde foto’s worden uit deze herinnering verwijderd.",
       "photosSaveFailed": "Kon foto’s niet opslaan.",
+      "photosAdded_one": "{{count}} foto toegevoegd",
+      "photosAdded_other": "{{count}} foto’s toegevoegd",
       "photoLimitTitle": "Fotolimiet",
       "photoLimitBody": "Je kunt maximaal {{max}} foto’s toevoegen aan een herinnering.",
       "deleteTitle": "Verwijderen?",
       "deleteBody": "Deze herinnering wordt verwijderd.",
       "discardEdits": {
-        "title": "Wijzigingen opslaan?"
+        "title": "Wijzigingen en nieuwe foto’s verwijderen?"
       },
       "saveFailed": "Deze herinnering kon niet worden opgeslagen."
     },
@@ -40628,31 +41758,31 @@ FILE: package.json
     "@react-native-community/datetimepicker": "9.1.0",
     "@sentry/react-native": "~7.11.0",
     "@types/jest": "29.5.14",
-    "expo": "^57.0.9",
+    "expo": "~57.0.11",
     "expo-constants": "~57.0.6",
     "expo-crypto": "~57.0.1",
     "expo-dev-client": "~57.0.10",
     "expo-document-picker": "~57.0.1",
-    "expo-file-system": "~57.0.1",
+    "expo-file-system": "57.0.2",
     "expo-font": "~57.0.1",
     "expo-haptics": "~57.0.1",
-    "expo-image-manipulator": "~57.0.7",
-    "expo-image-picker": "~57.0.7",
+    "expo-image-manipulator": "57.0.8",
+    "expo-image-picker": "57.0.8",
     "expo-linear-gradient": "~57.0.1",
-    "expo-linking": "~57.0.4",
+    "expo-linking": "57.0.5",
     "expo-localization": "~57.0.1",
-    "expo-location": "~57.0.7",
+    "expo-location": "57.0.8",
     "expo-mail-composer": "~57.0.1",
     "expo-media-library": "~57.0.3",
     "expo-navigation-bar": "^57.0.2",
     "expo-ocr-kit": "^0.1.4",
-    "expo-router": "~57.0.9",
+    "expo-router": "~57.0.11",
     "expo-screen-orientation": "~57.0.1",
-    "expo-sharing": "~57.0.8",
+    "expo-sharing": "57.0.10",
     "expo-splash-screen": "~57.0.5",
     "expo-sqlite": "^57.0.1",
     "expo-status-bar": "~57.0.1",
-    "expo-symbols": "~57.0.1",
+    "expo-symbols": "57.0.2",
     "expo-system-ui": "~57.0.2",
     "expo-web-browser": "~57.0.2",
     "i18next": "^26.3.6",
@@ -40664,6 +41794,7 @@ FILE: package.json
     "react-native-draggable-flatlist": "^4.0.3",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-maps": "1.27.2",
+    "react-native-paper": "^5.15.3",
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
@@ -40704,6 +41835,7 @@ FILE: package.json
     "deploy:localization": "python3 scripts/deploy-localization.py",
     "deploy:github": "python3 scripts/deploy-github.py",
     "i18n:check": "python3 scripts/check-i18n.py",
+    "i18n:deploy": "python3 scripts/i18n-check-deploy.py",
     "build:sync:check": "bash scripts/check-build-sync.sh",
     "typecheck": "tsc --noEmit",
     "test": "jest",
@@ -43521,6 +44653,216 @@ export async function resolveCurrentLocation(): Promise<ResolvedLocation> {
 /** Swift `LocationService.openSystemSettings`. */
 export function openSystemSettings(): void {
   void safeOpenSettings();
+}
+
+
+================================================================================
+FILE: services/map/mapHtml.ts
+================================================================================
+import type { LatLng } from '@/services/places';
+
+/**
+ * Builds the Google Maps WebView HTML document.
+ * Kept free of React Native imports so it can be unit-tested in Jest.
+ */
+export function buildMapHtml(options: {
+  apiKey: string;
+  center: LatLng;
+  zoom: number;
+  forestGreen: string;
+  mapPaddingBottom: number;
+}): string {
+  const { apiKey, center, zoom, forestGreen, mapPaddingBottom } = options;
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <style>
+    html, body, #map { margin: 0; padding: 0; width: 100%; height: 100%; background: #F5EEDD; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    var map = null;
+    var markerById = {};
+    var userMarker = null;
+    var FOREST = ${JSON.stringify(forestGreen)};
+    var MAP_PADDING_BOTTOM = ${JSON.stringify(mapPaddingBottom)};
+
+    function post(payload) {
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+      }
+    }
+
+    window.gm_authFailure = function () {
+      post({
+        type: 'error',
+        message: 'Google Maps authentication failed. In Google Cloud, enable “Maps JavaScript API” for this key (and allow HTTP referrers, or leave key unrestricted for development).',
+      });
+    };
+
+    window.__gustraPing = function () {
+      post({ type: 'pong' });
+    };
+
+    function visibleRadiusMeters() {
+      if (!map || !map.getBounds()) return 2000;
+      var c = map.getCenter();
+      var ne = map.getBounds().getNorthEast();
+      var R = 6371000;
+      var toRad = function (d) { return d * Math.PI / 180; };
+      var dLat = toRad(ne.lat() - c.lat());
+      var dLng = toRad(ne.lng() - c.lng());
+      var a = Math.sin(dLat/2)*Math.sin(dLat/2) +
+        Math.cos(toRad(c.lat()))*Math.cos(toRad(ne.lat()))*
+        Math.sin(dLng/2)*Math.sin(dLng/2);
+      var dist = 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+      return Math.max(200, Math.min(dist, 50000));
+    }
+
+    function pinIcon(color, selected) {
+      // Match Swift GMSMarker.markerImage(with:) — teardrop “flag” pin, not a circle.
+      var scale = selected ? 1.55 : 1;
+      var w = Math.round(28 * scale);
+      var h = Math.round(40 * scale);
+      var fill = (color || FOREST).replace(/"/g, '');
+      var svg =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 28 40">' +
+        '<path fill="' + fill + '" stroke="#FFFFFF" stroke-width="1.75" ' +
+        'd="M14 1.25C7.55 1.25 2.25 6.55 2.25 13c0 8.6 10.35 21.05 11.15 21.95a1.1 1.1 0 0 0 1.6 0C15.8 34.05 25.75 21.6 25.75 13c0-6.45-5.3-11.75-11.75-11.75z"/>' +
+        '<circle fill="#FFFFFF" cx="14" cy="13" r="4.75"/>' +
+        '</svg>';
+      return {
+        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+        scaledSize: new google.maps.Size(w, h),
+        anchor: new google.maps.Point(w / 2, h),
+      };
+    }
+
+    window.__gustraAnimate = function (lat, lng, zoom) {
+      if (!map) return;
+      map.panTo({ lat: lat, lng: lng });
+      if (typeof zoom === 'number') map.setZoom(zoom);
+    };
+
+    window.__gustraFitBounds = function (points, bottomPad) {
+      if (!map || !points || !points.length) return;
+      var pad = typeof bottomPad === 'number' ? bottomPad : MAP_PADDING_BOTTOM;
+      if (points.length === 1) {
+        map.panTo(points[0]);
+        map.setZoom(13);
+        return;
+      }
+      var bounds = new google.maps.LatLngBounds();
+      points.forEach(function (p) { bounds.extend(p); });
+      map.fitBounds(bounds, {
+        top: 64,
+        right: 48,
+        bottom: Math.max(64, pad || 0) + 24,
+        left: 48,
+      });
+    };
+
+    window.__gustraSetMarkers = function (markers) {
+      if (!map || !markers) return;
+      var keep = {};
+      var hasSelection = markers.some(function (m) { return m.isSelected; });
+      markers.forEach(function (m) {
+        keep[m.id] = true;
+        var pos = { lat: m.coordinate.latitude, lng: m.coordinate.longitude };
+        var existing = markerById[m.id];
+        if (!existing) {
+          existing = new google.maps.Marker({
+            map: map,
+            position: pos,
+            title: m.title || '',
+          });
+          existing.addListener('click', function () {
+            post({ type: 'marker', id: m.id });
+          });
+          markerById[m.id] = existing;
+        } else {
+          existing.setPosition(pos);
+          existing.setTitle(m.title || '');
+        }
+        existing.setIcon(pinIcon(m.color, !!m.isSelected));
+        existing.setOpacity(hasSelection && !m.isSelected ? 0.35 : 1);
+        existing.setZIndex(m.isSelected ? 1000 : 0);
+      });
+      Object.keys(markerById).forEach(function (id) {
+        if (!keep[id]) {
+          markerById[id].setMap(null);
+          delete markerById[id];
+        }
+      });
+    };
+
+    window.__gustraSetUser = function (coords) {
+      if (!map) return;
+      if (!coords) {
+        if (userMarker) { userMarker.setMap(null); userMarker = null; }
+        return;
+      }
+      var pos = { lat: coords.lat, lng: coords.lng };
+      if (!userMarker) {
+        userMarker = new google.maps.Marker({
+          map: map,
+          position: pos,
+          zIndex: 2000,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: '#4285F4',
+            fillOpacity: 1,
+            strokeColor: '#FFFFFF',
+            strokeWeight: 2,
+          },
+        });
+      } else {
+        userMarker.setPosition(pos);
+      }
+    };
+
+    function initMap() {
+      try {
+        map = new google.maps.Map(document.getElementById('map'), {
+          center: { lat: ${center.latitude}, lng: ${center.longitude} },
+          zoom: ${zoom},
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
+          clickableIcons: false,
+          gestureHandling: 'greedy',
+          padding: { top: 0, right: 0, bottom: MAP_PADDING_BOTTOM, left: 0 },
+        });
+        map.addListener('idle', function () {
+          var c = map.getCenter();
+          post({
+            type: 'idle',
+            lat: c.lat(),
+            lng: c.lng(),
+            zoom: map.getZoom(),
+            radius: visibleRadiusMeters(),
+          });
+        });
+        map.addListener('click', function () {
+          post({ type: 'mapTap' });
+        });
+        post({ type: 'ready' });
+      } catch (e) {
+        post({ type: 'error', message: String(e && e.message ? e.message : e) });
+      }
+    }
+  </script>
+  <script async defer
+    src="https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&callback=initMap"
+    onerror="window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({type:'error',message:'Failed to download Google Maps JavaScript API.'}))">
+  </script>
+</body>
+</html>`;
 }
 
 
@@ -46847,10 +48189,46 @@ export function formDraftReason(
   return null;
 }
 
+/**
+ * Most recent visit date (ISO) including the visit being filled in right now.
+ *
+ * `priorVisits` is newest-first but excludes the current review (by id). When
+ * the date being entered is newer than the stored most recent visit, the label
+ * "Meest recente bezoek" would be wrong the moment a newer visit is saved — so
+ * compare and return the newer of the two.
+ */
+export function mostRecentVisitIso(
+  priorVisits: readonly { date: string }[],
+  currentVisitIso: string,
+): string {
+  if (priorVisits.length === 0) return currentVisitIso;
+  const newestPrior = priorVisits[0]!.date;
+  return currentVisitIso <= newestPrior ? newestPrior : currentVisitIso;
+}
+
 /** True when rating steps are a real star value (for wine checks). */
 export function wineNeedsRating(fiche: WineLabelFiche): boolean {
   return !RatingValue.isStarRating(fiche.userRating ?? RatingValue.unrated);
 }
+
+
+================================================================================
+FILE: services/reviews/photoLibrary.ts
+================================================================================
+/**
+ * A lightweight reference to a photo in the device media library, as returned
+ * by `expo-media-library`'s `getAssetsAsync`. On iOS `uri` is a `ph://` ref
+ * (rendered by the PhotoKit image loader without downloading the full photo);
+ * on Android it's a content/media URI. The full photo is only materialized
+ * when the user confirms and `saveReviewPhoto` copies it into the app.
+ */
+export type LibraryAsset = {
+  id: string;
+  uri: string;
+  width: number;
+  height: number;
+  creationTime: number;
+};
 
 
 ================================================================================

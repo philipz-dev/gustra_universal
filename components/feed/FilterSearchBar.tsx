@@ -1,4 +1,4 @@
-import { StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 
 import { GustraColors } from '@/constants/Colors';
@@ -36,8 +36,22 @@ export function FilterSearchBar({
           selectionColor={GustraColors.forestGreen}
           keyboardAppearance={HOUSE_KEYBOARD_APPEARANCE}
           autoCorrect={false}
-          clearButtonMode="while-editing"
+          returnKeyType="search"
         />
+        {value.length > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('common.clear')}
+            hitSlop={8}
+            onPress={() => onChangeText('')}
+            style={({ pressed }) => pressed && styles.clearPressed}>
+            <SymbolView
+              name={{ ios: 'xmark.circle.fill', android: 'cancel', web: 'cancel' }}
+              tintColor="rgba(35, 32, 26, 0.35)"
+              size={18}
+            />
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -63,5 +77,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: GustraColors.ink,
     padding: 0,
+  },
+  clearPressed: {
+    opacity: 0.5,
   },
 });

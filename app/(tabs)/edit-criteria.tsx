@@ -17,7 +17,6 @@ import { Theme, bodyTextStyle, captionTextStyle } from '@/constants/Theme';
 import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import {
   STANDARD_CRITERIA,
-  isMandatoryStandardCriterion,
   standardCriterionDisplayTitle,
   useCriteriaSettings,
   type CriteriaSettingsSnapshot,
@@ -81,7 +80,6 @@ export default function EditCriteriaScreen() {
 
   const toggleStandard = useCallback(
     (id: string, enabled: boolean) => {
-      if (!enabled && isMandatoryStandardCriterion(id)) return;
       if (!enabled && enabledCount <= 1 && isStandardOn(id)) {
         Haptics.warning();
         houseAlert(t('tabs.editCriteria'), t('setup.criteria.minOne'));
@@ -192,7 +190,6 @@ export default function EditCriteriaScreen() {
         showsVerticalScrollIndicator={false}>
         <View style={styles.card}>
           {STANDARD_CRITERIA.map((criterion, index) => {
-            const mandatory = isMandatoryStandardCriterion(criterion.id);
             return (
               <View
                 key={criterion.id}
@@ -205,17 +202,9 @@ export default function EditCriteriaScreen() {
                 <Text style={styles.rowTitle}>
                   {standardCriterionDisplayTitle(criterion.id)}
                 </Text>
-                {mandatory ? (
-                  <Text style={styles.requiredLabel}>{t('common.required')}</Text>
-                ) : null}
                 <GustraSwitch
                   value={isStandardOn(criterion.id)}
-                  disabled={mandatory}
-                  accessibilityLabel={
-                    mandatory
-                      ? `${standardCriterionDisplayTitle(criterion.id)}, ${t('common.required')}`
-                      : standardCriterionDisplayTitle(criterion.id)
-                  }
+                  accessibilityLabel={standardCriterionDisplayTitle(criterion.id)}
                   onValueChange={(value) => toggleStandard(criterion.id, value)}
                 />
               </View>
@@ -261,10 +250,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: GustraColors.ink,
-  },
-  requiredLabel: {
-    ...captionTextStyle,
-    color: GustraColors.ratingAvoid,
   },
   footer: {
     ...captionTextStyle,

@@ -29,7 +29,6 @@ import {
 } from '@/constants/Theme';
 import {
   STANDARD_CRITERIA,
-  isMandatoryStandardCriterion,
   standardCriterionDisplayTitle,
   useCriteriaSettings,
   QUICK_SETUP_CHOICE,
@@ -368,18 +367,12 @@ export default function CriteriaSetupScreen() {
         <View style={styles.card}>
           {STANDARD_CRITERIA.map((criterion) => {
             const enabled = isStandardEnabled(criterion.id);
-            const mandatory = isMandatoryStandardCriterion(criterion.id);
             return (
               <Pressable
                 key={criterion.id}
                 accessibilityRole="switch"
-                accessibilityLabel={
-                  mandatory
-                    ? `${standardCriterionDisplayTitle(criterion.id)}, ${t('common.required')}`
-                    : standardCriterionDisplayTitle(criterion.id)
-                }
-                accessibilityState={{ checked: enabled, disabled: mandatory }}
-                disabled={mandatory}
+                accessibilityLabel={standardCriterionDisplayTitle(criterion.id)}
+                accessibilityState={{ checked: enabled }}
                 onPress={() => {
                   Haptics.selectionChanged();
                   setStandardEnabled(criterion.id, !enabled);
@@ -391,12 +384,8 @@ export default function CriteriaSetupScreen() {
                   numberOfLines={1}>
                   {standardCriterionDisplayTitle(criterion.id)}
                 </Text>
-                {mandatory ? (
-                  <Text style={styles.requiredLabel}>{t('common.required')}</Text>
-                ) : null}
                 <GustraSwitch
                   value={enabled}
-                  disabled={mandatory}
                   onValueChange={(value) =>
                     setStandardEnabled(criterion.id, value)
                   }
@@ -512,10 +501,6 @@ const styles = StyleSheet.create({
   rowTitleOn: {
     color: GustraColors.ink,
     fontWeight: '600',
-  },
-  requiredLabel: {
-    ...captionTextStyle,
-    color: GustraColors.ratingAvoid,
   },
   choiceRow: {
     flexDirection: 'row',

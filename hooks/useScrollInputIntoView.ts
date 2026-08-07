@@ -12,7 +12,7 @@ import {
 /** Match Swift `scrollCommentIntoView` delay after focus (keyboard animation). */
 const FOCUS_DELAY_MS = Platform.OS === 'ios' ? 300 : 140;
 /** Gap between input bottom and keyboard top. */
-const KEYBOARD_GAP = 36;
+const KEYBOARD_GAP = 48;
 
 /**
  * Keeps the focused TextInput visible above the keyboard inside a ScrollView

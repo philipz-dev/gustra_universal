@@ -3,19 +3,16 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
-import { Theme, SERIF_FONT_REGULAR_ITALIC } from '@/constants/Theme';
+import { Theme } from '@/constants/Theme';
 
 type PassportSectionProps = {
   title: string;
-  /** Optional cursive kicker above the title (e.g. "your favourites"). */
-  kicker?: string;
   trailing?: string;
   children: ReactNode;
 };
 
 export function PassportSection({
   title,
-  kicker,
   trailing,
   children,
 }: PassportSectionProps) {
@@ -23,7 +20,6 @@ export function PassportSection({
     <View style={styles.section}>
       <View style={styles.header}>
         <View style={styles.headerCopy}>
-          {kicker ? <Text style={styles.kicker}>{kicker}</Text> : null}
           <Text style={styles.headerTitle}>{title}</Text>
         </View>
         {trailing ? (
@@ -54,12 +50,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: 8,
-  },
-  kicker: {
-    fontFamily: SERIF_FONT_REGULAR_ITALIC,
-    fontSize: 13,
-    color: 'rgba(35, 32, 26, 0.5)',
-    letterSpacing: -0.2,
   },
   headerTitle: {
     fontSize: Theme.typography.sectionHeader,

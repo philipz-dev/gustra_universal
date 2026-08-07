@@ -63,9 +63,7 @@ export function BucketListSection({
 
   if (restaurants.length === 0) {
     return (
-      <PassportSection
-        title={t('bucketList.title')}
-        kicker={t('bucketList.kicker')}>
+      <PassportSection title={t('bucketList.title')}>
         <View style={styles.empty}>
           <SymbolView
             name={{
@@ -83,9 +81,7 @@ export function BucketListSection({
   }
 
   return (
-    <PassportSection
-      title={t('bucketList.title')}
-      kicker={t('bucketList.kicker')}>
+    <PassportSection title={t('bucketList.title')}>
       {restaurants.map((restaurant) => (
         <View key={restaurant.id} style={styles.rowWrap}>
           <FeedSwipeDelete

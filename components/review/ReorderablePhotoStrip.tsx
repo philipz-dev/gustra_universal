@@ -139,6 +139,9 @@ export function ReorderablePhotoStrip({
                   )}
                 </View>
               )}
+              {isActive && Platform.OS === 'android' ? (
+                <View style={styles.dragStateLayer} pointerEvents="none" />
+              ) : null}
               {isSelected ? (
                 <View style={styles.selectedRing} pointerEvents="none" />
               ) : null}
@@ -283,6 +286,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.22,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
+  },
+  /** M3 drag state layer on Android — primary-tint wash while dragging. */
+  dragStateLayer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderRadius: Theme.radius.sm,
+    backgroundColor: 'rgba(36, 78, 57, 0.22)',
   },
   thumb: {
     width: PHOTO_SIZE,

@@ -58,6 +58,23 @@ export function formDraftReason(
   return null;
 }
 
+/**
+ * Most recent visit date (ISO) including the visit being filled in right now.
+ *
+ * `priorVisits` is newest-first but excludes the current review (by id). When
+ * the date being entered is newer than the stored most recent visit, the label
+ * "Meest recente bezoek" would be wrong the moment a newer visit is saved — so
+ * compare and return the newer of the two.
+ */
+export function mostRecentVisitIso(
+  priorVisits: readonly { date: string }[],
+  currentVisitIso: string,
+): string {
+  if (priorVisits.length === 0) return currentVisitIso;
+  const newestPrior = priorVisits[0]!.date;
+  return currentVisitIso <= newestPrior ? newestPrior : currentVisitIso;
+}
+
 /** True when rating steps are a real star value (for wine checks). */
 export function wineNeedsRating(fiche: WineLabelFiche): boolean {
   return !RatingValue.isStarRating(fiche.userRating ?? RatingValue.unrated);

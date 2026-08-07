@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { FavoriteHeartButton } from '@/components/ui/FavoriteHeartButton';
 import { SerifText } from '@/components/ui/SerifText';
 import { GustraColors } from '@/constants/Colors';
+import { useAppTranslation } from '@/hooks/useAppTranslation';
 
 type RestaurantHeaderCardProps = {
   name: string;
@@ -12,6 +13,8 @@ type RestaurantHeaderCardProps = {
   setIsFavorite: (favorite: boolean) => void;
   isDraftForm: boolean;
   draftLabel: string; // t('reviews.draftLabel')
+  /** Number of earlier visits to this restaurant (revisit subtitle). */
+  revisitCount?: number;
 };
 
 export const RestaurantHeaderCard = React.memo(function RestaurantHeaderCard({
@@ -21,7 +24,9 @@ export const RestaurantHeaderCard = React.memo(function RestaurantHeaderCard({
   setIsFavorite,
   isDraftForm,
   draftLabel,
+  revisitCount = 0,
 }: RestaurantHeaderCardProps) {
+  const { t } = useAppTranslation();
   return (
     <View style={styles.card}>
       <View style={styles.restaurantRow}>
@@ -35,6 +40,11 @@ export const RestaurantHeaderCard = React.memo(function RestaurantHeaderCard({
             )}
           </View>
           {addressLine ? <Text style={styles.address}>{addressLine}</Text> : null}
+          {revisitCount > 0 ? (
+            <Text style={styles.revisitNote}>
+              {t('forms.review.visitedBefore', { count: revisitCount })}
+            </Text>
+          ) : null}
         </View>
         <FavoriteHeartButton favorite={isFavorite} onToggle={setIsFavorite} />
       </View>
@@ -91,5 +101,10 @@ const styles = StyleSheet.create({
   address: {
     fontSize: 14,
     color: 'rgba(35, 32, 26, 0.5)',
+  },
+  revisitNote: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    color: 'rgba(36, 78, 57, 0.75)',
   },
 });

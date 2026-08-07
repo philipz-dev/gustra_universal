@@ -58,7 +58,6 @@ ALLOW_IDENTICAL_VALUES = {
     "Import",
     "OK",
     "Rosé",
-    "Draft",
     # Criteria loanwords that are identical across locales
     "Comfort",
     "Timing",
@@ -112,7 +111,6 @@ ALLOW_IDENTICAL_KEYS = {
     "criteria.service",
     "settings.sectionCriteria",
     "setup.criteria.tip",
-    "reviews.draftLabel",
     "reviews.demoLabel",
     "passport.timeTravelMonthHeader",
 }

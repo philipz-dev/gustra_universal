@@ -425,6 +425,19 @@ function ReviewsFeedContent() {
                     ? criterionAverageFor(item, filterState.sortKind.criterionId)
                     : null
                 }
+                scoreOverrideCriterionTitle={
+                  filterState.sortKind.type === 'criterion'
+                    ? criterionTitleFor(filterState.sortKind.criterionId)
+                    : null
+                }
+                scoreMissing={
+                  filterState.sortKind.type === 'criterion'
+                    ? criterionAverageFor(
+                        item,
+                        filterState.sortKind.criterionId,
+                      ) == null
+                    : false
+                }
                 onFavoriteToggle={(favorite) => {
                   void setRestaurantFavorite(item.restaurantId, favorite);
                 }}

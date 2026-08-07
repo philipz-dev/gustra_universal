@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolView } from 'expo-symbols';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 
@@ -191,6 +191,27 @@ function MemoriesMapContent() {
     }, 80);
     return () => clearTimeout(timer);
   }, [pins]);
+
+  // A WebView left in a broken/white state (transient Maps script failure,
+  // missed marker injection after remount) never recovers on its own. On
+  // focus: reload when an error is shown; otherwise ping the WebView and
+  // reload only when it is silent/stale (white map without an error message).
+  // A healthy map keeps its preserved camera.
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setTimeout(() => {
+        const handle = mapRef.current;
+        if (!handle) return;
+        if (handle.hasError()) {
+          handle.refresh();
+          return;
+        }
+        void handle.reloadIfStale();
+      }, 120);
+      return () => clearTimeout(timer);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []),
+  );
 
   const applyFiltersAndFit = useCallback(
     (next: FeedFilterState) => {

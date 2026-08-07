@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -17,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FeedSwipeDelete } from '@/components/feed/FeedSwipeDelete';
 import { InteractiveStarRating } from '@/components/review/InteractiveStarRating';
+import { PhotoLibraryPickerModal } from '@/components/review/PhotoLibraryPickerModal';
 import { ReorderablePhotoStrip } from '@/components/review/ReorderablePhotoStrip';
 import { RestaurantHeaderCard } from '@/components/review/RestaurantHeaderCard';
 import { DatePickerModal } from '@/components/review/DatePickerModal';
@@ -169,24 +171,27 @@ export default function ReviewFormScreen() {
     isImportingPhotos,
     showPhotoSourceChooser,
     setShowPhotoSourceChooser,
+    showPhotoLibraryPicker,
+    setShowPhotoLibraryPicker,
     importFromLibrary,
     takePhoto,
     showPhotoSourcePicker,
     confirmRemoveSelectedPhotos,
     togglePhotoSelection,
+    confirmLibraryAssets,
   } = photoManager;
 
   const bottomPad =
-    keyboardHeight > 0
-      ? keyboardHeight + 24
-      : Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
+    Platform.OS === 'ios'
+      ? Theme.spacing.floatingTabBarClearance + insets.bottom + 24
+      : keyboardHeight > 0
+        ? keyboardHeight + 24
+        : Theme.spacing.floatingTabBarClearance + insets.bottom + 24;
   const addressLine = draft ? draftAddressLine(draft) : null;
 
   const bannerTitle = isEdit
     ? t('forms.review.editTitle')
-    : revisitCount > 0
-      ? t('forms.addVisit.title')
-      : t('forms.addReview.title');
+    : t('forms.addReview.title');
 
   if (!ready || !draft) {
     return (
@@ -225,15 +230,22 @@ export default function ReviewFormScreen() {
         }
       />
 
-      <ScrollView
-        ref={scrollRef}
-        scrollEnabled={!photoDragging && !ratingScrubbing}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
-        overScrollMode="never">
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}>
+        <ScrollView
+          ref={scrollRef}
+          scrollEnabled={!photoDragging && !ratingScrubbing}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: bottomPad },
+          ]}
+          overScrollMode="never">
         <RestaurantHeaderCard
           name={draft.name}
           addressLine={addressLine}
@@ -241,6 +253,7 @@ export default function ReviewFormScreen() {
           setIsFavorite={setIsFavorite}
           isDraftForm={isDraftForm}
           draftLabel={t('reviews.draftLabel')}
+          revisitCount={revisitCount}
         />
 
         {!hasCoordinates(draft.latitude, draft.longitude) ? (
@@ -662,7 +675,8 @@ export default function ReviewFormScreen() {
             )}
           </Pressable>
         ) : null}
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <TabBarBottomFade />
 
@@ -685,6 +699,15 @@ export default function ReviewFormScreen() {
             void importFromLibrary();
           });
         }}
+      />
+
+      <PhotoLibraryPickerModal
+        visible={showPhotoLibraryPicker}
+        selectionLimit={MAX_REVIEW_PHOTOS - photoUrls.length}
+        onCancel={() => {
+          if (!isImportingPhotos) setShowPhotoLibraryPicker(false);
+        }}
+        onConfirm={confirmLibraryAssets}
       />
 
       <DatePickerModal
@@ -714,6 +737,9 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: GustraColors.cream,
+  },
+  flex: {
+    flex: 1,
   },
   loading: {
     flex: 1,
