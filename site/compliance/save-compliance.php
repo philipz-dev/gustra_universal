@@ -1,25 +1,20 @@
 <?php
 /**
- * Persist Gustra UX-audit submissions (https://gustra.net/audit/).
+ * Persist Gustra compliance submissions (https://gustra.net/compliance/).
  * POST JSON body: { userId, name, items, updatedAt }
  *   userId: per-visitor id (kept in localStorage), e.g. "u-abc123"
  *   name:   optional editor name (kept in a cookie on the client). When given
  *           it must be unique: the server rejects with 409 name_taken if
  *           another visitor already submitted with the same name.
- *   items: { "<featureId>": { status: "agree"|"suggest"|"suggest1"|"suggest2"|"other"|"disagree"|"fixed", adminStatus: "fix"|"nvt"|"test"|"fixed"|"unclear", remark: string } }
+ *   items: { "<itemId>": { fixed: bool, open: bool, remark: string } }
  *
  * The server keeps a map of submissions keyed by userId, so every visitor's
- * choices and remarks are preserved and visible to others. The UI offers four
- * choices (agree/suggest1/suggest2/other — suggest1/suggest2 are the two AI
- * suggestions, suggestion 1 being the preference) and fills the remark with the
- * chosen label, but the server keeps accepting the legacy statuses (suggest,
- * disagree, fixed) so old data stays readable. Every visitor may also pick an
- * adminStatus (fix/nvt/test/fixed) which is shown as a colored status bar.
+ * fixed/open status and remarks are preserved and visible to others. The
+ * "fixed" button is available to every visitor and stays visible for others.
  *
  * Admin (name "Philipz", case-insensitive) may additionally send:
- *   { action: "adminEdit", targetUid, itemId, remark, name }
  *   { action: "adminDelete", targetUid, itemId, name }
- * to edit or delete one item of another visitor's submission. The name check is
+ * to delete one item of another visitor's submission. The name check is
  * server-side; a non-Philipz name gets 403.
  */
 header('Content-Type: application/json; charset=utf-8');
@@ -53,21 +48,13 @@ if ($userId === '') {
     $userId = 'anon-' . substr(bin2hex(random_bytes(5)), 0, 8);
 }
 
-$allowed = ['agree', 'suggest', 'suggest1', 'suggest2', 'other', 'disagree', 'fixed'];
-$allowedAdminStatus = ['fix', 'nvt', 'test', 'fixed', 'unclear'];
 $items = [];
 if (isset($data['items']) && is_array($data['items'])) {
     foreach ($data['items'] as $id => $entry) {
         if (!is_string($id) || !is_array($entry)) continue;
-        $status = isset($entry['status']) && in_array($entry['status'], $allowed, true)
-            ? $entry['status']
-            : '';
-        $adminStatus = isset($entry['adminStatus']) && in_array($entry['adminStatus'], $allowedAdminStatus, true)
-            ? $entry['adminStatus']
-            : '';
         $items[$id] = [
-            'status' => $status,
-            'adminStatus' => $adminStatus,
+            'fixed' => isset($entry['fixed']) && ($entry['fixed'] === true || $entry['fixed'] === 'true' || $entry['fixed'] === 1),
+            'open' => isset($entry['open']) && ($entry['open'] === true || $entry['open'] === 'true' || $entry['open'] === 1),
             'remark' => isset($entry['remark']) ? truncate_utf8((string) $entry['remark'], 500) : '',
         ];
     }
@@ -92,7 +79,7 @@ function lowercase_utf8($s) {
     return function_exists('mb_strtolower') ? mb_strtolower($s, 'UTF-8') : strtolower($s);
 }
 
-$path = __DIR__ . '/audit-state.json';
+$path = __DIR__ . '/compliance-state.json';
 $state = ['submissions' => [], 'updatedAt' => gmdate('c')];
 if (file_exists($path)) {
     $existing = json_decode((string) file_get_contents($path), true);
@@ -102,7 +89,7 @@ if (file_exists($path)) {
 }
 
 $action = isset($data['action']) && is_string($data['action']) ? $data['action'] : '';
-if ($action === 'adminEdit' || $action === 'adminDelete') {
+if ($action === 'adminDelete') {
     $adminName = isset($data['name']) && is_string($data['name']) ? trim($data['name']) : '';
     if (lowercase_utf8($adminName) !== 'philipz') {
         http_response_code(403);
@@ -126,18 +113,7 @@ if ($action === 'adminEdit' || $action === 'adminDelete') {
         echo json_encode(['ok' => false, 'error' => 'item_not_found']);
         exit;
     }
-    if ($action === 'adminDelete') {
-        unset($sub['items'][$itemId]);
-    } else {
-        $remark = isset($data['remark']) ? truncate_utf8((string) $data['remark'], 500) : '';
-        $status = isset($sub['items'][$itemId]['status']) && in_array($sub['items'][$itemId]['status'], $allowed, true)
-            ? $sub['items'][$itemId]['status']
-            : '';
-        $adminStatus = isset($sub['items'][$itemId]['adminStatus']) && in_array($sub['items'][$itemId]['adminStatus'], $allowedAdminStatus, true)
-            ? $sub['items'][$itemId]['adminStatus']
-            : '';
-        $sub['items'][$itemId] = ['status' => $status, 'adminStatus' => $adminStatus, 'remark' => $remark];
-    }
+    unset($sub['items'][$itemId]);
     $sub['updatedAt'] = gmdate('c');
     $state['submissions'][$targetUid] = $sub;
     $state['updatedAt'] = gmdate('c');

@@ -75,6 +75,42 @@
       font-size: 1.02rem;
       line-height: 1.45;
     }
+
+    .name-box {
+      margin-top: 1.2rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.7rem;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(247,241,228,0.22);
+      border-radius: 14px;
+      padding: 0.7rem 0.9rem;
+    }
+    .name-box .name-label {
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: rgba(247, 241, 228, 0.85);
+    }
+    .name-box input[type="text"] {
+      flex: 1;
+      min-width: 10rem;
+      font: inherit;
+      font-size: 0.95rem;
+      color: var(--ink);
+      background: #fffdf8;
+      border: 1.5px solid rgba(36, 78, 57, 0.3);
+      border-radius: 10px;
+      padding: 0.5rem 0.7rem;
+    }
+    .name-box input[type="text"]:focus { outline: 2px solid rgba(217, 162, 39, 0.5); border-color: var(--gold); }
+    .name-box .name-msg {
+      flex-basis: 100%;
+      font-size: 0.82rem;
+      color: rgba(247, 241, 228, 0.9);
+    }
+    .name-box .name-msg.err { color: #ffd9d4; font-weight: 600; }
+    .name-box .name-msg.ok { color: #d9f2e3; }
     .status-row {
       display: grid;
       grid-template-columns: 1fr auto;
@@ -300,6 +336,47 @@
       margin-bottom: 0.15rem;
     }
     .others .others-item .who b { color: var(--ok); }
+    .others .others-item .admin-actions { display: flex; gap: 0.5rem; margin-top: 0.4rem; }
+    .others .others-item .admin-actions button {
+      border: 0;
+      border-radius: 999px;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0.3rem 0.7rem;
+      transition: transform .15s ease, background .15s ease;
+    }
+    .others .others-item .admin-actions button:hover { transform: translateY(-1px); }
+    .others .others-item .admin-edit { background: rgba(36, 78, 57, 0.12); color: var(--forest); }
+    .others .others-item .admin-delete { background: rgba(199, 71, 66, 0.12); color: var(--danger); }
+    .others .others-item .admin-form { display: grid; gap: 0.35rem; margin-top: 0.45rem; }
+    .others .others-item .admin-form textarea {
+      width: 100%;
+      border: 1px solid rgba(36, 78, 57, 0.18);
+      background: #fffdf8;
+      border-radius: 10px;
+      padding: 0.45rem 0.6rem;
+      font: inherit;
+      font-size: 0.84rem;
+      color: var(--ink);
+      resize: vertical;
+      min-height: 40px;
+    }
+    .others .others-item .admin-form .row { display: flex; gap: 0.5rem; }
+    .others .others-item .admin-form button {
+      border: 0;
+      border-radius: 999px;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0.3rem 0.7rem;
+    }
+    .others .others-item .admin-form .ok { background: var(--forest); color: #f7f1e4; }
+    .others .others-item .admin-form .cancel { background: rgba(35, 32, 26, 0.1); color: var(--ink); }
+    .others .others-item .admin-status { font-size: 0.75rem; color: var(--ok); margin-top: 0.3rem; }
+    .others .others-item .admin-status.err { color: var(--danger); }
 
     .sync {
       margin: 1.2rem 0 0;
@@ -324,6 +401,11 @@
         <strong>confirm</strong> (bevestigen/V). Vink per item af of het gedrag klopt met wat je verwacht,
         en laat gerust een opmerking achter — de checks en opmerkingen van anderen zijn ook zichtbaar.
       </p>
+      <div class="name-box">
+        <span class="name-label">Jouw naam</span>
+        <input type="text" id="editorName" placeholder="Bijv. Pieter" maxlength="40" autocomplete="name" />
+        <span class="name-msg" id="nameMsg">Laat je naam hier achter; die wordt bewaard in een cookie op dit apparaat.</span>
+      </div>
       <div class="status-row">
         <div class="progress-block">
           <div class="progress-label">
@@ -378,6 +460,27 @@
       return id;
     }
     const ME = myId();
+
+    // Admin: deze naam mag de reacties van andere bezoekers bewerken/verwijderen.
+    const ADMIN_NAME = "Philipz";
+    function isAdmin() {
+      return lowercase(MY_NAME) === lowercase(ADMIN_NAME);
+    }
+    function lowercase(s) {
+      return String(s || "").toLocaleLowerCase("nl");
+    }
+
+    const NAME_COOKIE = "gustra-controls-name";
+
+    function getCookie(name) {
+      const m = document.cookie.match(new RegExp("(?:^|; )" + name.replace(/([.$?*|{}()[\]\\/+^])/g, "\\$1") + "=([^;]*)"));
+      return m ? decodeURIComponent(m[1]) : "";
+    }
+    function setCookie(name, value, days) {
+      const expires = new Date(Date.now() + days * 864e5).toUTCString();
+      document.cookie = name + "=" + encodeURIComponent(value) + "; expires=" + expires + "; path=/; SameSite=Lax";
+    }
+    let MY_NAME = getCookie(NAME_COOKIE) || "";
 
     /**
      * Elk item: een controle in de app.
@@ -478,19 +581,37 @@
 
     async function saveRemote() {
       const msg = document.getElementById("syncMsg");
+      const nameMsg = document.getElementById("nameMsg");
       const items = {};
       for (const id of Object.keys(state)) {
         if (itemById(id)) items[id] = state[id];
       }
-      const body = { userId: ME, items, updatedAt: new Date().toISOString() };
+      const name = MY_NAME.trim();
+      const body = { userId: ME, name, items, updatedAt: new Date().toISOString() };
       try {
         const res = await fetch(REMOTE_SAVE, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
+        if (res.status === 409) {
+          // Naam is al door iemand anders ingenomen.
+          const data = await res.json().catch(() => ({}));
+          if (data.error === "name_taken" && nameMsg) {
+            nameMsg.textContent = "Deze naam is al door iemand anders gebruikt. Kies een andere naam (bijv. met een toevoeging) — je gegevens zijn wél opgeslagen als anoniem.";
+            nameMsg.className = "name-msg err";
+          }
+          msg.textContent = "Naam is bezet — je reactie is opgeslagen, maar zonder naam.";
+          msg.className = "sync";
+          return;
+        }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         myRemote = { userId: ME, items, updatedAt: new Date().toISOString() };
+        if (name && nameMsg && !nameMsg.classList.contains("err")) {
+          setCookie(NAME_COOKIE, name, 365);
+          nameMsg.textContent = "Je naam is opgeslagen in een cookie op dit apparaat.";
+          nameMsg.className = "name-msg ok";
+        }
         msg.textContent = `Gesynchroniseerd met server · ${new Date().toLocaleTimeString("nl-BE")}`;
         msg.className = "sync ok";
       } catch {
@@ -512,11 +633,17 @@
           const s = subs[uid];
           if (!s || typeof s !== "object") continue;
           const entry = {
+            name: (s.name && typeof s.name === "string") ? s.name : "",
             items: (s.items && typeof s.items === "object") ? s.items : {},
             updatedAt: s.updatedAt || null,
           };
           remoteSubmissions[uid] = entry;
           if (uid === ME) myRemote = entry;
+        }
+        // If the server knows our name (from an earlier session), adopt it.
+        if (myRemote && myRemote.name && !MY_NAME) {
+          MY_NAME = myRemote.name;
+          setCookie(NAME_COOKIE, MY_NAME, 365);
         }
         // NOTE: we deliberately do NOT merge other visitors' checks into our
         // own `state` — that would make their checks appear as ours (and get
@@ -537,11 +664,74 @@
         const v = entry.items[itemId];
         if (!v || typeof v !== "object") continue;
         if (v.ok || (v.remark && String(v.remark).trim())) {
-          out.push({ uid, ok: !!v.ok, remark: String(v.remark || "").trim() });
+          out.push({ uid, name: entry.name || "", ok: !!v.ok, remark: String(v.remark || "").trim() });
         }
       }
       out.sort((a, b) => (b.ok ? 1 : 0) - (a.ok ? 1 : 0));
       return out;
+    }
+
+    async function adminEdit(uid, itemId, newRemark) {
+      const res = await fetch(REMOTE_SAVE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "adminEdit", targetUid: uid, itemId, remark: newRemark, name: MY_NAME.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      return res.json();
+    }
+
+    function showAdminEdit(itemEl, o, itemId) {
+      if (itemEl.querySelector(".admin-form")) return;
+      const form = document.createElement("div");
+      form.className = "admin-form";
+      const ta = document.createElement("textarea");
+      ta.value = o.remark || "";
+      const row = document.createElement("div");
+      row.className = "row";
+      const ok = document.createElement("button");
+      ok.type = "button";
+      ok.className = "ok";
+      ok.textContent = "Opslaan";
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.className = "cancel";
+      cancel.textContent = "Annuleren";
+      cancel.addEventListener("click", () => form.remove());
+      ok.addEventListener("click", async () => {
+        try {
+          await adminEdit(o.uid, itemId, ta.value);
+          await loadRemote();
+          render();
+        } catch (err) {
+          const st = document.createElement("div");
+          st.className = "admin-status err";
+          st.textContent = `Opslaan mislukt: ${err.message}`;
+          form.appendChild(st);
+        }
+      });
+      row.appendChild(ok);
+      row.appendChild(cancel);
+      form.appendChild(ta);
+      form.appendChild(row);
+      itemEl.appendChild(form);
+      ta.focus();
+    }
+
+    async function adminDelete(uid, itemId) {
+      const res = await fetch(REMOTE_SAVE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "adminDelete", targetUid: uid, itemId, name: MY_NAME.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      return res.json();
     }
 
     function renderStats() {
@@ -629,13 +819,44 @@
               const who = document.createElement("span");
               who.className = "who";
               const tag = o.ok ? "✓ ok" : "✓ selectie";
-              who.innerHTML = `${tag} · bezoeker ${o.uid.slice(2, 8)}`;
+              const whoName = o.name ? o.name : `bezoeker ${o.uid.slice(2, 8)}`;
+              who.innerHTML = `${tag} · <b>${whoName.replace(/</g, "&lt;")}</b>`;
               itemEl.appendChild(who);
               if (o.remark) {
                 const remark = document.createElement("span");
                 remark.textContent = o.remark;
                 itemEl.appendChild(document.createElement("br"));
                 itemEl.appendChild(remark);
+              }
+              if (isAdmin()) {
+                const adminRow = document.createElement("div");
+                adminRow.className = "admin-actions";
+                const btnEdit = document.createElement("button");
+                btnEdit.type = "button";
+                btnEdit.className = "admin-edit";
+                btnEdit.textContent = "Bewerken";
+                const btnDel = document.createElement("button");
+                btnDel.type = "button";
+                btnDel.className = "admin-delete";
+                btnDel.textContent = "Verwijderen";
+                btnEdit.addEventListener("click", () => showAdminEdit(itemEl, o, item.id));
+                btnDel.addEventListener("click", async () => {
+                  if (!confirm(`Reactie van ${whoName} verwijderen?`)) return;
+                  try {
+                    await adminDelete(o.uid, item.id);
+                    itemEl.remove();
+                    await loadRemote();
+                    render();
+                  } catch (err) {
+                    const st = document.createElement("div");
+                    st.className = "admin-status err";
+                    st.textContent = `Verwijderen mislukt: ${err.message}`;
+                    itemEl.appendChild(st);
+                  }
+                });
+                adminRow.appendChild(btnEdit);
+                adminRow.appendChild(btnDel);
+                itemEl.appendChild(adminRow);
               }
               listEl.appendChild(itemEl);
             }
@@ -671,6 +892,29 @@
       loadLocal();
       const remote = await loadRemote();
       render();
+
+      const nameInput = document.getElementById("editorName");
+      const nameMsg = document.getElementById("nameMsg");
+      if (nameInput) {
+        nameInput.value = MY_NAME;
+        nameInput.addEventListener("input", () => {
+          const wasAdmin = isAdmin();
+          MY_NAME = nameInput.value.trim();
+          if (MY_NAME) {
+            setCookie(NAME_COOKIE, MY_NAME, 365);
+            if (nameMsg) {
+              nameMsg.textContent = "Je naam wordt opgeslagen in een cookie op dit apparaat.";
+              nameMsg.className = "name-msg ok";
+            }
+          } else if (nameMsg) {
+            nameMsg.textContent = "Laat je naam hier achter; die wordt bewaard in een cookie op dit apparaat.";
+            nameMsg.className = "name-msg";
+          }
+          if (isAdmin() !== wasAdmin) render();
+          scheduleRemoteSave();
+        });
+      }
+
       if (remote) {
         const msg = document.getElementById("syncMsg");
         msg.textContent = "Serverstatus geladen.";

@@ -156,12 +156,27 @@
       grid-template-columns: 1fr;
       gap: 0.6rem;
       background: rgba(255,255,255,0.72);
-      border: 1px solid rgba(36, 78, 57, 0.16);
+      border: 1.5px solid rgba(36, 78, 57, 0.32);
       border-radius: 14px;
       padding: 0.8rem 0.9rem;
       margin-bottom: 2.4rem;
-      box-shadow: 0 4px 14px rgba(36, 78, 57, 0.05);
+      box-shadow: 0 4px 16px rgba(36, 78, 57, 0.1);
+      transition: background .2s ease, border-color .2s ease;
     }
+    /* Status-dropdown in de kop van elk item (voor alle bezoekers).
+       De gekozen status is via de gekleurde statusbalk onderaan zichtbaar. */
+    .admin-status-select {
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--ink);
+      background: #fffdf8;
+      border: 1.5px solid rgba(36, 78, 57, 0.25);
+      border-radius: 10px;
+      padding: 0.35rem 0.6rem;
+      cursor: pointer;
+    }
+    .admin-status-select:focus { outline: 2px solid rgba(217, 162, 39, 0.5); border-color: var(--gold); }
     .task .head { display: flex; align-items: baseline; gap: 0.6rem; }
     .task .num {
       flex-shrink: 0;
@@ -178,6 +193,22 @@
       transform: translateY(2px);
     }
     .task .title { font-size: 1rem; line-height: 1.4; font-weight: 600; }
+    .task .sev {
+      align-self: center;
+      flex-shrink: 0;
+      margin-left: auto;
+      font-size: 0.66rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border-radius: 999px;
+      padding: 0.2rem 0.55rem;
+      border: 1px solid transparent;
+    }
+    .task .sev.sev-critical { color: #a22c24; background: rgba(199, 71, 66, 0.12); border-color: rgba(199, 71, 66, 0.4); }
+    .task .sev.sev-high { color: #9a4d0f; background: rgba(217, 162, 39, 0.16); border-color: rgba(217, 162, 39, 0.5); }
+    .task .sev.sev-medium { color: #2f6f9f; background: rgba(47, 111, 159, 0.12); border-color: rgba(47, 111, 159, 0.4); }
+    .task .sev.sev-low { color: #4d5c55; background: rgba(36, 78, 57, 0.08); border-color: rgba(36, 78, 57, 0.3); }
     .task .what { font-size: 0.92rem; line-height: 1.5; color: var(--ink); margin-top: 0.25rem; margin-left: 2.3rem; }
     .task .example {
       font-size: 0.86rem;
@@ -194,14 +225,49 @@
       font-size: 0.9rem;
       line-height: 1.5;
       color: var(--ink);
-      background: rgba(36, 78, 57, 0.08);
-      border-left: 3px solid var(--forest);
+      background: rgba(47, 111, 159, 0.06);
+      border-left: 3px solid #2f6f9f;
       border-radius: 0 10px 10px 0;
       padding: 0.55rem 0.75rem;
       margin-top: 0.45rem;
       margin-left: 2.3rem;
     }
-    .task .solution b { color: var(--forest); }
+    .task .solution b { color: #2f6f9f; }
+    .task .solution .pref {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #1f5c38;
+      background: rgba(56, 140, 86, 0.14);
+      border: 1px solid rgba(56, 140, 86, 0.45);
+      border-radius: 999px;
+      padding: 0.1rem 0.45rem;
+      margin-right: 0.4rem;
+      vertical-align: middle;
+    }
+    .task .solution .cons {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 400;
+      color: #8a4b12;
+      background: rgba(217, 162, 39, 0.12);
+      border-radius: 8px;
+      padding: 0.35rem 0.6rem;
+      margin-top: 0.35rem;
+    }
+    .task .testbox {
+      font-size: 0.85rem;
+      line-height: 1.5;
+      color: #8a4b12;
+      background: rgba(217, 162, 39, 0.14);
+      border: 1.5px solid rgba(217, 162, 39, 0.5);
+      border-radius: 10px;
+      padding: 0.55rem 0.75rem;
+      margin-top: 0.55rem;
+    }
+    .task .testbox b { color: #8a4b12; }
 
     .choices {
       display: grid;
@@ -260,7 +326,83 @@
     .choice:has(input:checked).suggest { border-color: #2f6f9f; background: rgba(47, 111, 159, 0.1); }
     .choice input:checked + .dot.suggest { border-color: #2f6f9f; }
     .choice input:checked + .dot.suggest::after { background: #2f6f9f; }
+    .choice:has(input:checked).other { border-color: #7a5c9e; background: rgba(122, 92, 158, 0.1); }
+    .choice input:checked + .dot.other { border-color: #7a5c9e; }
+    .choice input:checked + .dot.other::after { background: #7a5c9e; }
     .choice .hint { display: block; font-weight: 400; font-size: 0.74rem; color: var(--ink-soft); margin-top: 0.1rem; }
+
+    /* Statusbalk: gekleurde balk over de volledige breedte onderaan het frame,
+       met kleurcirkel + tekst. Toont de gekozen status (door elke bezoeker
+       te kiezen) duidelijk. */
+    .status-foot {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      width: 100%;
+      border-radius: 10px;
+      padding: 0.45rem 0.75rem;
+      border: 1.5px solid transparent;
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .status-foot .status-foot-dot {
+      width: 0.7rem;
+      height: 0.7rem;
+      border-radius: 50%;
+      background: currentColor;
+      flex-shrink: 0;
+    }
+    .status-foot.fix   { color: #a22c24; background: rgba(199, 71, 66, 0.12);  border-color: rgba(199, 71, 66, 0.4); }
+    .status-foot.test  { color: #8a4b12; background: rgba(217, 162, 39, 0.16); border-color: rgba(217, 162, 39, 0.5); }
+    .status-foot.unclear { color: #2f6f9f; background: rgba(47, 111, 159, 0.14); border-color: rgba(47, 111, 159, 0.5); }
+    .status-foot.nvt,
+    .status-foot.fixed { color: #1f5c38; background: rgba(56, 140, 86, 0.12);  border-color: rgba(56, 140, 86, 0.4); }
+
+    /* Filterbalk: status (admin) + criticality chips */
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem 0.9rem;
+      margin: 1rem 0 0.2rem;
+      padding: 0.7rem 0.9rem;
+      background: rgba(255, 255, 255, 0.6);
+      border: 1px solid rgba(36, 78, 57, 0.14);
+      border-radius: 14px;
+    }
+    .filters .fgroup { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+    .filters .fgroup-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+    }
+    .filters .chip {
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--ink);
+      background: #fffdf8;
+      border: 1.5px solid rgba(36, 78, 57, 0.2);
+      border-radius: 999px;
+      padding: 0.3rem 0.7rem;
+      cursor: pointer;
+      transition: border-color .15s ease, background .15s ease, color .15s ease;
+    }
+    .filters .chip:hover { border-color: rgba(36, 78, 57, 0.45); }
+    .filters .chip.on { border-color: var(--forest); background: rgba(36, 78, 57, 0.1); color: var(--forest); }
+    .filters .chip.on.ast-fix { border-color: var(--danger); background: rgba(199, 71, 66, 0.12); color: #a22c24; }
+    .filters .chip.on.ast-test { border-color: #d9a227; background: rgba(217, 162, 39, 0.16); color: #8a4b12; }
+    .filters .chip.on.ast-unclear { border-color: #2f6f9f; background: rgba(47, 111, 159, 0.14); color: #2f6f9f; }
+    .filters .chip.on.ast-nvt, .filters .chip.on.ast-fixed { border-color: var(--ok); background: rgba(56, 140, 86, 0.12); color: #1f5c38; }
+    .filters .chip.on.sev-critical { border-color: var(--danger); background: rgba(199, 71, 66, 0.12); color: #a22c24; }
+    .filters .chip.on.sev-high { border-color: #d9a227; background: rgba(217, 162, 39, 0.16); color: #8a4b12; }
+    .filters .chip.on.sev-medium { border-color: #2f6f9f; background: rgba(47, 111, 159, 0.12); color: #2f6f9f; }
+    .filters .chip.on.sev-low { border-color: var(--forest); background: rgba(36, 78, 57, 0.1); color: var(--forest); }
 
     .remark { display: grid; gap: 0.35rem; margin-top: 0.5rem; }
     .remark textarea {
@@ -296,6 +438,48 @@
     .others .others-item .who .s-fixed { color: #8a4b12; }
     .others .others-item .who .s-disagree { color: var(--danger); }
     .others .others-item .who .s-suggest { color: #2f6f9f; }
+    .others .others-item .who .s-other { color: #7a5c9e; }
+    .others .others-item .admin-actions { display: flex; gap: 0.5rem; margin-top: 0.4rem; }
+    .others .others-item .admin-actions button {
+      border: 0;
+      border-radius: 999px;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0.3rem 0.7rem;
+      transition: transform .15s ease, background .15s ease;
+    }
+    .others .others-item .admin-actions button:hover { transform: translateY(-1px); }
+    .others .others-item .admin-edit { background: rgba(36, 78, 57, 0.12); color: var(--forest); }
+    .others .others-item .admin-delete { background: rgba(199, 71, 66, 0.12); color: var(--danger); }
+    .others .others-item .admin-form { display: grid; gap: 0.35rem; margin-top: 0.45rem; }
+    .others .others-item .admin-form textarea {
+      width: 100%;
+      border: 1px solid rgba(36, 78, 57, 0.18);
+      background: #fffdf8;
+      border-radius: 10px;
+      padding: 0.45rem 0.6rem;
+      font: inherit;
+      font-size: 0.84rem;
+      color: var(--ink);
+      resize: vertical;
+      min-height: 40px;
+    }
+    .others .others-item .admin-form .row { display: flex; gap: 0.5rem; }
+    .others .others-item .admin-form button {
+      border: 0;
+      border-radius: 999px;
+      font: inherit;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0.3rem 0.7rem;
+    }
+    .others .others-item .admin-form .ok { background: var(--forest); color: #f7f1e4; }
+    .others .others-item .admin-form .cancel { background: rgba(35, 32, 26, 0.1); color: var(--ink); }
+    .others .others-item .admin-status { font-size: 0.75rem; color: var(--ok); margin-top: 0.3rem; }
+    .others .others-item .admin-status.err { color: var(--danger); }
 
     .sync { margin: 1.2rem 0 0; font-size: 0.86rem; color: var(--ink-soft); }
     .sync.ok { color: var(--ok); }
@@ -315,12 +499,18 @@
         Dit is een rondgang langs alle onderdelen van de Gustra-app, bekeken door de ogen van een
         gebruiker zonder technische achtergrond. Bij elk onderdeel staat <strong>wat er gebeurt</strong>,
         vaak een <strong>voorbeeld</strong>, en een concrete <strong>AI suggestie</strong>. Kies
-        per onderdeel één van de vier knoppen: <strong>Mag zo blijven</strong> (gedrag is goed zo),
-        <strong>Verander volgens AI suggestie</strong> (de AI-suggestie lijkt goed),
-        <strong>Pas aan volgens gebruiker uitleg</strong> (dit gedrag moet anders) of
-        <strong>Is intussen aangepast</strong> (is al aangepast in de app). Je opmerkingen en keuzes
-        zijn zichtbaar voor andere bezoekers — geef daarom je naam in, zodat anderen weten van wie
-        een reactie komt. Elke naam kan maar door één persoon gebruikt worden.
+        per onderdeel één van de knoppen: <strong>Mag zo blijven</strong> (gedrag is goed zo),
+        <strong>AI suggestie 1</strong> of <strong>AI suggestie 2</strong> (kies de suggestie die het
+        best past; suggestie 1 is de voorkeur) of
+        <strong>Anders:</strong> (vul zelf in wat er moet gebeuren). Je keuze wordt
+        automatisch als opmerking bijgehouden — je kunt die aanvullen met eigen tekst. Je opmerkingen
+        en keuzes zijn zichtbaar voor andere bezoekers — geef daarom je naam in, zodat anderen weten van wie
+        een reactie komt. Elke naam kan maar door één persoon gebruikt worden. Elk onderdeel heeft een
+        <strong>ernst</strong>: <strong>critical</strong>, <strong>high</strong>, <strong>medium</strong> of <strong>low</strong> —
+        dat is mijn inschatting van hoe dringend het probleem is. Per onderdeel kan iedereen ook een
+        <strong>status</strong> kiezen: <strong>te fixen</strong>, <strong>nvt</strong>, <strong>te testen</strong>,
+        <strong>niet duidelijk</strong> of <strong>fixed</strong>. Zet je een onderdeel op <strong>te testen</strong>, dan staat er een concreet
+        <strong>test-scenario</strong> bij zodat je weet wát je moet testen.
       </p>
       <div class="name-box">
         <span class="name-label">Jouw naam</span>
@@ -335,7 +525,7 @@
           </div>
           <div class="bar"><i id="bar"></i></div>
         </div>
-        <div class="pct" id="pct">0%<small>mag zo blijven of aangepast</small></div>
+        <div class="pct" id="pct">0%<small>mag zo blijven of volgens AI suggestie</small></div>
       </div>
     </header>
 
@@ -350,6 +540,24 @@
       <a href="#backup">Back-up & herstel</a>
       <a href="#overig">Overig</a>
     </nav>
+
+    <div class="filters" id="filterBar" role="group" aria-label="Filters">
+      <div class="fgroup" id="fStatusGroup">
+        <span class="fgroup-label">Status</span>
+        <button type="button" class="chip ast-fix" data-filter="adminStatus" data-value="fix">te fixen</button>
+        <button type="button" class="chip ast-nvt" data-filter="adminStatus" data-value="nvt">nvt</button>
+        <button type="button" class="chip ast-test" data-filter="adminStatus" data-value="test">te testen</button>
+        <button type="button" class="chip ast-unclear" data-filter="adminStatus" data-value="unclear">niet duidelijk</button>
+        <button type="button" class="chip ast-fixed" data-filter="adminStatus" data-value="fixed">fixed</button>
+      </div>
+      <div class="fgroup">
+        <span class="fgroup-label">Criticality</span>
+        <button type="button" class="chip sev-critical" data-filter="severity" data-value="critical">critical</button>
+        <button type="button" class="chip sev-high" data-filter="severity" data-value="high">high</button>
+        <button type="button" class="chip sev-medium" data-filter="severity" data-value="medium">medium</button>
+        <button type="button" class="chip sev-low" data-filter="severity" data-value="low">low</button>
+      </div>
+    </div>
 
     <section class="panel" id="herinnering">
       <h2>Herinneringen & formulier<span class="section-count" id="count-herinnering"></span></h2>
@@ -413,6 +621,14 @@
     const REMOTE_STATE = "audit-state.json";
     const STORAGE_KEY = "gustra-audit-v1";
     const ID_KEY = "gustra-audit-id";
+    // Admin: deze naam mag de reacties van andere bezoekers bewerken/verwijderen.
+    const ADMIN_NAME = "Philipz";
+    function isAdmin() {
+      return lowercase(MY_NAME) === lowercase(ADMIN_NAME);
+    }
+    function lowercase(s) {
+      return String(s || "").toLocaleLowerCase("nl");
+    }
 
     function myId() {
       let id = localStorage.getItem(ID_KEY);
@@ -444,15 +660,48 @@
      *  - what: wat er nu gebeurt (begrijpelijk)
      *  - example: voorbeeld van hoe een gebruiker dit ervaart (optioneel)
      */
-    const DEFAULT_ITEMS = [
-      // ————— HERINNERING & FORMULIER —————
+    const SEVERITY_LABELS = {
+      critical: "critical",
+      high: "high",
+      medium: "medium",
+      low: "low",
+    };
+    const SEVERITY_TONE = {
+      critical: "sev-critical",
+      high: "sev-high",
+      medium: "sev-medium",
+      low: "sev-low",
+    };
+    // Status-dropdown per bevinding (voor alle bezoekers).
+    // De naam 'ADMIN_STATUS_LABELS' blijft voor compatibiliteit met
+    // eerder opgeslagen data; de keuze wordt in 'adminStatus' bewaard.
+    const ADMIN_STATUS_LABELS = {
+      fix: "te fixen",
+      nvt: "nvt",
+      test: "te testen",
+      unclear: "niet duidelijk",
+      fixed: "fixed",
+    };
+    // Filters (lege string = geen filter actief).
+    let filterAdminStatus = "";
+    let filterSeverity = "";
+        const DEFAULT_ITEMS = [
       {
         id: "herinnering-food-verplicht",
         cat: "herinnering",
         title: "Je kunt alleen opslaan als je 'Eten' een ster geeft — maar dat staat nergens.",
         what: "Bij een nieuwe herinnering is het verplicht om het onderdeel 'Eten' te beoordelen. Er staat nergens een sterretje of 'verplicht' bij. Pas als je op 'Klaar' tikt, verschijnt een melding dat 'Eten' nodig is.",
         example: "Voorbeeld: je was bij een restaurant voor de sfeer en wilt alleen 'Sfeer' beoordelen. Gustra blokkeert het opslaan, maar legt niet uit waarom vóórdat je op Klaar tikt.",
-        solution: "Toon bij 'Eten' een klein label 'verplicht' (bijv. een sterretje), zodat je vóór het opslaan ziet wat nodig is."
+        solutions: [
+          "Toon bij 'Eten' een klein label 'verplicht' (bijv. een sterretje), zodat je vóór het opslaan ziet wat nodig is.",
+          "Sta opslaan toe zonder 'Eten'-beoordeling en behandel 'Eten' als niet van toepassing.",
+        ],
+        cons: [
+          "Extra visuele ruis in het formulier; het label moet ook bij nieuwe onderdelen worden toegevoegd.",
+          "De score wordt onvolledig: herinneringen zonder 'Eten' tellen scheef mee in gemiddelden.",
+        ],
+        test: "Start een nieuwe herinnering en beoordeel alleen 'Sfeer'. Controleer dat het label 'verplicht' bij 'Eten' zichtbaar is vóór je op 'Klaar' tikt, en dat je meteen ziet wat er nog ontbreekt.",
+        severity: "high"
       },
       {
         id: "herinnering-klare-knop-altijd-actief",
@@ -460,7 +709,16 @@
         title: "De Klaar-knop lijkt altijd actief, maar doet de eerste keer 'niets'.",
         what: "De knop om op te slaan is altijd aanklikbaar. Alleen op het moment zelf blijkt dat er nog iets ontbreekt (de Eten-beoordeling). Het voelt alsof de knop stuk is.",
         example: "Voorbeeld: je vult alles in, tikt op Klaar, en krijgt pas dán een foutmelding die je had kunnen zien aankomen.",
-        solution: "Maak de Klaar-knop pas actief als alles verplicht is ingevuld, of toon bij het indrukken meteen welke onderdelen nog ontbreken."
+        solutions: [
+          "Maak de Klaar-knop pas actief als alles verplicht is ingevuld.",
+          "Toon bij het indrukken meteen welke onderdelen nog ontbreken.",
+        ],
+        cons: [
+          "Gebruikers kunnen de knop niet meer indrukken om te ontdekken wat er ontbreekt.",
+          "De foutmelding blijft nodig; bij veel ontbrekende onderdelen wordt de lijst lang.",
+        ],
+        test: "Vul een nieuwe herinnering niet volledig in en tik op 'Klaar'. Controleer dat de knop uitgeschakeld is (of dat je meteen ziet welke onderdelen nog ontbreken) en dat de knop niet meer 'stuk' aanvoelt.",
+        severity: "medium"
       },
       {
         id: "herinnering-autosave-verwarrend",
@@ -468,7 +726,16 @@
         title: "Een half ingevulde herinnering verschijnt soms al in je lijst.",
         what: "Terwijl je typt, wordt je herinnering soms al bewaard als 'concept'. Die verschijnt dan in je herinneringenlijst met een rode 'Concept'-aanduiding, ook al ben je nog niet klaar. Wanneer dat precies gebeurt is onvoorspelbaar.",
         example: "Voorbeeld: je tikt wat in het opmerkingenveld om te testen, en je lijst toont opeens een nieuw restaurant dat je nooit hebt opgeslagen.",
-        solution: "Sla een concept alleen op als de gebruiker het formulier verlaat (en toon dan 'Concept opgeslagen'), of zet in de lijst duidelijk 'Wordt nog bewerkt' met een knop 'Verder bewerken'."
+        solutions: [
+          "Sla een concept alleen op als de gebruiker het formulier verlaat (en toon dan 'Concept opgeslagen').",
+          "Zet in de lijst duidelijk 'Wordt nog bewerkt' met een knop 'Verder bewerken'.",
+        ],
+        cons: [
+          "Bij een crash midden in het typen kan net ingevoerde tekst verloren gaan.",
+          "De lijst blijft concepten tonen; de oorzaak van het bestaan ervan verandert niet.",
+        ],
+        test: "Typ een half concept, laat het formulier open en verlaat het daarna. Controleer dat het concept pas daarna (en duidelijk aangeduid) in de lijst verschijnt en dat je het kunt hervatten.",
+        severity: "high"
       },
       {
         id: "herinnering-titel-wisselt",
@@ -476,7 +743,16 @@
         title: "De titel verandert vanzelf: 'Nieuwe herinnering' wordt 'Bezoek toevoegen'.",
         what: "Als je een restaurant bezoekt dat je al eerder bezocht, verandert de titel van het formulier automatisch. Dat is logisch, maar het gebeurt ook halverwege het invullen zonder dat jij iets doet.",
         example: "Voorbeeld: je begint te typen bij een restaurant dat je eerder bezocht, en terwijl je typt verandert de titel bovenaan vanzelf.",
-        solution: "Laat de titel stabiel ('Nieuwe herinnering') en toon het herbezoek-aspect in een subtiel regeltje eronder: 'Dit restaurant heb je al 3 keer bezocht'."
+        solutions: [
+          "Laat de titel stabiel ('Nieuwe herinnering') en toon het herbezoek-aspect in een subtiel regeltje eronder: 'Dit restaurant heb je al 3 keer bezocht'.",
+          "Toon de titel 'Bezoek toevoegen' direct en verander die tijdens het invullen niet meer.",
+        ],
+        cons: [
+          "De titel wordt generiek; het herbezoek-aspect vraagt een extra regeltje onder de titel.",
+          "De wissel blijft bij een herbezoek alsnog zichtbaar bij het openen van het formulier.",
+        ],
+        test: "Begin een herinnering voor een restaurant dat je eerder bezocht en typ halverwege verder. Controleer dat de titel niet meer verandert terwijl je typt.",
+        severity: "medium"
       },
       {
         id: "herinnering-datum-standaard-vandaag",
@@ -484,7 +760,16 @@
         title: "De datum staat standaard op 'vandaag' — dat is niet altijd wat je bedoelt.",
         what: "Het bezoek-datumveld is al ingevuld met vandaag, op het halve uur afgerond. Er wordt nergens gezegd dat je dit moet controleren. Wie vorige week ging, slaat per ongeluk 'vandaag' op.",
         example: "Voorbeeld: je bezocht het restaurant afgelopen dinsdag, maar Gustra slaat de herinnering op voor vandaag om 20:30 — tenzij je de datum zelf aanpast.",
-        solution: "Toon bij het datumveld een hint 'Staat op vandaag - pas aan als je eerder ging', of begin met een leeg veld 'Kies datum'."
+        solutions: [
+          "Toon bij het datumveld een hint 'Staat op vandaag - pas aan als je eerder ging'.",
+          "Begin met een leeg veld 'Kies datum'.",
+        ],
+        cons: [
+          "De hint kan over het hoofd worden gezien; de standaard blijft 'vandaag'.",
+          "Een extra tik voor iedereen die wél vandaag ging; sneller vergeten de datum in te vullen.",
+        ],
+        test: "Open een nieuwe herinnering zonder iets in te vullen. Controleer dat je bij het datumveld een duidelijke hint ziet (of dat het veld leeg is met 'Kies datum').",
+        severity: "medium"
       },
       {
         id: "herinnering-verwijderen-bij-nee",
@@ -492,7 +777,16 @@
         title: "'Wijzigingen opslaan? Nee' verwijdert ook je gekozen foto's.",
         what: "Als je het formulier verlaat met 'Nee', verdwijnen niet alleen je tekstwijzigingen, maar worden ook de foto's die je net gekozen had echt verwijderd. De vraag zegt dat niet.",
         example: "Voorbeeld: je voegt 2 foto's toe, tikt op terug en kiest 'Nee'. Je foto's zijn dan weg, ook al wilde je ze misschien later opnieuw gebruiken.",
-        solution: "Maak de vraag duidelijker ('Wijzigingen en nieuwe foto's verwijderen?') en bewaar net toegevoegde foto's tijdelijk, zodat 'Nee' ze niet definitief wist."
+        solutions: [
+          "Maak de vraag duidelijker ('Wijzigingen en nieuwe foto's verwijderen?') en bewaar net toegevoegde foto's tijdelijk, zodat 'Nee' ze niet definitief wist.",
+          "Vraag apart 'Wil je de N toegevoegde foto's verwijderen?' zodra er nieuwe foto's zijn gekozen.",
+        ],
+        cons: [
+          "Tijdelijke foto's moeten ergens worden bewaard tot het formulier definitief gesloten is.",
+          "Een extra bevestigingsstap bij het verlaten met foto's.",
+        ],
+        test: "Voeg 2 foto's toe aan een nieuwe herinnering, tik op terug en kies 'Nee'. Controleer dat de foto's niet definitief zijn gewist en dat de vraag duidelijk maakt dat foto's meekunnen verdwijnen.",
+        severity: "critical"
       },
       {
         id: "herinnering-rating-na-tap",
@@ -500,7 +794,16 @@
         title: "De prullenbak op een beoordeling is verwarrend: 'niet van toepassing' ziet er hetzelfde uit als 'niet ingevuld'.",
         what: "Bij elk onderdeel (bijv. 'Service') kun je met de prullenbak aangeven dat het niet van toepassing is. Maar dan staan er lege sterren — precies hetzelfde als wanneer je er nooit naar gekeken hebt. Je kunt het verschil niet zien.",
         example: "Voorbeeld: je zet 'Wijn' op niet-van-toepassing, maar later ziet het eruit alsof je het gewoon overgeslagen hebt.",
-        solution: "Toon bij 'niet van toepassing' een klein label 'n.v.t.' in plaats van lege sterren, zodat het duidelijk verschilt van 'nog niet ingevuld'."
+        solutions: [
+          "Toon bij 'niet van toepassing' een klein label 'n.v.t.' in plaats van lege sterren, zodat het duidelijk verschilt van 'nog niet ingevuld'.",
+          "Verwijder de prullenbak en voeg per onderdeel een aparte 'Niet van toepassing'-schakelaar toe.",
+        ],
+        cons: [
+          "Het label moet in alle overzichten (formulier, detail, lijst) consequent worden getoond.",
+          "Een extra element per onderdeel maakt het formulier voller.",
+        ],
+        test: "Zet bij een onderdeel (bijv. 'Wijn') 'niet van toepassing' aan. Controleer dat je het duidelijk kunt onderscheiden van een onderdeel dat je gewoon nog niet hebt ingevuld.",
+        severity: "medium"
       },
       {
         id: "herinnering-herbezoek-teller",
@@ -508,7 +811,16 @@
         title: "'Meest recente bezoek' klopt niet als je het formulier invult.",
         what: "Bij een herbezoek toont Gustra 'Meest recente bezoek: …'. Het bezoek dat je nu aan het invullen bent, telt daarin niet mee — en als je een nieuwer bezoek invult, klopt de tekst direct niet meer.",
         example: "Voorbeeld: je bent vandaag geweest, maar het kaartje zegt 'Meest recente bezoek: 12 juli' omdat je huidige bezoek nog niet opgeslagen is.",
-        solution: "Bereken 'Meest recente bezoek' inclusief het bezoek dat je nu invult, of hernoem de tekst naar 'Laatste opgeslagen bezoek'."
+        solutions: [
+          "Bereken 'Meest recente bezoek' inclusief het bezoek dat je nu invult.",
+          "Hernoem de tekst naar 'Laatste opgeslagen bezoek'.",
+        ],
+        cons: [
+          "Het getal verandert tijdens het invullen zodra je een nieuwere datum kiest.",
+          "De tekst is eerlijk maar minder informatief over wanneer je écht voor het laatst ging.",
+        ],
+        test: "Start een herbezoek-formulier en kijk naar 'Meest recente bezoek'. Controleer dat de teller klopt met het bezoek dat je nu invult (of dat er 'Laatste opgeslagen bezoek' staat).",
+        severity: "low"
       },
       {
         id: "herinnering-twee-concepten",
@@ -516,17 +828,33 @@
         title: "Je kunt twee losse concepten voor hetzelfde restaurant krijgen.",
         what: "Als je een concept (half ingevulde herinnering) laat staan en daarna opnieuw een herinnering voor hetzelfde restaurant begint, krijg je twee concepten die niet van elkaar te onderscheiden zijn.",
         example: "Voorbeeld: je begint maandag een concept, vergeet het, en begint donderdag opnieuw. Nu staan er twee 'Concept'-kaarten voor hetzelfde restaurant.",
-        solution: "Hernoem een concept naar 'Bezig: <restaurant>' en vraag bij een nieuw concept voor hetzelfde restaurant eerst: 'Verder bewerken of nieuw concept?'."
+        solutions: [
+          "Hernoem een concept naar 'Bezig: <restaurant>' en vraag bij een nieuw concept voor hetzelfde restaurant eerst: 'Verder bewerken of nieuw concept?'.",
+          "Toon bij een nieuw concept voor hetzelfde restaurant automatisch het bestaande concept voorop in de lijst.",
+        ],
+        cons: [
+          "Een extra vraag bij het starten kan vertragen; de naam alleen lost het onderscheid niet op.",
+          "Lost het onderscheid niet op als beide concepten toch naast elkaar mogen bestaan.",
+        ],
+        test: "Begin een concept, verlaat het, en begin opnieuw voor hetzelfde restaurant. Controleer dat je de twee concepten duidelijk van elkaar kunt onderscheiden (of dat je eerst kunt kiezen 'Verder bewerken of nieuw concept?').",
+        severity: "low"
       },
-
-      // ————— FOTO'S —————
       {
         id: "fotos-tap-is-verwijderen",
         cat: "fotos",
         title: "Tikken op een foto selecteert hem voor verwijdering — je kunt hem niet eerst bekijken.",
         what: "In de fotostrip van een herinnering is tikken op een foto gekoppeld aan 'selecteren om te verwijderen'. Er is geen manier om een foto eerst groot te bekijken vanuit het formulier. Wie per ongeluk tikt, zit ineens in een verwijder-modus.",
         example: "Voorbeeld: je wilt even controleren hoe een foto eruitziet, tikt erop, en krijgt een verwijder-knop te zien in plaats van de foto.",
-        solution: "Maak tikken op een foto = vergroten; verwijderen alleen via een expliciete 'Beheer'-modus of een klein prullenbakje per foto."
+        solutions: [
+          "Maak tikken op een foto = vergroten.",
+          "Verwijderen alleen via een expliciete 'Beheer'-modus of een klein prullenbakje per foto.",
+        ],
+        cons: [
+          "Vergroten vereist een terug-navigatie; beheren zit een stap dieper.",
+          "Het prullenbakje per foto maakt de fotostrip drukker.",
+        ],
+        test: "Open een herinnering met foto's en tik op een foto. Controleer dat de foto groot wordt getoond en dat je niet per ongeluk in een verwijder-modus terechtkomt.",
+        severity: "high"
       },
       {
         id: "fotos-plus-tegel-verdwijnt",
@@ -534,7 +862,16 @@
         title: "Bij 12 foto's verdwijnt de '+' knop zonder uitleg.",
         what: "Er kunnen maximaal 12 foto's in een herinnering. Bij 12 foto's verdwijnt de toevoeg-knop helemaal — er wordt niet gezegd dat het maximum bereikt is.",
         example: "Voorbeeld: je wilt een 13e foto toevoegen, maar de '+' knop is gewoon weg.",
-        solution: "Toon bij 12 foto's een uitgeschakelde '+' met de melding 'Maximaal 12 foto's'."
+        solutions: [
+          "Toon bij 12 foto's een uitgeschakelde '+' met de melding 'Maximaal 12 foto's'.",
+          "Toon een teller '12/12' naast de '+' zodat je ziet dat het maximum bereikt is.",
+        ],
+        cons: [
+          "De uitgeschakelde knop kan nog steeds als aanklikbaar overkomen zonder duidelijke reden.",
+          "De teller zegt niets over wát het maximum is als die er niet bij staat.",
+        ],
+        test: "Voeg 12 foto's toe aan een herinnering en controleer dat de '+' knop zichtbaar blijft (uitgeschakeld of met '12/12') en dat duidelijk is dat het maximum bereikt is.",
+        severity: "low"
       },
       {
         id: "fotos-cover-slepen",
@@ -542,7 +879,16 @@
         title: "De 'omslagfoto' kun je alleen veranderen door te slepen — dat wordt niet uitgelegd.",
         what: "De eerste foto in de rij is de omslagfoto (er staat 'Omslag' op). Om een andere foto omslag te maken moet je lang drukken en slepen, maar dat staat nergens uitgelegd.",
         example: "Voorbeeld: je wilt een andere foto bovenaan, maar tikt erop en selecteert hem per ongeluk voor verwijdering.",
-        solution: "Voeg een knop 'Maak omslagfoto' toe (bijv. in een menu bij elke foto), zodat je niet hoeft te slepen."
+        solutions: [
+          "Voeg een knop 'Maak omslagfoto' toe (bijv. in een menu bij elke foto), zodat je niet hoeft te slepen.",
+          "Leg het slepen uit met een hint: 'Houd vast en sleep om de omslagfoto te veranderen'.",
+        ],
+        cons: [
+          "Een extra menu per foto maakt de interface drukker.",
+          "Slepen blijft op sommige toestellen onontdekt en onhandig.",
+        ],
+        test: "Open een herinnering met meerdere foto's en controleer dat je een andere omslagfoto kunt kiezen zonder te hoeven slepen (of dat de sleep-hint zichtbaar is).",
+        severity: "medium"
       },
       {
         id: "fotos-import-niet-annuleerbaar",
@@ -550,17 +896,33 @@
         title: "Tijdens het toevoegen van foto's kun je niet annuleren.",
         what: "Als je meerdere foto's kiest, moet je wachten tot ze allemaal verwerkt zijn. De sluit-knop is dan uitgeschakeld en er is geen annuleren mogelijk.",
         example: "Voorbeeld: je kiest per ongeluk 8 foto's, maar je kunt het toevoegen niet meer stoppen.",
-        solution: "Toon tijdens het toevoegen een annuleer-knop die de wachtrij stopt, of voeg foto's direct toe zonder wachttijd."
+        solutions: [
+          "Toon tijdens het toevoegen een annuleer-knop die de wachtrij stopt.",
+          "Voeg foto's direct toe zonder wachttijd.",
+        ],
+        cons: [
+          "Bij een grote selectie blijft de wachtrij toch even zichtbaar.",
+          "Zware foto's kunnen de interface blokkeren terwijl ze direct worden verwerkt.",
+        ],
+        test: "Kies 8 foto's tegelijk en controleer dat je het toevoegen kunt annuleren (of dat de foto's direct en zonder wachttijd worden toegevoegd).",
+        severity: "low"
       },
-
-      // ————— ZOEKEN & FILTEREN —————
       {
         id: "zoeken-counter-negeert-zoekterm",
         cat: "zoeken",
         title: "De teller 'N van M' negeert je zoekterm.",
         what: "Boven de herinneringenlijst staat '3 van 42'. Zodra je typt in het zoekveld, klopt die teller niet meer: hij telt alleen de filters, niet je zoekopdracht.",
         example: "Voorbeeld: je typt 'zzz' (niets gevonden), de lijst is leeg, maar de teller zegt nog steeds '3 van 42'.",
-        solution: "Laat de teller meebewegen met je zoekopdracht, bijv. '12 van 42 passen bij je zoekopdracht'."
+        solutions: [
+          "Laat de teller meebewegen met je zoekopdracht, bijv. '12 van 42 passen bij je zoekopdracht'.",
+          "Toon bij een zoekopdracht 'N resultaten voor \"...\"' en een duidelijke 'Wissen'-knop.",
+        ],
+        cons: [
+          "De teller wordt een langere zin; op smalle schermen kan die afbreken.",
+          "De melding vervangt de teller niet overal; twee plekken tonen dan verschillende informatie.",
+        ],
+        test: "Typ 'zzz' in het zoekveld en controleer dat de teller of melding overeenkomt met de (lege) resultatenlijst.",
+        severity: "low"
       },
       {
         id: "zoeken-waarom-deze-kaart",
@@ -568,7 +930,16 @@
         title: "Bij zoeken verschijnt een restaurant zonder dat je ziet waarom.",
         what: "Het zoeken kijkt ook in opmerkingen en fototeksten. Een restaurant kan verschijnen omdat er ergens in een opmerking een woord staat — maar op de kaart zelf zie je niet waarom hij gematched is.",
         example: "Voorbeeld: je zoekt op 'verjaardag', en er verschijnt een restaurant — alleen omdat er in een oude opmerking 'verjaardag' staat.",
-        solution: "Toon in het zoekresultaat een regeltje 'Gevonden in: opmerking van 12 juli'."
+        solutions: [
+          "Toon in het zoekresultaat een regeltje 'Gevonden in: opmerking van 12 juli'.",
+          "Zoek alleen in titel en locatie (niet in opmerkingen), zodat de match altijd op de kaart zichtbaar is.",
+        ],
+        cons: [
+          "Opmerkingen kunnen privé zijn; het tonen van de bron vraagt zorgvuldige afscherming.",
+          "Zoeken wordt minder krachtig; woorden in opmerkingen vind je niet meer terug.",
+        ],
+        test: "Zoek op een woord dat alleen in een opmerking van een bezoek staat en controleer dat je ziet waarom het restaurant verschijnt (of dat het restaurant niet meer opduikt zonder uitleg).",
+        severity: "medium"
       },
       {
         id: "zoeken-geen-feedback",
@@ -576,7 +947,16 @@
         title: "Het zoekveld geeft weinig terug: geen teller, geen annuleren-knop.",
         what: "Terwijl je typt, verandert de lijst direct, maar er is geen duidelijke 'zoeken actief'-indicator en geen knop om te stoppen met zoeken.",
         example: "Voorbeeld: je typt 'amster' en de lijst verandert — maar je weet niet of er nog meer resultaten zijn of dat het zoeken 'gelukt' is.",
-        solution: "Toon onder het zoekveld 'N resultaten voor \"...\"' en een duidelijke knop om te stoppen met zoeken."
+        solutions: [
+          "Toon onder het zoekveld 'N resultaten voor \"...\"' en een duidelijke knop om te stoppen met zoeken.",
+          "Voeg een actieve zoekindicator toe en toon het aantal resultaten live terwijl je typt.",
+        ],
+        cons: [
+          "De tekst onder het veld kan over het hoofd worden gezien.",
+          "Live tellen bij elke toets kan bij grote lijsten trager aanvoelen.",
+        ],
+        test: "Typ 'amster' in het zoekveld en controleer dat je 'N resultaten' ziet en dat je het zoeken duidelijk kunt stoppen (annuleren-knop).",
+        severity: "medium"
       },
       {
         id: "filter-locatie-doet-niets",
@@ -584,7 +964,16 @@
         title: "Het filter 'Locatie' of 'Keuken' lijkt soms niets te doen.",
         what: "Als je op 'Locatie' of 'Keuken' tikt terwijl alles geselecteerd is, gaat er een nieuw scherm open, maar wordt het filter niet echt aangezet. Als je teruggaat zonder iets te veranderen, is er niets gebeurd — terwijl jij dacht dat je het filter aanzette.",
         example: "Voorbeeld: je tikt 'Locatie', ziet een lijst met steden, veegt terug en tikt 'Klaar'. Er is geen filter toegepast.",
-        solution: "Toon bij het openen van 'Locatie'/'Keuken' meteen welke opties al geselecteerd zijn, en maak zichtbaar dat er een filter actief is zodra je een keuze maakt."
+        solutions: [
+          "Toon bij het openen van 'Locatie'/'Keuken' meteen welke opties al geselecteerd zijn, en maak zichtbaar dat er een filter actief is zodra je een keuze maakt.",
+          "Pas het filter direct toe zodra je een keuze maakt, zonder eerst 'Klaar' te moeten tikken.",
+        ],
+        cons: [
+          "De actief-indicator moet op alle schermen (lijst, kaart) consequent zijn.",
+          "Direct toepassen maakt ongedaan maken lastiger als je per ongeluk tikt.",
+        ],
+        test: "Tik op 'Locatie', kies een stad en veeg terug zonder op 'Klaar' te tikken. Controleer dat het filter daadwerkelijk actief is en dat je ziet dat het is toegepast.",
+        severity: "medium"
       },
       {
         id: "filter-x-is-reset",
@@ -592,7 +981,16 @@
         title: "De X in het filterscherm is 'alles wissen', niet 'sluiten'.",
         what: "In het filterscherm lijkt de X op 'sluiten zonder wijzigen', maar hij wist al je filterkeuzes én sluit. Alleen omlaag vegen sluit zonder iets te wissen.",
         example: "Voorbeeld: je probeert wat filters uit, verandert van gedachte, tikt op X — en al je oude filters zijn weg.",
-        solution: "Maak de X puur 'sluiten zonder wijzigen' en zet 'alles wissen' in een aparte knop 'Filters wissen'."
+        solutions: [
+          "Maak de X puur 'sluiten zonder wijzigen' en zet 'alles wissen' in een aparte knop 'Filters wissen'.",
+          "Laat de X 'sluiten' zijn en voeg een duidelijke 'Wis alles'-knop met bevestiging toe.",
+        ],
+        cons: [
+          "Twee knoppen naast elkaar kunnen verwarren welke welke is.",
+          "Een extra bevestigingsstap bij het wissen van filters.",
+        ],
+        test: "Zet enkele filters aan, open het filterscherm en tik op de X. Controleer dat je filterkeuzes bewaard blijven en dat er een aparte knop is om alles te wissen.",
+        severity: "high"
       },
       {
         id: "sorteren-criterium-verwijdert",
@@ -600,7 +998,16 @@
         title: "Sorteren op een onderdeel laat restaurants stilletjes verdwijnen.",
         what: "Als je sorteert op bijv. 'Wijn', verdwijnen restaurants die geen wijnbeoordeling hebben uit de lijst — zonder dat dit wordt gemeld. 'Sorteren' zou de lijst moeten ordenen, niet inkorten.",
         example: "Voorbeeld: je sorteert op 'Wijn' en je lijst krimpt van 20 naar 4 restaurants, zonder uitleg waarom.",
-        solution: "Toon bij sorteren op een criterium de melding 'N restaurants zonder beoordeling worden verborgen', of zet ze onderaan de lijst."
+        solutions: [
+          "Toon bij sorteren op een criterium de melding 'N restaurants zonder beoordeling worden verborgen'.",
+          "Zet restaurants zonder beoordeling onderaan de lijst.",
+        ],
+        cons: [
+          "De melding verklaart het gedrag, maar de lijst krimpt nog steeds.",
+          "Onderaan geplaatste restaurants kunnen als 'slechter' overkomen.",
+        ],
+        test: "Sorteer op 'Wijn' terwijl sommige restaurants geen wijnbeoordeling hebben. Controleer dat die restaurants niet stilletjes verdwijnen (of dat er duidelijk wordt gemeld dat ze verborgen worden).",
+        severity: "medium"
       },
       {
         id: "filter-wissen-wist-ook-zoekterm",
@@ -608,7 +1015,16 @@
         title: "'Filters wissen' wist ook je zoekterm.",
         what: "Als je zoekt en er niets gevonden wordt, verschijnt er een knop 'Filters wissen'. Die knop wist ook je zoekopdracht — twee verschillende dingen in één knop.",
         example: "Voorbeeld: je zoekt op 'Brussel', vindt niets, tikt 'Filters wissen' — en je zoekterm is ook verdwenen.",
-        solution: "Splits de acties: 'Zoekterm wissen' hoort in het zoekveld, 'Filters wissen' wist alleen de filters."
+        solutions: [
+          "Splits de acties: 'Zoekterm wissen' hoort in het zoekveld, 'Filters wissen' wist alleen de filters.",
+          "Laat 'Filters wissen' alleen de filters wissen en voeg een aparte 'X' in het zoekveld toe voor de zoekterm.",
+        ],
+        cons: [
+          "Twee wis-knoppen (X in het veld + knop in de balk) moeten duidelijk gescheiden blijven.",
+          "Gebruikers moeten twee handelingen doen om alles te wissen.",
+        ],
+        test: "Zoek 'Brussel', tik op 'Filters wissen' en controleer dat je zoekterm in het veld blijft staan (en andersom dat de X in het zoekveld alleen de zoekterm wist).",
+        severity: "medium"
       },
       {
         id: "filter-favorieten-val",
@@ -616,17 +1032,33 @@
         title: "Met 'Favorieten' aan verdwijnt een restaurant als je het hartje uitzet — en je zit vast.",
         what: "Als je filtert op favorieten en daarna het laatste favoriete restaurant ont-favoriet, verdwijnt het uit de lijst. De enige uitweg is de 'Filters wissen'-knop. Er wordt niet uitgelegd wat er gebeurde.",
         example: "Voorbeeld: je zet bij het laatste restaurant het hartje uit, en de lijst springt naar 'geen resultaten'.",
-        solution: "Toon als het laatste favoriete restaurant ont-favoriet wordt: 'Geen favorieten meer over' met een duidelijke knop om de filters te wissen."
+        solutions: [
+          "Toon als het laatste favoriete restaurant ont-favoriet wordt: 'Geen favorieten meer over' met een duidelijke knop om de filters te wissen.",
+          "Verwijder een restaurant pas uit de gefilterde lijst zodra je het filter verlaat.",
+        ],
+        cons: [
+          "De melding lost de 'vastgelopen' staat alleen op als de knop duidelijk is.",
+          "De lijst toont dan kort een restaurant dat niet meer aan het filter voldoet.",
+        ],
+        test: "Filter op favorieten en ont-favoriet het laatste zichtbare restaurant. Controleer dat je niet vastloopt en dat er een duidelijke melding verschijnt met een uitweg (bijv. 'Filters wissen').",
+        severity: "medium"
       },
-
-      // ————— KAART & IN DE BUURT —————
       {
         id: "kaart-pins-per-bezoek",
         cat: "kaart",
         title: "Twee bezoeken aan hetzelfde restaurant = twee identieke punten op de kaart.",
         what: "Op 'Mijn kaart' staat er één punt per bezoek. Wie een restaurant twee keer bezocht heeft, ziet twee dezelfde punten op elkaar. Er is maar één aan te tikken.",
         example: "Voorbeeld: je ging 3 keer naar je favoriete bistro en ziet drie groene punten op elkaar gestapeld.",
-        solution: "Toon één pin per restaurant (met een aantal-badge '3') en open bij het tikken de lijst van bezoeken."
+        solutions: [
+          "Toon één pin per restaurant (met een aantal-badge '3') en open bij het tikken de lijst van bezoeken.",
+          "Toon bij een pin met meerdere bezoeken een kleine keuzelijst zodra je erop tikt.",
+        ],
+        cons: [
+          "De badge telt bezoeken, maar de pin zelf moet nog steeds getikt worden om ze te zien.",
+          "Een keuzelijst per pin kan druk worden bij veel bezoeken.",
+        ],
+        test: "Bezoek hetzelfde restaurant 3 keer en open 'Mijn kaart'. Controleer dat je één pin ziet (met badge) en dat je bij het tikken alle bezoeken kunt openen.",
+        severity: "low"
       },
       {
         id: "kaart-demo-restaurants",
@@ -634,7 +1066,16 @@
         title: "Op een nieuw toestel staan er al punten op de kaart van restaurants die je nooit bezocht.",
         what: "De voorbeeld-restaurants die bij een nieuwe installatie in de app zitten, verschijnen op 'Mijn kaart' alsof je ze bezocht hebt. In de buurt-lijst zijn ze juist wél uitgesloten — dat is tegenstrijdig.",
         example: "Voorbeeld: je installeert Gustra voor het eerst en 'Mijn kaart' toont 6 restaurants die je nooit gezien hebt.",
-        solution: "Toon de voorbeeld-restaurants op de kaart met een duidelijk 'Demo'-label en een knop 'Verberg demo's', net zoals in de buurt-lijst."
+        solutions: [
+          "Toon de voorbeeld-restaurants op de kaart met een duidelijk 'Demo'-label en een knop 'Verberg demo's', net zoals in de buurt-lijst.",
+          "Sluit demo-restaurants ook op de kaart uit, precies zoals in de buurt-lijst.",
+        ],
+        cons: [
+          "Een 'Verberg demo's'-knop voegt een extra instelling toe.",
+          "De kaart toont dan 'lege' gebieden rond de demo-punten.",
+        ],
+        test: "Open 'Mijn kaart' op een nieuw toestel en controleer dat de voorbeeld-restaurants een duidelijk 'Demo'-label hebben (of dat ze net als in de buurt-lijst zijn uitgesloten).",
+        severity: "medium"
       },
       {
         id: "kaart-geen-laadstatus",
@@ -642,7 +1083,16 @@
         title: "De kaart toont 'leeg' terwijl hij nog aan het laden is.",
         what: "Bij het openen van de kaart is er geen laadindicatie. Wie op een trage telefoon wacht, ziet een lege kaart op een willekeurige plek en denkt dat er geen herinneringen zijn.",
         example: "Voorbeeld: je opent 'Mijn kaart' en ziet eerst alleen een lege kaart bij een Belgisch kustdorp — pas later verschijnen je punten.",
-        solution: "Toon een laadindicator ('Kaart laden…') tot de kaart klaar is."
+        solutions: [
+          "Toon een laadindicator ('Kaart laden…') tot de kaart klaar is.",
+          "Toon een subtiele spinner en schakel interacties pas in als de kaart klaar is.",
+        ],
+        cons: [
+          "Een indicator alleen verklaart niet waarom laden lang duurt.",
+          "Een spinner zonder context kan als bevroren aanvoelen op trage toestellen.",
+        ],
+        test: "Open 'Mijn kaart' (eventueel met een trage verbinding) en controleer dat er een laadindicator zichtbaar is tot de kaart en je punten verschijnen.",
+        severity: "low"
       },
       {
         id: "kaart-locatie-geweigerd-stil",
@@ -650,7 +1100,16 @@
         title: "Als je locatie uitstaat, springt de kaart stilletjes naar een willekeurige plek.",
         what: "Bij 'Zoeken op de kaart' wordt niet gevraagd om je locatie aan te zetten. De kaart springt naar een standaardlocatie en toont 'Geen restaurants gevonden' — zonder uit te leggen dat de oorzaak je locatie-instelling is.",
         example: "Voorbeeld: je woont in Amsterdam, je locatie is uit, en de kaart opent op Middelkerke (België) met nul resultaten.",
-        solution: "Vraag bij het openen van 'Zoeken op de kaart' om locatietoestemming en toon 'Locatie uit - tik hier om in te schakelen' in plaats van een lege kaart."
+        solutions: [
+          "Vraag bij het openen van 'Zoeken op de kaart' om locatietoestemming en toon 'Locatie uit - tik hier om in te schakelen' in plaats van een lege kaart.",
+          "Toon bij geweigerde locatie een kaart met een duidelijk bericht en een knop naar de instellingen.",
+        ],
+        cons: [
+          "Een toestemmingsvraag bij elke opening kan storen voor wie bewust zonder locatie zoekt.",
+          "Doorverwijzen naar instellingen is extra stappen.",
+        ],
+        test: "Zet je locatie uit, open 'Zoeken op de kaart' en controleer dat je niet stilletjes op een willekeurige plek terechtkomt maar een duidelijke melding en actie krijgt.",
+        severity: "high"
       },
       {
         id: "kaart-zoeken-negeert-filters",
@@ -658,7 +1117,16 @@
         title: "Zoeken op de kaart negeert je actieve filters.",
         what: "Als je in je herinneringen 'Alleen favorieten' hebt aangezet en daarna via de kaart zoekt, krijg je álle restaurants te zien — niet alleen je favorieten. De drie schermen (lijst, kaart-tab, zoek-kaart) passen dus niet dezelfde filters toe.",
         example: "Voorbeeld: je filtert op favorieten in de lijst, zoekt dan 'pizza' op de kaart — en ziet ook niet-favorieten.",
-        solution: "Pas de actieve filters ook toe op zoekresultaten op de kaart, of toon 'Filters zijn uitgeschakeld tijdens het zoeken'."
+        solutions: [
+          "Pas de actieve filters ook toe op zoekresultaten op de kaart.",
+          "Toon 'Filters zijn uitgeschakeld tijdens het zoeken'.",
+        ],
+        cons: [
+          "De zoekresultaten kunnen erg klein worden als er veel filters actief zijn.",
+          "De melding legt het gedrag uit maar verandert het niet.",
+        ],
+        test: "Zet 'Alleen favorieten' aan, zoek 'pizza' op de kaart en controleer dat de filters ook op de zoekresultaten gelden (of dat duidelijk wordt gemeld dat ze uitgeschakeld zijn).",
+        severity: "medium"
       },
       {
         id: "kaart-hertap-deselecteert",
@@ -666,7 +1134,16 @@
         title: "Een tweede tik op hetzelfde restaurant maakt je keuze ongedaan.",
         what: "In 'Zoeken op de kaart' zorgt een tweede tik op hetzelfde resultaat ervoor dat je selectie verdwijnt. In 'In de buurt' gebeurt dat niet. De twee schermen gedragen zich anders voor dezelfde handeling.",
         example: "Voorbeeld: je tikt per ongeluk twee keer op een restaurant en je keuze is weg — je moet opnieuw beginnen.",
-        solution: "Maak het gedrag gelijk aan 'In de buurt': een tweede tik op hetzelfde resultaat verandert niets; deselecteren doe je via de X op de banner."
+        solutions: [
+          "Maak het gedrag gelijk aan 'In de buurt': een tweede tik op hetzelfde resultaat verandert niets; deselecteren doe je via de X op de banner.",
+          "Laat een tweede tik op hetzelfde resultaat niets doen en toon de geselecteerde staat duidelijk.",
+        ],
+        cons: [
+          "Gebruikers die gewend zijn aan dubbeltik-om-te-deselecteren moeten wennen.",
+          "De X op de banner moet dan duidelijk zichtbaar blijven.",
+        ],
+        test: "Tik twee keer snel op hetzelfde restaurant in 'Zoeken op de kaart' en controleer dat je selectie niet verdwijnt; deselecteren moet via de X op de banner.",
+        severity: "low"
       },
       {
         id: "kaart-banner-x-stuurt-terug",
@@ -674,7 +1151,16 @@
         title: "De X op de geselecteerde-restaurant-banner stuurt je óók terug naar het keuzescherm.",
         what: "Bij 'In de buurt' betekent de X op de banner: selectie wissen én terug naar het keuzescherm. Wie alleen zijn selectie wilde wissen, wordt onverwachts teruggeworpen.",
         example: "Voorbeeld: je selecteert per ongeluk het verkeerde restaurant, tikt op X — en staat weer in het keuzescherm.",
-        solution: "Maak de X alleen 'selectie wissen' en voeg een aparte terug-knop toe om het scherm te verlaten."
+        solutions: [
+          "Maak de X alleen 'selectie wissen' en voeg een aparte terug-knop toe om het scherm te verlaten.",
+          "Laat de X alleen de selectie wissen en sluit de banner; teruggaan doe je met de normale terug-navigatie.",
+        ],
+        cons: [
+          "De banner kan twee knoppen (X en terug) dicht op elkaar tonen.",
+          "De X sluit dan alleen de banner, niet het scherm — een gedragsverandering.",
+        ],
+        test: "Selecteer een restaurant in 'In de buurt' en tik op de X. Controleer dat je niet teruggeworpen wordt naar het keuzescherm en dat alleen je selectie wordt gewist.",
+        severity: "medium"
       },
       {
         id: "kaart-nabij-50km",
@@ -682,7 +1168,16 @@
         title: "'In de buurt' toont restaurants tot 50 km ver.",
         what: "De knop 'In de buurt' zoekt in een cirkel van 50 km en toont maximaal 20 restaurants, gesorteerd op afstand. Een restaurant op 45 km staat er gewoon tussen — dat voelt niet als 'in de buurt'.",
         example: "Voorbeeld: je tikt 'In de buurt' in Brussel en het 7e resultaat is een restaurant in Leuven, 30 km verderop.",
-        solution: "Verklein de zoekradius naar bijv. 10-15 km of toon de afstand op elke kaart, zodat 'in de buurt' ook echt dichtbij voelt."
+        solutions: [
+          "Verklein de zoekradius naar bijv. 10-15 km.",
+          "Toon de afstand op elke kaart, zodat 'in de buurt' ook echt dichtbij voelt.",
+        ],
+        cons: [
+          "In dunbevolkte gebieden kan de lijst erg kort worden.",
+          "Afstand tonen helpt, maar verandert de radius zelf niet.",
+        ],
+        test: "Tik 'In de buurt' in een stad en controleer dat restaurants op 30+ km niet meer verschijnen (of dat de afstand op elke kaart zichtbaar is).",
+        severity: "low"
       },
       {
         id: "kaart-blauwe-dot-buiten-beeld",
@@ -690,17 +1185,33 @@
         title: "Het blauwe stipje (jij) kan buiten beeld vallen als de kaart opent.",
         what: "De kaart probeert bij het openen alles in beeld te brengen, maar jouw locatie wordt soms te laat geladen. Het blauwe stipje verschijnt dan wél, maar buiten het zichtbare deel van de kaart.",
         example: "Voorbeeld: je opent de kaart en ziet je herinneringen, maar het blauwe stipje is nergens te bekennen — tot je uitzoomt.",
-        solution: "Her-centreer de kaart op je locatie zodra het blauwe stipje geladen is, of toon een 'Naar mijn locatie'-knop."
+        solutions: [
+          "Her-centreer de kaart op je locatie zodra het blauwe stipje geladen is.",
+          "Toon een 'Naar mijn locatie'-knop.",
+        ],
+        cons: [
+          "De kaart kan onverwacht verschuiven terwijl je aan het kijken bent.",
+          "De knop vraagt een extra tik en is alleen zichtbaar als de kaart hem toont.",
+        ],
+        test: "Open de kaart met je locatie aan en controleer dat het blauwe stipje in beeld is (of dat er een duidelijke 'Naar mijn locatie'-knop is).",
+        severity: "low"
       },
-
-      // ————— MIJN GUSTRA & TERUGBLIK —————
       {
         id: "mijn-gustra-scores-lopen-uiteen",
         cat: "mijn-gustra",
         title: "Hetzelfde restaurant kan in Mijn Gustra een andere score tonen dan in je lijst.",
         what: "Mijn Gustra berekent gemiddelden op basis van de onderdelen die jij in Instellingen hebt aangevinkt. Zet je een onderdeel uit, dan kunnen de cijfers in Mijn Gustra afwijken van wat je in de herinneringenlijst en op de detailpagina ziet.",
         example: "Voorbeeld: je restaurant toont 5/5 in je lijst, maar 2,5/5 op de #1-plek in Mijn Gustra.",
-        solution: "Gebruik overal dezelfde berekening (laat altijd alle criteria meetellen in Mijn Gustra) of toon erbij: 'Berekend met de criteria die je aan hebt staan'."
+        solutions: [
+          "Gebruik overal dezelfde berekening (laat altijd alle criteria meetellen in Mijn Gustra).",
+          "Toon erbij: 'Berekend met de criteria die je aan hebt staan'.",
+        ],
+        cons: [
+          "Het uitschakelen van criteria heeft dan geen effect meer op Mijn Gustra.",
+          "De uitleg legt het verschil uit maar laat het bestaan.",
+        ],
+        test: "Zet een criterium uit in Instellingen en controleer dat Mijn Gustra dezelfde score toont als de lijst (of dat er duidelijk bij staat dat de score met jouw criteria is berekend).",
+        severity: "high"
       },
       {
         id: "mijn-gustra-beste-wijn-1-ster",
@@ -708,7 +1219,16 @@
         title: "'Beste wijnen' kan een wijn tonen die je maar 1 ster gaf.",
         what: "De sectie 'Beste wijnen' rangschikt alle wijnen die je ooit beoordeelde, ook lage scores. Er staat niks over een minimum — een wijn van 1/5 kan gewoon in 'beste wijnen' verschijnen.",
         example: "Voorbeeld: je gaf twee wijnen een 5 en één wijn een 1 — alle drie verschijnen in 'Beste wijnen'.",
-        solution: "Toon in 'Beste wijnen' alleen wijnen met 4 of 5 sterren, of zet de score prominent zodat een lage score niet als 'beste' leest."
+        solutions: [
+          "Toon in 'Beste wijnen' alleen wijnen met 4 of 5 sterren.",
+          "Zet de score prominent zodat een lage score niet als 'beste' leest.",
+        ],
+        cons: [
+          "Wijnen met een lage score verdwijnen uit een overzicht waar sommigen ze juist terugzoeken.",
+          "De score prominent tonen verandert de rangschikking zelf niet.",
+        ],
+        test: "Geef een wijn 1 ster en controleer dat die niet in 'Beste wijnen' verschijnt (of dat de lage score er prominent bij staat zodat het niet als 'beste' leest).",
+        severity: "low"
       },
       {
         id: "mijn-gustra-totalen-verschillen",
@@ -716,7 +1236,16 @@
         title: "Het totaal in Mijn Gustra kan afwijken van het totaal in Terugblik.",
         what: "Mijn Gustra telt alle herinneringen, Terugblik telt alleen herinneringen waarvan de datum goed leesbaar is. Bij een onvolledige datum lopen de twee schermen uiteen, zonder uitleg.",
         example: "Voorbeeld: Mijn Gustra zegt '6 herinneringen', Terugblik zegt '5 bezoeken' — en er is geen verklaring.",
-        solution: "Laat Mijn Gustra en Terugblik dezelfde telling gebruiken; toon bij een ontbrekende datum 'Datum onbekend' in plaats van weg te laten."
+        solutions: [
+          "Laat Mijn Gustra en Terugblik dezelfde telling gebruiken; toon bij een ontbrekende datum 'Datum onbekend' in plaats van weg te laten.",
+          "Toon bij een onvolledige datum 'Datum onbekend' en tel die wél mee in Terugblik.",
+        ],
+        cons: [
+          "Herinneringen zonder datum tellen dan overal mee, ook waar dat misschien niet gewenst is.",
+          "Dezelfde telling verplicht beide schermen tot dezelfde afronding.",
+        ],
+        test: "Voeg een herinnering toe met een onvolledige datum en controleer dat Mijn Gustra en Terugblik hetzelfde totaal tonen (met 'Datum onbekend' erbij).",
+        severity: "medium"
       },
       {
         id: "mijn-gustra-leeg-met-concepten",
@@ -724,7 +1253,16 @@
         title: "Mijn Gustra kan 'Nog geen herinneringen' tonen terwijl je lijst concepten toont.",
         what: "Concepten (half ingevulde herinneringen) tellen niet mee in Mijn Gustra. Wie alleen concepten heeft, ziet een leeg Mijn Gustra terwijl de herinneringenlijst wél kaarten toont.",
         example: "Voorbeeld: je hebt 3 concepten in je lijst, maar Mijn Gustra zegt 'Nog geen herinneringen'.",
-        solution: "Toon in Mijn Gustra ook '3 concepten in bewerking' of een verwijzing 'Verder bewerken in je lijst'."
+        solutions: [
+          "Toon in Mijn Gustra ook '3 concepten in bewerking'.",
+          "Toon een verwijzing 'Verder bewerken in je lijst'.",
+        ],
+        cons: [
+          "De telling kan verouderen zodra een concept wordt opgeslagen of gewist.",
+          "Een verwijzing alleen is een extra stap naar de lijst.",
+        ],
+        test: "Maak alleen concepten aan en open Mijn Gustra. Controleer dat je '3 concepten in bewerking' (of een verwijzing naar je lijst) ziet in plaats van 'Nog geen herinneringen'.",
+        severity: "low"
       },
       {
         id: "mijn-gustra-toggle-cijfers",
@@ -732,7 +1270,16 @@
         title: "De 'cijfers of sterren'-keuze in Instellingen is niet herkenbaar als een knop.",
         what: "De rij 'Toon scores als' toont een voorbeeld (bijv. een sterretje), maar ziet er niet uit als een aanklikbare keuze. Er is geen schuifje en geen duidelijke 'aan/uit'-aanduiding.",
         example: "Voorbeeld: je tikt op de rij om te wisselen tussen cijfers en sterren, maar er verandert bijna niets zichtbaars.",
-        solution: "Maak de rij een duidelijke schakelaar met twee zichtbare opties 'Cijfers' en 'Sterren' die direct omschakelen."
+        solutions: [
+          "Maak de rij een duidelijke schakelaar met twee zichtbare opties 'Cijfers' en 'Sterren' die direct omschakelen.",
+          "Toon een segmentknop met 'Cijfers' en 'Sterren' die direct omschakelt.",
+        ],
+        cons: [
+          "Een schakelaar met twee opties kan onduidelijk zijn welke actief is zonder duidelijke markering.",
+          "Een segmentknop vraagt ruimte in Instellingen.",
+        ],
+        test: "Open Instellingen → 'Toon scores als' en controleer dat je direct en herkenbaar kunt wisselen tussen cijfers en sterren.",
+        severity: "low"
       },
       {
         id: "mijn-gustra-demo-telt-mee",
@@ -740,7 +1287,16 @@
         title: "Voorbeeld-herinneringen tellen mee in je statistieken zonder dat je het ziet.",
         what: "Als 'Voorbeeldherinneringen' aanstaat (Instellingen), tellen de 6 voorbeeld-restaurants mee in het totaal van Mijn Gustra en Terugblik. In de lijst staat er 'Demo' bij, maar in Mijn Gustra niet.",
         example: "Voorbeeld: je hebt zelf 6 herinneringen geschreven, maar Mijn Gustra zegt '12' omdat de demo's meetellen.",
-        solution: "Sluit demo-herinneringen uit van de statistieken, of toon 'Inclusief demo's' naast de cijfers."
+        solutions: [
+          "Sluit demo-herinneringen uit van de statistieken.",
+          "Toon 'Inclusief demo's' naast de cijfers.",
+        ],
+        cons: [
+          "De statistieken kunnen dan flink lager uitvallen op een nieuw toestel.",
+          "De melding legt het uit maar laat demo's meetellen.",
+        ],
+        test: "Zet 'Voorbeeldherinneringen' aan en controleer dat de statistieken in Mijn Gustra en Terugblik de demo's uitsluiten (of dat er 'Inclusief demo's' bij staat).",
+        severity: "medium"
       },
       {
         id: "terugblik-jaren-vaag",
@@ -748,17 +1304,33 @@
         title: "Het cijfer 'Jaren' in Terugblik is vaag.",
         what: "Het kaartje 'Jaren' toont het aantal jaren waarin je minstens één bezoek had. Wie in één jaar 10 restaurants bezocht, ziet '1' — zonder uitleg dat dit 'aantal jaren met bezoeken' is.",
         example: "Voorbeeld: je hebt dit jaar 12 restaurants bezocht en Terugblik zegt 'Jaren: 1'.",
-        solution: "Vervang 'Jaren' door 'Aantal jaren met bezoeken' of toon bijv. '3 jaar (2023-2026)'."
+        solutions: [
+          "Vervang 'Jaren' door 'Aantal jaren met bezoeken'.",
+          "Toon bijv. '3 jaar (2023-2026)'.",
+        ],
+        cons: [
+          "De langere tekst past niet overal op het kaartje.",
+          "De jaartallen maken het kaartje breder.",
+        ],
+        test: "Open Terugblik en controleer dat 'Jaren' duidelijk is gemaakt (bijv. 'Aantal jaren met bezoeken' of '3 jaar (2023-2026)').",
+        severity: "low"
       },
-
-      // ————— RESTAURANT & HERINNERING-DETAIL —————
       {
         id: "detail-favoriet-ontbreekt",
         cat: "restaurant",
         title: "Het hartje ontbreekt op de restaurantpagina.",
         what: "Je kunt een restaurant favoriet maken vanuit de lijst en vanaf de herinnering-detailpagina. Op de restaurantpagina (met alle bezoeken) ontbreekt het hartje — daardoor is favoriet maken niet overal hetzelfde.",
         example: "Voorbeeld: je opent een restaurant met 3 bezoeken en wilt het favoriet maken, maar er is geen hartje te vinden.",
-        solution: "Voeg het hartje ook toe op de restaurantpagina (naast de naam), zodat favoriet maken overal hetzelfde werkt."
+        solutions: [
+          "Voeg het hartje ook toe op de restaurantpagina (naast de naam), zodat favoriet maken overal hetzelfde werkt.",
+          "Toon een 'Favoriet'-schakelaar in de kop van de restaurantpagina.",
+        ],
+        cons: [
+          "Het hartje naast de naam kan botsen met de titel op smalle schermen.",
+          "Een schakelaar in de kop vraagt een duidelijke actieve/uit-status.",
+        ],
+        test: "Open een restaurant met meerdere bezoeken en controleer dat je het hartje (of de favoriet-schakelaar) direct kunt vinden en gebruiken.",
+        severity: "low"
       },
       {
         id: "detail-vriendenreview-niet-verwijderbaar",
@@ -766,7 +1338,16 @@
         title: "Een gedeelde herinnering van een vriend kun je nergens los verwijderen.",
         what: "Herinneringen die vrienden met je deelden, kun je niet bewerken. Maar je kunt ze ook niet los verwijderen — alleen door het hele restaurant weg te vegen in de lijst, en dan verdwijnen ook jóúw bezoeken.",
         example: "Voorbeeld: je wilt één verouderde gedeelde herinnering kwijt, maar elke optie verwijdert ook je eigen bezoeken.",
-        solution: "Geef elke gedeelde herinnering een eigen menu met 'Verwijderen' (alleen die ene), of voeg een knop 'Verberg vrienden-bezoeken' toe."
+        solutions: [
+          "Geef elke gedeelde herinnering een eigen menu met 'Verwijderen' (alleen die ene).",
+          "Voeg een knop 'Verberg vrienden-bezoeken' toe.",
+        ],
+        cons: [
+          "Verwijderen is definitief voor die ene gedeelde herinnering op jouw toestel.",
+          "Verbergen verbergt alle vrienden-bezoeken tegelijk, niet één.",
+        ],
+        test: "Open een restaurant met gedeelde vrienden-herinneringen en controleer dat je één gedeelde herinnering los kunt verwijderen (of alle vrienden-bezoeken kunt verbergen) zonder je eigen bezoeken te verliezen.",
+        severity: "high"
       },
       {
         id: "detail-bezoek-toevoegen-fab",
@@ -774,7 +1355,16 @@
         title: "De 'Bezoek toevoegen'-knop verschijnt en verdwijnt zonder uitleg.",
         what: "Op de herinnering-pagina staat een knop om nog een bezoek toe te voegen — maar alleen zolang je minder dan 2 bezoeken hebt. Bij 2 of meer bezoeken verdwijnt de knop en moet je de restaurantpagina vinden.",
         example: "Voorbeeld: je hebt 2 bezoeken en wilt een derde toevoegen, maar de knop is weg.",
-        solution: "Toon de 'Bezoek toevoegen'-knop altijd (ook bij 2 of meer bezoeken) en verwijs dan naar de restaurantpagina."
+        solutions: [
+          "Toon de 'Bezoek toevoegen'-knop altijd (ook bij 2 of meer bezoeken) en verwijs dan naar de restaurantpagina.",
+          "Toon de knop altijd; bij 2 of meer bezoeken opent hij direct de restaurantpagina om een bezoek toe te voegen.",
+        ],
+        cons: [
+          "De knop leidt dan soms naar een andere pagina dan de knop doet vermoeden.",
+          "Een dubbele route (formulier én restaurantpagina) kan verwarren.",
+        ],
+        test: "Open een herinnering van een restaurant met 3 bezoeken en controleer dat de 'Bezoek toevoegen'-knop zichtbaar is en je naar de juiste plek brengt.",
+        severity: "medium"
       },
       {
         id: "detail-gemiddelde-afwijkend",
@@ -782,7 +1372,16 @@
         title: "Het gemiddelde bovenaan kan afwijken van de som van de losse bezoeken.",
         what: "Op de restaurantpagina staat een totaalgemiddelde, maar elk bezoek toont zijn eigen score. Bij geïmporteerde herinneringen kunnen die getallen verschillen — zonder duidelijke reden.",
         example: "Voorbeeld: de kaarten tonen 4,5 en 4,0, maar het gemiddelde bovenaan is 4,7.",
-        solution: "Toon het gemiddelde als som van de getoonde bezoeken, of leg uit: 'Gemiddelde van alle bezoeken, inclusief gedeelde'."
+        solutions: [
+          "Toon het gemiddelde als som van de getoonde bezoeken.",
+          "Leg uit: 'Gemiddelde van alle bezoeken, inclusief gedeelde'.",
+        ],
+        cons: [
+          "Het gemiddelde verandert dan per pagina-aanzicht, wat ook verwarrend kan zijn.",
+          "De uitleg maakt de kop langer.",
+        ],
+        test: "Open een restaurant met geïmporteerde of gedeelde herinneringen en controleer dat het gemiddelde bovenaan klopt met de getoonde bezoeken (of dat de uitleg erbij staat).",
+        severity: "low"
       },
       {
         id: "detail-concept-telt-in-teller",
@@ -790,7 +1389,16 @@
         title: "Het aantal 'jouw bezoeken' kan een concept meetellen.",
         what: "Op de restaurantpagina telt de kop 'Jouw bezoeken: 3' soms een concept mee dat nog geen score heeft. De lijst ziet er dan voller uit dan de echte bezoeken.",
         example: "Voorbeeld: je hebt 2 echte bezoeken en 1 concept, en de pagina zegt '3 bezoeken'.",
-        solution: "Laat concepten niet meetellen in 'Jouw bezoeken: N' en toon '1 concept in bewerking' apart."
+        solutions: [
+          "Laat concepten niet meetellen in 'Jouw bezoeken: N' en toon '1 concept in bewerking' apart.",
+          "Toon concepten apart onder een kopje 'Concepten' en tel ze niet mee in het aantal bezoeken.",
+        ],
+        cons: [
+          "De teller kan lager uitvallen dan het aantal kaarten op de pagina.",
+          "Een aparte kop vraagt ruimte en een duidelijke scheiding.",
+        ],
+        test: "Maak een concept bij een restaurant met 2 bezoeken en controleer dat 'Jouw bezoeken' alleen de echte bezoeken telt en het concept apart wordt getoond.",
+        severity: "low"
       },
       {
         id: "detail-wijn-verwijderen-score",
@@ -798,7 +1406,16 @@
         title: "Een wijn verwijderen verandert stilletjes je score.",
         what: "Als je een wijn verwijdert uit een herinnering, wordt je drank-score opnieuw berekend. Blijft er geen beoordeelde wijn over, dan telt de herinnering ineens niet meer mee in je statistieken — zonder melding.",
         example: "Voorbeeld: je verwijdert een wijn die je 1 ster gaf, en je totaal in Mijn Gustra zakt ongemerkt.",
-        solution: "Toon na het verwijderen van een wijn: 'Je drank-score is herberekend' en bied de mogelijkheid om het ongedaan te maken."
+        solutions: [
+          "Toon na het verwijderen van een wijn: 'Je drank-score is herberekend' en bied de mogelijkheid om het ongedaan te maken.",
+          "Laat de herberekening zien vóór het verwijderen, bijv. 'Deze score verandert van 4,2 naar 4,0'.",
+        ],
+        cons: [
+          "Een ongedaan-knop moet snel worden gebruikt; na een paar stappen is hij weg.",
+          "Een vooraf-melding bij elke verwijdering kan als storend worden ervaren.",
+        ],
+        test: "Verwijder een wijn uit een herinnering en controleer dat je een duidelijke melding krijgt over de herberekende score en dat je het ongedaan kunt maken.",
+        severity: "low"
       },
       {
         id: "detail-geen-menu",
@@ -806,17 +1423,33 @@
         title: "Op de herinnering-pagina ontbreekt het '⋯'-menu.",
         what: "Er is een netjes ontworpen menu (⋯) met acties zoals 'Bezoek toevoegen', maar het wordt nergens getoond. Gebruikers die dit verwachten, vinden het niet.",
         example: "Voorbeeld: je zoekt op de herinnering-pagina naar '⋯' voor meer opties — maar er is alleen een potlood.",
-        solution: "Toon het ⋯-menu op de herinnering-pagina (met 'Bezoek toevoegen', 'Delen', enz.) of verwijder het ongebruikte menu."
+        solutions: [
+          "Toon het ⋯-menu op de herinnering-pagina (met 'Bezoek toevoegen', 'Delen', enz.).",
+          "Verwijder het ongebruikte menu.",
+        ],
+        cons: [
+          "Het menu voegt een extra element toe aan een pagina die nu juist rustig is.",
+          "Verwijderen haalt mogelijk gewenste acties weg die gebruikers verwachten.",
+        ],
+        test: "Open een herinnering en controleer dat het ⋯-menu zichtbaar is met de beloofde acties (of dat het consequent is verwijderd en nergens ontbreekt).",
+        severity: "medium"
       },
-
-      // ————— DELEN & IMPORTEREN —————
       {
         id: "delen-is-bestand",
         cat: "delen",
         title: "Delen stuurt een bestand, geen link of bericht — dat wordt niet uitgelegd.",
         what: "Als je herinneringen deelt, opent het normale deelmenu van je telefoon met een bestand ('.gustrashare'). Voor veel mensen is onduidelijk wat ze met dat bestand moeten doen en hoe de ontvanger het opent.",
         example: "Voorbeeld: je tikt op 'Delen', kiest E-mail, en stuurt een bestand dat de ontvanger niet kan openen.",
-        solution: "Leg bij het delen uit: 'Dit maakt een deelbestand dat de ontvanger met Gustra kan openen', bijv. als ondertitel bij de deel-knop."
+        solutions: [
+          "Leg bij het delen uit: 'Dit maakt een deelbestand dat de ontvanger met Gustra kan openen', bijv. als ondertitel bij de deel-knop.",
+          "Toon vóór het delen een korte uitleg over het .gustrashare-bestand en hoe de ontvanger het opent.",
+        ],
+        cons: [
+          "Een ondertitel alleen legt niet uit hoe de ontvanger het bestand opent.",
+          "Een extra uitleg-scherm voor het delen kan vertragen.",
+        ],
+        test: "Tik op 'Delen' en controleer dat er een duidelijke uitleg staat over het deelbestand (en hoe de ontvanger het met Gustra opent).",
+        severity: "low"
       },
       {
         id: "delen-vrienden-niet-meegestuurd",
@@ -824,7 +1457,16 @@
         title: "Gedeelde herinneringen van vrienden kun je aanvinken, maar ze worden nooit meegestuurd.",
         what: "In de selectiemodus kun je ook herinneringen van vrienden aanvinken. Bij het delen worden alleen jouw eigen herinneringen meegestuurd — zonder melding dat de aangevinkte vrienden-herinneringen niet meegaan.",
         example: "Voorbeeld: je vinkt 4 eigen + 2 gedeelde herinneringen aan, maar de ontvanger krijgt alleen de 4 eigen.",
-        solution: "Schakel vrienden-herinneringen uit in de selectiemodus voor delen, of toon 'N gedeelde herinneringen worden niet meegestuurd'."
+        solutions: [
+          "Schakel vrienden-herinneringen uit in de selectiemodus voor delen.",
+          "Toon 'N gedeelde herinneringen worden niet meegestuurd'.",
+        ],
+        cons: [
+          "Sommige gebruikers willen gedeelde herinneringen juist wél doorsturen.",
+          "De melding legt het uit maar laat de selectie onveranderd.",
+        ],
+        test: "Vink in de selectiemodus ook 2 gedeelde vrienden-herinneringen aan en deel. Controleer dat die niet worden meegestuurd (of dat je duidelijk wordt gewaarschuwd).",
+        severity: "medium"
       },
       {
         id: "delen-naam-mid-flow",
@@ -832,7 +1474,16 @@
         title: "Bij het eerste delen wordt ineens om je naam gevraagd.",
         what: "Heb je nog geen naam ingesteld, dan onderbreekt een 'Je naam?'-scherm het delen midden in de flow. Er was nergens van tevoren uitgelegd dat je naam nodig is.",
         example: "Voorbeeld: je selecteert herinneringen, tikt op bevestigen, en moet eerst je naam invullen voordat je verder kunt.",
-        solution: "Vraag de naam al vóór het delen (bijv. in Instellingen → Profiel) zodat het delen niet onderbroken wordt."
+        solutions: [
+          "Vraag de naam al vóór het delen (bijv. in Instellingen → Profiel) zodat het delen niet onderbroken wordt.",
+          "Vraag de naam bij de eerste keer delen vóór de selectie, niet erna.",
+        ],
+        cons: [
+          "Instellingen → Profiel is een extra plek om te onderhouden.",
+          "De naam-vraag blijft bestaan, alleen eerder in de flow.",
+        ],
+        test: "Wis je naam en start 'Delen'. Controleer dat je naam vóór de selectiestap wordt gevraagd (of al in Instellingen) en het delen niet middenin wordt onderbroken.",
+        severity: "low"
       },
       {
         id: "delen-demo-stil",
@@ -840,7 +1491,16 @@
         title: "'Alles selecteren' kan meer aankruisen dan er echt gedeeld wordt.",
         what: "De voorbeeld-herinneringen worden nooit meegestuurd, maar ze worden wél meegeselecteerd met 'Alles selecteren'. Het aantal geselecteerde items klopt dan niet met wat er verstuurd wordt.",
         example: "Voorbeeld: '6 geselecteerd' — maar er gaan er maar 4 echt mee.",
-        solution: "Laat 'Alles selecteren' alleen de werkelijk deelbare items selecteren en toon '5 deelbaar, 1 demo overgeslagen'."
+        solutions: [
+          "Laat 'Alles selecteren' alleen de werkelijk deelbare items selecteren en toon '5 deelbaar, 1 demo overgeslagen'.",
+          "Selecteer demo's niet mee en toon '1 demo niet deelbaar' in de selectiebalk.",
+        ],
+        cons: [
+          "Het aantal in de selectiebalk moet dan met de melding kloppen.",
+          "De melding vraagt ruimte in de selectiebalk.",
+        ],
+        test: "Zet 'Voorbeeldherinneringen' aan, tik 'Alles selecteren' en controleer dat demo's niet worden geselecteerd (of dat duidelijk staat hoeveel demo's zijn overgeslagen).",
+        severity: "low"
       },
       {
         id: "importeren-geen-resultaat",
@@ -848,17 +1508,33 @@
         title: "Na het importeren zie je niet wat er is binnengekomen.",
         what: "Na het importeren van een pakket van een vriend spring je naar de herinneringenlijst. Er is geen '3 van 5 herinneringen geïmporteerd'-melding; duplicaten en mislukte foto's verdwijnen stil.",
         example: "Voorbeeld: je importeert een pakket met 5 herinneringen, maar 2 zijn duplicaten — je ziet nergens dat er maar 3 zijn toegevoegd.",
-        solution: "Toon na het importeren een samenvatting: '3 herinneringen toegevoegd, 2 duplicaten overgeslagen, 1 foto mislukt'."
+        solutions: [
+          "Toon na het importeren een samenvatting: '3 herinneringen toegevoegd, 2 duplicaten overgeslagen, 1 foto mislukt'.",
+          "Toon na het importeren '3 toegevoegd, 2 duplicaten' met een knop 'Bekijk' naar de nieuwe herinneringen.",
+        ],
+        cons: [
+          "Een lange samenvatting kan op smalle schermen afbreken.",
+          "Een 'Bekijk'-knop voegt navigatie toe die niet iedereen wil.",
+        ],
+        test: "Importeer een pakket met 5 herinneringen waarvan 2 duplicaten en controleer dat je een duidelijke samenvatting ziet van wat is toegevoegd, overgeslagen en eventueel mislukt.",
+        severity: "medium"
       },
-
-      // ————— BACK-UP & HERSTEL —————
       {
         id: "backup-merge-overschrijft",
         cat: "backup",
         title: "'Samenvoegen' bij herstel kan nieuwere herinneringen overschrijven.",
         what: "De knop 'Samenvoegen' klinkt alsof alles bewaard blijft, maar bij een conflict wint de back-up — ook als jouw huidige herinnering nieuwer is. Dat wordt niet gemeld.",
         example: "Voorbeeld: je herstelt een back-up van vorige maand met 'Samenvoegen', en je herinnering van gisteren wordt stil overschreven door de oudere versie.",
-        solution: "Maak 'Samenvoegen' echt samenvoegen: bewaar bij een conflict de nieuwste herinnering, of toon de verschillen vóór het herstel."
+        solutions: [
+          "Maak 'Samenvoegen' echt samenvoegen: bewaar bij een conflict de nieuwste herinnering.",
+          "Toon de verschillen vóór het herstel.",
+        ],
+        cons: [
+          "Bij een conflict is 'nieuwste' niet altijd de gewenste versie.",
+          "Een verschillen-scherm kan complex zijn voor gewone gebruikers.",
+        ],
+        test: "Herstel een oudere back-up met 'Samenvoegen' en controleer dat nieuwere herinneringen niet worden overschreven (of dat je eerst de verschillen ziet vóór het herstel).",
+        severity: "critical"
       },
       {
         id: "backup-overwrite-profielfoto",
@@ -866,7 +1542,16 @@
         title: "'Overschrijven' vervangt ook je naam, profielfoto en instellingen — zonder waarschuwing.",
         what: "De waarschuwing bij 'Overschrijven' gaat over je herinneringen, maar in werkelijkheid worden ook je reviewer-naam, profielfoto en criteria-instellingen vervangen door die uit de back-up.",
         example: "Voorbeeld: je herstelt een back-up om je herinneringen terug te krijgen, en je profielfoto en naam zijn ook teruggedraaid naar de oude versie.",
-        solution: "Vraag apart om toestemming: 'Ook je naam, profielfoto en instellingen overschrijven?' of scheid 'Gegevens' en 'Profiel'."
+        solutions: [
+          "Vraag apart om toestemming: 'Ook je naam, profielfoto en instellingen overschrijven?'",
+          "Scheid 'Gegevens' en 'Profiel'.",
+        ],
+        cons: [
+          "Een extra bevestiging kan als dubbelop voelen bij elke herstel-actie.",
+          "Twee aparte herstel-knoppen maken het herstelscherm voller.",
+        ],
+        test: "Herstel een back-up met 'Overschrijven' en controleer dat je apart wordt gevraagd of ook naam, profielfoto en instellingen mogen worden overschreven (of dat die gescheiden zijn).",
+        severity: "high"
       },
       {
         id: "backup-geen-resultaat",
@@ -874,7 +1559,16 @@
         title: "Na herstel zie je niet direct je herstelde gegevens.",
         what: "Na een geslaagd herstel verschijnt alleen een tekst 'Hersteld'. Je moet zelf terug naar de herinneringenlijst om te zien of alles klopt.",
         example: "Voorbeeld: je herstelt je back-up en blijft op hetzelfde scherm staan — je ziet niets van de teruggezette gegevens.",
-        solution: "Toon na het herstel een overzicht: '12 herinneringen teruggezet, 3 nieuwer en niet overschreven' met een knop 'Bekijk'."
+        solutions: [
+          "Toon na het herstel een overzicht: '12 herinneringen teruggezet, 3 nieuwer en niet overschreven' met een knop 'Bekijk'.",
+          "Toon na het herstel '12 herinneringen teruggezet' met een knop 'Bekijk'.",
+        ],
+        cons: [
+          "Een gedetailleerd overzicht kan voor sommigen te technisch zijn.",
+          "Een 'Bekijk'-knop leidt naar de lijst, die nog moet laden.",
+        ],
+        test: "Herstel een back-up en controleer dat je een overzicht ziet van wat is teruggezet (en eventueel niet overschreven) in plaats van alleen 'Hersteld'.",
+        severity: "low"
       },
       {
         id: "backup-foutmelding-wachtwoord",
@@ -882,17 +1576,33 @@
         title: "Een beschadigd automatisch herstelpunt toont 'Verkeerd wachtwoord' — terwijl er geen wachtwoord is.",
         what: "De automatische herstelpunten (AutoProtect) hebben geen wachtwoord. Is zo'n bestand beschadigd, dan toont Gustra toch de melding 'Verkeerd wachtwoord', wat nergens op slaat.",
         example: "Voorbeeld: je tikt op een automatisch herstelpunt dat niet meer leesbaar is, en je krijgt een wachtwoordfout te zien.",
-        solution: "Toon bij een onleesbaar herstelpunt een correcte melding: 'Dit herstelpunt is beschadigd of verouderd' in plaats van een wachtwoordfout."
+        solutions: [
+          "Toon bij een onleesbaar herstelpunt een correcte melding: 'Dit herstelpunt is beschadigd of verouderd' in plaats van een wachtwoordfout.",
+          "Toon 'Dit herstelpunt is beschadigd of verouderd' met een knop 'Opnieuw proberen'.",
+        ],
+        cons: [
+          "De melding verklaart het probleem maar herstelt het bestand niet.",
+          "Een 'Opnieuw proberen'-knop helpt alleen als het bestand tijdelijk onleesbaar was.",
+        ],
+        test: "Tik op een beschadigd automatisch herstelpunt en controleer dat er geen 'Verkeerd wachtwoord'-melding verschijnt maar een begrijpelijke foutmelding.",
+        severity: "medium"
       },
-
-      // ————— OVERIG —————
       {
         id: "overig-wijnscan-verwerp-bewaart",
         cat: "overig",
         title: "'Wil je je wijzigingen verwerpen?' — Ja zorgt er juist voor dat de wijn wordt bewaard.",
         what: "In de wijnscanner: als je een wijn hebt beoordeeld en weg wilt, vraag Gustra 'Wijzigingen verwerpen?'. Kies je 'Ja', dan wordt de wijn bevestigd en toegevoegd aan je herinnering — precies het tegenovergestelde van verwerpen.",
         example: "Voorbeeld: je scant een wijn, geeft 2 sterren, wilt hem toch niet toevoegen en kiest 'Ja, verwerpen'. De wijn wordt tóch toegevoegd.",
-        solution: "Draai de logica om: 'Ja' = echt verwerpen (niet toevoegen), 'Nee' = toch toevoegen."
+        solutions: [
+          "Draai de logica om: 'Ja' = echt verwerpen (niet toevoegen), 'Nee' = toch toevoegen.",
+          "Verander de vraag in 'Wijn toevoegen aan je herinnering?' met Ja/Nee.",
+        ],
+        cons: [
+          "Gebruikers die de oude logica gewend zijn kunnen eenmalig verrast worden.",
+          "De herformulering lost de verwarring op maar verandert de knoppen.",
+        ],
+        test: "Scan een wijn, geef hem sterren en kies 'Ja, verwerpen'. Controleer dat de wijn niet wordt toegevoegd aan je herinnering.",
+        severity: "critical"
       },
       {
         id: "overig-wijnscan-geen-match-dood",
@@ -900,7 +1610,16 @@
         title: "Bij een wijn zonder match zit je vast: geen handmatige optie.",
         what: "Als de scanner de wijn niet herkent, toont hij 'Geen match' en kun je alleen terug. Er is geen knop 'Handmatig toevoegen' om de wijn zelf in te vullen.",
         example: "Voorbeeld: je scant een onbekende huiswijn, krijgt 'Geen match', en kunt de wijn nergens handmatig toevoegen.",
-        solution: "Voeg een knop 'Handmatig invullen' toe wanneer de scanner geen match vindt."
+        solutions: [
+          "Voeg een knop 'Handmatig invullen' toe wanneer de scanner geen match vindt.",
+          "Toon bij 'Geen match' de dichtstbijzijnde naam zodat je die kunt bevestigen of aanpassen.",
+        ],
+        cons: [
+          "Handmatig invullen is meer werk dan scannen.",
+          "Een suggestie kan fout zijn en vraagt vertrouwen in de herkenning.",
+        ],
+        test: "Scan een onbekende wijn en controleer dat je niet vastloopt bij 'Geen match' maar een knop 'Handmatig invullen' (of een aanpasbare suggestie) ziet.",
+        severity: "high"
       },
       {
         id: "overig-wijnscan-foutmelding",
@@ -908,7 +1627,16 @@
         title: "Foutmeldingen bij het scannen zijn technisch en soms in het Engels.",
         what: "Als de scan mislukt, verschijnt de technische foutmelding van de AI-dienst letterlijk op je scherm — bijvoorbeeld 'This IP is not authorized to use this API key'.",
         example: "Voorbeeld: je scant een wijn en krijgt een Engelse technische melding die je als gebruiker niet kunt plaatsen.",
-        solution: "Vervang technische foutmeldingen door een begrijpelijke tekst: 'Scannen lukte niet. Probeer opnieuw of voer de wijn handmatig in.'"
+        solutions: [
+          "Vervang technische foutmeldingen door een begrijpelijke tekst: 'Scannen lukte niet. Probeer opnieuw of voer de wijn handmatig in.'",
+          "Toon bij een fout een 'Opnieuw proberen'-knop naast de begrijpelijke melding.",
+        ],
+        cons: [
+          "De echte oorzaak blijft verborgen voor wie dat wél wil zien.",
+          "Een extra knop zonder duidelijke actie kan overbodig aanvoelen.",
+        ],
+        test: "Laat een scan mislukken en controleer dat je een begrijpelijke Nederlandse melding ziet (geen technische Engelse fout) en een duidelijke vervolgactie.",
+        severity: "medium"
       },
       {
         id: "overig-criteria-volledig-beheer",
@@ -916,7 +1644,16 @@
         title: "'Volledig beheer' bij de eerste installatie opent met al 5 onderdelen aangevinkt.",
         what: "Kies je 'Volledig beheer' bij de eerste configuratie, dan staan Eten, Drinken, Service, Sfeer en Prijs al aan. Wie een leeg begin verwacht, ziet ineens een half ingevulde lijst.",
         example: "Voorbeeld: je kiest 'Volledig beheer' en wilt alleen 'Sfeer' en 'Service' — maar 5 onderdelen zijn al aangevinkt.",
-        solution: "Laat 'Volledig beheer' beginnen met alles uit (of een duidelijke 'Selecteer alles'-knop) zodat het een bewuste keuze blijft."
+        solutions: [
+          "Laat 'Volledig beheer' beginnen met alles uit (of een duidelijke 'Selecteer alles'-knop) zodat het een bewuste keuze blijft.",
+          "Begin 'Volledig beheer' standaard met alles uit en toon een 'Selecteer alles'-knop.",
+        ],
+        cons: [
+          "Mensen die alles wilden, moeten nu zelf aanklikken.",
+          "Een 'Selecteer alles'-knop kan per ongeluk worden gebruikt.",
+        ],
+        test: "Kies 'Volledig beheer' bij de eerste installatie en controleer dat de onderdelen niet allemaal al aan staan (of dat er een duidelijke 'Selecteer alles'-knop is).",
+        severity: "low"
       },
       {
         id: "overig-bucketlist-knop-onvindbaar",
@@ -924,7 +1661,16 @@
         title: "De bucketlist zegt 'tik op het bookmark-icoon' — maar dat icoon staat niet op deze pagina.",
         what: "De lege bucketlist in Mijn Gustra verwijst naar een bookmark-icoon op restaurants. Dat icoon zit alleen in het 'Geselecteerd restaurant'-venster bij het toevoegen van een herinnering — niet op de pagina waar de uitleg staat.",
         example: "Voorbeeld: je ziet 'Tik op het bookmark-icoon' op Mijn Gustra, maar er is geen bookmark te vinden op dat scherm.",
-        solution: "Voeg het bookmark-icoon ook toe op de restaurantpagina, of leg in de uitleg uit waar het icoon wél staat (bij 'Geselecteerd restaurant' bij het toevoegen)."
+        solutions: [
+          "Voeg het bookmark-icoon ook toe op de restaurantpagina.",
+          "Leg in de uitleg uit waar het icoon wél staat (bij 'Geselecteerd restaurant' bij het toevoegen).",
+        ],
+        cons: [
+          "Een extra icoon op de restaurantpagina vraagt een duidelijke plek.",
+          "De uitleg blijft een omweg; het icoon staat niet op de pagina zelf.",
+        ],
+        test: "Open de lege bucketlist en controleer dat je het bookmark-icoon direct kunt vinden op de pagina waar de uitleg staat (of dat de uitleg precies klopt met waar het icoon staat).",
+        severity: "low"
       },
       {
         id: "overig-profiel-foto-kiezer",
@@ -932,7 +1678,16 @@
         title: "De profielfoto-editor heeft een onverwachte sluit-gedraging.",
         what: "Heb je al een profielfoto en tik je op de X in de editor, dan moet je soms twee keer tikken om te sluiten: eerst terug uit de fotokiezer, daarna pas de editor. Een nieuwe, niet-opgeslagen foto wordt stil weggegooid.",
         example: "Voorbeeld: je opent je profielfoto, tikt op X — en er gebeurt niets. Nog een keer tikt: pas dan sluit je.",
-        solution: "Laat één tik op de X de editor en de fotokiezer samen sluiten, en toon 'Verwijder nieuwe foto?' voordat een onbewerkte foto wordt weggegooid."
+        solutions: [
+          "Laat één tik op de X de editor en de fotokiezer samen sluiten, en toon 'Verwijder nieuwe foto?' voordat een onbewerkte foto wordt weggegooid.",
+          "Toon een duidelijke 'Klaar'-knop in de fotokiezer die editor én kiezer samen sluit.",
+        ],
+        cons: [
+          "Een bevestigingsvraag kan als extra stap voelen.",
+          "Een 'Klaar'-knop in de kiezer verandert de standaard fotokiezer-interactie.",
+        ],
+        test: "Open de profielfoto-editor met een bestaande foto en controleer dat één tik (op X of 'Klaar') alles in één keer sluit en dat een nieuwe, niet-opgeslagen foto niet stil wordt weggegooid.",
+        severity: "medium"
       },
       {
         id: "overig-fotobibliotheek-stil",
@@ -940,7 +1695,16 @@
         title: "Als 'Opslaan in fotobibliotheek' faalt, merk je daar niets van.",
         what: "De nieuwe instelling 'Opslaan in fotobibliotheek' staat standaard aan. Weigert je telefoon de toestemming of lukt het opslaan niet, dan blijft de schakelaar gewoon aan en krijg je geen melding.",
         example: "Voorbeeld: je weigert de fototoestemming, maar de instelling blijft 'aan' — de foto's komen stilletjes niet in je Fotobibliotheek.",
-        solution: "Toon een melding als het opslaan in de fotobibliotheek faalt ('Niet opgeslagen in Foto's - controleer je toestemming') en zet de schakelaar dan automatisch uit."
+        solutions: [
+          "Toon een melding als het opslaan in de fotobibliotheek faalt ('Niet opgeslagen in Foto's - controleer je toestemming') en zet de schakelaar dan automatisch uit.",
+          "Toon bij weigering van toestemming een melding en zet de schakelaar automatisch uit.",
+        ],
+        cons: [
+          "De schakelaar uitzetten kan gebruikers het gevoel geven dat er iets kapot is.",
+          "De melding moet ook na een tijdelijke fout opnieuw kunnen verschijnen.",
+        ],
+        test: "Weiger de toestemming voor 'Opslaan in fotobibliotheek' en controleer dat je een duidelijke melding krijgt en de schakelaar niet stil aan blijft staan.",
+        severity: "low"
       },
     ];
 
@@ -963,15 +1727,32 @@
 
     const STATUS_LABELS = {
       agree: "Mag zo blijven",
-      suggest: "Verander volgens AI suggestie",
+      suggest1: "AI suggestie 1",
+      suggest2: "AI suggestie 2",
+      suggest: "AI suggestie",
+      other: "Anders",
       disagree: "Pas aan volgens gebruiker uitleg",
       fixed: "Is intussen aangepast",
     };
     const STATUS_HINTS = {
       agree: "Gedrag is goed zo",
+      suggest1: "",
+      suggest2: "",
       suggest: "De AI-suggestie lijkt goed",
+      other: "Vul zelf in wat er moet gebeuren",
       disagree: "Zie de uitleg hierboven",
       fixed: "Is al aangepast in de app",
+    };
+    // Tekst die automatisch in het opmerkingenveld komt als de bezoeker
+    // een keuzeknop kiest. Elke tekst eindigt met een spatie, zodat de
+    // cursor er direct achter kan staan en je zonder extra leestekens
+    // verder kunt typen.
+    const AUTOFILL_TEXT = {
+      agree: "Mag zo blijven. ",
+      suggest1: "AI suggestie 1: ",
+      suggest2: "AI suggestie 2: ",
+      suggest: "Verander volgens AI suggestie. ",
+      other: "Anders: ",
     };
 
     function itemById(id) { return DEFAULT_ITEMS.find((i) => i.id === id); }
@@ -1080,44 +1861,130 @@
         }
       }
       out.sort((a, b) => {
-        const rank = { agree: 0, suggest: 1, disagree: 2, fixed: 3 };
-        return (rank[a.status] ?? 4) - (rank[b.status] ?? 4);
+        const rank = { agree: 0, suggest1: 1, suggest2: 1, suggest: 1, other: 2, disagree: 3, fixed: 4 };
+        return (rank[a.status] ?? 5) - (rank[b.status] ?? 5);
       });
       return out;
     }
 
+    async function adminEdit(uid, itemId, newRemark) {
+      const res = await fetch(REMOTE_SAVE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "adminEdit", targetUid: uid, itemId, remark: newRemark, name: MY_NAME.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      return res.json();
+    }
+
+    function showAdminEdit(itemEl, o, itemId) {
+      if (itemEl.querySelector(".admin-form")) return;
+      const form = document.createElement("div");
+      form.className = "admin-form";
+      const ta = document.createElement("textarea");
+      ta.value = o.remark || "";
+      const row = document.createElement("div");
+      row.className = "row";
+      const ok = document.createElement("button");
+      ok.type = "button";
+      ok.className = "ok";
+      ok.textContent = "Opslaan";
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.className = "cancel";
+      cancel.textContent = "Annuleren";
+      cancel.addEventListener("click", () => form.remove());
+      ok.addEventListener("click", async () => {
+        try {
+          await adminEdit(o.uid, itemId, ta.value);
+          await loadRemote();
+          render();
+        } catch (err) {
+          const st = document.createElement("div");
+          st.className = "admin-status err";
+          st.textContent = `Opslaan mislukt: ${err.message}`;
+          form.appendChild(st);
+        }
+      });
+      row.appendChild(ok);
+      row.appendChild(cancel);
+      form.appendChild(ta);
+      form.appendChild(row);
+      itemEl.appendChild(form);
+      ta.focus();
+    }
+
+    async function adminDelete(uid, itemId) {
+      const res = await fetch(REMOTE_SAVE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "adminDelete", targetUid: uid, itemId, name: MY_NAME.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      return res.json();
+    }
+
     function renderStats() {
       const total = DEFAULT_ITEMS.length;
-      const done = DEFAULT_ITEMS.filter((i) => state[i.id]?.status).length;
-      const okFixed = DEFAULT_ITEMS.filter((i) => ["agree", "fixed", "suggest"].includes(state[i.id]?.status)).length;
-      const pct = total ? Math.round((okFixed / total) * 100) : 0;
-      document.getElementById("countLabel").textContent = `${done} / ${total} beoordeeld`;
+      const visible = filteredItems();
+      const done = visible.filter((i) => state[i.id]?.status).length;
+      const okFixed = visible.filter((i) => ["agree", "suggest", "suggest1", "suggest2"].includes(state[i.id]?.status)).length;
+      const pct = visible.length ? Math.round((okFixed / visible.length) * 100) : 0;
+      document.getElementById("countLabel").textContent = `${done} / ${visible.length} beoordeeld`;
       document.getElementById("pct").innerHTML = `${pct}%<small>mag zo blijven of aangepast</small>`;
       document.getElementById("bar").style.width = `${pct}%`;
       for (const cat of CATS) {
-        const items = DEFAULT_ITEMS.filter((i) => i.cat === cat.id);
+        const items = visible.filter((i) => i.cat === cat.id);
         const doneCat = items.filter((i) => state[i.id]?.status).length;
         document.getElementById(`count-${cat.id}`).textContent = `${doneCat} / ${items.length}`;
       }
+    }
+
+    // Alle items na toepassing van de status- en criticality-filters.
+    function filteredItems() {
+      let items = DEFAULT_ITEMS.slice();
+      if (filterAdminStatus) {
+        items = items.filter((i) => effectiveAdminStatus(state[i.id]) === filterAdminStatus);
+      }
+      if (filterSeverity) {
+        items = items.filter((i) => i.severity === filterSeverity);
+      }
+      return items;
     }
 
     function statusTone(status) {
       if (status === "agree") return "agree";
       if (status === "fixed") return "fixed";
       if (status === "disagree") return "disagree";
-      if (status === "suggest") return "suggest";
+      if (status === "suggest" || status === "suggest1" || status === "suggest2") return "suggest";
+      if (status === "other") return "other";
       return "";
     }
 
+    // Effectieve status: wat niet is ingevuld telt als leeg. Iedere bezoeker
+    // kan de status kiezen (niet alleen Philipz), dus er is geen admin-default.
+    function effectiveAdminStatus(st) {
+      return (st && st.adminStatus) || "";
+    }
+
     function render() {
+      const visible = filteredItems();
       for (const cat of CATS) {
         const list = document.getElementById(`list-${cat.id}`);
         list.innerHTML = "";
-        const items = DEFAULT_ITEMS.filter((i) => i.cat === cat.id);
+        const items = visible.filter((i) => i.cat === cat.id);
         items.forEach((item, idx) => {
           const st = state[item.id] || { status: "", remark: "" };
           const li = document.createElement("li");
           li.className = "task";
+          // Geen achtergrondkleur meer op de kaart (revert): de admin-status
+          // is te zien via het stoplicht-icoon rechts in de keuzerij.
 
           const head = document.createElement("div");
           head.className = "head";
@@ -1131,6 +1998,38 @@
           title.className = "title";
           title.textContent = item.title;
           head.appendChild(title);
+
+          if (item.severity && SEVERITY_TONE[item.severity]) {
+            const sev = document.createElement("span");
+            sev.className = "sev " + SEVERITY_TONE[item.severity];
+            sev.textContent = SEVERITY_LABELS[item.severity];
+            head.appendChild(sev);
+          }
+
+          // Status-dropdown voor iedereen. De gekozen status wordt opgeslagen
+          // in het veld adminStatus (additief: bestaande data blijft leesbaar).
+          const sel = document.createElement("select");
+          sel.className = "admin-status-select";
+          sel.setAttribute("aria-label", "Status");
+          const currentAdminStatus = st.adminStatus || "";
+          const statusOptions = [
+            { key: "", label: "— status —" },
+            ...Object.entries(ADMIN_STATUS_LABELS).map(([key, label]) => ({ key, label })),
+          ];
+          for (const optDef of statusOptions) {
+            const opt = document.createElement("option");
+            opt.value = optDef.key;
+            opt.textContent = optDef.label;
+            if (optDef.key === currentAdminStatus) opt.selected = true;
+            sel.appendChild(opt);
+          }
+          sel.addEventListener("change", () => {
+            state[item.id] = { ...(state[item.id] || { status: "" }), adminStatus: sel.value };
+            persist();
+            render(); // her-tekent (toont test-scenario bij 'te testen')
+            scheduleRemoteSave();
+          });
+          head.appendChild(sel);
 
           li.appendChild(head);
 
@@ -1146,16 +2045,43 @@
             li.appendChild(ex);
           }
 
-          if (item.solution) {
+          if (item.solutions && item.solutions.length) {
+            item.solutions.forEach((s, i) => {
+              const sol = document.createElement("div");
+              sol.className = "solution";
+              const pref = i === 0 ? `<span class="pref">Voorkeur</span>` : "";
+              const consHtml = (item.cons && item.cons[i])
+                ? `<span class="cons"><b>Nadelen:</b> ${item.cons[i]}</span>`
+                : "";
+              sol.innerHTML = `${pref}<b>AI suggestie ${i + 1}:</b> ${s}${consHtml}`;
+              li.appendChild(sol);
+            });
+          } else if (item.solution) {
             const sol = document.createElement("div");
             sol.className = "solution";
-            sol.innerHTML = `<b>AI suggestie:</b> ${item.solution}`;
+            const pref = `<span class="pref">Voorkeur</span>`;
+            const consHtml = (item.cons && item.cons[0])
+              ? `<span class="cons"><b>Nadelen:</b> ${item.cons[0]}</span>`
+              : "";
+            sol.innerHTML = `${pref}<b>AI suggestie 1:</b> ${item.solution}${consHtml}`;
             li.appendChild(sol);
+          }
+
+          // Test-scenario: bij status 'te testen' wordt het concrete
+          // test-scenario getoond, zodat je weet wát je moet testen.
+          if (item.test && effectiveAdminStatus(st) === "test") {
+            const tbox = document.createElement("div");
+            tbox.className = "testbox";
+            tbox.innerHTML = `<b>Test-scenario:</b> ${item.test}`;
+            li.appendChild(tbox);
           }
 
           const choices = document.createElement("div");
           choices.className = "choices";
-          for (const status of ["agree", "suggest", "disagree", "fixed"]) {
+          const choiceStatuses = (item.solutions && item.solutions.length > 1)
+            ? ["agree", "suggest1", "suggest2", "other"]
+            : ["agree", "suggest", "other"];
+          for (const status of choiceStatuses) {
             const label = document.createElement("label");
             label.className = "choice " + statusTone(status);
 
@@ -1165,7 +2091,31 @@
             radio.value = status;
             radio.checked = st.status === status;
             radio.addEventListener("change", () => {
-              state[item.id] = { ...(state[item.id] || {}), status };
+              const prev = state[item.id] || {};
+              let remark = prev.remark || "";
+              // De keuze wordt automatisch de opmerking, tenzij de bezoeker
+              // al eigen tekst heeft ingetypt.
+              const trimmed = String(remark).trim();
+              const autoFilled =
+                !trimmed ||
+                trimmed === STATUS_LABELS[prev.status] ||
+                trimmed.startsWith("Anders:") ||
+                (AUTOFILL_TEXT[prev.status] && trimmed.startsWith(AUTOFILL_TEXT[prev.status].trim()));
+              if (autoFilled) {
+                remark = AUTOFILL_TEXT[status] || STATUS_LABELS[status];
+              }
+              state[item.id] = { ...prev, status, remark };
+              const ta = document.getElementById(`r-${item.id}`);
+              if (ta) {
+                ta.value = remark;
+                ta.focus();
+                // Cursor direct achter de automatisch ingevulde tekst zetten,
+                // zodat je meteen verder kunt typen (de tekst zelf is niet
+                // geselecteerd, die blijft staan).
+                const start = AUTOFILL_TEXT[status] ? AUTOFILL_TEXT[status].length : remark.length;
+                ta.setSelectionRange(start, start);
+                ta.scrollIntoView({ block: "nearest", behavior: "smooth" });
+              }
               persist();
               renderStats();
               scheduleRemoteSave();
@@ -1179,9 +2129,12 @@
             labelText.textContent = STATUS_LABELS[status];
             const hint = document.createElement("span");
             hint.className = "hint";
-            hint.textContent = STATUS_HINTS[status];
             textWrap.appendChild(labelText);
-            textWrap.appendChild(hint);
+            const hintText = STATUS_HINTS[status];
+            if (hintText) {
+              hint.textContent = hintText;
+              textWrap.appendChild(hint);
+            }
 
             label.appendChild(radio);
             label.appendChild(dot);
@@ -1199,12 +2152,14 @@
             const countAgree = others.filter((o) => o.status === "agree").length;
             const countFixed = others.filter((o) => o.status === "fixed").length;
             const countDisagree = others.filter((o) => o.status === "disagree").length;
-            const countSuggest = others.filter((o) => o.status === "suggest").length;
+            const countSuggest = others.filter((o) => ["suggest", "suggest1", "suggest2"].includes(o.status)).length;
+            const countOther = others.filter((o) => o.status === "other").length;
             const parts = [];
             if (countAgree) parts.push(`${countAgree} × mag zo blijven`);
             if (countDisagree) parts.push(`${countDisagree} × pas aan volgens gebruiker uitleg`);
             if (countFixed) parts.push(`${countFixed} × intussen aangepast`);
             if (countSuggest) parts.push(`${countSuggest} × volgens AI suggestie`);
+            if (countOther) parts.push(`${countOther} × anders`);
             summary.textContent = `Andere bezoekers: ${parts.join(" · ") || "nog geen keuzes"}`;
             othersWrap.appendChild(summary);
             const listEl = document.createElement("div");
@@ -1224,6 +2179,36 @@
                 itemEl.appendChild(document.createElement("br"));
                 itemEl.appendChild(remark);
               }
+              if (isAdmin()) {
+                const adminRow = document.createElement("div");
+                adminRow.className = "admin-actions";
+                const btnEdit = document.createElement("button");
+                btnEdit.type = "button";
+                btnEdit.className = "admin-edit";
+                btnEdit.textContent = "Bewerken";
+                const btnDel = document.createElement("button");
+                btnDel.type = "button";
+                btnDel.className = "admin-delete";
+                btnDel.textContent = "Verwijderen";
+                btnEdit.addEventListener("click", () => showAdminEdit(itemEl, o, item.id));
+                btnDel.addEventListener("click", async () => {
+                  if (!confirm(`Reactie van ${whoName} verwijderen?`)) return;
+                  try {
+                    await adminDelete(o.uid, item.id);
+                    itemEl.remove();
+                    await loadRemote();
+                    render();
+                  } catch (err) {
+                    const st = document.createElement("div");
+                    st.className = "admin-status err";
+                    st.textContent = `Verwijderen mislukt: ${err.message}`;
+                    itemEl.appendChild(st);
+                  }
+                });
+                adminRow.appendChild(btnEdit);
+                adminRow.appendChild(btnDel);
+                itemEl.appendChild(adminRow);
+              }
               listEl.appendChild(itemEl);
             }
             othersWrap.appendChild(listEl);
@@ -1239,10 +2224,10 @@
           remarkWrap.className = "remark";
           const rl = document.createElement("label");
           rl.htmlFor = `r-${item.id}`;
-          rl.textContent = "Opmerking (zichtbaar voor anderen)";
+          rl.textContent = "Opmerking (je keuze staat er al in — vul aan)";
           const ta = document.createElement("textarea");
           ta.id = `r-${item.id}`;
-          ta.placeholder = "Optionele opmerking…";
+          ta.placeholder = "Je keuze wordt hier automatisch gezet; voeg zelf iets toe…";
           ta.value = st.remark || "";
           ta.addEventListener("input", () => {
             state[item.id] = { ...(state[item.id] || { status: "" }), remark: ta.value };
@@ -1253,15 +2238,55 @@
           remarkWrap.appendChild(ta);
           li.appendChild(remarkWrap);
 
+          // Statusbalk onderaan het frame: volle breedte, duidelijk zichtbaar.
+          // Toont de gekozen status (iedereen kan die kiezen) met kleur + tekst.
+          const eff = effectiveAdminStatus(st);
+          if (eff) {
+            const foot = document.createElement("div");
+            foot.className = "status-foot" + " " + eff;
+            const dot = document.createElement("span");
+            dot.className = "status-foot-dot";
+            const label = document.createElement("span");
+            label.className = "status-foot-label";
+            label.textContent = ADMIN_STATUS_LABELS[eff];
+            foot.setAttribute("aria-label", "Status: " + ADMIN_STATUS_LABELS[eff]);
+            foot.appendChild(dot);
+            foot.appendChild(label);
+            li.appendChild(foot);
+          }
+
           list.appendChild(li);
         });
       }
       renderStats();
     }
 
+    // Zet de filterchips klaar (toggle + actieve rand). Eén klik zet de
+    // filter aan, nog een klik zet hem weer uit.
+    function setupFilters() {
+      const statusGroup = document.getElementById("fStatusGroup");
+      if (statusGroup) statusGroup.hidden = false;
+      document.querySelectorAll("#filterBar .chip").forEach((chip) => {
+        chip.addEventListener("click", () => {
+          const kind = chip.dataset.filter;
+          const value = chip.dataset.value;
+          if (kind === "adminStatus") {
+            filterAdminStatus = filterAdminStatus === value ? "" : value;
+          } else if (kind === "severity") {
+            filterSeverity = filterSeverity === value ? "" : value;
+          }
+          document.querySelectorAll("#filterBar .chip").forEach((c) => {
+            c.classList.toggle("on", c.dataset.filter === kind && c.dataset.value === (kind === "adminStatus" ? filterAdminStatus : filterSeverity));
+          });
+          render();
+        });
+      });
+    }
+
     (async function init() {
       loadLocal();
       const remote = await loadRemote();
+      setupFilters();
       render();
 
       const nameInput = document.getElementById("editorName");
@@ -1269,6 +2294,7 @@
       if (nameInput) {
         nameInput.value = MY_NAME;
         nameInput.addEventListener("input", () => {
+          const wasAdmin = isAdmin();
           MY_NAME = nameInput.value.trim();
           if (MY_NAME) {
             setCookie(NAME_COOKIE, MY_NAME, 365);
@@ -1279,6 +2305,11 @@
           } else if (nameMsg) {
             nameMsg.textContent = "Laat je naam hier achter; die wordt bewaard in een cookie op dit apparaat.";
             nameMsg.className = "name-msg";
+          }
+          if (isAdmin() !== wasAdmin) {
+            const sg = document.getElementById("fStatusGroup");
+            if (sg) sg.hidden = false;
+            render();
           }
           scheduleRemoteSave();
         });

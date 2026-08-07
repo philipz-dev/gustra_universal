@@ -1,6 +1,6 @@
 ================================================================================
 Gustra Universal — full project dump
-Generated: 2026-08-05T21:22:11Z
+Generated: 2026-08-07T07:18:37Z
 Root: /Users/philipzvar/gustra_universal
 Files: 270
 ================================================================================
@@ -6064,6 +6064,7 @@ import { DatePickerModal } from '@/components/review/DatePickerModal';
 import { RevisitStatsCard } from '@/components/review/RevisitStatsCard';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
+import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
 import { PhotoSourceChooserModal } from '@/components/ui/PhotoSourceChooser';
 import { SerifText } from '@/components/ui/SerifText';
 import { StaticStarRating } from '@/components/ui/StarRating';
@@ -6703,6 +6704,8 @@ export default function ReviewFormScreen() {
           </Pressable>
         ) : null}
       </ScrollView>
+
+      <TabBarBottomFade />
 
       <PhotoSourceChooserModal
         visible={showPhotoSourceChooser}
@@ -13637,7 +13640,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       supportsTablet: true,
       // Must match the existing App Store Connect / Swift app.
       bundleIdentifier: 'com.philip.gustra',
-      buildNumber: '62',
+      buildNumber: '63',
       // Keep in sync with android.versionCode — deploy-store.sh bumps both together.
       entitlements: {
         'com.apple.security.application-groups': ['group.com.philip.gustra'],
@@ -13696,7 +13699,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
       package: 'net.gustra.app',
       // Keep in sync with ios.buildNumber — deploy-store.sh bumps both together.
-      versionCode: 62,
+      versionCode: 63,
       // Material / gesture navigation — cream surfaces bleed under system bars.
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: true,
@@ -40686,6 +40689,7 @@ FILE: package.json
     "deploy:credentials": "bash scripts/setup-store-credentials.sh",
     "deploy:web": "python3 scripts/deploy-webversion.py",
     "deploy:privacy": "python3 roadmap/deploy-privacy.py",
+    "deploy:master": "python3 site/deploy-master.py",
     "deploy:localization": "python3 scripts/deploy-localization.py",
     "deploy:github": "python3 scripts/deploy-github.py",
     "i18n:check": "python3 scripts/check-i18n.py",

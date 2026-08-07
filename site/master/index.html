@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gustra — Master: alle subsites</title>
+  <meta name="description" content="Overzicht van alle Gustra-subsites op gustra.net: wat elke site doet en waarom ze bestaat.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://gustra.net/master/">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://gustra.net/master/">
+  <meta property="og:title" content="Gustra — Master: alle subsites">
+  <meta property="og:description" content="Eén overzicht van alle Gustra-subsites op gustra.net — met links en uitleg over wat elke site doet en waarom ze bestaat.">
+  <link rel="icon" href="/assets/logo.png?v=19" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --forest: #244e39;
+      --forest-deep: #1a3a2a;
+      --cream: #f5eedd;
+      --bubble: #ece3cf;
+      --gold: #d9a227;
+      --ink: #23201a;
+      --ink-soft: rgba(35, 32, 26, 0.55);
+      --shadow: 0 18px 50px rgba(36, 78, 57, 0.12);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "DM Sans", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(217, 162, 39, 0.16), transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, rgba(36, 78, 57, 0.14), transparent 50%),
+        linear-gradient(180deg, #f8f3e7 0%, var(--cream) 45%, #efe6d2 100%);
+      line-height: 1.55;
+    }
+
+    .wrap {
+      width: min(960px, calc(100% - 2rem));
+      margin: 0 auto;
+      padding: 2.25rem 0 4rem;
+    }
+
+    header.hero {
+      background: linear-gradient(145deg, var(--forest) 0%, var(--forest-deep) 100%);
+      color: #f7f1e4;
+      border-radius: calc(var(--radius) + 6px);
+      padding: 1.75rem 1.5rem 1.5rem;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+    header.hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -20% -40% auto;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(217,162,39,.28), transparent 65%);
+      pointer-events: none;
+    }
+    .brand {
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: clamp(2.4rem, 6vw, 3.4rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 0.95;
+      margin: 0 0 0.4rem;
+    }
+    .tagline {
+      margin: 0;
+      max-width: 40rem;
+      color: rgba(247, 241, 228, 0.82);
+      font-size: 1.02rem;
+      line-height: 1.45;
+    }
+    .hero-meta {
+      margin: 1.15rem 0 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .chip {
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--gold);
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(247,241,228,0.22);
+      border-radius: 999px;
+      padding: 0.35rem 0.75rem;
+    }
+
+    nav.toc {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 1.25rem 0 0.25rem;
+    }
+    nav.toc a {
+      text-decoration: none;
+      color: var(--forest);
+      background: rgba(36, 78, 57, 0.08);
+      border: 1px solid rgba(36, 78, 57, 0.12);
+      border-radius: 999px;
+      padding: 0.45rem 0.85rem;
+      font-weight: 600;
+      font-size: 0.88rem;
+    }
+
+    section.panel {
+      margin-top: 1.15rem;
+      background: rgba(255,255,255,0.55);
+      border: 1px solid rgba(36, 78, 57, 0.1);
+      border-radius: var(--radius);
+      padding: 1.35rem 1.35rem 1.1rem;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 10px 30px rgba(36, 78, 57, 0.06);
+    }
+    section.panel h2 {
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: 1.55rem;
+      margin: 0 0 0.2rem;
+      color: var(--forest);
+      letter-spacing: -0.02em;
+    }
+    section.panel .section-meta {
+      color: var(--ink-soft);
+      font-size: 0.92rem;
+      margin: 0 0 0.9rem;
+    }
+
+    .site-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0.9rem 1.25rem;
+      align-items: start;
+      border-top: 1px solid rgba(36, 78, 57, 0.1);
+      padding: 1.05rem 0.1rem 0.9rem;
+    }
+    .site-card:first-of-type { border-top: 0; padding-top: 0.3rem; }
+    .site-card h3 { margin: 0 0 0.35rem; font-size: 1.08rem; color: var(--forest); }
+    .site-card h3 a { color: inherit; text-decoration: none; }
+    .site-card h3 a:hover { text-decoration: underline; text-underline-offset: 0.15em; }
+    .site-card .path {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.8rem;
+      color: var(--ink-soft);
+      margin: 0.1rem 0 0.4rem;
+    }
+    .site-card p { margin: 0; color: var(--ink); max-width: 46rem; }
+    .site-card p strong { color: var(--forest); }
+    .site-card .open {
+      align-self: center;
+      white-space: nowrap;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.92rem;
+      color: #f7f1e4;
+      background: var(--forest);
+      border-radius: 999px;
+      padding: 0.5rem 1rem;
+      transition: background 0.18s ease, transform 0.18s ease;
+    }
+    .site-card .open:hover { background: var(--forest-deep); transform: translateY(-1px); }
+
+    .group-head {
+      margin: 1.6rem 0 0.2rem;
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--forest);
+      font-weight: 700;
+    }
+    .group-head:first-of-type { margin-top: 0.4rem; }
+
+    .excluded {
+      margin-top: 1.15rem;
+      background: rgba(217, 162, 39, 0.12);
+      border: 1px dashed rgba(217, 162, 39, 0.5);
+      border-radius: var(--radius);
+      padding: 0.9rem 1.1rem;
+      font-size: 0.92rem;
+      color: var(--ink);
+    }
+    .excluded strong { color: #8a4b12; }
+
+    footer {
+      margin-top: 1.5rem;
+      color: var(--ink-soft);
+      font-size: 0.85rem;
+      text-align: center;
+    }
+    footer a { color: var(--forest); font-weight: 600; }
+
+    @media (max-width: 720px) {
+      .site-card { grid-template-columns: 1fr; }
+      .site-card .open { justify-self: start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <h1 class="brand">Gustra — Master</h1>
+      <p class="tagline">Eén overzicht van alle subsites onder <strong>gustra.net</strong>: waar elke site voor dient en waarom ze bestaat. De app zelf blijft het hart — deze pagina is het wegwijsbord naar alles eromheen.</p>
+      <div class="hero-meta">
+        <span class="chip">10 subsites</span>
+        <span class="chip">Gustra</span>
+        <span class="chip">gustra.net/master</span>
+      </div>
+    </header>
+
+    <nav class="toc">
+      <a href="#app">De app</a>
+      <a href="#ontwikkeling">Ontwikkeling</a>
+      <a href="#kwaliteit">Kwaliteit &amp; beveiliging</a>
+      <a href="#juridisch">Juridisch</a>
+      <a href="#archief">Archief</a>
+      <a href="https://gustra.net/">Homepage</a>
+    </nav>
+
+    <section class="panel">
+      <h2 id="app">De app</h2>
+      <p class="section-meta">Gustra zelf: de marketingpagina.</p>
+
+      <article class="site-card">
+        <div>
+          <h3><a href="https://gustra.net/">Homepage</a></h3>
+          <p class="path">/</p>
+          <p>De publieke voorkant van Gustra: uitleg over de app (privé restaurantdagboek voor iPhone &amp; Android), de features, screenshots en links naar de App Store en Google Play. <strong>Bestaansreden:</strong> bezoekers warm maken en naar de app-store-pagina's leiden.</p>
+        </div>
+        <a class="open" href="https://gustra.net/">Openen</a>
+      </article>
+    </section>
+
+    <section class="panel">
+      <h2 id="ontwikkeling">Ontwikkeling</h2>
+      <p class="section-meta">Waar de voortgang van het project te volgen is.</p>
+
+      <article class="site-card">
+        <div>
+          <h3><a href="https://gustra.net/plan/">Plan</a></h3>
+          <p class="path">/plan</p>
+          <p>De roadmap van Gustra: Swift-pariteit, nieuwe features, ideeën en een changelog van wat er recent is gemaakt. Interactief — taken afvinken, aanvullen en exporteren. <strong>Bestaansreden:</strong> het kompas van het project: wat is klaar, wat staat open.</p>
+        </div>
+        <a class="open" href="https://gustra.net/plan/">Openen</a>
+      </article>
+
+      <article class="site-card">
+        <div>
+          <h3><a href="https://gustra.net/github/">GitHub-log</a></h3>
+          <p class="path">/github</p>
+          <p>Automatisch gegenereerd overzicht van wat er op GitHub gebeurt: changelog, releases en nuttige commits. <strong>Bestaansreden:</strong> de rijke release-geschiedenis van Gustra in menselijke taal — een aanvulling op de technische GitHub-pagina zelf.</p>
+        </div>
+        <a class="open" href="https://gustra.net/github/">Openen</a>
+      </article>
+    </section>
+
+    <section class="panel">
+      <h2 id="kwaliteit">Kwaliteit &amp; beveiliging</h2>
+      <p class="section-meta">Pagina's waarmee de app getest en beveiligd wordt.</p>
+
+      <article class="site-card">
+        <div>
+          <h3><a href="https://gustra.net/audit/">UX-audit</a></h3>
+          <p class="path">/audit</p>
+          <p>Per feature kan je kiezen of die zo mag blijven, volgens een AI-suggestie moet veranderen, of anders moet — je keuze wordt automatisch als opmerking bijgehouden en je kunt die aanvullen. Elk onderdeel heeft twee AI-suggesties (suggestie 1 is de voorkeur, eventueel met nadelen) met elk een eigen knop. Elk onderdeel heeft een ernstbeoordeling (critical, high, medium of low) en een test-scenario dat verschijnt zodra de status op "te testen" staat. Iedere bezoeker kan per bevinding een status kiezen (te fixen, nvt, te testen, niet duidelijk, fixed) — zichtbaar via een gekleurde statusbalk onderaan elk frame — en er zijn filters op status en criticality. De antwoorden worden op de server bewaard; met de naam "Philipz" kan de eigenaar reacties van anderen bewerken of verwijderen. <strong>Bestaansreden:</strong> de gebruikerservaring van Gustra systematisch natrekken en verbeteren.</p>
+        </div>
+        <a class="open" href="https://gustra.net/audit/">Openen</a>
+      </article>
+
+      <article class="site-card">
+        <div>
+          <h3><a href="https://gustra.net/controls/">Controls-audit</a></h3>
+          <p class="path">/controls</p>
+          <p>Checklist per knop en bediening van de app: alles afvinken dat werkt en een opmerking achterlaten bij wat niet klopt. Net als in de UX-audit kan je je naam achterlaten (die staat bij je reacties); met de naam "Philipz" kan de eigenaar reacties van anderen bewerken of verwijderen. <strong>Bestaansreden:</strong> elke knop in Gustra één voor één controleren — de broer van de UX-audit, maar puur op bediening.</p>
+        </div>
+        <a class="open" href="https://gustra.net/controls/">Openen</a>
+      </article>
+
+      <article class="site-card">
+        <div>
+          <h3><a href="https://gustra.net/security/">Security-gids</a></h3>
+          <p class="path">/security</p>
+          <p>Stap-voor-stap-handleiding om de Google Maps-, Places- en Gemini-sleutels van Gustra te beveiligen met restricties en quota. <strong>Bestaansreden:</strong> de schade beperken als een ingebakken API-sleutel ooit gelekt zou worden.</p>
+        </div>
+        <a class="open" href="https://gustra.net/security/">Openen</a>
+      </article>
+
+      <article class="site-card">
+        <div>
+          <h3><a href="https://gustra.net/compliance/">Compliance (HIG &amp; M3)</a></h3>
+          <p class="path">/compliance</p>
+          <p>De app beoordeeld als senior UI/UX-designer en mobile architect: een score per component op Apple HIG (iOS) en Material Design 3 (Android), met concrete verbeterpunten (verandering, impact op score, implementatiemoeilijkheid, platform), een test-scenario per onderdeel én een interactieve <strong>voor/na-visualisatie</strong> bij de vier aanbevolen fixes (dynamische kleur, back-titel, M3-switch, foto-drag). Per onderdeel kun je aangeven of het al <strong>fixed</strong> is — die status wordt op de server bewaard en is ook voor andere bezoekers zichtbaar (met naam, net als de audits; "Philipz" kan reacties van anderen verwijderen). <strong>Bestaansreden:</strong> systematisch bijhouden hoe dicht Gustra bij de platformstandaarden van iOS en Android zit.</p>
+        </div>
+        <a class="open" href="https://gustra.net/compliance/">Openen</a>
+      </article>
+
+      <article class="site-card">
+        <div>
+          <h3><a href="https://gustra.net/localization/">Lokalisatie</a></h3>
+          <p class="path">/localization</p>
+          <p>Vergelijkingstabel van alle vertalingen in de zes talen van Gustra (Nederlands, Engels, Frans, Spaans, Duits, Italiaans). <strong>Bestaansreden:</strong> in één oogopslag zien welke vertalingen kloppen en waar nog gaten zitten.</p>
+        </div>
+        <a class="open" href="https://gustra.net/localization/">Openen</a>
+      </article>
+    </section>
+
+    <section class="panel">
+      <h2 id="juridisch">Juridisch</h2>
+      <p class="section-meta">Documentatie voor gebruikers.</p>
+
+      <article class="site-card">
+        <div>
+          <h3><a href="https://gustra.net/privacy/">Privacybeleid</a></h3>
+          <p class="path">/privacy</p>
+          <p>Het privacybeleid van de Gustra-app: welke gegevens lokaal blijven, hoe delen werkt en wat er met foto's en back-ups gebeurt. <strong>Bestaansreden:</strong> wettelijk verplicht én de belofte van Gustra — “privé by default, delen als je kiest” — hard maken.</p>
+        </div>
+        <a class="open" href="https://gustra.net/privacy/">Openen</a>
+      </article>
+    </section>
+
+    <section class="panel">
+      <h2 id="archief">Archief</h2>
+      <p class="section-meta">Oudere pagina's die nog bestaan, maar niet meer actief onderhouden worden.</p>
+
+      <article class="site-card">
+        <div>
+          <h3><a href="https://gustra.net/webversion/">Webversie (oud)</a></h3>
+          <p class="path">/webversion</p>
+          <p>De vorige webexport van de app, inmiddels vervangen door de <a href="https://gustra.net/plan/#deploy-web">web-demo</a> (zie plan). <strong>Bestaansreden:</strong> alleen nog aanwezig als archief — nieuwe links wijzen naar de demo.</p>
+        </div>
+        <a class="open" href="https://gustra.net/webversion/">Openen</a>
+      </article>
+
+      <article class="site-card">
+        <div>
+          <h3><a href="https://gustra.net/mockups/reviews.html">UI-mockups</a></h3>
+          <p class="path">/mockups/reviews.html</p>
+          <p>Vroege designschetsen van schermen (reviews, kaart, passport) zoals ze ooit getekend waren. <strong>Bestaansreden:</strong> historisch referentiemateriaal voor hoe het ontwerp groeide.</p>
+        </div>
+        <a class="open" href="https://gustra.net/mockups/reviews.html">Openen</a>
+      </article>
+    </section>
+
+    <div class="excluded">
+      <strong>Niet opgenomen:</strong> de subsite <code>/adriaan</code> bestaat op gustra.net maar wordt hier bewust weggelaten.
+    </div>
+
+    <footer>
+      <a href="https://gustra.net/">Gustra</a> · overzicht van alle subsites · <a href="https://gustra.net/plan/">plan</a> · <a href="https://gustra.net/github/">github-log</a>
+    </footer>
+  </div>
+</body>
+</html>

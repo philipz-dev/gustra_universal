@@ -23,6 +23,7 @@ import { DatePickerModal } from '@/components/review/DatePickerModal';
 import { RevisitStatsCard } from '@/components/review/RevisitStatsCard';
 import { HouseNavHeader } from '@/components/ui/HouseNavHeader';
 import { HouseToolbarIconButton } from '@/components/ui/HouseToolbarIconButton';
+import { TabBarBottomFade } from '@/components/ui/TabBarBottomFade';
 import { PhotoSourceChooserModal } from '@/components/ui/PhotoSourceChooser';
 import { SerifText } from '@/components/ui/SerifText';
 import { StaticStarRating } from '@/components/ui/StarRating';
@@ -662,6 +663,8 @@ export default function ReviewFormScreen() {
           </Pressable>
         ) : null}
       </ScrollView>
+
+      <TabBarBottomFade />
 
       <PhotoSourceChooserModal
         visible={showPhotoSourceChooser}
