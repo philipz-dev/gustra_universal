@@ -283,7 +283,7 @@
     .ba-nav.dyn { background: linear-gradient(160deg, #7c6bb5, #4f3f86); }
     .ba-nav .ba-back { position: absolute; left: 3px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 2px; font-family: "DM Sans", sans-serif; font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.9); }
     .ba-chev { width: 17px; height: 17px; border-radius: 50%; background: rgba(255,255,255,0.16); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; }
-    .ba-tap { outline: 2px dashed var(--gold); outline-offset: 2px; border-radius: 6px; padding: 2px 5px 2px 1px; }
+    .ba-tap { outline: 2px dashed var(--gold); outline-offset: 2px; border-radius: 12px; }
     .ba-body { padding: 9px; display: flex; flex-direction: column; gap: 7px; }
     .ba-field { background: var(--bubble); border-radius: 9px; padding: 6px 8px; }
     .ba-field .l { font-size: 8px; font-weight: 700; color: var(--forest); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; }
@@ -366,8 +366,8 @@
       <div class="score-grid">
         <div class="score-card">
           <div class="os">iOS · Apple HIG</div>
-          <div class="num ios" id="scoreIos">6.5<span style="font-size:1.4rem">/10</span></div>
-          <p class="why" id="whyIos">Sterke platform-typo (SF + serif-hiërarchie), correcte touch-targets (44) en haptics. Puntenaftrek: geen navigatie-feedback bij de zwevende tabbar, rating-ontkenning via prullenbak is ambigu, en foto-herschikken gebruikt geen native iOS-reorder.</p>
+          <div class="num ios" id="scoreIos">6.8<span style="font-size:1.4rem">/10</span></div>
+          <p class="why" id="whyIos">Sterke platform-typo (SF + serif-hiërarchie), correcte touch-targets (44) en haptics. De back-hit-area is vergroot (44×44 tappable). Puntenaftrek: geen navigatie-feedback bij de zwevende tabbar, rating-ontkenning via prullenbak is ambigu, en foto-herschikken gebruikt geen native iOS-reorder.</p>
           <div class="scale">HIG: navigatie, touch targets, typografie, haptics, patronen</div>
         </div>
         <div class="score-card">
@@ -405,7 +405,7 @@
         </thead>
         <tbody>
           <tr><td>Tabbar</td><td>7</td><td>5</td><td>iOS: dicht bij HIG Tab Bar, haptische feedback. Android: geen M3 Navigation Bar met state layer / indicator.</td></tr>
-          <tr><td>Navigatiebalk</td><td>8</td><td>6.5</td><td>iOS: SF-symbolen, 44dp, correcte back-patroon. Android: geen M3 Top App Bar met dynamic color / scrolled-state.</td></tr>
+          <tr><td>Navigatiebalk</td><td>8.5</td><td>6.5</td><td>iOS: SF-symbolen, 44dp, correcte back-patroon — sinds de back-hit-area-fix is de hele 44×44-zone tappable (zonder 'Terug'-tekst). Android: geen M3 Top App Bar met dynamic color / scrolled-state.</td></tr>
           <tr><td>Feed-kaart</td><td>7</td><td>6</td><td>iOS: swipe-actions en favoriet-hart passen bij HIG. Android: ink-ripple, maar geen M3 Card met state layer / elevation per state.</td></tr>
           <tr><td>Herinneringsformulier</td><td>6</td><td>5.5</td><td>iOS: grote touch-targets, serif-hiërarchie. Android: geen M3-formuliercomponenten (Outlined Text Field etc.), geen dynamic color.</td></tr>
           <tr><td>Sterbeoordeling</td><td>7.5</td><td>5.5</td><td>iOS: half-ster scrub + haptics + a11y adjustable. Android: niet-M3 slider/rating component, geen state layer.</td></tr>
@@ -555,12 +555,13 @@
         title: "Back-knop past bij HIG, maar met kleine hit-area in tekst",
         what: "De back-knop is een 44dp-icon met chevron, goed voor HIG. Maar de pijl zelf is klein; de titel is niet aanklikbaar (HIG staat toe de titel te gebruiken om terug te navigeren in een stack).",
         component: "components/ui/HouseToolbarIconButton.tsx",
-        change: "Maak op iOS de titel van de stack-schermen (indien gewenst) aanklikbaar als terug-navigatie, of vergroot de hit-area van de chevron zodat de hele 44×44 ruimte telt.",
+        change: "Vergroot de hit-area van de chevron via hitSlop (bv. +12pt rondom) zodat de hele 44×44-ruimte telt. Voeg GEEN 'Terug'-tekst toe — die botst met de gecentreerde serif-titel.",
         impact: "Laag · +0,5",
         difficulty: "Laag",
         platform: "iOS",
         severity: "low",
-        test: "Tik op iOS op de back-chevron en op de titel; beide zouden terug moeten navigeren volgens HIG.",
+        test: "Tik op iOS binnen de 44×44-zone rond de back-chevron en controleer dat terug-navigeren werkt, zonder dat er tekst naast de titel verschijnt.",
+        fixed: true,
       },
       // ——— Feed-kaart ———
       {
@@ -719,6 +720,17 @@
 
     function itemById(id) { return DEFAULT_ITEMS.find((i) => i.id === id); }
 
+    /**
+     * Effectieve status van een item: eigen keuze (localStorage/server) wint
+     * altijd; zonder eigen keuze valt de default uit de item-data (bv. een
+     * fix die in de app al is doorgevoerd → direct "fixed").
+     */
+    function effectiveState(item) {
+      const own = state[item.id];
+      if (own && typeof own === "object") return own;
+      return item.fixed ? { fixed: true, open: false } : {};
+    }
+
     function persist() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ state, updatedAt: new Date().toISOString() }));
     }
@@ -840,11 +852,17 @@
 
     function renderStats() {
       const total = DEFAULT_ITEMS.length;
-      const fixed = DEFAULT_ITEMS.filter((i) => state[i.id]?.fixed === true || state[i.id]?.fixed === "true").length;
+      const fixed = DEFAULT_ITEMS.filter((i) => {
+        const st = effectiveState(i);
+        return st.fixed === true || st.fixed === "true";
+      }).length;
       document.getElementById("countLabel")?.setAttribute("hidden", "");
       for (const cat of CATS) {
         const items = DEFAULT_ITEMS.filter((i) => i.cat === cat.id);
-        const fixedCat = items.filter((i) => state[i.id]?.fixed === true || state[i.id]?.fixed === "true").length;
+        const fixedCat = items.filter((i) => {
+          const st = effectiveState(i);
+          return st.fixed === true || st.fixed === "true";
+        }).length;
         const el = document.getElementById(`count-${cat.id}`);
         if (el) el.textContent = `${fixedCat} / ${items.length} fixed`;
       }
@@ -887,14 +905,14 @@
           ],
         },
         after: {
-          nav: { label: "Herinnering bewerken", back: "title" },
+          nav: { label: "Herinnering bewerken", back: "hit" },
           body: [
             { type: "field", label: "Titel", value: "Oma & opa" },
             { type: "field", label: "Datum", value: "12 aug 2026" },
           ],
         },
         caption:
-          "Voor: alleen het kleine chevron-icoontje is tappable. Na: de gouden stippellijn is het tappable-gebied — chevron + “Terug”-titel (44pt+ per HIG).",
+          "Voor: alleen het kleine chevron-icoontje is tappable. Na: de hele zone rond de chevron is aanklikbaar (goudomrand, 44×44pt+) — zonder “Terug”-tekst, zodat de gecentreerde serif-titel intact blijft.",
       }),
 
       "switch-m3-native": () => ({
@@ -962,10 +980,11 @@
         b.className = "ba-back";
         b.innerHTML = '<span class="ba-chev">‹</span>';
         nav.appendChild(b);
-      } else if (spec.nav.back === "title") {
+      } else if (spec.nav.back === "hit") {
         const b = document.createElement("span");
         b.className = "ba-back ba-tap";
-        b.innerHTML = '<span class="ba-chev">‹</span><span>Terug</span>';
+        b.style.padding = "5px 7px 5px 4px";
+        b.innerHTML = '<span class="ba-chev">‹</span>';
         nav.appendChild(b);
       }
       const title = document.createElement("span");
@@ -1084,7 +1103,7 @@
         list.innerHTML = "";
         const items = DEFAULT_ITEMS.filter((i) => i.cat === cat.id);
         items.forEach((item, idx) => {
-          const st = state[item.id] || {};
+          const st = effectiveState(item);
           const li = document.createElement("li");
           li.className = "task";
 

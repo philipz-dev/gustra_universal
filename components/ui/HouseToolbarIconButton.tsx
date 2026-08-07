@@ -1,7 +1,7 @@
 import type { ComponentProps } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Platform, Pressable, StyleSheet } from 'react-native';
+import { Platform, Pressable, StyleSheet, type Insets } from 'react-native';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 
 import { GustraColors } from '@/constants/Colors';
@@ -25,6 +25,12 @@ type HouseToolbarIconButtonProps = {
   /** Orange when filters/sort are active. */
   emphasized?: boolean;
   disabled?: boolean;
+  /**
+   * Extra tappable area around the 44×44 hit box (HIG / M3 recommend a
+   * generously padded target; used e.g. for the back chevron so the whole
+   * zone is tappable without adding visible text).
+   */
+  hitSlop?: number | Insets;
 };
 
 /**
@@ -41,6 +47,7 @@ export function HouseToolbarIconButton({
   onPress,
   emphasized = false,
   disabled = false,
+  hitSlop = 4,
 }: HouseToolbarIconButtonProps) {
   const color = disabled
     ? 'rgba(255, 255, 255, 0.35)'
@@ -72,7 +79,7 @@ export function HouseToolbarIconButton({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       disabled={disabled}
-      hitSlop={4}
+      hitSlop={hitSlop}
       onPress={onPress}
       // Default Android ripple flashes on the green nav bar (reads as a spring).
       android_ripple={null}

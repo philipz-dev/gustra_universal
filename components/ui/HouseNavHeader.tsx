@@ -86,6 +86,10 @@ export function HouseNavHeader({
         size={28}
         accessibilityLabel="Back"
         onPress={onBack}
+        // Larger tap zone than the 44×44 box: the chevron stays a plain icon
+        // (no "Back" text that would crowd the centered serif title), while
+        // the whole surrounding area still triggers navigation (HIG 44pt+).
+        hitSlop={12}
       />
     ) : null);
 
